@@ -86,6 +86,35 @@ export const rocks = [
 ];
 for (const r of rocks) { const g = heightAt(r.x, r.z); r.top = g + r.h; cyl(r.x, r.z, r.r, g - 2, r.top, { kind: 'rock' }); }
 
+// Ruines anciennes (colonnes, arche, murets) : solides, on peut grimper dessus
+export const ruins = [];
+{
+  const pillar = (x, z, h, broken) => {
+    const g = heightAt(x, z);
+    const r = { type: 'pillar', x, z, y: g, h, broken: !!broken };
+    ruins.push(r);
+    cyl(x, z, 0.6, g - 1, g + h, { kind: 'rock' });
+  };
+  // Arche d'entrée sur le chemin du départ
+  pillar(-2.9, 34, 4.2); pillar(2.9, 34, 4.2);
+  ruins.push({ type: 'arch', x: 0, z: 34, y: heightAt(0, 34) + 4.2, span: 5.8 });
+  // Colonnes le long du chemin du nord
+  pillar(-3.6, -15, 3.6); pillar(3.6, -19, 2.0, true); pillar(-3.6, -26, 1.3, true); pillar(3.6, -31, 3.8);
+  // Cercle de colonnes autour du piédestal (ouvert côté chemin)
+  for (const [a, h, b] of [[0.4, 3.4], [1.0 + Math.PI, 2.2, true], [Math.PI * 0.85, 3.6], [Math.PI * 1.3, 1.5, true], [Math.PI * 1.65, 3.4], [-0.2, 2.6, true]]) {
+    pillar(SPOTS.pedestal.x + Math.cos(a) * 6.5, SPOTS.pedestal.z + Math.sin(a) * 6.5, h, b);
+  }
+  // Murets écroulés
+  const wall = (x, z, w, d, h) => {
+    const g = heightAt(x, z);
+    ruins.push({ type: 'wall', x, z, y: g, w, d, h });
+    box(x, z, w, d, g - 1, g + h, { kind: 'rock' });
+  };
+  wall(-15, 19, 5, 0.9, 1.5);
+  wall(17, 22, 0.9, 4.5, 2.1);
+  wall(-20, -14, 0.9, 4, 1.2);
+}
+
 // Ascenseur vers le plateau (diagonale sud-ouest, à 15 du centre) + passerelle
 const DIAG = Math.SQRT1_2;
 export const ELEVATOR = { x: SPOTS.plateau.x - 15 * DIAG, z: SPOTS.plateau.z + 15 * DIAG, w: 3, d: 3 };

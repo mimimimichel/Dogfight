@@ -76,6 +76,8 @@ class Adventure {
     }
     this.bindInput();
     this.resize();
+    this.makePortraits();
+    this.buildMinimap();
     this.updateHud();
 
     window.__adv = this; // accès pour les tests
@@ -109,11 +111,24 @@ class Adventure {
     root.innerHTML = `
       <canvas id="adv-canvas"></canvas>
       <div class="adv-hud">
-        <div class="adv-hearts"></div>
-        <div class="adv-counts">
-          <div class="adv-count"><img src="${ICONS.bone}" alt=""><span id="adv-bones">0</span><small>/100</small></div>
-          <div class="adv-count"><img src="${ICONS.medal}" alt=""><span id="adv-medals">0</span><small>/5</small></div>
-          <div class="adv-count adv-balls hidden"><img src="${ICONS.ball}" alt=""><span id="adv-balls">0</span><small>/5</small></div>
+        <div class="adv-party">
+          <div class="adv-portrait main"><img class="p-ainu" alt=""></div>
+          <div class="adv-party-info">
+            <div class="adv-name">Ainu <small>&amp; Matcha</small></div>
+            <div class="adv-hearts"></div>
+          </div>
+          <div class="adv-portrait small"><img class="p-matcha" alt=""></div>
+        </div>
+        <div class="adv-right">
+          <div class="adv-counts">
+            <div class="adv-count"><img src="${ICONS.bone}" alt=""><span id="adv-bones">0</span><small>/100</small></div>
+            <div class="adv-count"><img src="${ICONS.medal}" alt=""><span id="adv-medals">0</span><small>/5</small></div>
+            <div class="adv-count adv-balls hidden"><img src="${ICONS.ball}" alt=""><span id="adv-balls">0</span><small>/5</small></div>
+          </div>
+          <div class="adv-mapcol">
+            <div class="adv-map"><canvas width="160" height="160"></canvas><span class="adv-north">N</span></div>
+            <div class="adv-quest"><b>Quête</b><span></span></div>
+          </div>
         </div>
       </div>
       <div class="adv-banner hidden"></div>
@@ -124,10 +139,10 @@ class Adventure {
         <div class="adv-stick-zone"></div>
         <div class="adv-cam-zone"></div>
         <div class="adv-stick"><div class="adv-knob"></div></div>
-        <button class="adv-btn jump" data-btn="jump">SAUT</button>
-        <button class="adv-btn attack" data-btn="attack">ATTAQUE</button>
-        <button class="adv-btn dash" data-btn="dash">CHARGE</button>
-        <button class="adv-btn talk hidden" data-btn="talk">PARLER</button>
+        <button class="adv-btn jump" data-btn="jump"><svg viewBox="0 0 48 48"><path d="M24 8 12 22h8v14h8V22h8z" fill="currentColor"/><rect x="14" y="39" width="20" height="4" rx="2" fill="currentColor" opacity=".6"/></svg><span>Saut</span></button>
+        <button class="adv-btn attack" data-btn="attack"><svg viewBox="0 0 48 48" fill="currentColor"><ellipse cx="24" cy="31" rx="9" ry="8"/><ellipse cx="12" cy="20" rx="4" ry="5"/><ellipse cx="19" cy="13" rx="4" ry="5"/><ellipse cx="29" cy="13" rx="4" ry="5"/><ellipse cx="36" cy="20" rx="4" ry="5"/></svg><span>Attaque</span></button>
+        <button class="adv-btn dash" data-btn="dash"><svg viewBox="0 0 48 48" fill="currentColor"><path d="M10 12h6l10 12-10 12h-6l10-12z"/><path d="M24 12h6l10 12-10 12h-6l10-12z"/></svg><span>Charge</span></button>
+        <button class="adv-btn talk hidden" data-btn="talk"><svg viewBox="0 0 48 48" fill="currentColor"><path d="M8 10h32a4 4 0 0 1 4 4v16a4 4 0 0 1-4 4H22l-9 8v-8H8a4 4 0 0 1-4-4V14a4 4 0 0 1 4-4z"/></svg><span>Parler</span></button>
       </div>
       <div class="adv-overlay hidden"></div>
       <div class="adv-fade"></div>`;
@@ -151,6 +166,10 @@ class Adventure {
       stick: root.querySelector('.adv-stick'),
       knob: root.querySelector('.adv-knob'),
       talkBtn: root.querySelector('.adv-btn.talk'),
+      map: root.querySelector('.adv-map canvas'),
+      quest: root.querySelector('.adv-quest span'),
+      pAinu: root.querySelector('.p-ainu'),
+      pMatcha: root.querySelector('.p-matcha'),
     };
     root.querySelector('.adv-pause').addEventListener('click', () => this.togglePause());
   }
@@ -163,6 +182,75 @@ class Adventure {
     this.dom.ballsBox.classList.toggle('hidden', !(s.balls.length > 0 && !s.medals.includes('m_balls')));
     const hp = this.player ? this.player.hearts : MAX_HEARTS;
     this.dom.hearts.innerHTML = Array.from({ length: MAX_HEARTS }, (_, i) => `<img src="${i < hp ? ICONS.heart : ICONS.heartEmpty}" alt="">`).join('');
+    let q;
+    if (!s.intro) q = 'Parle à Mamie Labrador';
+    else if (this.puppy && this.puppy.state === 'follow') q = 'Ramène Biscotte à Mamie';
+    else if (s.medals.length < 5) q = `Trouve les Médailles Patounes (${s.medals.length}/5)`;
+    else q = 'Tu as tout trouvé, bravo !';
+    this.dom.quest.textContent = q;
+  }
+
+  /** Portraits ronds d'Ainu et de Matcha, rendus une fois depuis leurs modèles 3D. */
+  makePortraits() {
+    const r = this.renderer, cv = r.domElement;
+    const sc = new THREE.Scene();
+    sc.background = new THREE.Color(0x9ad4ea);
+    sc.add(new THREE.HemisphereLight(0xffffff, 0x8a6a4a, 1.4));
+    const l = new THREE.DirectionalLight(0xfff0d8, 2.4); l.position.set(2, 3, 4); sc.add(l);
+    const duo = M.buildDuo(); sc.add(duo);
+    duo.updateMatrixWorld(true);
+    const shot = (target, dist, side) => {
+      const p = new THREE.Vector3(); target.getWorldPosition(p);
+      const cam = new THREE.PerspectiveCamera(30, cv.width / cv.height, 0.05, 50);
+      cam.position.set(p.x + side, p.y + 0.05, p.z + dist); cam.lookAt(p.x, p.y - 0.02, p.z);
+      r.render(sc, cam);
+      const s = Math.min(cv.width, cv.height) * 0.9;
+      const c = document.createElement('canvas'); c.width = c.height = 160;
+      c.getContext('2d').drawImage(cv, (cv.width - s) / 2, (cv.height - s) / 2, s, s, 0, 0, 160, 160);
+      return c.toDataURL('image/jpeg', 0.85);
+    };
+    try {
+      this.dom.pAinu.src = shot(duo.userData.head, 2.1, 0.75);
+      duo.userData.head.visible = false;
+      this.dom.pMatcha.src = shot(duo.userData.mhead, 1.0, 0.35);
+    } catch (e) { /* pas de portrait : pas grave */ }
+    sc.traverse(o => { if (o.geometry) o.geometry.dispose(); });
+  }
+
+  /** Mini-carte : relief peint une fois, puis repères mis à jour en jeu. */
+  buildMinimap() {
+    const N = 160, base = document.createElement('canvas'); base.width = base.height = N;
+    const x = base.getContext('2d'), img = x.createImageData(N, N);
+    const R = 75; // demi-côté couvert (unités du monde)
+    for (let j = 0; j < N; j++) for (let i = 0; i < N; i++) {
+      const wx = (i / N) * 2 * R - R, wz = (j / N) * 2 * R - R, h = L.heightAt(wx, wz);
+      let c;
+      if (h < -1.5) c = [38, 120, 190]; else if (h < 0) c = [70, 170, 210]; else if (h < 1) c = [236, 214, 160];
+      else if (h > 9) c = [150, 190, 110]; else c = [96 + h * 4, 170 + h * 3, 70];
+      if (W.onPath(wx, wz) && h > 0) c = [214, 196, 150];
+      const k = (j * N + i) * 4; img.data[k] = c[0]; img.data[k + 1] = c[1]; img.data[k + 2] = c[2]; img.data[k + 3] = 255;
+    }
+    x.putImageData(img, 0, 0);
+    x.fillStyle = 'rgba(40,90,40,0.55)';
+    for (const t of L.trees) { x.beginPath(); x.arc((t.x + R) / (2 * R) * N, (t.z + R) / (2 * R) * N, 2.4, 0, 7); x.fill(); }
+    x.fillStyle = '#ece6da';
+    for (const ru of L.ruins) if (ru.type !== 'arch') x.fillRect((ru.x + R) / (2 * R) * N - 1.5, (ru.z + R) / (2 * R) * N - 1.5, 3, 3);
+    this.mapBase = base; this.mapR = R; this.mapT = 0;
+  }
+
+  drawMinimap() {
+    const c = this.dom.map, x = c.getContext('2d'), N = c.width, R = this.mapR;
+    const P = (wx, wz) => [(wx + R) / (2 * R) * N, (wz + R) / (2 * R) * N];
+    x.drawImage(this.mapBase, 0, 0);
+    const dot = (wx, wz, col, rad) => { const [px, py] = P(wx, wz); x.fillStyle = '#3a2410'; x.beginPath(); x.arc(px, py, rad + 1.5, 0, 7); x.fill(); x.fillStyle = col; x.beginPath(); x.arc(px, py, rad, 0, 7); x.fill(); };
+    for (const m of this.medals) if (m.mesh.visible) dot(m.def.x, m.def.z, '#ffd23a', 4);
+    dot(L.npcs.mamie.x, L.npcs.mamie.z, '#ff8a5a', 3.5);
+    if (this.puppy.state !== 'home') dot(this.puppy.pos.x, this.puppy.pos.z, '#8ad0ff', 3.5);
+    const [px, py] = P(this.player.pos.x, this.player.pos.z);
+    x.save(); x.translate(px, py); x.rotate(-this.player.yaw + Math.PI);
+    x.fillStyle = '#20e0e0'; x.strokeStyle = '#0a3040'; x.lineWidth = 2;
+    x.beginPath(); x.moveTo(0, -9); x.lineTo(6.5, 7); x.lineTo(0, 3.5); x.lineTo(-6.5, 7); x.closePath(); x.stroke(); x.fill();
+    x.restore();
   }
 
   banner(text, sub, ms) {
@@ -249,7 +337,8 @@ class Adventure {
       if (!cache.has(m)) {
         const l = new THREE.MeshLambertMaterial({
           color: m.color, map: m.map, vertexColors: m.vertexColors, emissive: m.emissive, emissiveIntensity: m.emissiveIntensity,
-          side: m.side, transparent: m.transparent, opacity: m.opacity,
+          side: m.side, transparent: m.transparent, opacity: m.opacity, alphaTest: m.alphaTest,
+          polygonOffset: m.polygonOffset, polygonOffsetFactor: m.polygonOffsetFactor, polygonOffsetUnits: m.polygonOffsetUnits,
         });
         if (m.onBeforeCompile) l.onBeforeCompile = m.onBeforeCompile;
         cache.set(m, l);
@@ -321,7 +410,7 @@ class Adventure {
     }
     const branchTop = M.mat(0x9a6a3c, { roughness: 0.9 });
     const leafMat = M.mat(0x58b440, { roughness: 0.85 });
-    const leafGeo = new THREE.IcosahedronGeometry(1, 2);
+    const leafGeo = W.leafClusterGeo(this.lite ? 10 : 16);
     for (const s of L.treeSteps) {
       // plate-forme ronde (même forme que la collision : rayon 1.5)
       const pad = new THREE.Mesh(new THREE.CylinderGeometry(1.5, 1.35, 0.5, 28), branchTop);
@@ -334,7 +423,8 @@ class Adventure {
       arm.rotation.set(0, -s.a, 0); arm.rotateZ(Math.PI / 2 + 0.35);
       arm.castShadow = true;
       sc.add(arm);
-      const tuft = new THREE.Mesh(leafGeo, leafMat);
+      const tuft = new THREE.Mesh(leafGeo, W.leafMaterial());
+      tuft.customDepthMaterial = W.leafDepthMaterial();
       tuft.scale.setScalar(0.75);
       tuft.position.set(s.x * 1.35, s.top + 0.15, s.z * 1.35);
       tuft.castShadow = true;
@@ -353,7 +443,8 @@ class Adventure {
       const a = (i / 7) * Math.PI * 2 + 0.4;
       crown.push([Math.cos(a) * 6.6, L.TREE_TOP - 7 - (i % 3) * 3, Math.sin(a) * 6.6, 1.8]);
     }
-    const crownI = new THREE.InstancedMesh(leafGeo, M.mat(0xffffff, { roughness: 0.85 }), crown.length);
+    const crownI = new THREE.InstancedMesh(leafGeo, W.leafMaterial(), crown.length);
+    crownI.customDepthMaterial = W.leafDepthMaterial();
     const cc = new THREE.Color();
     crown.forEach(([x, y, z, s], i) => {
       m4.compose(v.set(x, y, z), q.setFromEuler(e.set(i, i * 2, 0)), sv.set(s, s * 0.85, s));
@@ -515,7 +606,11 @@ class Adventure {
     sc.add(postI, railI);
 
     // Nuages et papillons
-    this.clouds = W.buildClouds(sc);
+    this.clouds = W.buildPaintedClouds(sc);
+    this.vista = W.buildVista(sc, this.fallTex);
+    W.buildRuins(sc);
+    W.buildPaths(sc);
+    this.crystals = W.buildCrystals(sc);
     this.butterflies = W.buildButterflies(sc);
 
     // Panneaux
@@ -564,6 +659,7 @@ class Adventure {
   // Entités
   // -------------------------------------------------------------------------
   buildEntities() {
+    M.FUR.layers = this.lite ? 8 : 14; // couches de fourrure
     const sc = this.scene;
     const s = this.save;
     // Joueur
@@ -1566,7 +1662,9 @@ class Adventure {
     this.fallTex.offset.y = (t * 1.4) % 1;
     this.water.material.uniforms.uTime.value = t;
     this.wind.value = t;
-    for (const c of this.clouds) { const u = c.userData, a = u.a + t * 0.006; c.position.set(Math.cos(a) * u.r, u.y, Math.sin(a) * u.r); }
+    for (const c of this.clouds) { const u = c.userData, a = u.a + t * 0.004; c.position.set(Math.cos(a) * u.r, u.y, Math.sin(a) * u.r); }
+    this.vista.isles.forEach((isl, i) => { isl.position.y = isl.userData.y0 + Math.sin(t * 0.35 + i * 1.7) * 1.6; });
+    for (const [i, c] of this.crystals.entries()) c.children[c.children.length - 1].material.opacity = 0.4 + Math.sin(t * 2 + i) * 0.15;
     W.animateButterflies(this.butterflies, t);
     const fp = this.flag.geometry.attributes.position;
     for (let i = 0; i < fp.count; i++) {
@@ -1613,6 +1711,7 @@ class Adventure {
     this.camera.position.copy(this.camPos);
     this.camera.lookAt(this.camTarget);
 
+    if ((this.mapT = (this.mapT || 0) + 1) % 4 === 0) this.drawMinimap();
     this.renderer.render(this.scene, this.camera);
   }
 

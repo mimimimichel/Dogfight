@@ -118,103 +118,194 @@ function addEyes(k, o) {
 }
 
 // ---------------------------------------------------------------------------
-// Le duo : Ainu (eurasier roux) avec Matcha (pinscher) sur le dos
+// Fourrure : coques successives (« shells ») dessinées en une seule fois par
+// instanciation. Chaque couche est un peu plus loin de la peau ; un bruit 3D
+// découpe les mèches, qui s'affinent vers la pointe et se couchent vers l'arrière.
+// ---------------------------------------------------------------------------
+export const FUR = { layers: 14 };
+const FUR_VERT = `
+      #include <begin_vertex>
+      vLayer = aLayer; vBase = position;
+      float fh = aLayer * uLen;
+      transformed += normalize(objectNormal) * fh + uComb * fh * aLayer;`;
+const FUR_FRAG_HEAD = `
+uniform float uDen;
+varying float vLayer;
+varying vec3 vBase;
+float fhash(vec3 p) { p = fract(p * 0.3183099 + 0.1); p *= 17.0; return fract(p.x * p.y * p.z * (p.x + p.y + p.z)); }
+float fnoise(vec3 x) {
+  vec3 i = floor(x), f = fract(x); f = f * f * (3.0 - 2.0 * f);
+  return mix(mix(mix(fhash(i), fhash(i + vec3(1,0,0)), f.x), mix(fhash(i + vec3(0,1,0)), fhash(i + vec3(1,1,0)), f.x), f.y),
+             mix(mix(fhash(i + vec3(0,0,1)), fhash(i + vec3(1,0,1)), f.x), mix(fhash(i + vec3(0,1,1)), fhash(i + vec3(1,1,1)), f.x), f.y), f.z);
+}
+`;
+const FUR_FRAG = `
+      #include <color_fragment>
+      if (vLayer > 0.0) {
+        vec3 q = vBase * uDen;
+        float n = fnoise(q) * 0.55 + fnoise(q * 2.9 + 7.0) * 0.45;
+        if (n < 0.18 + vLayer * 0.78) discard;
+      }
+      diffuseColor.rgb *= mix(0.55, 1.08, sqrt(vLayer));`;
+
+/** Maillage à fourrure. opts : length (longueur des poils), density, comb (direction du peigné). */
+export function furMesh(geo, opts) {
+  const layers = Math.max(3, Math.round(FUR.layers * (opts.layerScale || 1)));
+  const g = geo.index ? geo.toNonIndexed() : geo;
+  const lay = new Float32Array(layers);
+  for (let i = 0; i < layers; i++) lay[i] = i / layers;
+  g.setAttribute('aLayer', new THREE.InstancedBufferAttribute(lay, 1));
+  const m = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.92 });
+  const u = {
+    uLen: { value: opts.length }, uDen: { value: opts.density || 55 },
+    uComb: { value: new THREE.Vector3(...(opts.comb || [0, -0.35, -0.5])) },
+  };
+  m.onBeforeCompile = (sh) => {
+    Object.assign(sh.uniforms, u);
+    sh.vertexShader = 'attribute float aLayer;\nuniform float uLen;\nuniform vec3 uComb;\nvarying float vLayer;\nvarying vec3 vBase;\n' + sh.vertexShader.replace('#include <begin_vertex>', FUR_VERT);
+    sh.fragmentShader = FUR_FRAG_HEAD + sh.fragmentShader.replace('#include <color_fragment>', FUR_FRAG);
+  };
+  m.customProgramCacheKey = () => 'fur';
+  const mesh = new THREE.InstancedMesh(g, m, layers);
+  const id = new THREE.Matrix4();
+  for (let i = 0; i < layers; i++) mesh.setMatrixAt(i, id);
+  mesh.castShadow = true;
+  mesh.receiveShadow = true;
+  return mesh;
+}
+
+/** Kit à fourrure : comme Kit, mais le résultat est couvert de poils. */
+class FurKit extends Kit {
+  build(opts) { return furMesh(mergeGeos(this.list), opts); }
+}
+/** Ellipsoïde lisse (rayons rx, ry, rz). */
+const E = (rx, ry, rz, seg) => { const g = new THREE.SphereGeometry(1, seg || 22, Math.round((seg || 22) * 0.7)); g.scale(rx, ry, rz); return g; };
+
+// ---------------------------------------------------------------------------
+// Le duo : Ainu (eurasier roux, tout en fourrure) avec Matcha (pinscher nain)
+// debout sur son dos, sur une selle avec sacoches.
 // Repère : avant = +z, pattes au sol en y = 0
 // ---------------------------------------------------------------------------
 export function buildDuo() {
   const root = new THREE.Group();
   const ainu = new THREE.Group();
   root.add(ainu);
-  const OR = 0xe0702e, OR_D = 0xc85a22, CR = 0xfbe6c8, PINK = 0xf6a0a8, DK = 0x2a1810;
+  const OR = 0xd8642a, OR_L = 0xf08a44, CR = 0xf6dcb4, DK = 0x1a100c;
+  // pelage roux plus clair sur le dessus, crème sous le ventre et sur le poitrail
+  const coat = (cream) => (x, y, z, c) => {
+    mix(c, OR, OR_L, sstep(0.0, 0.3, y) * 0.6);
+    const k = cream(x, y, z);
+    if (k > 0) c.lerp(_c2.set(CR), k);
+  };
 
-  // Corps : haricot lisse, ventre et poitrail crème
-  const bodyK = new Kit();
-  // (capsule couchée : y local = avant, z local = bas)
-  bodyK.add(new THREE.CapsuleGeometry(0.42, 0.36, 10, 24), (x, y, z, c) => mix(c, OR, CR, Math.max(sstep(0.12, 0.32, z), sstep(0.2, 0.45, y) * sstep(-0.1, 0.1, z))), { y: 0.82, rx: Math.PI / 2, sx: 0.95 });
-  // collerette (le pelage épais du cou), crème devant
-  bodyK.add(S(0.44, 28, 20), (x, y, z, c) => mix(c, OR, CR, sstep(0.1, 0.35, z) * sstep(0.15, -0.15, y)), { y: 1.08, z: 0.45, sx: 1.05, sy: 0.95 });
-  // bandana bleu noué au cou
-  bodyK.add(new THREE.ConeGeometry(0.3, 0.36, 20), 0x2d6ae0, { y: 0.98, z: 0.8, rx: Math.PI + 0.25, sz: 0.35 });
-  bodyK.add(new THREE.TorusGeometry(0.37, 0.065, 10, 32), 0x2d6ae0, { y: 1.12, z: 0.5, rx: Math.PI / 2 - 0.3 });
-  const body = bodyK.build();
+  // Corps : torse, poitrail, croupe et collerette (fusionnés, couverts de poils)
+  const bodyK = new FurKit();
+  bodyK.add(E(0.34, 0.36, 0.58), coat((x, y) => sstep(-0.14, -0.28, y)), { y: 0.98, z: -0.02 });
+  bodyK.add(E(0.33, 0.38, 0.34), coat((x, y, z) => sstep(0.12, 0.3, z) * sstep(0.15, -0.12, y)), { y: 1.0, z: 0.42 });
+  bodyK.add(E(0.35, 0.36, 0.34), coat((x, y) => sstep(-0.14, -0.28, y)), { y: 0.97, z: -0.42 });
+  // collerette épaisse autour du cou
+  bodyK.add(E(0.36, 0.38, 0.32), coat((x, y, z) => sstep(0.08, 0.26, z) * sstep(0.12, -0.12, y)), { y: 1.28, z: 0.6, rx: -0.5 });
+  const body = bodyK.build({ length: 0.085, density: 48, comb: [0, -0.25, -0.65] });
   ainu.add(body);
 
-  // Tête : grosse et ronde, masque crème en bas du visage
-  const head = new THREE.Group(); at(head, 0, 1.52, 0.62); ainu.add(head);
-  const headK = new Kit();
-  headK.add(S(0.55, 32, 24), (x, y, z, c) => mix(c, OR, CR, sstep(0.1, 0.35, z) * sstep(0.02, -0.18, y + Math.abs(x) * 0.25)), { sx: 1.08, sy: 0.95, sz: 0.95 });
-  // joues douces (fourrure crème sur les côtés)
-  headK.add(S(0.19, 20, 16), CR, { y: -0.15, z: 0.44, sx: 1.15, sy: 0.78, sz: 0.8 }); // museau court
-  headK.add(S(0.075, 12, 10), 0xf06a80, { y: -0.3, z: 0.52, sx: 1, sy: 0.45, sz: 0.9 });  // petite langue
+  // Harnais, couverture et sacoches (cuir)
+  const leather = new Kit();
+  leather.add(new THREE.TorusGeometry(0.4, 0.035, 8, 30), 0x6a3a1c, { y: 1.02, z: 0.3, sx: 1, sy: 1.08 });
+  leather.add(new THREE.TorusGeometry(0.42, 0.035, 8, 30), 0x6a3a1c, { y: 0.98, z: -0.25, sx: 0.95, sy: 1.02 });
+  leather.add(new THREE.TorusGeometry(0.36, 0.035, 8, 30), 0x6a3a1c, { y: 1.18, z: 0.62, rx: Math.PI / 2 - 0.9 });
+  // couverture turquoise bordée d'or + selle en cuir
+  leather.add(new THREE.SphereGeometry(1, 24, 10, 0, Math.PI * 2, 0, 0.75), (x, y, z, c) => c.set(y < 0.8 ? 0xe0b040 : 0x1e7a78), { y: 0.97, z: -0.05, sx: 0.43, sy: 0.43, sz: 0.5 });
+  leather.add(E(0.2, 0.06, 0.26), 0x7a4220, { y: 1.38, z: -0.06 });
   for (const sx of [-1, 1]) {
-    headK.add(earGeo(0.19, 0.3, 0.09, 1), (x, y, z, c) => c.set(y > 0.2 ? OR_D : OR), { x: sx * 0.33, y: 0.42, z: -0.02, rz: -sx * 0.32 });
-    headK.add(earGeo(0.1, 0.2, 0.04, 1), PINK, { x: sx * 0.31, y: 0.42, z: 0.05, rz: -sx * 0.32 });
-    headK.add(S(0.085, 14, 10), PINK, { x: sx * 0.36, y: -0.1, z: 0.39, sx: 1.2, sy: 0.6, sz: 0.4, ry: sx * 0.75 }); // joues roses
+    leather.add(new THREE.BoxGeometry(0.14, 0.3, 0.34), 0x8a4e24, { x: sx * 0.42, y: 0.88, z: -0.08 });
+    leather.add(new THREE.BoxGeometry(0.16, 0.08, 0.36), 0x6a3a1c, { x: sx * 0.43, y: 1.04, z: -0.08, rz: sx * 0.25 });
+    leather.add(new THREE.CylinderGeometry(0.025, 0.025, 0.02, 10), 0xe0b040, { x: sx * 0.5, y: 0.95, z: -0.08, rz: Math.PI / 2 });
   }
-  head.add(headK.build());
+  const gear = leather.build();
+  ainu.add(gear);
+
+  // Tête : crâne rond, joues duveteuses, museau fin de spitz, oreilles dressées
+  const head = new THREE.Group(); at(head, 0, 1.58, 0.82); ainu.add(head);
+  const headK = new FurKit();
+  const face = (x, y, z, c) => { mix(c, OR, OR_L, sstep(0, 0.25, y) * 0.5); c.lerp(_c2.set(CR), sstep(0.12, 0.28, z) * sstep(-0.02, -0.12, y)); };
+  headK.add(E(0.29, 0.27, 0.28), face, { z: 0.0 });
+  for (const sx of [-1, 1]) headK.add(E(0.12, 0.13, 0.13), (x, y, z, c) => mix(c, OR, CR, sstep(-0.02, -0.12, y)), { x: sx * 0.17, y: -0.11, z: 0.0 });
+  headK.add(E(0.13, 0.11, 0.2), (x, y, z, c) => mix(c, OR_L, CR, sstep(0.0, -0.06, y) + sstep(0.08, 0.18, z) * 0.6), { y: -0.08, z: 0.27 });
+  for (const sx of [-1, 1]) headK.add(earGeo(0.12, 0.24, 0.05, 1), (x, y, z, c) => c.set(OR), { x: sx * 0.15, y: 0.26, z: -0.04, rz: -sx * 0.2 });
+  head.add(headK.build({ length: 0.03, density: 70, comb: [0, -0.2, -0.6] }));
   const faceK = new Kit();
-  addEyes(faceK, { x: 0.2, y: 0.04, z: 0.47, r: 0.105, ry: 0.4 });
-  faceK.add(S(0.075, 14, 12), DK, { y: -0.04, z: 0.66, sx: 1.35, sy: 0.9, sz: 0.9 }); // truffe
+  for (const sx of [-1, 1]) {
+    faceK.add(earGeo(0.07, 0.16, 0.02, 1), 0xe89a80, { x: sx * 0.145, y: 0.26, z: 0.0, rz: -sx * 0.2 });
+    // yeux en amande, brun foncé, avec reflet
+    faceK.add(S(0.042, 14, 10), 0x2a1408, { x: sx * 0.12, y: 0.03, z: 0.245, sx: 1.25, sy: 0.85, sz: 0.6, ry: sx * 0.45 });
+    faceK.add(S(0.013, 8, 6), 0xffffff, { x: sx * 0.12 + 0.012, y: 0.05, z: 0.272, ry: sx * 0.45 });
+  }
+  faceK.add(S(0.05, 14, 10), DK, { y: -0.05, z: 0.465, sx: 1.3, sy: 0.85 }); // truffe
+  faceK.add(new THREE.TorusGeometry(0.07, 0.012, 6, 16, Math.PI), 0x3a1a10, { y: -0.13, z: 0.4, rx: Math.PI / 2 + 0.3, rz: Math.PI, sy: 0.6 }); // sourire
+  faceK.add(E(0.05, 0.02, 0.06), 0xf06a80, { y: -0.17, z: 0.4 }); // langue
   head.add(faceK.build(gloss()));
 
-  // Queue en panache enroulé (pivot à la base ; sert d'hélice pour planer)
-  const tail = new THREE.Group(); at(tail, 0, 1.15, -0.6); ainu.add(tail);
-  const tt = taperTube([[0, 0, 0], [0, 0.18, -0.12], [0, 0.38, -0.1], [0, 0.48, 0.05], [0, 0.42, 0.2]], (t) => 0.08 + Math.sin(Math.PI * Math.min(1, t * 1.15)) * 0.08, 28, 16);
-  const tailK = new Kit();
-  const tailCol = (x, y, z, c) => mix(c, OR, CR, sstep(0.36, 0.46, y) * sstep(0.0, 0.15, z));
-  tailK.add(tt.tube, tailCol);
-  tailK.add(S(tt.r1 + 0.005, 14, 10), CR, { x: tt.end.x, y: tt.end.y, z: tt.end.z });
+  // Queue en panache enroulé sur le dos (pivot à la base ; hélice pour planer)
+  const tail = new THREE.Group(); at(tail, 0, 1.15, -0.72); ainu.add(tail);
+  const tt = taperTube([[0, 0, 0], [0, 0.22, -0.1], [0, 0.42, 0.0], [0, 0.48, 0.2], [0, 0.38, 0.34]], (t) => 0.1 + Math.sin(Math.PI * Math.min(1, t * 1.05)) * 0.07, 24, 14);
+  const tailK = new FurKit();
+  tailK.add(tt.tube, (x, y, z, c) => mix(c, OR, CR, sstep(0.3, 0.46, y) * sstep(0.05, 0.25, z) + sstep(0.2, 0.0, y) * 0));
+  tailK.add(S(tt.r1, 14, 10), CR, { x: tt.end.x, y: tt.end.y, z: tt.end.z });
   tailK.add(S(tt.r0, 14, 10), OR, { x: tt.start.x, y: tt.start.y, z: tt.start.z });
-  tail.add(tailK.build());
+  tail.add(tailK.build({ length: 0.13, density: 40, comb: [0, -0.5, -0.3] }));
 
-  // Pattes courtes (pivot à la hanche), chaussettes crème
+  // Pattes (pivot à la hanche) : cuisse touffue, jambe fine, pied crème
   const legs = [];
-  for (const [lx, lz] of [[-0.24, 0.36], [0.24, 0.36], [-0.24, -0.34], [0.24, -0.34]]) {
-    const g = at(new THREE.Group(), lx, 0.46, lz);
-    const lk = new Kit();
-    lk.add(new THREE.CapsuleGeometry(0.13, 0.2, 8, 16), (x, y, z, c) => mix(c, OR, CR, sstep(-0.1, -0.2, y)), { y: -0.2 });
-    lk.add(S(0.15, 16, 12), CR, { y: -0.4, z: 0.05, sx: 1, sy: 0.6, sz: 1.2 });
-    g.add(lk.build());
+  for (const [lx, lz, back] of [[-0.19, 0.42, 0], [0.19, 0.42, 0], [-0.2, -0.46, 1], [0.2, -0.46, 1]]) {
+    const g = at(new THREE.Group(), lx, 0.78, lz);
+    const lk = new FurKit();
+    const legCol = (x, y, z, c) => mix(c, OR, CR, sstep(-0.35, -0.55, y) + (back ? 0 : sstep(0.0, 0.08, z) * 0.5));
+    lk.add(E(0.15, 0.24, back ? 0.2 : 0.15), legCol, { y: -0.08, z: back ? -0.03 : 0 });
+    lk.add(new THREE.CapsuleGeometry(0.075, 0.42, 6, 12), (x, y, z, c) => mix(c, OR, CR, sstep(-0.02, -0.22, y)), { y: -0.42, z: back ? -0.04 : 0.02 });
+    lk.add(E(0.09, 0.06, 0.12), CR, { y: -0.72, z: 0.04 });
+    g.add(lk.build({ length: back ? 0.06 : 0.04, density: 55, comb: [0, -0.8, -0.2] }));
     ainu.add(g);
     legs.push(g);
   }
 
-  // Matcha, perchée sur le dos
-  const matcha = new THREE.Group(); at(matcha, 0, 1.38, -0.22); ainu.add(matcha);
-  const BK = 0x23202c, TAN = 0xd27a34;
+  // Matcha, debout sur la selle (pieds en y = 0 du groupe)
+  const matcha = new THREE.Group(); at(matcha, 0, 1.38, -0.08); ainu.add(matcha);
+  const BK = 0x16131c, TAN = 0xc8662a, PINK = 0xe89a90;
+  const sleek = (k) => (x, y, z, c) => mix(c, BK, TAN, k(x, y, z));
   const mk = new Kit();
-  mk.add(new THREE.CapsuleGeometry(0.2, 0.22, 8, 18), (x, y, z, c) => mix(c, BK, TAN, sstep(0.1, 0.25, y) * sstep(-0.05, 0.1, z)), { y: 0.1, rx: Math.PI / 2 });
-  mk.add(new THREE.TorusGeometry(0.15, 0.04, 10, 24), 0x7cc040, { y: 0.27, z: 0.17, rx: Math.PI / 2 - 0.5 });
-  mk.add(new THREE.CapsuleGeometry(0.04, 0.14, 4, 10), BK, { y: 0.26, z: -0.3, rx: -0.6 });
-  matcha.add(mk.build());
-  const tag = at(new THREE.Mesh(S(0.05, 12, 10), GOLD()), 0, 0.17, 0.32); matcha.add(tag);
-  const mhead = new THREE.Group(); at(mhead, 0, 0.47, 0.2); matcha.add(mhead);
+  mk.add(E(0.12, 0.13, 0.24), sleek((x, y, z) => sstep(0.18, 0.14, y) * sstep(0.0, 0.12, z)), { y: 0.28, z: 0 });
+  mk.add(E(0.1, 0.12, 0.1), sleek((x, y, z) => sstep(0.12, 0.2, z) * sstep(0.38, 0.3, y)), { y: 0.34, z: 0.18, rx: -0.4 });
+  mk.add(new THREE.CylinderGeometry(0.065, 0.085, 0.22, 12), BK, { y: 0.43, z: 0.24, rx: 0.5 });
+  mk.add(new THREE.TorusGeometry(0.075, 0.018, 6, 18), 0xd03030, { y: 0.45, z: 0.25, rx: Math.PI / 2 + 0.5 });
+  mk.add(S(0.025, 8, 6), 0xffd34d, { y: 0.38, z: 0.31 });
+  mk.add(new THREE.CapsuleGeometry(0.025, 0.14, 4, 8), BK, { y: 0.38, z: -0.26, rx: -0.5 });
+  matcha.add(mk.build(new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.32 })));
+  const mhead = new THREE.Group(); at(mhead, 0, 0.54, 0.3); matcha.add(mhead);
   const mhk = new Kit();
-  mhk.add(S(0.3, 28, 22), (x, y, z, c) => {
-    // masque feu : museau, joues et deux points au-dessus des yeux
-    let k = sstep(0.12, 0.24, z) * sstep(-0.02, -0.12, y);
-    const brow = Math.hypot(Math.abs(x) - 0.11, y - 0.13);
-    k = Math.max(k, z > 0.1 ? sstep(0.06, 0.035, brow) : 0);
+  mhk.add(E(0.11, 0.1, 0.11), (x, y, z, c) => {
+    let k = sstep(0.05, 0.1, z) * sstep(-0.01, -0.05, y);
+    k = Math.max(k, z > 0.04 ? sstep(0.03, 0.018, Math.hypot(Math.abs(x) - 0.045, y - 0.055)) : 0);
     mix(c, BK, TAN, k);
-  }, { sx: 1.05, sy: 0.95 });
-  mhk.add(S(0.13, 18, 14), TAN, { y: -0.1, z: 0.25, sx: 1.15, sy: 0.8, sz: 1 });
+  });
+  mhk.add(E(0.05, 0.045, 0.1), (x, y, z, c) => mix(c, BK, TAN, sstep(0.02, -0.02, y) + sstep(0.0, 0.06, z) * 0.8), { y: -0.035, z: 0.12 });
   for (const sx of [-1, 1]) {
-    mhk.add(earGeo(0.11, 0.3, 0.045, 1), BK, { x: sx * 0.17, y: 0.26, z: -0.03, rz: -sx * 0.22 });
-    mhk.add(earGeo(0.06, 0.2, 0.02, 1), PINK, { x: sx * 0.165, y: 0.27, z: 0.0, rz: -sx * 0.22 });
-    mhk.add(S(0.05, 12, 10), PINK, { x: sx * 0.2, y: -0.07, z: 0.21, sx: 1.2, sy: 0.6, sz: 0.4, ry: sx * 0.75 });
+    mhk.add(earGeo(0.06, 0.17, 0.018, 1), BK, { x: sx * 0.07, y: 0.12, z: -0.02, rz: -sx * 0.3 });
+    mhk.add(earGeo(0.035, 0.12, 0.01, 1), PINK, { x: sx * 0.068, y: 0.12, z: 0.0, rz: -sx * 0.3 });
   }
-  mhead.add(mhk.build());
+  mhead.add(mhk.build(new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.32 })));
   const mfk = new Kit();
-  addEyes(mfk, { x: 0.11, y: 0.03, z: 0.255, r: 0.07, ry: 0.4, iris: 0x0a0606 });
-  mfk.add(S(0.045, 12, 10), 0x0a0808, { y: -0.04, z: 0.37, sx: 1.3, sy: 0.9 });
+  for (const sx of [-1, 1]) {
+    mfk.add(S(0.024, 12, 8), 0x1a0a04, { x: sx * 0.052, y: 0.02, z: 0.092, sx: 1.1, sy: 1, sz: 0.6, ry: sx * 0.4 });
+    mfk.add(S(0.008, 6, 4), 0xffffff, { x: sx * 0.052 + 0.007, y: 0.03, z: 0.106 });
+  }
+  mfk.add(S(0.022, 10, 8), 0x050505, { y: -0.02, z: 0.22, sx: 1.3 });
   mhead.add(mfk.build(gloss()));
   const mlegs = [];
-  for (const sx of [-1, 1]) for (const lz of [0.14, -0.14]) {
-    const g = at(new THREE.Group(), sx * 0.15, 0.03, lz);
+  for (const sx of [-1, 1]) for (const lz of [0.15, -0.16]) {
+    const g = at(new THREE.Group(), sx * 0.07, 0.22, lz);
     const lk = new Kit();
-    lk.add(new THREE.CapsuleGeometry(0.055, 0.12, 4, 12), (x, y, z, c) => mix(c, BK, TAN, sstep(-0.05, -0.1, y)), { y: -0.1 });
-    g.add(lk.build());
-    g.rotation.z = sx * 0.5;
+    lk.add(new THREE.CapsuleGeometry(0.032, 0.15, 4, 10), (x, y, z, c) => mix(c, BK, TAN, sstep(-0.06, -0.12, y)), { y: -0.11 });
+    g.add(lk.build(new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.35 })));
     matcha.add(g);
     mlegs.push(g);
   }
@@ -226,14 +317,17 @@ export function buildDuo() {
 // ---------------------------------------------------------------------------
 // Chat bandit (masque noir, queue rayée, bandana de pirate)
 // ---------------------------------------------------------------------------
+const NPC_FUR = { length: 0.04, density: 60, layerScale: 0.5 };
+const NPC_FUR_HEAD = { length: 0.03, density: 70, layerScale: 0.5 };
+
 export function buildCat() {
   const g = new THREE.Group();
   const GR = 0x9a9ab0, DK = 0x34344a, WH = 0xf2f2f8, PINK = 0xf6a0b0;
-  const bk = new Kit();
+  const bk = new FurKit();
   bk.add(new THREE.CapsuleGeometry(0.28, 0.22, 8, 18), (x, y, z, c) => mix(c, GR, WH, sstep(0.08, 0.22, z)), { y: 0.48, rx: Math.PI / 2 });
-  g.add(bk.build());
+  g.add(bk.build(NPC_FUR));
   const head = new THREE.Group(); at(head, 0, 0.95, 0.28); g.add(head);
-  const hk = new Kit();
+  const hk = new FurKit();
   hk.add(S(0.4, 30, 22), (x, y, z, c) => {
     const band = sstep(0.11, 0.07, Math.abs(y - 0.06)) * sstep(0.0, 0.15, z);
     mix(c, GR, WH, sstep(0.18, 0.3, z) * sstep(-0.04, -0.14, y));
@@ -249,19 +343,19 @@ export function buildCat() {
   for (const sx of [-1, 1]) {
     hk.add(earGeo(0.15, 0.24, 0.07, 1), GR, { x: sx * 0.27, y: 0.3, z: -0.02, rz: -sx * 0.35 });
     hk.add(earGeo(0.08, 0.15, 0.03, 1), PINK, { x: sx * 0.26, y: 0.3, z: 0.03, rz: -sx * 0.35 });
-    for (const dy of [-0.025, 0.025]) hk.add(new THREE.CylinderGeometry(0.008, 0.008, 0.36, 4), 0xffffff, { x: sx * 0.32, y: -0.12 + dy, z: 0.3, rz: Math.PI / 2 + sx * dy * 5 });
   }
-  head.add(hk.build());
+  head.add(hk.build(NPC_FUR_HEAD));
   const fk = new Kit();
   addEyes(fk, { x: 0.15, y: 0.06, z: 0.34, r: 0.075, ry: 0.42, iris: 0x2a5a10, white: true });
   fk.add(S(0.045, 10, 8), 0xff7a98, { y: -0.07, z: 0.43, sx: 1.3, sy: 0.8 });
+  for (const sx of [-1, 1]) for (const dy of [-0.025, 0.025]) fk.add(new THREE.CylinderGeometry(0.007, 0.007, 0.36, 4), 0xffffff, { x: sx * 0.34, y: -0.12 + dy, z: 0.34, rz: Math.PI / 2 + sx * dy * 5 });
   head.add(fk.build(gloss()));
   const tail = new THREE.Group(); at(tail, 0, 0.6, -0.42); g.add(tail);
   const tt = taperTube([[0, 0, 0], [0, 0.2, -0.15], [0, 0.45, -0.12], [0, 0.6, 0.02]], (t) => 0.08 - t * 0.02, 24, 12);
-  const tk = new Kit();
+  const tk = new FurKit();
   tk.add(tt.tube, (x, y, z, c) => c.set(Math.floor((y + 0.03) / 0.12) % 2 ? DK : GR));
   tk.add(S(tt.r1, 12, 8), DK, { x: tt.end.x, y: tt.end.y, z: tt.end.z });
-  tail.add(tk.build());
+  tail.add(tk.build(NPC_FUR));
   const legs = [];
   for (const [lx, lz] of [[-0.17, 0.2], [0.17, 0.2], [-0.17, -0.2], [0.17, -0.2]]) {
     const l = at(new THREE.Group(), lx, 0.32, lz);
@@ -280,7 +374,7 @@ export function buildCat() {
 export function buildMamie() {
   const g = new THREE.Group();
   const Y = 0xeac47c, LT = 0xfaeacb, YD = 0xd8a858, PINK = 0xf6a0a8;
-  const bk = new Kit();
+  const bk = new FurKit();
   bk.add(new THREE.CapsuleGeometry(0.5, 0.35, 10, 24), (x, y, z, c) => mix(c, Y, LT, sstep(0.2, 0.4, z) * sstep(0.4, 0.1, y)), { y: 0.82, sx: 1, sz: 0.9 });
   for (const sx of [-1, 1]) {
     bk.add(new THREE.CapsuleGeometry(0.13, 0.32, 6, 14), (x, y, z, c) => mix(c, Y, LT, sstep(-0.15, -0.25, y)), { x: sx * 0.24, y: 0.3, z: 0.38 });
@@ -288,9 +382,9 @@ export function buildMamie() {
   }
   bk.add(new THREE.TorusGeometry(0.36, 0.11, 12, 30), (x, y, z, c) => c.set(((Math.atan2(y, x) * 6 / Math.PI) | 0) % 2 ? 0xe04848 : 0xc83434), { y: 1.42, z: 0.05, rx: Math.PI / 2 });
   bk.add(new THREE.ConeGeometry(0.22, 0.32, 16), 0xd03c3c, { y: 1.2, z: 0.42, rx: Math.PI + 0.3, sz: 0.4 });
-  g.add(bk.build());
+  g.add(bk.build(NPC_FUR));
   const head = new THREE.Group(); at(head, 0, 1.85, 0.12); g.add(head);
-  const hk = new Kit();
+  const hk = new FurKit();
   hk.add(S(0.5, 30, 22), (x, y, z, c) => mix(c, Y, LT, sstep(0.15, 0.35, z) * sstep(0.0, -0.2, y)), { sx: 1.08, sy: 0.95, sz: 0.95 });
   hk.add(S(0.26, 20, 16), LT, { y: -0.15, z: 0.4, sx: 1.15, sy: 0.8, sz: 0.95 });
   // touffe de poils blancs sur le dessus (Mamie !)
@@ -299,7 +393,7 @@ export function buildMamie() {
     hk.add(earGeo(0.16, 0.34, 0.08, 0), YD, { x: sx * 0.48, y: -0.12, z: -0.02, rz: Math.PI - sx * 0.15 });
     hk.add(S(0.08, 12, 10), PINK, { x: sx * 0.33, y: -0.14, z: 0.37, sx: 1.2, sy: 0.6, sz: 0.4, ry: sx * 0.7 });
   }
-  head.add(hk.build());
+  head.add(hk.build(NPC_FUR_HEAD));
   const fk = new Kit();
   addEyes(fk, { x: 0.18, y: 0.07, z: 0.43, r: 0.08, ry: 0.4, iris: 0x2a1608 });
   fk.add(S(0.08, 12, 10), 0x3a2010, { y: -0.06, z: 0.64, sx: 1.3, sy: 0.85 });
@@ -307,9 +401,9 @@ export function buildMamie() {
   fk.add(new THREE.CylinderGeometry(0.012, 0.012, 0.13, 6), 0xd0a040, { y: 0.09, z: 0.55, rz: Math.PI / 2 });
   head.add(fk.build(gloss()));
   const tail = new THREE.Group(); at(tail, 0, 0.35, -0.45); g.add(tail);
-  const tk = new Kit();
+  const tk = new FurKit();
   tk.add(new THREE.CapsuleGeometry(0.08, 0.45, 6, 12), Y, { z: -0.25, rx: Math.PI / 2.2 });
-  tail.add(tk.build());
+  tail.add(tk.build(NPC_FUR));
   g.userData = { head, tail };
   return g;
 }
@@ -317,12 +411,12 @@ export function buildMamie() {
 export function buildPuppy() {
   const g = new THREE.Group();
   const C = 0xfaecd6, B = 0xc0905c, PINK = 0xf6a0a8;
-  const bk = new Kit();
+  const bk = new FurKit();
   bk.add(new THREE.CapsuleGeometry(0.22, 0.16, 8, 18), (x, y, z, c) => c.set(Math.hypot(x - 0.12, y - 0.1, z + 0.05) < 0.16 ? B : C), { y: 0.4, rx: Math.PI / 2 });
   bk.add(new THREE.TorusGeometry(0.16, 0.035, 8, 24), 0xe04870, { y: 0.55, z: 0.18, rx: Math.PI / 2 - 0.4 });
-  g.add(bk.build());
+  g.add(bk.build(NPC_FUR));
   const head = new THREE.Group(); at(head, 0, 0.82, 0.2); g.add(head);
-  const hk = new Kit();
+  const hk = new FurKit();
   // tache marron autour d'un œil
   hk.add(S(0.32, 28, 20), (x, y, z, c) => c.set(Math.hypot(x + 0.12, y - 0.05) < 0.13 && z > 0 ? B : C), { sx: 1.08, sy: 0.95 });
   hk.add(S(0.13, 16, 12), 0xffffff, { y: -0.1, z: 0.25, sx: 1.2, sy: 0.8 });
@@ -330,15 +424,15 @@ export function buildPuppy() {
     hk.add(earGeo(0.11, 0.24, 0.05, 0), B, { x: sx * 0.3, y: -0.03, z: -0.01, rz: Math.PI - sx * 0.25 });
     hk.add(S(0.05, 10, 8), PINK, { x: sx * 0.2, y: -0.09, z: 0.25, sx: 1.2, sy: 0.6, sz: 0.4, ry: sx * 0.7 });
   }
-  head.add(hk.build());
+  head.add(hk.build(NPC_FUR_HEAD));
   const fk = new Kit();
   addEyes(fk, { x: 0.12, y: 0.03, z: 0.27, r: 0.07, ry: 0.4, iris: 0x2a1408 });
   fk.add(S(0.045, 10, 8), 0x2a1408, { y: -0.05, z: 0.37, sx: 1.3, sy: 0.85 });
   head.add(fk.build(gloss()));
   const tail = new THREE.Group(); at(tail, 0, 0.5, -0.28); g.add(tail);
-  const tk = new Kit();
+  const tk = new FurKit();
   tk.add(new THREE.CapsuleGeometry(0.045, 0.18, 4, 10), C, { y: 0.1, z: -0.05, rx: -0.5 });
-  tail.add(tk.build());
+  tail.add(tk.build(NPC_FUR));
   const legs = [];
   for (const [lx, lz] of [[-0.13, 0.13], [0.13, 0.13], [-0.13, -0.13], [0.13, -0.13]]) {
     const l = at(new THREE.Group(), lx, 0.26, lz);
