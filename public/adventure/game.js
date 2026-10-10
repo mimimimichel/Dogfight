@@ -67,6 +67,13 @@ class Adventure {
     this.initThree();
     this.buildWorld();
     this.buildEntities();
+    if (this.lite) {
+      // ombres figées : seuls les éléments immobiles du décor en projettent
+      const moving = [this.player.mesh, this.puppy.mesh, this.elevatorMesh, this.bonesI,
+        ...this.cats.map(c => c.mesh), ...this.medals.map(m => m.mesh), ...this.balls.map(b => b.mesh), ...this.crates.map(c => c.mesh)];
+      for (const o of moving) o.traverse(k => { k.castShadow = false; });
+      this.simplifyMaterials(this.scene);
+    }
     this.bindInput();
     this.resize();
     this.updateHud();
@@ -174,13 +181,15 @@ class Adventure {
   // -------------------------------------------------------------------------
   initThree() {
     const touch = this.isTouch;
-    this.quality = { high: !touch };
+    // Mode « téléphone » : rendu allégé pour rester fluide sur les mobiles
+    this.lite = touch;
+    this.quality = { high: !touch, lite: touch };
     const r = new THREE.WebGLRenderer({ canvas: this.dom.canvas, antialias: true, powerPreference: 'high-performance' });
     r.toneMapping = THREE.ACESFilmicToneMapping;
     r.toneMappingExposure = 1.05;
     r.outputColorSpace = THREE.SRGBColorSpace;
     r.shadowMap.enabled = true;
-    r.shadowMap.type = THREE.PCFSoftShadowMap;
+    r.shadowMap.type = touch ? THREE.PCFShadowMap : THREE.PCFSoftShadowMap;
     this.renderer = r;
     this.scene = new THREE.Scene();
     this.scene.fog = new THREE.Fog(W.SKY.horizon.getHex(), 80, 230);
@@ -200,13 +209,24 @@ class Adventure {
     this.scene.add(new THREE.HemisphereLight(0xcfe6ff, 0x6a8a4a, 0.75));
     const sun = new THREE.DirectionalLight(0xfff1d6, 2.6);
     sun.castShadow = true;
-    const ms = touch ? 1024 : 2048;
-    sun.shadow.mapSize.set(ms, ms);
     const sc = sun.shadow.camera;
-    sc.left = -28; sc.right = 28; sc.top = 28; sc.bottom = -28; sc.near = 1; sc.far = 160;
-    sun.shadow.bias = -0.0006;
-    sun.shadow.normalBias = 0.04;
-    sun.shadow.radius = 3;
+    if (touch) {
+      // Sur téléphone : les ombres du décor sont calculées une seule fois pour
+      // toute l'île (les personnages gardent leur ombre ronde sous les pattes).
+      sun.shadow.mapSize.set(2048, 2048);
+      sc.left = -95; sc.right = 95; sc.top = 95; sc.bottom = -95; sc.near = 1; sc.far = 260;
+      sun.shadow.bias = -0.0015;
+      sun.shadow.normalBias = 0.08;
+      sun.position.copy(W.SKY.sunDir).multiplyScalar(120);
+      r.shadowMap.autoUpdate = false;
+      r.shadowMap.needsUpdate = true;
+    } else {
+      sun.shadow.mapSize.set(2048, 2048);
+      sc.left = -28; sc.right = 28; sc.top = 28; sc.bottom = -28; sc.near = 1; sc.far = 160;
+      sun.shadow.bias = -0.0006;
+      sun.shadow.normalBias = 0.04;
+      sun.shadow.radius = 3;
+    }
     this.sun = sun;
     this.scene.add(sun, sun.target);
     this.wind = { value: 0 };
@@ -220,9 +240,27 @@ class Adventure {
     this.perf = { t: 0, n: 0, checks: 0 };
   }
 
+  /** Remplace les matériaux mats par des matériaux plus simples (téléphones). */
+  simplifyMaterials(root) {
+    const cache = new Map();
+    root.traverse(o => {
+      const m = o.material;
+      if (!o.isMesh || !m || !m.isMeshStandardMaterial || m.metalness > 0.3 || m.roughness < 0.5) return;
+      if (!cache.has(m)) {
+        const l = new THREE.MeshLambertMaterial({
+          color: m.color, map: m.map, vertexColors: m.vertexColors, emissive: m.emissive, emissiveIntensity: m.emissiveIntensity,
+          side: m.side, transparent: m.transparent, opacity: m.opacity,
+        });
+        if (m.onBeforeCompile) l.onBeforeCompile = m.onBeforeCompile;
+        cache.set(m, l);
+      }
+      o.material = cache.get(m);
+    });
+  }
+
   resize() {
     const w = window.innerWidth, h = window.innerHeight;
-    const maxRatio = this.isTouch ? 1.5 : 2;
+    const maxRatio = this.isTouch ? 1.25 : 2;
     this.renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, maxRatio) * this.pixelScale);
     this.renderer.setSize(w, h, false);
     this.camera.aspect = w / h;
@@ -232,14 +270,13 @@ class Adventure {
   /** Mesure la fluidité et baisse la résolution si besoin (téléphones modestes). */
   adaptQuality(dt) {
     const p = this.perf;
-    if (p.checks >= 4 || this.paused) return;
+    if (p.checks >= 8 || this.paused || this.dialog) { p.t = 0; p.n = 0; return; }
     p.t += dt; p.n++;
-    if (p.t < 2.5) return;
+    if (p.t < 2) return;
     const fps = p.n / p.t;
     p.t = 0; p.n = 0; p.checks++;
-    if (fps < 40 && this.pixelScale > 0.55) {
-      this.pixelScale = Math.max(0.55, this.pixelScale * 0.75);
-      if (fps < 28) this.renderer.shadowMap.enabled = this.sun.castShadow = this.pixelScale > 0.6;
+    if (fps < 45 && this.pixelScale > 0.8) {
+      this.pixelScale = Math.max(0.8, this.pixelScale * 0.9);
       this.resize();
     }
   }
@@ -255,8 +292,8 @@ class Adventure {
     W.buildTerrain(sc, q0);
     this.water = W.buildWater(sc, sc.fog);
     this.grass = W.buildGrass(sc, q0, this.wind);
-    W.buildFlowers(sc);
-    W.buildTrees(sc);
+    W.buildFlowers(sc, q0);
+    W.buildTrees(sc, q0);
 
     // Grand Chêne : tronc noueux, branches rondes en spirale, grand feuillage
     const T = L.TREE;
@@ -284,7 +321,7 @@ class Adventure {
     }
     const branchTop = M.mat(0x9a6a3c, { roughness: 0.9 });
     const leafMat = M.mat(0x58b440, { roughness: 0.85 });
-    const leafGeo = new THREE.IcosahedronGeometry(1, 3);
+    const leafGeo = new THREE.IcosahedronGeometry(1, 2);
     for (const s of L.treeSteps) {
       // plate-forme ronde (même forme que la collision : rayon 1.5)
       const pad = new THREE.Mesh(new THREE.CylinderGeometry(1.5, 1.35, 0.5, 28), branchTop);
@@ -1543,9 +1580,11 @@ class Adventure {
     }
     // Le soleil suit le joueur pour garder des ombres nettes autour de lui
     const sun = this.sun;
-    sun.target.position.set(Math.round(P.pos.x), Math.round(P.pos.y), Math.round(P.pos.z));
-    sun.position.copy(sun.target.position).addScaledVector(W.SKY.sunDir, 70);
-    sun.target.updateMatrixWorld();
+    if (!this.lite) {
+      sun.target.position.set(Math.round(P.pos.x), Math.round(P.pos.y), Math.round(P.pos.z));
+      sun.position.copy(sun.target.position).addScaledVector(W.SKY.sunDir, 70);
+      sun.target.updateMatrixWorld();
+    }
 
     // Particules
     const pg = this.partPts.geometry;

@@ -93,7 +93,7 @@ function detailTexture() {
 }
 
 export function buildTerrain(scene, quality) {
-  const size = 180, seg = quality.high ? 200 : 140;
+  const size = 180, seg = quality.high ? 200 : 110;
   const geo = new THREE.PlaneGeometry(size, size, seg, seg);
   geo.rotateX(-Math.PI / 2);
   const pos = geo.attributes.position;
@@ -202,7 +202,7 @@ export function buildWater(scene, fog) {
         #include <colorspace_fragment>
       }`,
   });
-  const water = new THREE.Mesh(new THREE.PlaneGeometry(700, 700, 140, 140), mat);
+  const water = new THREE.Mesh(new THREE.PlaneGeometry(700, 700, 50, 50), mat);
   water.rotation.x = -Math.PI / 2;
   water.position.y = L.WATER_Y;
   water.renderOrder = 2;
@@ -213,11 +213,11 @@ export function buildWater(scene, fog) {
 // ---------------------------------------------------------------------------
 // Herbe : touffes instanciées qui ondulent au vent (shader)
 // ---------------------------------------------------------------------------
-function bladeClump(r) {
+function bladeClump(r, blades) {
   const parts = [];
   const pos = [], col = [];
   const base = new THREE.Color(0x4a9a30), tip = new THREE.Color(0xc8f080);
-  for (let b = 0; b < 9; b++) {
+  for (let b = 0; b < blades; b++) {
     const a = r() * Math.PI * 2, d = r() * 0.3, h = 0.25 + r() * 0.3, w = 0.07 + r() * 0.03;
     const lean = (r() - 0.5) * 0.5;
     const ox = Math.cos(a) * d, oz = Math.sin(a) * d;
@@ -250,7 +250,7 @@ function bladeClump(r) {
 
 export function buildGrass(scene, quality, windUniform) {
   const r = rng(9);
-  const count = quality.high ? 5200 : 2200;
+  const count = quality.high ? 5200 : 1300;
   const spots = [];
   for (let i = 0; i < count * 6 && spots.length < count; i++) {
     const x = (r() - 0.5) * 140, z = (r() - 0.5) * 140;
@@ -273,7 +273,7 @@ export function buildGrass(scene, quality, windUniform) {
       transformed.x += w * k;
       transformed.z += w * 0.6 * k;`);
   };
-  const geo = bladeClump(rng(3));
+  const geo = bladeClump(rng(3), quality.lite ? 6 : 9);
   const inst = new THREE.InstancedMesh(geo, mat, spots.length);
   const m4 = new THREE.Matrix4(), q = new THREE.Quaternion(), v = new THREE.Vector3(), s = new THREE.Vector3(), e = new THREE.Euler();
   const tint = new THREE.Color();
@@ -290,14 +290,15 @@ export function buildGrass(scene, quality, windUniform) {
 }
 
 // Fleurs : petites corolles colorées
-export function buildFlowers(scene) {
+export function buildFlowers(scene, quality) {
   const r = rng(21);
   const geo = M.mergeGeos([
-    { geo: new THREE.CylinderGeometry(0.015, 0.02, 0.35, 5), y: 0.17 },
-    ...[0, 1, 2, 3, 4].map(k => ({ geo: new THREE.SphereGeometry(0.07, 8, 6), x: Math.cos(k * 1.2566) * 0.08, y: 0.36, z: Math.sin(k * 1.2566) * 0.08, sy: 0.5 })),
+    { geo: new THREE.CylinderGeometry(0.015, 0.02, 0.35, 4, 1, true), y: 0.17 },
+    { geo: new THREE.SphereGeometry(0.13, 10, 4), y: 0.36, sy: 0.3 },
   ]);
   const spots = [];
-  for (let i = 0; i < 3000 && spots.length < 420; i++) {
+  const maxF = quality && quality.lite ? 220 : 420;
+  for (let i = 0; i < 3000 && spots.length < maxF; i++) {
     const x = (r() - 0.5) * 130, z = (r() - 0.5) * 130;
     const h = L.heightAt(x, z);
     if (h < 1.6 || onPath(x, z)) continue;
@@ -320,7 +321,7 @@ export function buildFlowers(scene) {
 // ---------------------------------------------------------------------------
 // Arbres : troncs + feuillages ronds (instanciés), buissons
 // ---------------------------------------------------------------------------
-export function buildTrees(scene) {
+export function buildTrees(scene, quality) {
   const r = rng(5);
   const n = L.trees.length;
   const trunkGeo = new THREE.CylinderGeometry(0.32, 0.55, 5.2, 10, 4);
@@ -329,7 +330,7 @@ export function buildTrees(scene) {
   for (let i = 0; i < tp.count; i++) { const y = tp.getY(i); if (y < -2) { const k = 1 + (-2 - y) * 0.35; tp.setX(i, tp.getX(i) * k); tp.setZ(i, tp.getZ(i) * k); } }
   trunkGeo.computeVertexNormals();
   const trunks = new THREE.InstancedMesh(trunkGeo, M.mat(0x7a4e2c, { roughness: 0.95 }), n);
-  const blobGeo = new THREE.IcosahedronGeometry(1, 3);
+  const blobGeo = new THREE.IcosahedronGeometry(1, quality && quality.lite ? 1 : 2);
   const blobs = [];
   L.trees.forEach((t) => {
     const top = t.y + 5 * t.s;
