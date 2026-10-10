@@ -1218,6 +1218,8 @@ class Adventure {
       const fromHome = Math.hypot(c.pos.x - c.home.x, c.pos.z - c.home.z);
       if (c.stun <= 0 && dist < 9 && Math.abs(P.pos.y - c.pos.y) < 3 && fromHome < 15 && !this.dialog) {
         dir = toP.normalize(); speed = 3.6;
+        // petit miaulement aigu quand un chat repère le duo
+        if (!c.chasing && this.t - (c.lastMeow || -9) > 4 && this.sfx && this.sfx.ok) { c.lastMeow = this.t; this.sfx.meow(1.35); }
         c.chasing = true;
       } else {
         c.chasing = false;
@@ -1253,6 +1255,7 @@ class Adventure {
     this.burst(c.pos.x, c.pos.y + 0.6, c.pos.z, 18, 0xffffff, 4, 0.6);
     this.burst(c.pos.x, c.pos.y + 0.6, c.pos.z, 8, 0x8a8a9a, 3, 0.5);
     this.sound('poof');
+    this.sound('meow');
     if (c.def.group === 'clearing') {
       this.save.cats.push(c.def.id);
       this.persist();
@@ -1568,6 +1571,7 @@ class Adventure {
       case 'bone': s.tone(900 + ((n || 0) % 8) * 70, 0.07, { type: 'square', vol: 0.07 }); s.tone(1400 + ((n || 0) % 8) * 70, 0.06, { type: 'square', vol: 0.05, delay: 0.05 }); break;
       case 'ball': s.tone(660, 0.1, { vol: 0.1 }); s.tone(990, 0.12, { vol: 0.1, delay: 0.08 }); break;
       case 'heart': s.tone(700, 0.1, { type: 'sine', vol: 0.15 }); s.tone(1050, 0.15, { type: 'sine', vol: 0.15, delay: 0.08 }); break;
+      case 'meow': s.meow && s.meow(); break;
       case 'poof': s.noise(0.25, { freq: 1500, freqTo: 300, vol: 0.3 }); s.tone(500, 0.2, { type: 'sawtooth', to: 180, vol: 0.08 }); break;
       case 'crate': s.noise(0.2, { freq: 700, vol: 0.4 }); s.tone(160, 0.15, { type: 'square', to: 80, vol: 0.12 }); break;
       case 'hurt': s.hit(true); break;

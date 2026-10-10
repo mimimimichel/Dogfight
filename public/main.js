@@ -11,6 +11,7 @@
   const canvas = document.getElementById('game');
   const ctx = canvas.getContext('2d');
   const sfx = new window.DogSfx();
+  sfx.music('menu'); // démarre au premier contact avec l'écran
   const $ = (id) => document.getElementById(id);
 
   // ---------------------------------------------------------------------------
@@ -143,6 +144,8 @@
   function show(screen) {
     app.screen = screen;
     if (screen === 'menu') updateAdventureButton();
+    // musique : aventure, combat (partie, pause, résultat) ou menus
+    sfx.music(screen === 'adventure' ? 'adventure' : (screen === 'game' || screen === 'pause' || screen === 'result') ? 'fight' : 'menu');
     for (const el of document.querySelectorAll('.screen')) el.classList.add('hidden');
     const el = $('screen-' + screen);
     if (el) el.classList.remove('hidden');

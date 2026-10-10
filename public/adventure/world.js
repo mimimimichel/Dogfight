@@ -711,50 +711,40 @@ export function leafTexture() {
   return leafTex;
 }
 
-/** Géométrie d'une touffe de feuillage (rayon ~1). */
-export function leafClusterGeo(cards) {
+/**
+ * Géométrie d'une touffe de feuillage (rayon ~1) : un amas de boules lisses
+ * (style dessin animé), plus claires en haut et plus sombres dessous.
+ */
+export function leafClusterGeo(detail) {
+  const lite = detail <= 10;
   const r = rng(77);
-  const pos = [], nor = [], uv = [];
-  const core = new THREE.IcosahedronGeometry(0.82, 1).toNonIndexed();
-  const cp = core.attributes.position;
-  for (let i = 0; i < cp.count; i++) {
-    const x = cp.getX(i), y = cp.getY(i), z = cp.getZ(i), l = Math.hypot(x, y, z);
-    pos.push(x, y, z); nor.push(x / l, y / l, z / l);
-    uv.push(0.5 * (0.5 + Math.atan2(z, x) / (Math.PI * 2)) , 0.5 + y / 2);
+  const parts = [{ geo: new THREE.IcosahedronGeometry(0.78, lite ? 2 : 3) }];
+  const n = 7;
+  for (let k = 0; k < n; k++) {
+    const a = (k / n) * Math.PI * 2 + r() * 0.4, up = 0.15 + r() * 0.35;
+    const rad = 0.42 + r() * 0.14;
+    parts.push({ geo: new THREE.IcosahedronGeometry(rad, lite ? 1 : 2), x: Math.cos(a) * 0.62, y: up, z: Math.sin(a) * 0.62 });
   }
-  const v = new THREE.Vector3(), t1 = new THREE.Vector3(), t2 = new THREE.Vector3(), up = new THREE.Vector3(0, 1, 0);
-  for (let k = 0; k < cards; k++) {
-    // direction répartie sur la sphère (plutôt vers le haut et les côtés)
-    const yy = 1 - (k + 0.5) / cards * 1.6, rr = Math.sqrt(Math.max(0, 1 - yy * yy)), a = k * 2.399;
-    v.set(Math.cos(a) * rr, yy, Math.sin(a) * rr).normalize();
-    t1.crossVectors(Math.abs(v.y) > 0.9 ? new THREE.Vector3(1, 0, 0) : up, v).normalize();
-    t2.crossVectors(v, t1).normalize();
-    const rot = r() * Math.PI * 2, s = 0.75 + r() * 0.3;
-    const c1 = t1.clone().multiplyScalar(Math.cos(rot)).addScaledVector(t2, Math.sin(rot));
-    const c2 = t1.clone().multiplyScalar(-Math.sin(rot)).addScaledVector(t2, Math.cos(rot));
-    const cen = v.clone().multiplyScalar(0.78);
-    const corners = [[-1, -1, 0.5, 0], [1, -1, 1, 0], [1, 1, 1, 1], [-1, 1, 0.5, 1]];
-    const quad = corners.map(([a1, a2, u, w]) => [cen.clone().addScaledVector(c1, a1 * s).addScaledVector(c2, a2 * s), u, w]);
-    for (const i of [0, 1, 2, 0, 2, 3]) {
-      const [p, u, w] = quad[i];
-      const n = p.clone().normalize();
-      pos.push(p.x, p.y, p.z); nor.push(n.x, n.y, n.z); uv.push(u, w);
-    }
+  parts.push({ geo: new THREE.IcosahedronGeometry(0.5, lite ? 1 : 2), y: 0.62, x: 0.05 });
+  const g = M.mergeGeos(parts);
+  const p = g.attributes.position, nrm = g.attributes.normal;
+  const col = new Float32Array(p.count * 3);
+  for (let i = 0; i < p.count; i++) {
+    const t = smooth(-0.9, 0.9, p.getY(i)) * 0.6 + smooth(-0.5, 1, nrm.getY(i)) * 0.4;
+    const k = 0.62 + 0.45 * t;
+    col[i * 3] = k; col[i * 3 + 1] = k; col[i * 3 + 2] = Math.min(1, k * 0.95);
   }
-  const g = new THREE.BufferGeometry();
-  g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
-  g.setAttribute('normal', new THREE.Float32BufferAttribute(nor, 3));
-  g.setAttribute('uv', new THREE.Float32BufferAttribute(uv, 2));
+  g.setAttribute('color', new THREE.BufferAttribute(col, 3));
   return g;
 }
 let leafM = null;
 export function leafMaterial() {
   if (leafM) return leafM;
-  leafM = new THREE.MeshStandardMaterial({ map: leafTexture(), alphaTest: 0.45, side: THREE.DoubleSide, roughness: 0.85 });
+  leafM = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.9 });
   return leafM;
 }
 export function leafDepthMaterial() {
-  return new THREE.MeshDepthMaterial({ depthPacking: THREE.RGBADepthPacking, map: leafTexture(), alphaTest: 0.45, side: THREE.DoubleSide });
+  return new THREE.MeshDepthMaterial({ depthPacking: THREE.RGBADepthPacking });
 }
 
 // ---------------------------------------------------------------------------
