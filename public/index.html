@@ -1,0 +1,146 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Dogfight — Combat de chiens</title>
+  <meta name="description" content="Jeu de baston 2D en ligne : combats de chiens en 1 contre 1.">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap" rel="stylesheet">
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🐕</text></svg>">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <div id="stage">
+    <canvas id="game" width="960" height="540"></canvas>
+
+    <div id="ui">
+      <!-- Menu principal -->
+      <section class="screen" id="screen-menu">
+        <h1 class="logo"><span>DOG</span><span>FIGHT</span></h1>
+        <p class="tagline">Combats de chiens en 1 contre 1</p>
+        <label class="name-field">Ton pseudo
+          <input id="name" maxlength="16" placeholder="Anonyme" autocomplete="off">
+        </label>
+        <div class="menu-buttons">
+          <button class="btn primary" data-action="online">Jouer en ligne</button>
+          <button class="btn" data-action="cpu">Contre l'ordi</button>
+          <button class="btn" data-action="local">2 joueurs (même clavier)</button>
+          <button class="btn ghost" data-action="controls">Commandes</button>
+        </div>
+      </section>
+
+      <!-- Menu en ligne -->
+      <section class="screen hidden" id="screen-online">
+        <h2>En ligne</h2>
+        <div class="menu-buttons">
+          <button class="btn primary" data-action="quick">Match rapide</button>
+          <button class="btn" data-action="create">Créer un salon privé</button>
+          <div class="join-row">
+            <input id="join-code" maxlength="4" placeholder="CODE" autocomplete="off">
+            <button class="btn" data-action="join">Rejoindre</button>
+          </div>
+          <button class="btn ghost" data-action="back">Retour</button>
+        </div>
+        <p class="status" id="online-status"></p>
+      </section>
+
+      <!-- Attente d'un adversaire -->
+      <section class="screen hidden" id="screen-wait">
+        <h2 id="wait-title">Salon</h2>
+        <div class="code-box" id="wait-code">----</div>
+        <p class="hint" id="wait-hint">Envoie ce code (ou le lien) à ton adversaire :</p>
+        <div class="join-row">
+          <input id="wait-link" readonly>
+          <button class="btn" data-action="copy">Copier</button>
+        </div>
+        <p class="status pulse">En attente d'un adversaire…</p>
+        <button class="btn ghost" data-action="leave">Annuler</button>
+      </section>
+
+      <!-- Sélection des personnages -->
+      <section class="screen hidden" id="screen-select">
+        <h2>Choisis ton chien</h2>
+        <p class="status" id="select-status"></p>
+        <div class="cards" id="cards"></div>
+        <div class="select-options" id="cpu-options">
+          <span>Niveau de l'ordi :</span>
+          <button class="chip" data-level="0.3">Facile</button>
+          <button class="chip active" data-level="0.6">Normal</button>
+          <button class="chip" data-level="0.95">Difficile</button>
+        </div>
+        <div class="menu-buttons row">
+          <button class="btn ghost" data-action="select-back">Retour</button>
+          <button class="btn primary" data-action="ready" id="ready-btn">Prêt !</button>
+        </div>
+      </section>
+
+      <!-- Commandes -->
+      <section class="screen hidden" id="screen-controls">
+        <h2>Commandes</h2>
+        <div class="controls-grid">
+          <div>
+            <h3>Solo / En ligne</h3>
+            <table>
+              <tr><td>Se déplacer</td><td><kbd>Q</kbd><kbd>D</kbd> ou <kbd>←</kbd><kbd>→</kbd></td></tr>
+              <tr><td>Sauter</td><td><kbd>Z</kbd> ou <kbd>↑</kbd></td></tr>
+              <tr><td>S'accroupir</td><td><kbd>S</kbd> ou <kbd>↓</kbd></td></tr>
+              <tr><td>Attaque légère</td><td><kbd>J</kbd></td></tr>
+              <tr><td>Attaque lourde</td><td><kbd>K</kbd></td></tr>
+              <tr><td>Spéciale</td><td><kbd>L</kbd></td></tr>
+              <tr><td>Super (jauge pleine)</td><td><kbd>I</kbd></td></tr>
+            </table>
+          </div>
+          <div>
+            <h3>2 joueurs (même clavier)</h3>
+            <table>
+              <tr><th></th><th>J1</th><th>J2</th></tr>
+              <tr><td>Bouger</td><td><kbd>Z</kbd><kbd>Q</kbd><kbd>S</kbd><kbd>D</kbd></td><td><kbd>↑</kbd><kbd>←</kbd><kbd>↓</kbd><kbd>→</kbd></td></tr>
+              <tr><td>Légère</td><td><kbd>F</kbd></td><td><kbd>J</kbd></td></tr>
+              <tr><td>Lourde</td><td><kbd>G</kbd></td><td><kbd>K</kbd></td></tr>
+              <tr><td>Spéciale</td><td><kbd>H</kbd></td><td><kbd>L</kbd></td></tr>
+              <tr><td>Super</td><td><kbd>T</kbd></td><td><kbd>I</kbd></td></tr>
+            </table>
+          </div>
+        </div>
+        <ul class="tips">
+          <li><b>Garde :</b> maintiens la direction opposée à l'adversaire. Accroupi pour parer les attaques basses, debout pour les attaques sautées.</li>
+          <li><b>Attaques accroupies</b> (<kbd>↓</kbd> + attaque) : basses, la lourde fait chuter.</li>
+          <li><b>Manette</b> supportée : X/Y/B = légère/lourde/spéciale, RB = super, A = saut.</li>
+          <li>Touches indiquées pour un clavier AZERTY (WASD en QWERTY). <kbd>M</kbd> coupe le son, <kbd>Échap</kbd> met en pause.</li>
+        </ul>
+        <button class="btn ghost" data-action="back">Retour</button>
+      </section>
+
+      <!-- Pause -->
+      <section class="screen hidden overlay" id="screen-pause">
+        <h2>Pause</h2>
+        <div class="menu-buttons">
+          <button class="btn primary" data-action="resume">Reprendre</button>
+          <button class="btn" data-action="restart" id="pause-restart">Recommencer</button>
+          <button class="btn ghost" data-action="quit">Quitter le combat</button>
+        </div>
+      </section>
+
+      <!-- Fin de match -->
+      <section class="screen hidden overlay bottom" id="screen-result">
+        <div class="menu-buttons row">
+          <button class="btn primary" data-action="rematch" id="rematch-btn">Revanche</button>
+          <button class="btn" data-action="reselect">Changer de chien</button>
+          <button class="btn ghost" data-action="quit">Menu</button>
+        </div>
+        <p class="status" id="result-status"></p>
+      </section>
+    </div>
+
+    <div id="toast" class="hidden"></div>
+    <button id="mute" title="Couper le son (M)">🔊</button>
+  </div>
+
+  <script src="game-core.js"></script>
+  <script src="render.js"></script>
+  <script src="audio.js"></script>
+  <script src="main.js"></script>
+</body>
+</html>
