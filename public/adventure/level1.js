@@ -64,7 +64,7 @@ for (let i = 0; i < 9; i++) {
   const x = Math.cos(a) * 3.7, z = Math.sin(a) * 3.7;
   const top = treeBase + 1.7 + i * 1.75;
   treeSteps.push({ x, z, top, a });
-  box(x, z, 2.6, 2.6, top - 0.5, top, { kind: 'branch' });
+  cyl(x, z, 1.5, top - 0.5, top, { kind: 'branch' });
 }
 export const TREE_TOP = treeBase + 1.7 + 9 * 1.75;
 // Le tronc s'arrête sous la plate-forme du sommet (la médaille est au centre)

@@ -7,6 +7,7 @@
 import * as THREE from '../vendor/three.module.min.js';
 import * as L from './level1.js';
 import * as M from './models.js';
+import * as W from './world.js';
 
 const SAVE_KEY = 'dogfight.aventure.niveau1';
 const STEP = 1 / 60;
@@ -27,21 +28,18 @@ const clamp = (v, a, b) => (v < a ? a : v > b ? b : v);
 const lerpAngle = (a, b, t) => { let d = ((b - a + Math.PI) % (Math.PI * 2) + Math.PI * 2) % (Math.PI * 2) - Math.PI; return a + d * t; };
 
 // ---------------------------------------------------------------------------
-// Icônes pixel pour l'interface
+// Icônes vectorielles de l'interface
 // ---------------------------------------------------------------------------
-function pixelIcon(rows, palette) {
-  const c = document.createElement('canvas');
-  c.width = rows[0].length; c.height = rows.length;
-  const x = c.getContext('2d');
-  rows.forEach((r, j) => [...r].forEach((ch, i) => { if (palette[ch]) { x.fillStyle = palette[ch]; x.fillRect(i, j, 1, 1); } }));
-  return c.toDataURL();
-}
+const svg = (body) => 'data:image/svg+xml,' + encodeURIComponent(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64"><defs>
+<linearGradient id="g" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#fff3a8"/><stop offset=".55" stop-color="#ffcf3a"/><stop offset="1" stop-color="#e89a10"/></linearGradient>
+<linearGradient id="r" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#ff8a94"/><stop offset="1" stop-color="#e0283a"/></linearGradient>
+<linearGradient id="t" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#efff7a"/><stop offset="1" stop-color="#a8d020"/></linearGradient></defs>${body}</svg>`);
 const ICONS = {
-  bone: pixelIcon(['..o.....o..', '.oyo...oyo.', '.oyyoooyyo.', '..oyyyyyo..', '.oyyoooyyo.', '.oyo...oyo.', '..o.....o..'].map(r => r), { o: '#6a3a00', y: '#ffd34d' }),
-  medal: pixelIcon(['..ooooo..', '.oyyyyyo.', 'oyybybyyo', 'oyyyyyyyo', 'oyybbbyyo', 'oyybbbyyo', '.oyyyyyo.', '..ooooo..'], { o: '#6a3a00', y: '#ffd34d', b: '#a06a10' }),
-  heart: pixelIcon(['.oo.oo.', 'orroRro', 'orrrrro', '.orrro.', '..oro..', '...o...'], { o: '#3a0a10', r: '#e8303a', R: '#ff9aa0' }),
-  heartEmpty: pixelIcon(['.oo.oo.', 'o..o..o', 'o.....o', '.o...o.', '..o.o..', '...o...'], { o: '#3a0a10', '.': 'rgba(0,0,0,0.35)' }),
-  ball: pixelIcon(['.ooo.', 'oyyyo', 'owyyo', 'oyywo', '.ooo.'], { o: '#4a5a00', y: '#d8f040', w: '#ffffff' }),
+  bone: svg('<g transform="rotate(-35 32 32)"><g fill="#8a5200" stroke="#8a5200" stroke-width="6"><rect x="15" y="26" width="34" height="12" rx="4"/><circle cx="15" cy="25" r="7.5"/><circle cx="15" cy="39" r="7.5"/><circle cx="49" cy="25" r="7.5"/><circle cx="49" cy="39" r="7.5"/></g><g fill="url(#g)"><rect x="15" y="26" width="34" height="12" rx="4"/><circle cx="15" cy="25" r="7.5"/><circle cx="15" cy="39" r="7.5"/><circle cx="49" cy="25" r="7.5"/><circle cx="49" cy="39" r="7.5"/></g></g>'),
+  medal: svg('<path d="M20 4h10l4 16H24zM34 4h10l-4 16H30z" fill="#3a8ae0" stroke="#1a4a90" stroke-width="2"/><circle cx="32" cy="40" r="20" fill="url(#g)" stroke="#8a5200" stroke-width="3"/><g fill="#c07a08"><ellipse cx="32" cy="45" rx="7" ry="6"/><circle cx="23" cy="36" r="3.4"/><circle cx="29" cy="31" r="3.4"/><circle cx="35" cy="31" r="3.4"/><circle cx="41" cy="36" r="3.4"/></g>'),
+  heart: svg('<path d="M32 56 9 33a13 13 0 0 1 23-17 13 13 0 0 1 23 17z" fill="url(#r)" stroke="#7a0a18" stroke-width="3" stroke-linejoin="round"/><ellipse cx="20" cy="24" rx="5" ry="3.5" fill="#fff" opacity=".6" transform="rotate(-35 20 24)"/>'),
+  heartEmpty: svg('<path d="M32 56 9 33a13 13 0 0 1 23-17 13 13 0 0 1 23 17z" fill="rgba(0,0,0,.28)" stroke="rgba(255,255,255,.75)" stroke-width="3" stroke-linejoin="round"/>'),
+  ball: svg('<circle cx="32" cy="32" r="24" fill="url(#t)" stroke="#5a7000" stroke-width="3"/><path d="M12 20c10 6 10 18 0 24M52 20c-10 6-10 18 0 24" fill="none" stroke="#fff" stroke-width="3.5"/>'),
 };
 
 // ---------------------------------------------------------------------------
@@ -114,7 +112,7 @@ class Adventure {
       <div class="adv-banner hidden"></div>
       <div class="adv-prompt hidden"></div>
       <div class="adv-dialog hidden"><div class="adv-dname"></div><div class="adv-dtext"></div><div class="adv-dnext">▼</div></div>
-      <button class="adv-pause" aria-label="Pause">II</button>
+      <button class="adv-pause" aria-label="Pause"><svg viewBox="0 0 20 20" width="18" height="18"><rect x="4" y="3" width="4" height="14" rx="1.5" fill="#fff"/><rect x="12" y="3" width="4" height="14" rx="1.5" fill="#fff"/></svg></button>
       <div class="adv-touch ${this.isTouch ? '' : 'hidden'}">
         <div class="adv-stick-zone"></div>
         <div class="adv-cam-zone"></div>
@@ -175,39 +173,75 @@ class Adventure {
   // Three.js
   // -------------------------------------------------------------------------
   initThree() {
-    const r = new THREE.WebGLRenderer({ canvas: this.dom.canvas, antialias: false, powerPreference: 'high-performance' });
+    const touch = this.isTouch;
+    this.quality = { high: !touch };
+    const r = new THREE.WebGLRenderer({ canvas: this.dom.canvas, antialias: true, powerPreference: 'high-performance' });
+    r.toneMapping = THREE.ACESFilmicToneMapping;
+    r.toneMappingExposure = 1.05;
+    r.outputColorSpace = THREE.SRGBColorSpace;
+    r.shadowMap.enabled = true;
+    r.shadowMap.type = THREE.PCFSoftShadowMap;
     this.renderer = r;
     this.scene = new THREE.Scene();
-    // Ciel en dégradé
-    const sky = document.createElement('canvas'); sky.width = 4; sky.height = 128;
-    const sg = sky.getContext('2d');
-    const gr = sg.createLinearGradient(0, 0, 0, 128);
-    gr.addColorStop(0, '#5aa8f0'); gr.addColorStop(0.6, '#a8dcff'); gr.addColorStop(1, '#fff0d0');
-    sg.fillStyle = gr; sg.fillRect(0, 0, 4, 128);
-    const skyTex = new THREE.CanvasTexture(sky); skyTex.colorSpace = THREE.SRGBColorSpace;
-    this.scene.background = skyTex;
-    this.scene.fog = new THREE.Fog(0xcfe8ff, 70, 175);
-    this.camera = new THREE.PerspectiveCamera(60, 16 / 9, 0.1, 400);
-    this.scene.add(new THREE.HemisphereLight(0xdff0ff, 0x6a8a4a, 1.6));
-    const sun = new THREE.DirectionalLight(0xfff2d8, 2.4);
-    sun.position.set(40, 60, 25);
-    this.scene.add(sun);
+    this.scene.fog = new THREE.Fog(W.SKY.horizon.getHex(), 80, 230);
+    this.sky = W.buildSky(this.scene);
+    // Lumière du ciel pour les reflets des matériaux (carte d'environnement)
+    try {
+      const envScene = new THREE.Scene();
+      W.buildSky(envScene);
+      const ground = new THREE.Mesh(new THREE.CircleGeometry(400, 24), new THREE.MeshBasicMaterial({ color: 0x5a8a3a }));
+      ground.rotation.x = -Math.PI / 2; ground.position.y = -20; envScene.add(ground);
+      const pm = new THREE.PMREMGenerator(r);
+      this.scene.environment = pm.fromScene(envScene, 0.02).texture;
+      this.scene.environmentIntensity = 0.45;
+      pm.dispose();
+    } catch (e) { /* pas grave */ }
+    this.camera = new THREE.PerspectiveCamera(55, 16 / 9, 0.1, 1200);
+    this.scene.add(new THREE.HemisphereLight(0xcfe6ff, 0x6a8a4a, 0.75));
+    const sun = new THREE.DirectionalLight(0xfff1d6, 2.6);
+    sun.castShadow = true;
+    const ms = touch ? 1024 : 2048;
+    sun.shadow.mapSize.set(ms, ms);
+    const sc = sun.shadow.camera;
+    sc.left = -28; sc.right = 28; sc.top = 28; sc.bottom = -28; sc.near = 1; sc.far = 160;
+    sun.shadow.bias = -0.0006;
+    sun.shadow.normalBias = 0.04;
+    sun.shadow.radius = 3;
+    this.sun = sun;
+    this.scene.add(sun, sun.target);
+    this.wind = { value: 0 };
     this.camYaw = L.START.yaw + Math.PI;
     this.camPitch = 0.38;
     this.camDist = 9;
     this.camTarget = new THREE.Vector3();
     this.camPos = new THREE.Vector3();
+    // Qualité adaptative : on baisse la résolution si l'appareil peine
+    this.pixelScale = 1;
+    this.perf = { t: 0, n: 0, checks: 0 };
   }
 
   resize() {
     const w = window.innerWidth, h = window.innerHeight;
-    // Rendu en basse résolution, agrandi en pixels nets (style du jeu + fluidité sur téléphone)
-    const targetH = this.isTouch ? 300 : 400;
-    const ratio = Math.min(1, targetH / h);
-    this.renderer.setPixelRatio(ratio);
+    const maxRatio = this.isTouch ? 1.5 : 2;
+    this.renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, maxRatio) * this.pixelScale);
     this.renderer.setSize(w, h, false);
     this.camera.aspect = w / h;
     this.camera.updateProjectionMatrix();
+  }
+
+  /** Mesure la fluidité et baisse la résolution si besoin (téléphones modestes). */
+  adaptQuality(dt) {
+    const p = this.perf;
+    if (p.checks >= 4 || this.paused) return;
+    p.t += dt; p.n++;
+    if (p.t < 2.5) return;
+    const fps = p.n / p.t;
+    p.t = 0; p.n = 0; p.checks++;
+    if (fps < 40 && this.pixelScale > 0.55) {
+      this.pixelScale = Math.max(0.55, this.pixelScale * 0.75);
+      if (fps < 28) this.renderer.shadowMap.enabled = this.sun.castShadow = this.pixelScale > 0.6;
+      this.resize();
+    }
   }
 
   // -------------------------------------------------------------------------
@@ -215,201 +249,237 @@ class Adventure {
   // -------------------------------------------------------------------------
   buildWorld() {
     const sc = this.scene;
-    // Terrain : facettes plates colorées selon la hauteur et la pente
-    const size = 180, seg = 150;
-    const geo = new THREE.PlaneGeometry(size, size, seg, seg).toNonIndexed();
-    geo.rotateX(-Math.PI / 2);
-    const pos = geo.attributes.position;
-    for (let i = 0; i < pos.count; i++) pos.setY(i, L.heightAt(pos.getX(i), pos.getZ(i)));
-    geo.computeVertexNormals();
-    const colors = new Float32Array(pos.count * 3);
-    const col = new THREE.Color();
-    const nrm = geo.attributes.normal;
-    for (let f = 0; f < pos.count; f += 3) {
-      const cx = (pos.getX(f) + pos.getX(f + 1) + pos.getX(f + 2)) / 3;
-      const cz = (pos.getZ(f) + pos.getZ(f + 1) + pos.getZ(f + 2)) / 3;
-      const cy = (pos.getY(f) + pos.getY(f + 1) + pos.getY(f + 2)) / 3;
-      const ny = nrm.getY(f);
-      const n = Math.sin(cx * 0.9) * Math.cos(cz * 0.7) + Math.sin(cx * 0.31 + cz * 0.47);
-      if (cy < -0.2) col.set(0xd8c088);
-      else if (cy < 1.0) col.set(n > 0.4 ? 0xf4dca0 : 0xf0d494);
-      else if (ny < 0.62) col.set(n > 0 ? 0xa0806a : 0x8a6e5a);
-      else if (cy > 11) col.set(n > 0.3 ? 0x8ad060 : 0x78c050);
-      else col.set(n > 0.8 ? 0x8ad45a : n > -0.6 ? 0x6cc04a : 0x5aac3e);
-      for (let k = 0; k < 3; k++) { colors[(f + k) * 3] = col.r; colors[(f + k) * 3 + 1] = col.g; colors[(f + k) * 3 + 2] = col.b; }
-    }
-    geo.setAttribute('color', new THREE.BufferAttribute(colors, 3));
-    sc.add(new THREE.Mesh(geo, new THREE.MeshToonMaterial({ vertexColors: true, gradientMap: M.gradient })));
+    const q0 = this.quality;
+    const m4 = new THREE.Matrix4(), q = new THREE.Quaternion(), v = new THREE.Vector3(), sv = new THREE.Vector3(), e = new THREE.Euler();
 
-    // Eau
-    const water = new THREE.Mesh(new THREE.PlaneGeometry(600, 600), new THREE.MeshToonMaterial({ color: 0x3ab0e8, transparent: true, opacity: 0.82, gradientMap: M.gradient }));
-    water.rotation.x = -Math.PI / 2; water.position.y = L.WATER_Y;
-    sc.add(water);
-    this.water = water;
+    W.buildTerrain(sc, q0);
+    this.water = W.buildWater(sc, sc.fog);
+    this.grass = W.buildGrass(sc, q0, this.wind);
+    W.buildFlowers(sc);
+    W.buildTrees(sc);
 
-    // Grand Chêne
+    // Grand Chêne : tronc noueux, branches rondes en spirale, grand feuillage
     const T = L.TREE;
-    const trunk = new THREE.Mesh(M.flat(new THREE.CylinderGeometry(T.trunkR * 0.85, T.trunkR * 1.15, T.height + 2, 10)), M.toon(0x8a5a30));
-    trunk.position.set(T.x, T.base - 2 + (T.height + 2) / 2, T.z);
+    const bark = M.mat(0x7a5030, { roughness: 0.95 });
+    const trunkGeo = new THREE.CylinderGeometry(T.trunkR * 0.9, T.trunkR * 1.25, T.height + 2.4, 24, 16);
+    const tp = trunkGeo.attributes.position;
+    for (let i = 0; i < tp.count; i++) {
+      const x = tp.getX(i), y = tp.getY(i), z = tp.getZ(i), a = Math.atan2(z, x);
+      const k = 1 + Math.sin(a * 7 + y * 0.6) * 0.05 + Math.sin(a * 3 - y * 0.3) * 0.04 + (y < -(T.height / 2) + 1 ? 0.25 : 0);
+      tp.setX(i, x * k); tp.setZ(i, z * k);
+    }
+    trunkGeo.computeVertexNormals();
+    const trunk = new THREE.Mesh(trunkGeo, bark);
+    trunk.position.set(T.x, T.base - 2.4 + (T.height + 2.4) / 2, T.z);
+    trunk.castShadow = trunk.receiveShadow = true;
     sc.add(trunk);
-    const branchMat = M.toon(0xa0703c);
-    const leafMat = M.toon(0x5aae3a);
+    // Racines
+    for (let i = 0; i < 6; i++) {
+      const a = i * 1.047 + 0.3;
+      const root = new THREE.Mesh(new THREE.CapsuleGeometry(0.45, 2.2, 4, 10), bark);
+      root.position.set(Math.cos(a) * 2.6, T.base + 0.2, Math.sin(a) * 2.6);
+      root.rotation.set(0, -a, 0); root.rotateZ(Math.PI / 2 - 0.35);
+      root.castShadow = root.receiveShadow = true;
+      sc.add(root);
+    }
+    const branchTop = M.mat(0x9a6a3c, { roughness: 0.9 });
+    const leafMat = M.mat(0x58b440, { roughness: 0.85 });
+    const leafGeo = new THREE.IcosahedronGeometry(1, 3);
     for (const s of L.treeSteps) {
-      const b = new THREE.Mesh(new THREE.BoxGeometry(2.6, 0.5, 2.6), branchMat);
-      b.position.set(s.x, s.top - 0.25, s.z);
-      sc.add(b);
-      const tuft = new THREE.Mesh(M.flat(new THREE.IcosahedronGeometry(0.7, 0)), leafMat);
-      tuft.position.set(s.x * 1.25, s.top + 0.1, s.z * 1.25);
+      // plate-forme ronde (même forme que la collision : rayon 1.5)
+      const pad = new THREE.Mesh(new THREE.CylinderGeometry(1.5, 1.35, 0.5, 28), branchTop);
+      pad.position.set(s.x, s.top - 0.25, s.z);
+      pad.castShadow = pad.receiveShadow = true;
+      sc.add(pad);
+      // bras qui relie la plate-forme au tronc
+      const arm = new THREE.Mesh(new THREE.CylinderGeometry(0.35, 0.55, 2.4, 12), bark);
+      arm.position.set(s.x * 0.62, s.top - 0.7, s.z * 0.62);
+      arm.rotation.set(0, -s.a, 0); arm.rotateZ(Math.PI / 2 + 0.35);
+      arm.castShadow = true;
+      sc.add(arm);
+      const tuft = new THREE.Mesh(leafGeo, leafMat);
+      tuft.scale.setScalar(0.75);
+      tuft.position.set(s.x * 1.35, s.top + 0.15, s.z * 1.35);
+      tuft.castShadow = true;
       sc.add(tuft);
     }
-    const canopy = new THREE.Mesh(M.flat(new THREE.CylinderGeometry(4.6, 4.2, 0.6, 14)), branchMat);
+    const canopy = new THREE.Mesh(new THREE.CylinderGeometry(4.6, 4.3, 0.6, 40), branchTop);
     canopy.position.set(0, L.TREE_TOP - 0.3, 0);
+    canopy.castShadow = canopy.receiveShadow = true;
     sc.add(canopy);
-    for (let i = 0; i < 10; i++) {
-      const a = (i / 10) * Math.PI * 2;
-      const f = new THREE.Mesh(M.flat(new THREE.IcosahedronGeometry(2.2 + (i % 3) * 0.5, 0)), leafMat);
-      f.position.set(Math.cos(a) * 6.2, L.TREE_TOP - 1.2 + (i % 2) * 0.8, Math.sin(a) * 6.2);
-      sc.add(f);
+    const crown = [];
+    for (let i = 0; i < 12; i++) {
+      const a = (i / 12) * Math.PI * 2;
+      crown.push([Math.cos(a) * 6.6, L.TREE_TOP - 2.6 + (i % 2) * 0.6, Math.sin(a) * 6.6, 2.1 + (i % 3) * 0.4]);
     }
     for (let i = 0; i < 7; i++) {
       const a = (i / 7) * Math.PI * 2 + 0.4;
-      const f = new THREE.Mesh(M.flat(new THREE.IcosahedronGeometry(1.8, 0)), leafMat);
-      f.position.set(Math.cos(a) * 6.5, L.TREE_TOP - 7 - (i % 3) * 3, Math.sin(a) * 6.5);
-      sc.add(f);
+      crown.push([Math.cos(a) * 6.6, L.TREE_TOP - 7 - (i % 3) * 3, Math.sin(a) * 6.6, 1.8]);
     }
-    // Petit drapeau au sommet
-    const pole = new THREE.Mesh(new THREE.CylinderGeometry(0.06, 0.06, 2.6), M.toon(0xffffff));
-    pole.position.set(-2.8, L.TREE_TOP + 1.3, -2.8); sc.add(pole);
-    const flag = new THREE.Mesh(new THREE.BoxGeometry(0.05, 0.7, 1.1), M.toon(0xd03434));
-    flag.position.set(-2.8, L.TREE_TOP + 2.2, -2.25); sc.add(flag);
-
-    // Arbres (instanciés)
-    const n = L.trees.length;
-    const trunkI = new THREE.InstancedMesh(M.flat(new THREE.CylinderGeometry(0.4, 0.55, 5, 7)), M.toon(0x7a4a28), n);
-    const leafI = new THREE.InstancedMesh(M.flat(new THREE.IcosahedronGeometry(1.9, 0)), M.toon(0xffffff), n * 3);
-    const m4 = new THREE.Matrix4(), q = new THREE.Quaternion(), v = new THREE.Vector3(), sv = new THREE.Vector3();
-    const greens = [0x4caa38, 0x5ec04a, 0x3e9a34, 0x7ac852];
-    L.trees.forEach((t, i) => {
-      m4.compose(v.set(t.x, t.y + 2.5 * t.s, t.z), q.identity(), sv.set(t.s, t.s, t.s));
-      trunkI.setMatrixAt(i, m4);
-      for (let k = 0; k < 3; k++) {
-        const a = k * 2.1 + i;
-        m4.compose(v.set(t.x + Math.cos(a) * 0.9 * t.s, t.y + (5 + k * 0.7) * t.s, t.z + Math.sin(a) * 0.9 * t.s),
-          q.setFromEuler(new THREE.Euler(i, k, 0)), sv.set(t.s * (1 - k * 0.15), t.s * (1 - k * 0.15), t.s * (1 - k * 0.15)));
-        leafI.setMatrixAt(i * 3 + k, m4);
-        leafI.setColorAt(i * 3 + k, col.set(greens[(i + k) % greens.length]));
-      }
+    const crownI = new THREE.InstancedMesh(leafGeo, M.mat(0xffffff, { roughness: 0.85 }), crown.length);
+    const cc = new THREE.Color();
+    crown.forEach(([x, y, z, s], i) => {
+      m4.compose(v.set(x, y, z), q.setFromEuler(e.set(i, i * 2, 0)), sv.set(s, s * 0.85, s));
+      crownI.setMatrixAt(i, m4);
+      crownI.setColorAt(i, cc.set([0x4caf3a, 0x5cc046, 0x6ccf4e][i % 3]));
     });
-    sc.add(trunkI, leafI);
+    crownI.castShadow = crownI.receiveShadow = true;
+    sc.add(crownI);
+    // Petit drapeau au sommet
+    const pole = new THREE.Mesh(new THREE.CylinderGeometry(0.06, 0.06, 2.6, 10), M.mat(0xf4f4f4, { roughness: 0.4 }));
+    pole.position.set(-2.8, L.TREE_TOP + 1.3, -2.8); pole.castShadow = true; sc.add(pole);
+    const flagGeo = new THREE.PlaneGeometry(1.2, 0.75, 8, 1);
+    this.flag = new THREE.Mesh(flagGeo, M.mat(0xe03a3a, { side: THREE.DoubleSide, roughness: 0.7 }));
+    this.flag.position.set(-2.8, L.TREE_TOP + 2.2, -2.2); this.flag.rotation.y = Math.PI / 2;
+    this.flag.castShadow = true; sc.add(this.flag);
+    this.flagBase = Float32Array.from(flagGeo.attributes.position.array);
 
-    // Rochers, pierres de gué, îlot
-    const rockMat = M.toon(0xa8a098);
-    for (const r of L.rocks) {
+    // Rochers des balles, pierres de gué, îlot
+    const rm = W.rockMat();
+    L.rocks.forEach((r, i) => {
       const g = L.heightAt(r.x, r.z);
-      const m = new THREE.Mesh(M.flat(new THREE.CylinderGeometry(r.r * 0.85, r.r * 1.1, r.top - g + 1, 7)), rockMat);
-      m.position.set(r.x, (r.top + g - 1) / 2, r.z);
+      const hgt = r.top - g + 1.2;
+      const m = new THREE.Mesh(W.rockGeometry(40 + i, r.r * 1.05, hgt / 2, r.r * 1.05), rm);
+      m.position.set(r.x, g - 1.2 + hgt / 2, r.z);
+      // dessus aplati pour qu'on voie bien où se poser
+      const p = m.geometry.attributes.position;
+      for (let k = 0; k < p.count; k++) if (p.getY(k) > hgt / 2 - 0.15) p.setY(k, hgt / 2 - 0.15 + (p.getY(k) - (hgt / 2 - 0.15)) * 0.15);
+      m.geometry.computeVertexNormals();
+      m.position.y = r.top - (hgt / 2 - 0.12);
+      m.castShadow = m.receiveShadow = true;
       sc.add(m);
-    }
-    const stoneMat = M.toon(0x9a9a92);
-    for (const s of L.stones) {
-      const m = new THREE.Mesh(M.flat(new THREE.CylinderGeometry(1.15, 1.3, 4.75, 8)), stoneMat);
-      m.position.set(s.x, s.top - 2.375, s.z);
+    });
+    L.stones.forEach((s, i) => {
+      const m = new THREE.Mesh(W.rockGeometry(60 + i, 1.25, 2.4, 1.25), rm);
+      const p = m.geometry.attributes.position;
+      for (let k = 0; k < p.count; k++) if (p.getY(k) > 2.1) p.setY(k, 2.1 + (p.getY(k) - 2.1) * 0.2);
+      m.geometry.computeVertexNormals();
+      m.position.set(s.x, s.top - 2.18, s.z);
+      m.castShadow = m.receiveShadow = true;
       sc.add(m);
+    });
+    const IS = { x: L.SPOTS.islet.x - 1.5, z: L.SPOTS.islet.z };
+    const isletGeo = new THREE.CylinderGeometry(4.25, 5.2, 5.3, 40, 4);
+    const ip = isletGeo.attributes.position, icol = [];
+    const sand = new THREE.Color(0xf0d8a0), grassC = new THREE.Color(0x66bf44);
+    for (let k = 0; k < ip.count; k++) {
+      const a = Math.atan2(ip.getZ(k), ip.getX(k));
+      const w = 1 + Math.sin(a * 5) * 0.04;
+      ip.setX(k, ip.getX(k) * w); ip.setZ(k, ip.getZ(k) * w);
+      const c = ip.getY(k) > 2.6 && Math.hypot(ip.getX(k), ip.getZ(k)) < 3.9 ? grassC : sand;
+      icol.push(c.r, c.g, c.b);
     }
-    const islet = new THREE.Mesh(M.flat(new THREE.CylinderGeometry(4.2, 4.8, 5.3, 12)), M.toon(0xe8d098));
-    islet.position.set(L.SPOTS.islet.x - 1.5, 1.3 - 2.65, L.SPOTS.islet.z);
+    isletGeo.setAttribute('color', new THREE.Float32BufferAttribute(icol, 3));
+    isletGeo.computeVertexNormals();
+    const islet = new THREE.Mesh(isletGeo, new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.95 }));
+    islet.position.set(IS.x, 1.3 - 2.65, IS.z);
+    islet.receiveShadow = true;
     sc.add(islet);
-    const isletGrass = new THREE.Mesh(new THREE.CylinderGeometry(3.6, 3.6, 0.1, 12), M.toon(0x6cc04a));
-    isletGrass.position.set(L.SPOTS.islet.x - 1.5, 1.33, L.SPOTS.islet.z);
-    sc.add(isletGrass);
-
-    // Ascenseur + passerelle + cascade
-    const woodMat = M.toon(0xb07a3a);
-    this.elevatorMesh = new THREE.Mesh(new THREE.BoxGeometry(L.ELEVATOR.w, 0.5, L.ELEVATOR.d), woodMat);
-    sc.add(this.elevatorMesh);
-    for (const [ox, oz] of [[-1.3, -1.3], [1.3, -1.3], [-1.3, 1.3], [1.3, 1.3]]) {
-      const p = new THREE.Mesh(new THREE.CylinderGeometry(0.12, 0.12, L.ELEVATOR.high - L.ELEVATOR.low + 3), M.toon(0x7a4a28));
-      p.position.set(L.ELEVATOR.x + ox * 1.15, (L.ELEVATOR.high + L.ELEVATOR.low) / 2 + 1, L.ELEVATOR.z + oz * 1.15);
-      sc.add(p);
+    // un petit palmier sur l'îlot
+    const palm = new THREE.Group();
+    for (let k = 0; k < 6; k++) {
+      const seg = new THREE.Mesh(new THREE.CylinderGeometry(0.17, 0.22, 0.7, 10), M.mat(0x9a7448, { roughness: 0.9 }));
+      seg.position.set(k * 0.12, 0.35 + k * 0.65, 0); seg.rotation.z = -0.12; seg.castShadow = true; palm.add(seg);
     }
-    const bridge = new THREE.Mesh(new THREE.BoxGeometry(L.BRIDGE.size, 0.5, L.BRIDGE.size), woodMat);
+    for (let k = 0; k < 7; k++) {
+      const leaf = new THREE.Mesh(new THREE.SphereGeometry(1, 12, 6), M.mat(0x4cae3c, { roughness: 0.8 }));
+      leaf.scale.set(1.5, 0.12, 0.38);
+      const a = (k / 7) * Math.PI * 2;
+      leaf.position.set(0.7 + Math.cos(a) * 1.2, 4.0 - 0.25, Math.sin(a) * 1.2);
+      leaf.rotation.set(0, -a, -0.35);
+      leaf.castShadow = true; palm.add(leaf);
+    }
+    palm.position.set(IS.x - 2.2, 1.3, IS.z - 1.6);
+    sc.add(palm);
+
+    // Ascenseur (plate-forme en bois) + poteaux + passerelle
+    const woodMap = M.buildCrate().material.map;
+    const plankMat = M.mat(0xc08848, { roughness: 0.8 }).clone();
+    if (woodMap) { plankMat.map = woodMap; plankMat.color.set(0xffffff); }
+    this.elevatorMesh = new THREE.Mesh(new THREE.BoxGeometry(L.ELEVATOR.w, 0.5, L.ELEVATOR.d), plankMat);
+    this.elevatorMesh.castShadow = this.elevatorMesh.receiveShadow = true;
+    sc.add(this.elevatorMesh);
+    const ropeMat = M.mat(0x6a4a2a, { roughness: 0.9 });
+    for (const [ox, oz] of [[-1.3, -1.3], [1.3, -1.3], [-1.3, 1.3], [1.3, 1.3]]) {
+      const p = new THREE.Mesh(new THREE.CylinderGeometry(0.14, 0.16, L.ELEVATOR.high - L.ELEVATOR.low + 3, 10), ropeMat);
+      p.position.set(L.ELEVATOR.x + ox * 1.15, (L.ELEVATOR.high + L.ELEVATOR.low) / 2 + 1, L.ELEVATOR.z + oz * 1.15);
+      p.castShadow = true;
+      sc.add(p);
+      const cap = new THREE.Mesh(new THREE.SphereGeometry(0.24, 12, 8), M.mat(0xe0b040, { metalness: 0.6, roughness: 0.35 }));
+      cap.position.set(p.position.x, L.ELEVATOR.high + 2.5, p.position.z);
+      sc.add(cap);
+    }
+    const bridge = new THREE.Mesh(new THREE.BoxGeometry(L.BRIDGE.size, 0.5, L.BRIDGE.size), plankMat);
     bridge.position.set(L.BRIDGE.x, L.BRIDGE.top - 0.25, L.BRIDGE.z);
+    bridge.castShadow = bridge.receiveShadow = true;
     sc.add(bridge);
+
+    // Cascade (texture animée) + bassin d'écume
     const fallTex = this.makeWaterfallTexture();
     this.fallTex = fallTex;
-    const fall = new THREE.Mesh(new THREE.PlaneGeometry(3.5, 11.5), new THREE.MeshBasicMaterial({ map: fallTex, transparent: true, opacity: 0.9 }));
+    const fall = new THREE.Mesh(new THREE.PlaneGeometry(3.5, 11.5), new THREE.MeshBasicMaterial({ map: fallTex, transparent: true, opacity: 0.88, depthWrite: false }));
     const fx = L.SPOTS.plateau.x + 10.1, fz = L.SPOTS.plateau.z + 2;
     fall.position.set(fx, L.heightAt(fx - 0.5, fz) + 5.6, fz);
     fall.rotation.y = Math.PI / 2;
     sc.add(fall);
-    const pool = new THREE.Mesh(new THREE.CircleGeometry(3.2, 16), M.toon(0x5ac8f0));
+    const pool = new THREE.Mesh(new THREE.CircleGeometry(3.2, 40), new THREE.MeshStandardMaterial({ color: 0x5fd0f0, roughness: 0.15, metalness: 0.1, transparent: true, opacity: 0.85 }));
     pool.rotation.x = -Math.PI / 2; pool.position.set(fx + 2.5, L.heightAt(fx + 2.5, fz) + 0.08, fz);
     sc.add(pool);
+    this.fallPos = new THREE.Vector3(fx + 1.2, L.heightAt(fx + 2.5, fz) + 0.3, fz);
 
     // Niche de Mamie
     const kennel = new THREE.Group();
-    const kb = new THREE.Mesh(new THREE.BoxGeometry(2.4, 1.6, 2.2), M.toon(0xd0a060));
+    const kb = new THREE.Mesh(new THREE.BoxGeometry(2.4, 1.6, 2.2), M.mat(0xe0b070, { roughness: 0.8 }));
+    if (woodMap) { kb.material = kb.material.clone(); kb.material.map = woodMap; kb.material.color.set(0xffe0b0); }
     kb.position.y = 0.8; kennel.add(kb);
-    const roof = new THREE.Mesh(M.flat(new THREE.CylinderGeometry(0.01, 1.9, 1.2, 4)), M.toon(0xc83a2a));
-    roof.position.y = 2.2; roof.rotation.y = Math.PI / 4; roof.scale.set(1, 1, 1.25); kennel.add(roof);
-    const door = new THREE.Mesh(new THREE.CircleGeometry(0.5, 12), M.toon(0x3a2010));
-    door.position.set(0, 0.6, 1.11); kennel.add(door);
+    const roofShape = new THREE.Shape();
+    roofShape.moveTo(-1.55, 0); roofShape.lineTo(0, 1.25); roofShape.lineTo(1.55, 0); roofShape.lineTo(-1.55, 0);
+    const roof = new THREE.Mesh(new THREE.ExtrudeGeometry(roofShape, { depth: 2.7, bevelEnabled: true, bevelSize: 0.08, bevelThickness: 0.08, bevelSegments: 2 }), M.mat(0xd8443a, { roughness: 0.6 }));
+    roof.position.set(0, 1.55, -1.35); kennel.add(roof);
+    const door = new THREE.Mesh(new THREE.CircleGeometry(0.55, 24), M.mat(0x2a1608, { roughness: 1 }));
+    door.position.set(0, 0.65, 1.11); kennel.add(door);
+    const doorB = new THREE.Mesh(new THREE.PlaneGeometry(1.1, 0.65), door.material);
+    doorB.position.set(0, 0.33, 1.11); kennel.add(doorB);
+    const bowl = new THREE.Mesh(new THREE.CylinderGeometry(0.35, 0.25, 0.2, 20), M.mat(0x3a8ae0, { roughness: 0.4 }));
+    bowl.position.set(1.0, 0.1, 1.7); kennel.add(bowl);
+    kennel.traverse(o => { if (o.isMesh) { o.castShadow = o.receiveShadow = true; } });
     kennel.position.set(L.SPOTS.mamie.x - 3, L.heightAt(L.SPOTS.mamie.x - 3, L.SPOTS.mamie.z - 1), L.SPOTS.mamie.z - 1);
     kennel.rotation.y = 0.5;
     sc.add(kennel);
 
-    // Clôture de la clairière
+    // Clôture de la clairière : poteaux arrondis + traverses
     const posts = [];
     for (let i = 0; i < 40; i++) {
       const a = (i / 40) * Math.PI * 2;
       if (Math.abs(Math.sin(a + 0.2)) < 0.15 && Math.cos(a) < 0) continue; // ouverture côté ouest
       posts.push(a);
     }
-    const postI = new THREE.InstancedMesh(new THREE.BoxGeometry(0.25, 1.1, 0.25), M.toon(0xc89a5a), posts.length);
+    const fenceMat = M.mat(0xd8aa6a, { roughness: 0.85 });
+    const postI = new THREE.InstancedMesh(new THREE.CapsuleGeometry(0.13, 0.95, 4, 10), fenceMat, posts.length);
+    const railI = new THREE.InstancedMesh(new THREE.BoxGeometry(0.1, 0.14, 1), fenceMat, posts.length * 2);
+    const CL = L.SPOTS.clearing, R = 13.5;
+    let rails = 0;
     posts.forEach((a, i) => {
-      const x = L.SPOTS.clearing.x + Math.cos(a) * 13.5, z = L.SPOTS.clearing.z + Math.sin(a) * 13.5;
-      m4.compose(v.set(x, L.heightAt(x, z) + 0.45, z), q.identity(), sv.set(1, 1, 1));
+      const x = CL.x + Math.cos(a) * R, z = CL.z + Math.sin(a) * R;
+      m4.compose(v.set(x, L.heightAt(x, z) + 0.5, z), q.identity(), sv.set(1, 1, 1));
       postI.setMatrixAt(i, m4);
-    });
-    sc.add(postI);
-
-    // Herbe et fleurs (instanciées)
-    const tufts = [], flowers = [];
-    let seed = 9;
-    const rnd = () => (seed = (seed * 16807) % 2147483647) / 2147483647;
-    for (let i = 0; i < 4000 && tufts.length < 900; i++) {
-      const x = (rnd() - 0.5) * 140, z = (rnd() - 0.5) * 140;
-      const h = L.heightAt(x, z);
-      if (h < 1.2) continue;
-      if (rnd() < 0.18) flowers.push([x, h, z]); else tufts.push([x, h, z]);
-    }
-    const blade = M.mergeGeos([
-      { geo: new THREE.ConeGeometry(0.08, 0.6, 3), y: 0.3, rz: 0.25 },
-      { geo: new THREE.ConeGeometry(0.08, 0.5, 3), y: 0.25, x: 0.12, rz: -0.3 },
-      { geo: new THREE.ConeGeometry(0.08, 0.45, 3), y: 0.22, x: -0.1, z: 0.08, rx: 0.3 },
-    ]);
-    const tuftI = new THREE.InstancedMesh(blade, M.toon(0x4c9e34), tufts.length);
-    tufts.forEach(([x, h, z], i) => { m4.compose(v.set(x, h, z), q.setFromEuler(new THREE.Euler(0, x * 3, 0)), sv.set(1, 1, 1)); tuftI.setMatrixAt(i, m4); });
-    sc.add(tuftI);
-    const flowerI = new THREE.InstancedMesh(new THREE.IcosahedronGeometry(0.16, 0), M.toon(0xffffff), flowers.length);
-    const fcols = [0xffffff, 0xffe050, 0xff8ab0, 0xb08aff];
-    flowers.forEach(([x, h, z], i) => { m4.compose(v.set(x, h + 0.2, z), q.identity(), sv.set(1, 1, 1)); flowerI.setMatrixAt(i, m4); flowerI.setColorAt(i, col.set(fcols[i % 4])); });
-    sc.add(flowerI);
-
-    // Nuages
-    this.clouds = [];
-    const cloudMat = M.toon(0xffffff);
-    for (let i = 0; i < 9; i++) {
-      const g = new THREE.Group();
-      for (let k = 0; k < 3; k++) {
-        const c = new THREE.Mesh(M.flat(new THREE.IcosahedronGeometry(3 + k, 0)), cloudMat);
-        c.position.set(k * 3.5 - 3.5, (k % 2) * 1.2, 0); c.scale.y = 0.6; g.add(c);
+      const b = a + (Math.PI * 2) / 40;
+      if (!posts.some(p => Math.abs(p - b) < 1e-6) && !(i === posts.length - 1 && posts[0] < 1e-6)) return;
+      const x2 = CL.x + Math.cos(b) * R, z2 = CL.z + Math.sin(b) * R;
+      const len = Math.hypot(x2 - x, z2 - z), yaw = Math.atan2(x2 - x, z2 - z);
+      for (const hh of [0.35, 0.75]) {
+        const y = (L.heightAt(x, z) + L.heightAt(x2, z2)) / 2 + hh;
+        m4.compose(v.set((x + x2) / 2, y, (z + z2) / 2), q.setFromEuler(e.set(0, yaw, 0)), sv.set(1, 1, len));
+        railI.setMatrixAt(rails++, m4);
       }
-      const a = (i / 9) * Math.PI * 2;
-      g.position.set(Math.cos(a) * 90, 42 + (i % 3) * 8, Math.sin(a) * 90);
-      sc.add(g);
-      this.clouds.push(g);
-    }
+    });
+    railI.count = rails;
+    postI.castShadow = railI.castShadow = true;
+    sc.add(postI, railI);
+
+    // Nuages et papillons
+    this.clouds = W.buildClouds(sc);
+    this.butterflies = W.buildButterflies(sc);
 
     // Panneaux
     for (const s of L.signs) {
@@ -436,15 +506,20 @@ class Adventure {
   }
 
   makeWaterfallTexture() {
-    const c = document.createElement('canvas'); c.width = 16; c.height = 32;
+    const c = document.createElement('canvas'); c.width = 64; c.height = 128;
     const x = c.getContext('2d');
-    x.fillStyle = '#6ad0ff'; x.fillRect(0, 0, 16, 32);
-    x.fillStyle = '#c8f0ff';
-    for (let i = 0; i < 14; i++) x.fillRect((i * 7) % 16, (i * 11) % 32, 1, 4 + (i % 3));
+    const g = x.createLinearGradient(0, 0, 64, 0);
+    g.addColorStop(0, 'rgba(120,210,255,0.6)'); g.addColorStop(0.5, 'rgba(170,230,255,1)'); g.addColorStop(1, 'rgba(120,210,255,0.6)');
+    x.fillStyle = g; x.fillRect(0, 0, 64, 128);
+    for (let i = 0; i < 70; i++) {
+      x.fillStyle = `rgba(255,255,255,${0.25 + (i % 5) * 0.12})`;
+      const w = 1 + (i % 3), h = 10 + (i * 7) % 30;
+      x.beginPath(); x.roundRect((i * 37) % 64, (i * 53) % 128, w, h, w / 2); x.fill();
+    }
     const t = new THREE.CanvasTexture(c);
+    t.colorSpace = THREE.SRGBColorSpace;
     t.wrapS = t.wrapT = THREE.RepeatWrapping;
-    t.magFilter = THREE.NearestFilter;
-    t.repeat.set(2, 3);
+    t.repeat.set(1, 2);
     return t;
   }
 
@@ -466,7 +541,7 @@ class Adventure {
     this.shadow = this.makeShadow(0.8);
 
     // Os dorés (instanciés)
-    this.bonesI = new THREE.InstancedMesh(M.boneGeometry(), M.toon(0xffd34d, { emissive: 0x6a4800 }), L.bones.length);
+    this.bonesI = new THREE.InstancedMesh(M.boneGeometry(), M.mat(0xffd34d, { metalness: 0.7, roughness: 0.3, emissive: 0x6a4800, emissiveIntensity: 0.6 }), L.bones.length);
     this.boneTaken = new Set(s.bones);
     sc.add(this.bonesI);
 
@@ -530,18 +605,53 @@ class Adventure {
       puppy: this.makeMark('?', 0x8ad0ff),
     };
 
-    // Particules
+    // Particules : points lumineux doux
     this.particles = [];
     const PMAX = 400;
-    this.partI = new THREE.InstancedMesh(new THREE.BoxGeometry(1, 1, 1), new THREE.MeshBasicMaterial({ color: 0xffffff }), PMAX);
-    this.partI.count = 0;
-    this.partI.frustumCulled = false;
-    this.partI.setColorAt(0, new THREE.Color(1, 1, 1));
-    sc.add(this.partI);
+    const pg = new THREE.BufferGeometry();
+    pg.setAttribute('position', new THREE.BufferAttribute(new Float32Array(PMAX * 3), 3));
+    pg.setAttribute('color', new THREE.BufferAttribute(new Float32Array(PMAX * 3), 3));
+    pg.setAttribute('size', new THREE.BufferAttribute(new Float32Array(PMAX), 1));
+    pg.setDrawRange(0, 0);
+    const pm = new THREE.ShaderMaterial({
+      uniforms: { uMap: { value: M.glowTexture() }, uScale: { value: 400 } },
+      vertexShader: `
+        attribute float size;
+        attribute vec3 color;
+        varying vec3 vColor;
+        uniform float uScale;
+        void main() {
+          vColor = color;
+          vec4 mv = modelViewMatrix * vec4(position, 1.0);
+          gl_PointSize = size * uScale / -mv.z;
+          gl_Position = projectionMatrix * mv;
+        }`,
+      fragmentShader: `
+        uniform sampler2D uMap;
+        varying vec3 vColor;
+        void main() {
+          vec4 t = texture2D(uMap, gl_PointCoord);
+          gl_FragColor = vec4(vColor, min(1.0, t.a * 1.3));
+          #include <colorspace_fragment>
+        }`,
+      transparent: true, depthWrite: false,
+    });
+    this.partPts = new THREE.Points(pg, pm);
+    this.partPts.frustumCulled = false;
+    this.partPts.renderOrder = 5;
+    sc.add(this.partPts);
   }
 
   makeShadow(r) {
-    const m = new THREE.Mesh(new THREE.CircleGeometry(r, 16), new THREE.MeshBasicMaterial({ color: 0x1a2a10, transparent: true, opacity: 0.32, depthWrite: false }));
+    if (!Adventure.shadowTex) {
+      const c = document.createElement('canvas'); c.width = c.height = 64;
+      const x = c.getContext('2d');
+      const g = x.createRadialGradient(32, 32, 0, 32, 32, 32);
+      g.addColorStop(0, 'rgba(0,0,0,1)'); g.addColorStop(0.5, 'rgba(0,0,0,0.6)'); g.addColorStop(1, 'rgba(0,0,0,0)');
+      x.fillStyle = g; x.fillRect(0, 0, 64, 64);
+      Adventure.shadowTex = new THREE.CanvasTexture(c);
+    }
+    const m = new THREE.Mesh(new THREE.PlaneGeometry(r * 2.4, r * 2.4), new THREE.MeshBasicMaterial({ map: Adventure.shadowTex, color: 0x0a1a08, transparent: true, opacity: 0.3, depthWrite: false }));
     m.rotation.x = -Math.PI / 2;
     m.renderOrder = 1;
     this.scene.add(m);
@@ -549,14 +659,23 @@ class Adventure {
   }
 
   makeMark(ch, color) {
-    const c = document.createElement('canvas'); c.width = 16; c.height = 16;
+    const c = document.createElement('canvas'); c.width = c.height = 128;
     const x = c.getContext('2d');
-    x.fillStyle = '#1a0c10'; x.fillRect(4, 0, 8, 16); x.fillRect(2, 2, 12, 12);
-    x.fillStyle = '#' + color.toString(16).padStart(6, '0'); x.fillRect(6, 2, 4, 8); x.fillRect(6, 11, 4, 3);
-    if (ch === '?') { x.fillStyle = '#1a0c10'; x.fillRect(4, 0, 8, 16); x.fillRect(2, 2, 12, 12); x.fillStyle = '#8ad0ff'; x.fillRect(5, 2, 6, 2); x.fillRect(9, 4, 2, 3); x.fillRect(7, 6, 2, 3); x.fillRect(7, 11, 2, 2); }
-    const t = new THREE.CanvasTexture(c); t.magFilter = THREE.NearestFilter;
+    const hex = '#' + color.toString(16).padStart(6, '0');
+    x.shadowColor = 'rgba(0,0,0,0.35)'; x.shadowBlur = 8; x.shadowOffsetY = 4;
+    x.fillStyle = '#ffffff';
+    x.beginPath(); x.arc(64, 58, 46, 0, Math.PI * 2); x.fill();
+    x.beginPath(); x.moveTo(50, 96); x.lineTo(64, 120); x.lineTo(78, 96); x.fill();
+    x.shadowColor = 'transparent';
+    x.fillStyle = hex;
+    x.beginPath(); x.arc(64, 58, 38, 0, Math.PI * 2); x.fill();
+    x.fillStyle = '#ffffff';
+    x.font = 'bold 64px Fredoka, "Arial Rounded MT Bold", Arial, sans-serif';
+    x.textAlign = 'center'; x.textBaseline = 'middle';
+    x.fillText(ch, 64, 62);
+    const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace;
     const s = new THREE.Sprite(new THREE.SpriteMaterial({ map: t, depthTest: false }));
-    s.scale.set(0.8, 0.8, 1);
+    s.scale.set(0.9, 0.9, 1);
     s.renderOrder = 10;
     this.scene.add(s);
     return s;
@@ -715,6 +834,7 @@ class Adventure {
       if (n === 5) this.acc = 0;
     }
     this.render(dt);
+    this.adaptQuality(dt);
   }
 
   step(dt) {
@@ -1406,21 +1526,38 @@ class Adventure {
 
     // Monde animé
     this.elevatorMesh.position.set(L.ELEVATOR.x, L.elevatorTop(t) - 0.25, L.ELEVATOR.z);
-    this.fallTex.offset.y = (t * 1.6) % 1;
-    this.water.position.y = L.WATER_Y + Math.sin(t * 0.8) * 0.06;
-    for (const [i, c] of this.clouds.entries()) { const a = (i / 9) * Math.PI * 2 + t * 0.01; c.position.x = Math.cos(a) * 90; c.position.z = Math.sin(a) * 90; }
+    this.fallTex.offset.y = (t * 1.4) % 1;
+    this.water.material.uniforms.uTime.value = t;
+    this.wind.value = t;
+    for (const c of this.clouds) { const u = c.userData, a = u.a + t * 0.006; c.position.set(Math.cos(a) * u.r, u.y, Math.sin(a) * u.r); }
+    W.animateButterflies(this.butterflies, t);
+    const fp = this.flag.geometry.attributes.position;
+    for (let i = 0; i < fp.count; i++) {
+      const bx = this.flagBase[i * 3], k = (bx + 0.6) / 1.2;
+      fp.setZ(i, Math.sin(t * 6 - bx * 4) * 0.12 * k);
+    }
+    fp.needsUpdate = true;
+    if (Math.random() < dt * 20) {
+      const f = this.fallPos;
+      this.spawnParticle(f.x + Math.random() * 2, f.y, f.z + (Math.random() - 0.5) * 3, (Math.random() - 0.3) * 1.5, 1.5 + Math.random() * 2, (Math.random() - 0.5) * 1.5, 0xe8f8ff, 0.25 + Math.random() * 0.2, 0.6, 6);
+    }
+    // Le soleil suit le joueur pour garder des ombres nettes autour de lui
+    const sun = this.sun;
+    sun.target.position.set(Math.round(P.pos.x), Math.round(P.pos.y), Math.round(P.pos.z));
+    sun.position.copy(sun.target.position).addScaledVector(W.SKY.sunDir, 70);
+    sun.target.updateMatrixWorld();
 
     // Particules
-    const pI = this.partI;
-    pI.count = this.particles.length;
+    const pg = this.partPts.geometry;
+    const pa = pg.attributes.position.array, ca = pg.attributes.color.array, sa = pg.attributes.size.array;
     this.particles.forEach((p, i) => {
-      const s = p.size * Math.min(1, p.life / p.max * 2);
-      m4.compose(v.set(p.x, p.y, p.z), q.identity(), new THREE.Vector3(s, s, s));
-      pI.setMatrixAt(i, m4);
-      pI.setColorAt(i, p.color);
+      pa[i * 3] = p.x; pa[i * 3 + 1] = p.y; pa[i * 3 + 2] = p.z;
+      ca[i * 3] = p.color.r; ca[i * 3 + 1] = p.color.g; ca[i * 3 + 2] = p.color.b;
+      sa[i] = p.size * 2.2 * Math.min(1, p.life / p.max * 2);
     });
-    pI.instanceMatrix.needsUpdate = true;
-    if (pI.instanceColor) pI.instanceColor.needsUpdate = true;
+    pg.setDrawRange(0, this.particles.length);
+    pg.attributes.position.needsUpdate = pg.attributes.color.needsUpdate = pg.attributes.size.needsUpdate = true;
+    this.partPts.material.uniforms.uScale.value = this.renderer.domElement.height / 2 / Math.tan(this.camera.fov * Math.PI / 360);
 
     // Caméra
     const target = v.set(P.pos.x, P.pos.y + 1.6, P.pos.z);
@@ -1447,7 +1584,7 @@ class Adventure {
     sh.position.set(pos.x, s.y + 0.04, pos.z);
     const k = Math.max(0.35, 1 - h / 8);
     sh.scale.set(k, k, k);
-    sh.material.opacity = 0.32 * k;
+    sh.material.opacity = 0.3 * k;
     void r;
   }
 
