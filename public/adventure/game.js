@@ -760,8 +760,13 @@ class Adventure {
       const m = M.buildMedal();
       m.position.set(md.x, md.y, md.z);
       sc.add(m);
+      // rayon de lumière : on voit de loin qu'une médaille est apparue
+      const beam = new THREE.Mesh(new THREE.CylinderGeometry(0.45, 0.85, 16, 18, 1, true), this.beamMaterial());
+      beam.position.set(md.x, md.y + 7, md.z);
+      beam.userData.noOutline = true; beam.renderOrder = 3;
+      sc.add(beam);
       const taken = s.medals.includes(md.id);
-      return { def: md, mesh: m, taken, visible: md.visible };
+      return { def: md, mesh: m, beam, taken, visible: md.visible };
     });
     this.updateMedalVisibility();
 
@@ -916,6 +921,19 @@ class Adventure {
     if (this.dom) this.updateHud();
   }
 
+  beamMaterial() {
+    if (!this._beamMat) {
+      const c = document.createElement('canvas'); c.width = 4; c.height = 128;
+      const x = c.getContext('2d');
+      const g = x.createLinearGradient(0, 0, 0, 128);
+      g.addColorStop(0, 'rgba(255,255,255,0)'); g.addColorStop(0.55, 'rgba(255,255,255,0.55)'); g.addColorStop(1, 'rgba(255,255,255,1)');
+      x.fillStyle = g; x.fillRect(0, 0, 4, 128);
+      const t = new THREE.CanvasTexture(c);
+      this._beamMat = new THREE.MeshBasicMaterial({ color: 0xffd860, map: t, transparent: true, opacity: 0.45, depthWrite: false, side: THREE.DoubleSide, blending: THREE.AdditiveBlending, fog: false });
+    }
+    return this._beamMat;
+  }
+
   updateMedalVisibility() {
     const s = this.save;
     const reveal = this.levelLogic ? this.levelLogic.reveal() : {
@@ -928,6 +946,7 @@ class Adventure {
     for (const m of this.medals) {
       m.visible = reveal[m.def.id];
       m.mesh.visible = m.visible && !m.taken;
+      if (m.beam) m.beam.visible = m.mesh.visible;
     }
   }
 
@@ -1892,7 +1911,7 @@ class Adventure {
 
   takeMedal(m) {
     const s = this.save;
-    m.taken = true; m.mesh.visible = false;
+    m.taken = true; m.mesh.visible = false; if (m.beam) m.beam.visible = false;
     s.medals.push(m.def.id);
     this.persist(); this.updateHud();
     this.burst(m.def.x, m.def.y, m.def.z, 30, 0xffd34d, 5, 0.9);
@@ -2017,6 +2036,7 @@ class Adventure {
     this.bonesI.instanceMatrix.needsUpdate = true;
 
     for (const m of this.medals) if (m.mesh.visible) { m.mesh.rotation.y = t * 2; m.mesh.position.y = m.def.y + Math.sin(t * 2.5) * 0.2; }
+    if (this._beamMat) this._beamMat.opacity = 0.35 + Math.sin(t * 3) * 0.12;
     for (const b of this.balls) if (b.mesh.visible) { b.mesh.rotation.y = t * 3; b.mesh.position.y = b.def.y + Math.abs(Math.sin(t * 4)) * 0.3; }
     for (const h of this.hearts) if (!h.taken) { h.mesh.rotation.y = t * 3; h.mesh.position.y = h.y + Math.sin(t * 4) * 0.15; }
 

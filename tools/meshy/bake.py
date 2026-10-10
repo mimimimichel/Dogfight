@@ -5,7 +5,9 @@ du visualiseur Meshy, en tenant compte de la visibilité (z-buffer) et de
 l'orientation de la surface face à chaque caméra.
 Usage : python bake.py <part_dense.npz> <dense_complet.npz> <calib.json> <captures> <nb_triangles> <taille_texture> <sortie_prefix>
 """
-import sys, json, numpy as np, trimesh, xatlas, fast_simplification as fs
+import sys, json, numpy as np
+import trimesh, xatlas, fast_simplification as fs
+from pathlib import Path
 from PIL import Image
 from scipy.ndimage import binary_erosion, distance_transform_edt, minimum_filter
 
@@ -90,6 +92,7 @@ acc = np.zeros((T, T, 3)); wsum = np.zeros((T, T)); best = np.zeros((T, T))
 P = pos[cov]; Nn = nrm[cov]
 for name, c in sorted(cal.items()):
     if c['iou'] < 0.72: continue
+    if not Path(f'{cap}/c{name}').exists(): continue
     img = np.asarray(Image.open(f'{cap}/c{name}').convert('RGB')).astype(np.float64) / 255
     H, W = img.shape[:2]
     R = cam(c)

@@ -749,8 +749,12 @@ export function buildForest(game) {
       if (s.medals.length >= 5) { game.say([{ who: 'Mamie Labrador', text: 'Bravo, mes toutous ! La forêt est libérée. Il reste peut-être des croquettes à trouver…' }]); return; }
       const hints = {
         m_mush: 'La Tour des Champignons, à l\'ouest : grimpez de chapeau en chapeau jusqu\'en haut !',
-        m_cats: 'Les chats bandits ont un campement à l\'est. Chassez-les tous !',
-        m_lanterns: `Il reste des lanternes éteintes (${s.lanterns.length}/5). Une est en haut de la Tour des Champignons, une autre sur un rocher près de la plage.`,
+        m_cats: S.cats.filter(c => c.group === 'clearing').every(c => s.cats.includes(c.id))
+          ? 'Les chats du campement ont fui ! Leur médaille vous attend au campement, près du feu.'
+          : 'Les chats bandits ont un campement à l\'est. Chassez-les tous !',
+        m_lanterns: s.lanterns.length >= S.lanterns.length
+          ? 'Toutes les lanternes sont allumées : la médaille brille sur l\'autel, au centre de la forêt !'
+          : `Encore ${S.lanterns.length - s.lanterns.length} lanterne${S.lanterns.length - s.lanterns.length > 1 ? 's' : ''} à allumer (${s.lanterns.length} sur 5 allumées). Une est en haut de la Tour des Champignons, une autre sur un rocher près de la plage.`,
         m_owl: 'Le Rocher du Hibou, au milieu du lac : planez depuis la grande souche, ou sautez sur la patte géante !',
         m_boss: s.medals.length >= S.GATE_MEDALS ? 'Le repaire est ouvert, au nord. Évitez les pelotes et attaquez quand elle est fatiguée !' : null,
       };

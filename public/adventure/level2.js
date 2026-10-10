@@ -111,7 +111,7 @@ bouncer(24, -16, 0.9, 1.3, 15);                    // sur le chemin du repaire
 export const STUMP = { x: -19, z: -25, r: 2.3 };
 STUMP.base = heightAt(STUMP.x, STUMP.z);
 STUMP.top = STUMP.base + 11;
-cyl(STUMP.x, STUMP.z, STUMP.r, STUMP.base - 1, STUMP.top, { kind: 'stump' });
+cyl(STUMP.x, STUMP.z, STUMP.r, STUMP.base - 1, STUMP.top, { kind: 'stump', solid: true });
 bouncer(STUMP.x + 4.6, STUMP.z + 4.2, 0.8, 1.2, 15);                       // petit, au sol
 export const BIG_BOUNCER = bouncer(STUMP.x + 3.4, STUMP.z + 0.4, 4.6, 1.6, 21); // grand, à côté de la souche
 
@@ -119,7 +119,7 @@ export const BIG_BOUNCER = bouncer(STUMP.x + 3.4, STUMP.z + 0.4, 4.6, 1.6, 21); 
 export const OWL = { x: SPOTS.owl.x, z: SPOTS.owl.z, top: OWL_TOP, r: OWL_R };
 
 // Patte géante : fait pousser des feuilles-plates-formes pendant quelques secondes
-export const SWITCH = { x: -17.5, z: -19.5, r: 1.3 };
+export const SWITCH = { x: -22.5, z: -26.5, r: 1.3 };   // au bord du lac, juste devant les feuilles
 SWITCH.y = heightAt(SWITCH.x, SWITCH.z);
 cyl(SWITCH.x, SWITCH.z, SWITCH.r, SWITCH.y - 0.5, SWITCH.y + 0.25, { kind: 'switch' });
 export const LEAF_TIME = 14;
@@ -259,7 +259,7 @@ export const balls = [];
 // Médailles Patounes
 export const medals = [
   { id: 'm_mush', x: TW.x, z: TW.z, y: TOWER_TOP + 1.4, label: 'Le sommet de la Tour des Champignons', visible: true },
-  { id: 'm_cats', x: CP.x, z: CP.z + 2, y: groundY(CP.x, CP.z + 2) + 1.4, label: 'Le campement des chats', visible: false },
+  { id: 'm_cats', x: CP.x, z: CP.z - 3.5, y: groundY(CP.x, CP.z - 3.5) + 1.6, label: 'Le campement des chats', visible: false },
   { id: 'm_lanterns', x: SPOTS.altar.x, z: SPOTS.altar.z, y: heightAt(SPOTS.altar.x, SPOTS.altar.z) + 2.6, label: 'Les lanternes des lucioles', visible: false },
   { id: 'm_owl', x: OWL.x, z: OWL.z, y: OWL_TOP + 1.4, label: 'Le Rocher du Hibou', visible: true },
   { id: 'm_boss', x: AR.x, z: AR.z, y: ARENA.y + 1.4, label: 'La Capitaine Moustache', visible: false },
@@ -286,7 +286,8 @@ export const npcs = {
 // Panneaux
 export const signs = [
   { x: 3.5, z: 40, text: ['↑ Clairière des Lucioles', '← Tour des Champignons', '→ Campement des chats'] },
-  { x: -10, z: -12, text: ['Rocher du Hibou, au milieu du lac.', 'Montez sur la souche et planez !', 'Ou sautez sur la patte géante…'] },
+  { x: -10, z: -12, text: ['Rocher du Hibou, au milieu du lac.', 'Montez sur la souche et planez !', 'Ou sautez sur la patte magique, au bord du lac…'] },
+  { x: -20.2, z: -28.6, text: ['Patte magique !', 'Sautez dessus : des feuilles', 'poussent sur le lac pour aller au rocher.'] },
   { x: 9, z: -24, text: ['Repaire de la Capitaine Moustache.', `Il faut ${GATE_MEDALS} médailles pour entrer !`] },
   { x: 3.5, z: 6, text: ['Autel des lucioles.', 'Allumez les 5 lanternes de la forêt', 'd\'un coup de queue tournoyant !'] },
 ];
