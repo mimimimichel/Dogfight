@@ -598,6 +598,30 @@
     }
   });
 
+  // Mode aventure 3D : chargé à la demande (Three.js n'alourdit pas le jeu de combat)
+  let adventureLoading = false;
+  function startAdventure() {
+    if (adventureLoading || app.mode === 'adventure') return;
+    adventureLoading = true;
+    if (document.activeElement && document.activeElement.blur) document.activeElement.blur();
+    app.mode = 'adventure';
+    show('adventure');
+    toast('Chargement de l\'aventure…', 1500);
+    import('./adventure/game.js').then((mod) => {
+      adventureLoading = false;
+      mod.start({
+        sfx,
+        onExit: () => { app.mode = null; show('menu'); },
+      });
+    }).catch((err) => {
+      adventureLoading = false;
+      console.error(err);
+      toast('Impossible de charger l\'aventure : ' + err.message, 5000);
+      app.mode = null;
+      show('menu');
+    });
+  }
+
   function playerName() { return (app.name || '').trim() || 'Anonyme'; }
 
   function onAction(a) {
@@ -606,6 +630,7 @@
       case 'online': app.mode = 'online'; show('online'); $('online-status').textContent = ''; break;
       case 'cpu': app.mode = 'cpu'; enterSelect(); break;
       case 'local': app.mode = 'local'; enterSelect(); break;
+      case 'adventure': startAdventure(); break;
       case 'controls': show('controls'); break;
       case 'fullscreen': break; // déjà traité par goFullscreen()
       case 'back': app.mode = null; show('menu'); break;
@@ -719,6 +744,7 @@
   function frame(now) {
     const dt = Math.min(100, now - last);
     last = now;
+    if (app.screen === 'adventure') { requestAnimationFrame(frame); return; }
     const inGame = app.screen === 'game' || app.screen === 'pause' || app.screen === 'result';
 
     if (inGame && app.mode === 'online') {

@@ -35,6 +35,37 @@ Le mode en ligne fonctionne de deux façons, choisies automatiquement :
 
 En pair-à-pair, l'hôte doit garder l'onglet du jeu au premier plan : un onglet en arrière-plan est ralenti par le navigateur et la partie saccade.
 
+## Mode Aventure (3D)
+
+Un jeu de plates-formes 3D façon *Yooka-Laylee* : Matcha est perché sur le dos d'Ainu, et le duo explore librement le **Parc des Toutous** (niveau 1).
+
+- **Objectifs** : 5 Médailles Patounes et 100 os dorés.
+  - Le sommet du Grand Chêne, à grimper de branche en branche.
+  - Les 4 chats bandits de la clairière, à chasser.
+  - La caisse de l'îlot du lac, à atteindre en sautant de galet en galet.
+  - Les 5 balles de tennis, dont certaines perchées sur des rochers.
+  - Biscotte, le chiot perdu près de la cascade, à ramener à Mamie Labrador.
+- **Pouvoirs du duo** :
+  - saut ;
+  - double saut (Matcha propulse Ainu) ;
+  - plané (garder SAUT : la queue d'Ainu fait l'hélice) ;
+  - coup de queue tournoyant ;
+  - Charge Pinscher (casse les caisses) ;
+  - sauter sur la tête des chats.
+- **Pensé pour les enfants** : pas de game over. Tomber à l'eau ramène sur la terre ferme, et perdre ses 3 cœurs fait repartir du début en gardant tous ses trésors. La progression est sauvegardée dans le navigateur.
+- **Commandes** :
+  - tactile : joystick, boutons SAUT, ATTAQUE, CHARGE et PARLER, et glisser à droite pour tourner la caméra ;
+  - clavier : ZQSD ou flèches, Espace, J, K, F, et A/E (ou la souris) pour la caméra ;
+  - manette compatible.
+- **Technique** : Three.js (chargé seulement à l'ouverture de l'aventure), rendu cel-shading low-poly en basse résolution pixelisée, physique et collisions maison. Tous les modèles sont construits à partir de formes simples.
+
+```
+public/adventure/level1.js   Relief, obstacles et objets du niveau (testable sans navigateur)
+public/adventure/models.js   Modèles 3D : le duo, les chats, Mamie, Biscotte, les objets
+public/adventure/game.js     Physique, caméra, ennemis, dialogues, interface, sauvegarde
+test/level1.test.mjs         Tests des données du niveau
+```
+
 ## Commandes
 
 ### Téléphone et tablette (en paysage)
