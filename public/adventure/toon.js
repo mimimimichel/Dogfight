@@ -85,7 +85,11 @@ export function addOutline(mesh, thick, color) {
   if (mesh.userData.outlineThick) thick = mesh.userData.outlineThick;
   const mat = outlineMaterial(fur ? fur.length * 0.75 + thick : thick, color || 0x2a1810);
   let o;
-  if (mesh.isInstancedMesh && !fur) {
+  if (mesh.isSkinnedMesh) {
+    o = new THREE.SkinnedMesh(mesh.geometry, mat);
+    o.bind(mesh.skeleton, mesh.bindMatrix);
+    o.frustumCulled = false;
+  } else if (mesh.isInstancedMesh && !fur) {
     o = new THREE.InstancedMesh(mesh.geometry, mat, mesh.count);
     o.instanceMatrix = mesh.instanceMatrix;
   } else {
