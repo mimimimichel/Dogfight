@@ -219,144 +219,118 @@ class FurKit extends Kit {
 const E = (rx, ry, rz, seg) => { const g = new THREE.SphereGeometry(1, seg || 40, Math.round((seg || 40) * 0.7)); g.scale(rx, ry, rz); return g; };
 
 // ---------------------------------------------------------------------------
-// Le duo : Ainu (eurasier roux, tout en fourrure) avec Matcha (pinscher nain)
-// debout sur son dos, sur une selle avec sacoches.
-// Repère : avant = +z, pattes au sol en y = 0
+// Mèches de poils (style cel shading) : une goutte aplatie, pointue au bout.
+// Chaque mèche est posée sur le corps avec une direction (vers la pointe) et
+// une normale (le côté plat) ; le contour dessine le trait entre les mèches.
 // ---------------------------------------------------------------------------
+const _m4 = new THREE.Matrix4(), _vx = new THREE.Vector3(), _vy = new THREE.Vector3(), _vz = new THREE.Vector3();
+function lock(k, pos, dir, nrm, w, len, thick, base, tip) {
+  const g = new THREE.SphereGeometry(1, 10, 8);
+  const p = g.attributes.position;
+  for (let i = 0; i < p.count; i++) {
+    const x = p.getX(i), y = p.getY(i), z = p.getZ(i);
+    const t = (y + 1) / 2;                       // 0 à la base, 1 à la pointe
+    const k2 = Math.pow(Math.sin(Math.PI * Math.min(1, 0.12 + t * 0.9)), 0.6);
+    p.setXYZ(i, x * w * k2, t * len, z * thick * k2 - t * t * len * 0.28);
+  }
+  g.computeVertexNormals();
+  paint(g, (x, y, z, c) => mix(c, base, tip, sstep(0.15, 0.95, y / len)));
+  _vy.set(...dir).normalize();
+  _vz.set(...nrm);
+  _vx.crossVectors(_vy, _vz).normalize();
+  _vz.crossVectors(_vx, _vy).normalize();
+  _m4.makeBasis(_vx, _vy, _vz).setPosition(pos[0], pos[1], pos[2]);
+  g.applyMatrix4(_m4);
+  k.list.push({ geo: g.toNonIndexed() });
+}
+const toonSkin = (rough) => new THREE.MeshStandardMaterial({ vertexColors: true, roughness: rough || 0.85 });
+
+// ---------------------------------------------------------------------------
+// Le duo : Ainu (eurasier roux) et Matcha (pinscher nain) debout sur la selle.
+// Corps sculptés hors ligne (tools/build-dogs.mjs) ; yeux, truffe, harnais
+// et accessoires ajoutés ici. Repère : avant = +z, pattes au sol en y = 0.
+// ---------------------------------------------------------------------------
+const SCULPT_OUTLINE = 0.006;
+function sculpt(name, pivot, rough) {
+  const m = sculptMesh(name, pivot, rough);
+  m.userData.outlineThick = SCULPT_OUTLINE;
+  return m;
+}
 export function buildDuo() {
   const root = new THREE.Group();
   const ainu = new THREE.Group();
   root.add(ainu);
-  const OR = 0xd8642a, OR_L = 0xf08a44, CR = 0xf6dcb4, DK = 0x1a100c;
-  // pelage roux plus clair sur le dessus, crème sous le ventre et sur le poitrail
-  const coat = (cream) => (x, y, z, c) => {
-    mix(c, OR, OR_L, sstep(0.0, 0.3, y) * 0.6);
-    const k = cream(x, y, z);
-    if (k > 0) c.lerp(_c2.set(CR), k);
-  };
+  const DK = 0x140a06;
 
-  // Corps : torse, poitrail, croupe et collerette (fusionnés, couverts de poils)
-  const bodyK = new FurKit();
-  bodyK.add(E(0.34, 0.36, 0.58), coat((x, y) => sstep(-0.14, -0.28, y)), { y: 0.98, z: -0.02 });
-  bodyK.add(E(0.33, 0.38, 0.34), coat((x, y, z) => sstep(0.12, 0.3, z) * sstep(0.15, -0.12, y)), { y: 1.0, z: 0.42 });
-  bodyK.add(E(0.35, 0.36, 0.34), coat((x, y) => sstep(-0.14, -0.28, y)), { y: 0.97, z: -0.42 });
-  // collerette épaisse autour du cou
-  bodyK.add(E(0.36, 0.38, 0.32), coat((x, y, z) => sstep(0.08, 0.26, z) * sstep(0.12, -0.12, y)), { y: 1.28, z: 0.6, rx: -0.5 });
-  // Mèches dessinées (style dessin animé) : collerette, nuque, cuisses
-  const tuft = (k, x, y, z, rx, ry, rz, r, h, col) => k.add(new THREE.ConeGeometry(r, h, 10, 1), col, { x, y, z, rx, ry, rz, sz: 0.55 });
-  for (let i = 0; i < 4; i++) {
-    const a = (i - 1.5) * 0.36;
-    tuft(bodyK, Math.sin(a) * 0.26, 0.96, 0.8 - Math.abs(a) * 0.12, Math.PI - 0.45, a, 0, 0.13, 0.2, CR);
-  }
-  for (let i = 0; i < 3; i++) tuft(bodyK, (i - 1) * 0.14, 1.4, 0.36, -Math.PI / 2 - 0.25, 0, 0, 0.08, 0.26, OR);
-  const body = bodyK.build({ length: 0.1, density: 22, comb: [0, -0.25, -0.65] });
+  const body = sculpt('body', [0, 0, 0]);
   ainu.add(body);
 
-  // Harnais, couverture et sacoches (cuir)
-  const leather = new Kit();
-  leather.add(new THREE.TorusGeometry(0.4, 0.035, 8, 30), 0x6a3a1c, { y: 1.02, z: 0.3, sx: 1, sy: 1.08 });
-  leather.add(new THREE.TorusGeometry(0.42, 0.035, 8, 30), 0x6a3a1c, { y: 0.98, z: -0.25, sx: 0.95, sy: 1.02 });
-  leather.add(new THREE.TorusGeometry(0.36, 0.035, 8, 30), 0x6a3a1c, { y: 1.18, z: 0.62, rx: Math.PI / 2 - 0.9 });
-  // couverture turquoise bordée d'or + selle en cuir
-  leather.add(new THREE.SphereGeometry(1, 24, 10, 0, Math.PI * 2, 0, 0.75), (x, y, z, c) => c.set(y < 0.8 ? 0xe0b040 : 0x1e7a78), { y: 0.97, z: -0.05, sx: 0.43, sy: 0.43, sz: 0.5 });
-  leather.add(E(0.2, 0.06, 0.26), 0x7a4220, { y: 1.38, z: -0.06 });
+  // Harnais de cuir, couverture turquoise bordée d'or, selle et sacoches
+  const lk = new Kit();
+  lk.add(new THREE.TorusGeometry(0.43, 0.035, 8, 34), 0x6a3a1c, { y: 1.05, z: 0.3, sy: 1.1 });
+  lk.add(new THREE.TorusGeometry(0.44, 0.035, 8, 34), 0x6a3a1c, { y: 1.0, z: -0.3, sx: 0.97 });
+  lk.add(new THREE.TorusGeometry(0.4, 0.035, 8, 34), 0x6a3a1c, { y: 1.24, z: 0.66, rx: Math.PI / 2 - 0.85 });
+  lk.add(new THREE.SphereGeometry(1, 28, 10, 0, Math.PI * 2, 0, 0.8), (x, y, z, c) => c.set(y < 0.74 ? 0xe0b040 : 0x1e8a86), { y: 1.0, z: -0.04, sx: 0.47, sy: 0.43, sz: 0.5 });
+  lk.add(E(0.19, 0.07, 0.24), 0x7a4220, { y: 1.43, z: -0.06 });
+  lk.add(new THREE.TorusGeometry(0.05, 0.015, 6, 16), 0xe0b040, { y: 1.05, z: 0.74, rx: 0.3 });
   for (const sx of [-1, 1]) {
-    leather.add(new THREE.BoxGeometry(0.14, 0.3, 0.34), 0x8a4e24, { x: sx * 0.42, y: 0.88, z: -0.08 });
-    leather.add(new THREE.BoxGeometry(0.16, 0.08, 0.36), 0x6a3a1c, { x: sx * 0.43, y: 1.04, z: -0.08, rz: sx * 0.25 });
-    leather.add(new THREE.CylinderGeometry(0.025, 0.025, 0.02, 10), 0xe0b040, { x: sx * 0.5, y: 0.95, z: -0.08, rz: Math.PI / 2 });
+    lk.add(new THREE.BoxGeometry(0.14, 0.3, 0.34), 0x8a4e24, { x: sx * 0.48, y: 0.9, z: -0.08 });
+    lk.add(new THREE.BoxGeometry(0.16, 0.09, 0.36), 0x6a3a1c, { x: sx * 0.49, y: 1.05, z: -0.08, rz: sx * 0.25 });
+    lk.add(new THREE.CylinderGeometry(0.03, 0.03, 0.02, 10), 0xe0b040, { x: sx * 0.56, y: 0.96, z: -0.08, rz: Math.PI / 2 });
   }
-  const gear = leather.build();
-  ainu.add(gear);
+  ainu.add(lk.build(new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.7 })));
 
-  // Tête : crâne rond, joues duveteuses, museau fin de spitz, oreilles dressées
-  const head = new THREE.Group(); at(head, 0, 1.58, 0.82); ainu.add(head);
-  const headK = new FurKit();
-  const face = (x, y, z, c) => { mix(c, OR, OR_L, sstep(0, 0.25, y) * 0.5); c.lerp(_c2.set(CR), sstep(0.12, 0.28, z) * sstep(-0.02, -0.12, y)); };
-  headK.add(E(0.29, 0.27, 0.28), face, { z: 0.0 });
-  for (const sx of [-1, 1]) headK.add(E(0.12, 0.13, 0.13), (x, y, z, c) => mix(c, OR, CR, sstep(-0.02, -0.12, y)), { x: sx * 0.17, y: -0.11, z: 0.0 });
-  headK.add(E(0.13, 0.11, 0.2), (x, y, z, c) => mix(c, OR_L, CR, sstep(0.0, -0.06, y) + sstep(0.08, 0.18, z) * 0.6), { y: -0.08, z: 0.27 });
-  for (const sx of [-1, 1]) headK.add(earGeo(0.12, 0.24, 0.05, 1), (x, y, z, c) => c.set(OR), { x: sx * 0.15, y: 0.26, z: -0.04, rz: -sx * 0.2 });
-  for (const sx of [-1, 1]) for (const [dy, a] of [[-0.06, 0.25], [-0.15, -0.15]]) {
-    headK.add(new THREE.ConeGeometry(0.09, 0.16, 10, 1), (x, y, z, c) => mix(c, OR, CR, sstep(0.0, -0.06, y)), { x: sx * 0.28, y: dy, z: -0.02, rz: -sx * (Math.PI / 2 + a), sz: 0.55 });
-  }
-  head.add(headK.build({ length: 0.035, density: 38, comb: [0, -0.2, -0.6] }));
-  const faceK = new Kit();
+  // Tête
+  const HP = [0, 1.6, 0.78];
+  const head = new THREE.Group(); at(head, ...HP); ainu.add(head);
+  head.add(sculpt('head', HP));
+  const fk = new Kit();
   for (const sx of [-1, 1]) {
-    faceK.add(earGeo(0.07, 0.16, 0.02, 1), 0xe89a80, { x: sx * 0.145, y: 0.26, z: 0.0, rz: -sx * 0.2 });
-    // yeux en amande, brun foncé, avec reflet
-    faceK.add(S(0.042, 14, 10), 0x2a1408, { x: sx * 0.12, y: 0.03, z: 0.245, sx: 1.25, sy: 0.85, sz: 0.6, ry: sx * 0.45 });
-    faceK.add(S(0.013, 8, 6), 0xffffff, { x: sx * 0.12 + 0.012, y: 0.05, z: 0.272, ry: sx * 0.45 });
+    // yeux en amande, brun très foncé, gros reflet
+    fk.add(E(0.04, 0.03, 0.022, 16), 0x1c0c06, { x: sx * 0.115, y: 0.045, z: 0.285, ry: sx * 0.42, rz: sx * 0.22 });
+    fk.add(S(0.011, 8, 6), 0xffffff, { x: sx * 0.115 + 0.01, y: 0.058, z: 0.302 });
   }
-  faceK.add(S(0.05, 14, 10), DK, { y: -0.05, z: 0.465, sx: 1.3, sy: 0.85 }); // truffe
-  faceK.add(new THREE.TorusGeometry(0.07, 0.012, 6, 16, Math.PI), 0x3a1a10, { y: -0.13, z: 0.4, rx: Math.PI / 2 + 0.3, rz: Math.PI, sy: 0.6 }); // sourire
-  faceK.add(E(0.05, 0.02, 0.06), 0xf06a80, { y: -0.17, z: 0.4 }); // langue
-  head.add(faceK.build(gloss()));
+  fk.add(E(0.048, 0.036, 0.04, 16), DK, { y: -0.068, z: 0.425 });          // truffe
+  fk.add(E(0.07, 0.03, 0.05, 14), 0x4a1008, { y: -0.165, z: 0.33 });    // bouche ouverte
+  fk.add(E(0.045, 0.02, 0.07, 12), 0xf0607a, { y: -0.185, z: 0.35, rx: 0.35 }); // langue
+  head.add(fk.build(gloss()));
 
-  // Queue en panache enroulé sur le dos (pivot à la base ; hélice pour planer)
-  const tail = new THREE.Group(); at(tail, 0, 1.15, -0.72); ainu.add(tail);
-  const tt = taperTube([[0, 0, 0], [0, 0.22, -0.1], [0, 0.42, 0.0], [0, 0.48, 0.2], [0, 0.38, 0.34]], (t) => 0.1 + Math.sin(Math.PI * Math.min(1, t * 1.05)) * 0.07, 24, 14);
-  const tailK = new FurKit();
-  tailK.add(tt.tube, (x, y, z, c) => mix(c, OR, CR, sstep(0.3, 0.46, y) * sstep(0.05, 0.25, z) + sstep(0.2, 0.0, y) * 0));
-  tailK.add(S(tt.r1, 14, 10), CR, { x: tt.end.x, y: tt.end.y, z: tt.end.z });
-  tailK.add(S(tt.r0, 14, 10), OR, { x: tt.start.x, y: tt.start.y, z: tt.start.z });
-  tail.add(tailK.build({ length: 0.14, density: 20, comb: [0, -0.5, -0.3] }));
+  // Queue (pivot à la base)
+  const TP = [0, 1.15, -0.72];
+  const tail = new THREE.Group(); at(tail, ...TP); ainu.add(tail);
+  tail.add(sculpt('tail', TP));
 
-  // Pattes (pivot à la hanche) : cuisse touffue, jambe fine, pied crème
+  // Pattes (pivot à la hanche)
   const legs = [];
-  for (const [lx, lz, back] of [[-0.19, 0.42, 0], [0.19, 0.42, 0], [-0.2, -0.46, 1], [0.2, -0.46, 1]]) {
-    const g = at(new THREE.Group(), lx, 0.78, lz);
-    const lk = new FurKit();
-    const legCol = (x, y, z, c) => mix(c, OR, CR, sstep(-0.35, -0.55, y) + (back ? 0 : sstep(0.0, 0.08, z) * 0.5));
-    lk.add(E(0.15, 0.24, back ? 0.2 : 0.15), legCol, { y: -0.08, z: back ? -0.03 : 0 });
-    lk.add(new THREE.CapsuleGeometry(0.075, 0.42, 6, 12), (x, y, z, c) => mix(c, OR, CR, sstep(-0.02, -0.22, y)), { y: -0.42, z: back ? -0.04 : 0.02 });
-    lk.add(E(0.09, 0.06, 0.12), CR, { y: -0.72, z: 0.04 });
-    if (back) lk.add(new THREE.ConeGeometry(0.09, 0.26, 10, 1), OR, { y: -0.2, z: -0.17, rx: -Math.PI / 2 - 0.7, sx: 0.6 });
-    g.add(lk.build({ length: back ? 0.06 : 0.04, density: 30, comb: [0, -0.8, -0.2] }));
+  for (const [name, lx, lz] of [['legFL', -0.2, 0.42], ['legFR', 0.2, 0.42], ['legBL', -0.21, -0.46], ['legBR', 0.21, -0.46]]) {
+    const pv = [lx, 0.8, lz];
+    const g = at(new THREE.Group(), ...pv);
+    g.add(sculpt(name, pv));
     ainu.add(g);
     legs.push(g);
   }
 
-  // Matcha, debout sur la selle (pieds en y = 0 du groupe)
-  const matcha = new THREE.Group(); at(matcha, 0, 1.38, -0.08); ainu.add(matcha);
-  const BK = 0x16131c, TAN = 0xc8662a, PINK = 0xe89a90;
-  const sleek = (k) => (x, y, z, c) => mix(c, BK, TAN, k(x, y, z));
+  // Matcha, debout sur la selle
+  const matcha = new THREE.Group(); at(matcha, 0, 1.38, -0.12); matcha.scale.setScalar(1.35); ainu.add(matcha);
+  matcha.add(sculpt('mBody', [0, 0, 0], 0.4));
   const mk = new Kit();
-  mk.add(E(0.12, 0.13, 0.24), sleek((x, y, z) => sstep(0.18, 0.14, y) * sstep(0.0, 0.12, z)), { y: 0.28, z: 0 });
-  mk.add(E(0.1, 0.12, 0.1), sleek((x, y, z) => sstep(0.12, 0.2, z) * sstep(0.38, 0.3, y)), { y: 0.34, z: 0.18, rx: -0.4 });
-  mk.add(new THREE.CylinderGeometry(0.065, 0.085, 0.22, 12), BK, { y: 0.43, z: 0.24, rx: 0.5 });
-  mk.add(new THREE.TorusGeometry(0.075, 0.018, 6, 18), 0xd03030, { y: 0.45, z: 0.25, rx: Math.PI / 2 + 0.5 });
-  mk.add(S(0.025, 8, 6), 0xffd34d, { y: 0.38, z: 0.31 });
-  mk.add(new THREE.CapsuleGeometry(0.025, 0.14, 4, 8), BK, { y: 0.38, z: -0.26, rx: -0.5 });
-  matcha.add(mk.build(new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.32 })));
-  const mhead = new THREE.Group(); at(mhead, 0, 0.54, 0.3); matcha.add(mhead);
-  const mhk = new Kit();
-  mhk.add(E(0.11, 0.1, 0.11), (x, y, z, c) => {
-    let k = sstep(0.05, 0.1, z) * sstep(-0.01, -0.05, y);
-    k = Math.max(k, z > 0.04 ? sstep(0.03, 0.018, Math.hypot(Math.abs(x) - 0.045, y - 0.055)) : 0);
-    mix(c, BK, TAN, k);
-  });
-  mhk.add(E(0.05, 0.045, 0.1), (x, y, z, c) => mix(c, BK, TAN, sstep(0.02, -0.02, y) + sstep(0.0, 0.06, z) * 0.8), { y: -0.035, z: 0.12 });
-  for (const sx of [-1, 1]) {
-    mhk.add(earGeo(0.06, 0.17, 0.018, 1), BK, { x: sx * 0.07, y: 0.12, z: -0.02, rz: -sx * 0.3 });
-    mhk.add(earGeo(0.035, 0.12, 0.01, 1), PINK, { x: sx * 0.068, y: 0.12, z: 0.0, rz: -sx * 0.3 });
-  }
-  mhead.add(mhk.build(new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.32 })));
+  mk.add(new THREE.TorusGeometry(0.058, 0.014, 6, 18), 0xd02828, { y: 0.43, z: 0.225, rx: Math.PI / 2 + 0.6 });
+  mk.add(S(0.018, 8, 6), 0xffd34d, { y: 0.39, z: 0.28 });
+  mk.add(new THREE.BoxGeometry(0.13, 0.09, 0.15), 0x8a5428, { y: 0.35, z: -0.04 });
+  mk.add(new THREE.BoxGeometry(0.14, 0.035, 0.11), 0x6a3a1c, { y: 0.4, z: 0.0, rx: 0.2 });
+  for (const sx of [-1, 1]) mk.add(new THREE.CylinderGeometry(0.03, 0.03, 0.11, 10), 0xa06a34, { x: sx * 0.08, y: 0.33, z: -0.06, rx: Math.PI / 2 });
+  matcha.add(mk.build(new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.6 })));
+  const MP = [0, 0.56, 0.27];
+  const mhead = new THREE.Group(); at(mhead, ...MP); matcha.add(mhead);
+  mhead.add(sculpt('mHead', MP, 0.4));
   const mfk = new Kit();
   for (const sx of [-1, 1]) {
-    mfk.add(S(0.024, 12, 8), 0x1a0a04, { x: sx * 0.052, y: 0.02, z: 0.092, sx: 1.1, sy: 1, sz: 0.6, ry: sx * 0.4 });
-    mfk.add(S(0.008, 6, 4), 0xffffff, { x: sx * 0.052 + 0.007, y: 0.03, z: 0.106 });
+    mfk.add(E(0.024, 0.026, 0.014, 12), 0x120604, { x: sx * 0.045, y: 0.022, z: 0.074, ry: sx * 0.45 });
+    mfk.add(S(0.008, 6, 4), 0xffffff, { x: sx * 0.045 + 0.007, y: 0.032, z: 0.086 });
   }
-  mfk.add(S(0.022, 10, 8), 0x050505, { y: -0.02, z: 0.22, sx: 1.3 });
+  mfk.add(E(0.022, 0.016, 0.016, 10), 0x050505, { y: -0.045, z: 0.185 });
   mhead.add(mfk.build(gloss()));
   const mlegs = [];
-  for (const sx of [-1, 1]) for (const lz of [0.15, -0.16]) {
-    const g = at(new THREE.Group(), sx * 0.07, 0.22, lz);
-    const lk = new Kit();
-    lk.add(new THREE.CapsuleGeometry(0.032, 0.15, 4, 10), (x, y, z, c) => mix(c, BK, TAN, sstep(-0.06, -0.12, y)), { y: -0.11 });
-    g.add(lk.build(new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.35 })));
-    matcha.add(g);
-    mlegs.push(g);
-  }
 
   root.userData = { ainu, head, tail, legs, matcha, mhead, mlegs, body };
   return root;
@@ -633,4 +607,45 @@ export function buildPedestal() {
     g.add(at(mesh(S(0.14, 12, 8), 0x8a8270), Math.cos(a) * 0.95, 0.62, Math.sin(a) * 0.95));
   }
   return g;
+}
+
+// ---------------------------------------------------------------------------
+// Modèles sculptés (générés par tools/build-dogs.mjs) : chargement et décodage
+// ---------------------------------------------------------------------------
+let dogData = null;
+export async function preloadDogs() {
+  if (dogData) return dogData;
+  const lite = document.documentElement.classList.contains('touch');
+  const res = await fetch(new URL(lite ? './assets/dogs-lite.json' : './assets/dogs.json', import.meta.url));
+  dogData = await res.json();
+  return dogData;
+}
+const b64 = (s) => Uint8Array.from(atob(s), c => c.charCodeAt(0)).buffer;
+const geoCache = new Map();
+/** Géométrie d'une partie sculptée, dans le repère du personnage. */
+export function sculptGeo(name) {
+  if (geoCache.has(name)) return geoCache.get(name);
+  const d = dogData.parts[name];
+  const P = new Uint16Array(b64(d.pos)), N = new Int8Array(b64(d.nrm)), Co = new Uint8Array(b64(d.col));
+  const pos = new Float32Array(d.n * 3), nrm = new Float32Array(d.n * 3), col = new Float32Array(d.n * 3);
+  for (let i = 0; i < d.n * 3; i++) {
+    const k = i % 3;
+    pos[i] = d.min[k] + (P[i] / 65535) * (d.max[k] - d.min[k]);
+    nrm[i] = N[i] / 127;
+    col[i] = Co[i] / 255;
+  }
+  const g = new THREE.BufferGeometry();
+  g.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+  g.setAttribute('normal', new THREE.BufferAttribute(nrm, 3));
+  g.setAttribute('color', new THREE.BufferAttribute(col, 3));
+  g.setIndex(new THREE.BufferAttribute(d.big ? new Uint32Array(b64(d.idx)) : new Uint16Array(b64(d.idx)), 1));
+  geoCache.set(name, g);
+  return g;
+}
+/** Maillage d'une partie sculptée, recentré sur son pivot. */
+export function sculptMesh(name, pivot, rough) {
+  const m = new THREE.Mesh(sculptGeo(name), new THREE.MeshStandardMaterial({ vertexColors: true, roughness: rough || 0.85 }));
+  m.position.set(-pivot[0], -pivot[1], -pivot[2]);
+  m.castShadow = m.receiveShadow = true;
+  return m;
 }

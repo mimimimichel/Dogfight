@@ -609,7 +609,7 @@
     toast('Chargement de l\'aventure…', 1500);
     import('./adventure/game.js').then((mod) => {
       adventureLoading = false;
-      mod.start({
+      return mod.start({
         sfx,
         onExit: () => { app.mode = null; show('menu'); },
       });

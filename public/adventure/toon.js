@@ -8,7 +8,7 @@ import * as THREE from '../vendor/three.module.min.js';
 let grad = null;
 export function gradientMap() {
   if (grad) return grad;
-  grad = new THREE.DataTexture(new Uint8Array([95, 175, 255]), 3, 1, THREE.RedFormat);
+  grad = new THREE.DataTexture(new Uint8Array([128, 200, 255]), 3, 1, THREE.RedFormat);
   grad.minFilter = grad.magFilter = THREE.NearestFilter;
   grad.generateMipmaps = false;
   grad.needsUpdate = true;
@@ -82,6 +82,7 @@ export function addOutline(mesh, thick, color) {
   mesh.userData.outlined = true;
   smoothNormals(mesh.geometry);
   const fur = mesh.userData.fur;
+  if (mesh.userData.outlineThick) thick = mesh.userData.outlineThick;
   const mat = outlineMaterial(fur ? fur.length * 0.75 + thick : thick, color || 0x2a1810);
   let o;
   if (mesh.isInstancedMesh && !fur) {
