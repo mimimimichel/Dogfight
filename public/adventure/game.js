@@ -53,6 +53,8 @@ class Adventure {
     this.onExit = opts.onExit || (() => {});
     // Aventure à deux : { link, role: 'ainu' | 'matcha', isHost }
     this.coop = opts.coop || null;
+    // Partie ouverte : l'hôte joue seul en attendant, l'autre rejoint quand il veut
+    this.hostSession = opts.coopHost || null;
     this.guest = !!(this.coop && !this.coop.isHost);
     this.remote = { mx: 0, mz: 0, h: false };
     this.remotePressed = new Set();
@@ -101,6 +103,7 @@ class Adventure {
     this.raf = requestAnimationFrame((t) => this.frame(t));
 
     if (this.coop) this.initCoop();
+    else if (this.hostSession) this.initHostSession();
     else if (this.hasProgress()) this.showOverlay('continue');
     else this.beginLevel(true);
   }
@@ -1009,36 +1012,79 @@ class Adventure {
   // Aventure à deux : le navigateur qui a créé la partie fait tourner le jeu ;
   // l'autre envoie ses commandes et affiche l'état reçu.
   // -------------------------------------------------------------------------
+  /** Invité : il joue le chien que l'hôte lui laisse. */
   initCoop() {
-    const { link, role, isHost } = this.coop;
-    const name = role === 'ainu' ? 'Ainu' : 'Matcha';
-    this.dom.root.classList.add('coop', 'role-' + role);
-    const badge = document.createElement('div');
-    badge.className = 'adv-coop';
-    badge.innerHTML = `<b>À deux</b> · tu es <span>${name}</span>`;
-    this.dom.root.querySelector('.adv-party-info').appendChild(badge);
-    this.dom.coopBadge = badge;
-    if (role === 'matcha') this.dom.root.querySelector('.adv-btn.jump span').textContent = 'Double saut';
+    const { link, role } = this.coop;
     this.localBanner = this.banner.bind(this);
+    this.coopBadge(role, `<b>À deux</b> · tu es <span>${role === 'ainu' ? 'Ainu' : 'Matcha'}</span>`);
     link.onmessage = (m) => this.onCoopMessage(m);
     link.onclose = () => this.onCoopClose();
+    this.roleHelp(role, 900);
+    this.lastSent = { mx: 0, mz: 0, h: false, at: 0 };
+    this.hpKey = '';
+  }
+
+  coopBadge(role, html) {
+    const root = this.dom.root;
+    root.classList.remove('coop', 'role-ainu', 'role-matcha');
+    if (role) root.classList.add('coop', 'role-' + role);
+    let badge = this.dom.coopBadge;
+    if (!badge) {
+      badge = this.dom.coopBadge = document.createElement('div');
+      badge.className = 'adv-coop';
+      root.querySelector('.adv-party-info').appendChild(badge);
+    }
+    badge.innerHTML = html;
+    root.querySelector('.adv-btn.jump span').textContent = role === 'matcha' ? 'Double saut' : 'Saut';
+  }
+
+  roleHelp(role, delay) {
+    const name = role === 'ainu' ? 'Ainu' : 'Matcha';
     const help = role === 'ainu'
       ? 'Tu cours, tu sautes et tu fonces ! Matcha fait le double saut et l\'attaque.'
       : 'Tu fais le double saut et l\'attaque tournoyante ! Ainu court et saute.';
-    setTimeout(() => { if (!this.disposed && this.coop) this.localBanner(`Tu joues ${name} !`, help, 4200); }, isHost ? 400 : 900);
-    if (isHost) {
-      // les effets (sons, particules, bandeaux) sont rejoués chez l'autre joueur
-      this.coopEvents = [];
-      this.coopTick = 0;
-      for (const n of ['sound', 'burst', 'banner', 'fade']) {
-        const f = this[n].bind(this);
-        this[n] = (...a) => { if (this.coop) this.coopEvents.push([n, ...a]); return f(...a); };
-      }
-      this.beginLevel(!this.hasProgress());
-    } else {
-      this.lastSent = { mx: 0, mz: 0, h: false, at: 0 };
-      this.hpKey = '';
+    setTimeout(() => { if (!this.disposed && this.coop) this.localBanner(`Tu joues ${name} !`, help, 4200); }, delay);
+  }
+
+  /** Hôte : joue seul avec les deux chiens tant que personne n'a rejoint. */
+  initHostSession() {
+    const ses = this.hostSession;
+    this.localBanner = this.banner.bind(this);
+    // les effets (sons, particules, bandeaux) sont rejoués chez l'autre joueur
+    this.coopEvents = [];
+    this.coopTick = 0;
+    for (const n of ['sound', 'burst', 'banner', 'fade']) {
+      const f = this[n].bind(this);
+      this[n] = (...a) => { if (this.coop) this.coopEvents.push([n, ...a]); return f(...a); };
     }
+    ses.detach();
+    ses.onJoin = (link) => this.guestJoined(link);
+    this.showWaiting();
+    if (ses.link && !ses.link.closed) this.guestJoined(ses.link);
+    if (this.hasProgress()) this.showOverlay('continue');
+    else this.beginLevel(true);
+  }
+
+  showWaiting() {
+    this.coopBadge(null, `<b>Code ${this.hostSession.code}</b> · en attente d'un ami…`);
+  }
+
+  guestJoined(link) {
+    if (this.disposed) return;
+    const role = this.hostSession.role;
+    this.coop = { link, role, isHost: true };
+    this.lastSaveSent = undefined; // renvoie toute la progression au nouveau venu
+    this.coopEvents.length = 0;
+    this.remote = { mx: 0, mz: 0, h: false };
+    this.remotePressed.clear();
+    link.onmessage = (m) => this.onCoopMessage(m);
+    link.onclose = () => this.onCoopClose();
+    this.coopBadge(role, `<b>À deux</b> · tu es <span>${role === 'ainu' ? 'Ainu' : 'Matcha'}</span>`);
+    if (!this.dom.overlay.classList.contains('hidden')) this.paused = false;
+    const other = role === 'ainu' ? 'Matcha' : 'Ainu';
+    this.localBanner('Un ami vous rejoint !', `Il joue ${other}.`, 2600);
+    this.roleHelp(role, 2800);
+    if (this.sfx && this.sfx.ok) this.sound('reveal');
   }
 
   /** Hôte : sépare les actions d'Ainu et de Matcha, mélange les deux joueurs. */
@@ -1086,12 +1132,11 @@ class Adventure {
   onCoopClose() {
     if (this.disposed) return;
     if (this.guest) { this.showOverlay('lost'); return; }
-    // L'hôte continue seul avec les deux chiens
+    // L'hôte continue seul avec les deux chiens ; l'ami peut revenir avec le code
     this.coop = null;
     this.ainuP = this.matchaP = null;
-    this.dom.root.classList.remove('coop', 'role-ainu', 'role-matcha');
-    if (this.dom.coopBadge) this.dom.coopBadge.remove();
-    this.banner('L\'autre joueur est parti', 'Tu continues avec Ainu et Matcha.', 3000);
+    this.showWaiting();
+    this.localBanner('Ton ami est parti', `Il peut revenir avec le code ${this.hostSession.code}.`, 3200);
   }
 
   /** Invité : envoie ses commandes, suit l'état reçu de l'hôte. */
@@ -1953,6 +1998,7 @@ class Adventure {
     if (kind === 'pause') {
       html = `<h2>Pause</h2>
         <div class="adv-stats">Médailles ${s.medals.length}/5 · Os ${s.bones.length}/100</div>
+        ${this.hostSession ? `<div class="adv-stats">Code pour jouer à deux : <b class="adv-code">${this.hostSession.code}</b></div>` : ''}
         <button class="btn primary" data-a="resume">Reprendre</button>
         ${this.coop ? '' : '<button class="btn" data-a="restart">Recommencer le niveau</button>'}
         <button class="btn ghost" data-a="quit">Menu principal</button>`;
@@ -2002,8 +2048,9 @@ class Adventure {
       case 'back-pause': this.showOverlay('pause'); break;
       case 'new':
         try { localStorage.removeItem(SAVE_KEY); } catch (e) { /* ignore */ }
-        this.dispose();
-        start({ sfx: this.sfx, onExit: this.onExit });
+        if (this.coop) { this.coop.link.onclose = null; this.coop = null; }
+        this.dispose(true);
+        start({ sfx: this.sfx, onExit: this.onExit, coopHost: this.hostSession });
         break;
       case 'quit': this.dispose(); this.onExit(); break;
       case 'lost': this.dispose(); this.onExit(); break;
@@ -2021,9 +2068,10 @@ class Adventure {
     }
   }
 
-  dispose() {
+  dispose(keepSession) {
     this.disposed = true;
-    if (this.coop) { clearInterval(this.coopPing); this.coop.link.onclose = null; this.coop.link.close(); }
+    if (this.coop) { this.coop.link.onclose = null; this.coop.link.close(); }
+    if (this.hostSession && !keepSession) { this.hostSession.onJoin = null; this.hostSession.close(); }
     cancelAnimationFrame(this.raf);
     window.removeEventListener('keydown', this.onKeyDown);
     window.removeEventListener('keyup', this.onKeyUp);

@@ -226,5 +226,8 @@
 @media (prefers-reduced-motion: reduce) {
   #screen-menu *, #screen-menu *::before, #screen-menu *::after { animation: none !important; }
 }
+.coop-go { display: flex; gap: 12px; align-items: center; }
+.hbtn.go { font-size: 22px; padding: 12px 22px 14px; background: radial-gradient(circle at 30% 20%, #fff3a0, #ffd02a 45%, #f59a10); }
+.hbtn.go:disabled { filter: grayscale(0.7) brightness(0.9); cursor: default; }
 #screen-coop .coop-status.pulse { animation: coopPulse 1.4s ease-in-out infinite; color: #3a2010; }
 @keyframes coopPulse { 50% { opacity: 0.45; } }

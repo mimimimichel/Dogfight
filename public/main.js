@@ -616,8 +616,8 @@
 
   // Mode aventure 3D : chargé à la demande (Three.js n'alourdit pas le jeu de combat)
   let adventureLoading = false;
-  function startAdventure(coop) {
-    if (adventureLoading || app.mode === 'adventure') { if (coop) coop.link.close(); return; }
+  function startAdventure(coop, coopHost) {
+    if (adventureLoading || app.mode === 'adventure') { if (coop) coop.link.close(); if (coopHost) coopHost.close(); return; }
     adventureLoading = true;
     if (document.activeElement && document.activeElement.blur) document.activeElement.blur();
     app.mode = 'adventure';
@@ -628,11 +628,13 @@
       return mod.start({
         sfx,
         coop,
+        coopHost,
         onExit: () => { app.mode = null; show('menu'); },
       });
     }).catch((err) => {
       adventureLoading = false;
       if (coop) coop.link.close();
+      if (coopHost) coopHost.close();
       console.error(err);
       toast('Impossible de charger l\'aventure : ' + err.message, 5000);
       app.mode = null;
@@ -653,21 +655,35 @@
     coopReset();
     startAdventure({ link, role, isHost });
   }
+  let coopSession = null;
   function coopHost(role) {
     $('coop-choose').classList.add('hidden');
     $('coop-wait').classList.remove('hidden');
     $('coop-show-code').textContent = '····';
     $('coop-link').value = '';
     $('coop-status').textContent = '';
+    $('coop-go').disabled = true;
+    coopSession = null;
     window.AdvCoop.host(role, {
-      onCode: (code) => {
+      onCode: (code, session) => {
+        coopSession = session;
         $('coop-show-code').textContent = code;
+        $('coop-go').disabled = false;
         const q = new URLSearchParams(location.search).get('peer');
         $('coop-link').value = location.origin + location.pathname + '?coop=' + code + (q ? '&peer=' + q : '');
+        // si l'ami arrive avant qu'on ait lancé, on démarre tout de suite
+        session.onJoin = () => coopGo();
       },
-      onReady: (link) => coopStart(link, role, true),
       onError: (msg) => coopReset(msg),
     });
+  }
+  function coopGo() {
+    const ses = coopSession;
+    if (!ses || app.screen !== 'coop') return;
+    coopSession = null;
+    ses.onJoin = null;
+    coopReset();
+    startAdventure(null, ses);
   }
   function coopJoin() {
     const code = $('coop-code').value.trim().toUpperCase();
@@ -692,8 +708,9 @@
       case 'coop-host-ainu': coopHost('ainu'); break;
       case 'coop-host-matcha': coopHost('matcha'); break;
       case 'coop-join': coopJoin(); break;
-      case 'coop-cancel': window.AdvCoop.cancel(); coopReset(); break;
-      case 'coop-back': window.AdvCoop.cancel(); show('menu'); break;
+      case 'coop-cancel': window.AdvCoop.cancel(); coopSession = null; coopReset(); break;
+      case 'coop-go': coopGo(); break;
+      case 'coop-back': window.AdvCoop.cancel(); coopSession = null; show('menu'); break;
       case 'coop-copy': {
         const inp = $('coop-link');
         inp.select();

@@ -113,8 +113,11 @@
               <input id="coop-link" readonly>
               <button class="hbtn cbtn" data-action="coop-copy">Copier le lien</button>
             </div>
-            <p class="coop-status pulse" id="coop-wait-status">En attente de l'autre joueur…</p>
-            <button class="hbtn small" data-action="coop-cancel">Annuler</button>
+            <p class="coop-status pulse" id="coop-wait-status">Ton ami pourra rejoindre quand il veut, même en pleine partie !</p>
+            <div class="coop-go">
+              <button class="hbtn small" data-action="coop-cancel">Annuler</button>
+              <button class="hbtn go" data-action="coop-go" id="coop-go" disabled>Lancer la partie ▶</button>
+            </div>
           </div>
           <p class="coop-status" id="coop-status"></p>
           <button class="hbtn small coop-back" data-action="coop-back">Retour</button>

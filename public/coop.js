@@ -22,8 +22,8 @@
 
   /** Lien établi entre les deux joueurs : send(objet), onmessage(objet), onclose(). */
   class Link {
-    constructor(peer, conn, isHost) {
-      this.peer = peer; this.conn = conn; this.isHost = isHost;
+    constructor(peer, conn, isHost, ownsPeer) {
+      this.peer = peer; this.conn = conn; this.isHost = isHost; this.ownsPeer = ownsPeer;
       this.onmessage = null; this.onclose = null; this.closed = false;
       conn.on('data', (d) => {
         let m; try { m = JSON.parse(d); } catch (e) { return; }
@@ -38,7 +38,8 @@
     close() {
       this.closed = true;
       try { this.conn.close(); } catch (e) { /* ignore */ }
-      try { this.peer.destroy(); } catch (e) { /* ignore */ }
+      if (this.ownsPeer) { try { this.peer.destroy(); } catch (e) { /* ignore */ } }
+      if (this.onclose) { const f = this.onclose; this.onclose = null; f(); }
     }
   }
 
@@ -49,27 +50,44 @@
     pending = null;
   }
 
-  /** Crée une partie. cb : onCode(code), onReady(link, role), onError(texte). */
+  /**
+   * Crée une partie ouverte : l'hôte peut jouer tout de suite, l'autre joueur
+   * rejoint (ou revient) quand il veut avec le code.
+   * cb : onCode(code, session), onError(texte).
+   * session : { code, role, link, onJoin(link), close() }
+   */
   function host(role, cb, tries) {
     cancel();
     if (!window.Peer) { cb.onError('Le jeu en ligne n\'est pas disponible.'); return; }
     const code = newCode();
     const peer = new window.Peer(PREFIX + code, PEER_OPTS);
     pending = peer;
-    let linked = false;
-    peer.on('open', () => cb.onCode(code));
+    const session = {
+      code, role, link: null, onJoin: null, closed: false,
+      close() {
+        this.closed = true;
+        if (this.link) this.link.close();
+        try { peer.destroy(); } catch (e) { /* ignore */ }
+        if (pending === peer) pending = null;
+      },
+      detach() { if (pending === peer) pending = null; },
+    };
+    let opened = false;
+    peer.on('open', () => { if (!opened) { opened = true; cb.onCode(code, session); } });
+    // reste joignable si le serveur de mise en relation coupe la connexion
+    peer.on('disconnected', () => { if (!session.closed) setTimeout(() => { if (!session.closed && peer.disconnected) peer.reconnect(); }, 1500); });
     peer.on('error', (e) => {
-      if (e.type === 'unavailable-id' && (tries || 0) < 4) { host(role, cb, (tries || 0) + 1); return; }
-      if (!linked) cb.onError('Connexion impossible (' + e.type + ').');
+      if (!opened && e.type === 'unavailable-id' && (tries || 0) < 4) { try { peer.destroy(); } catch (err) { /* ignore */ } host(role, cb, (tries || 0) + 1); return; }
+      if (!opened) cb.onError('Connexion impossible (' + e.type + ').');
     });
     peer.on('connection', (conn) => {
-      if (linked) { conn.on('open', () => conn.close()); return; }
+      if (session.link && !session.link.closed) { conn.on('open', () => conn.close()); return; }
       conn.on('open', () => {
-        linked = true;
-        pending = null;
-        const link = new Link(peer, conn, true);
+        if (session.closed) { conn.close(); return; }
+        const link = new Link(peer, conn, true, false);
+        session.link = link;
         link.send({ t: 'hello', role: other(role) });
-        cb.onReady(link, role);
+        if (session.onJoin) session.onJoin(link);
       });
     });
   }
@@ -88,7 +106,7 @@
     peer.on('open', () => {
       const conn = peer.connect(PREFIX + code, { reliable: true, serialization: 'raw' });
       conn.on('open', () => {
-        const link = new Link(peer, conn, false);
+        const link = new Link(peer, conn, false, true);
         link.onmessage = (m) => {
           if (m.t !== 'hello' || done) return;
           done = true; clearTimeout(timer); pending = null;
