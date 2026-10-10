@@ -307,21 +307,23 @@ export function buildDuo() {
   const matcha = new THREE.Group(); at(matcha, 0, 1.36, -0.14); matcha.scale.setScalar(1.3); ainu.add(matcha);
   matcha.add(sculpt('mBody', [0, 0, 0], 0.4));
   const mk = new Kit();
-  mk.add(new THREE.TorusGeometry(0.058, 0.014, 6, 18), 0xd02828, { y: 0.43, z: 0.225, rx: Math.PI / 2 + 0.6 });
-  mk.add(S(0.018, 8, 6), 0xffd34d, { y: 0.39, z: 0.28 });
-  mk.add(new THREE.BoxGeometry(0.13, 0.09, 0.15), 0x8a5428, { y: 0.35, z: -0.04 });
-  mk.add(new THREE.BoxGeometry(0.14, 0.035, 0.11), 0x6a3a1c, { y: 0.4, z: 0.0, rx: 0.2 });
-  for (const sx of [-1, 1]) mk.add(new THREE.CylinderGeometry(0.03, 0.03, 0.11, 10), 0xa06a34, { x: sx * 0.08, y: 0.33, z: -0.06, rx: Math.PI / 2 });
-  // harnais orange clouté (comme sur l'illustration)
-  const HR = 0xc8662a, ST = 0xf0d27a;
-  mk.add(new THREE.TorusGeometry(0.075, 0.016, 6, 22), HR, { y: 0.32, z: 0.15, sy: 1.15 });
-  mk.add(new THREE.TorusGeometry(0.08, 0.016, 6, 22), HR, { y: 0.29, z: -0.05, sy: 1.1 });
-  mk.add(new THREE.BoxGeometry(0.03, 0.012, 0.22), HR, { y: 0.37, z: 0.05 });
-  mk.add(new THREE.BoxGeometry(0.035, 0.1, 0.012), HR, { y: 0.28, z: 0.215, rx: -0.3 });
-  for (let i = 0; i < 4; i++) mk.add(S(0.007, 6, 4), ST, { y: 0.31 - i * 0.024, z: 0.222 - i * 0.006 });
+  // collier rouge et médaille ; le harnais clouté est sculpté avec le corps (mBody)
+  mk.add(new THREE.TorusGeometry(0.052, 0.011, 8, 22), 0xc42430, { y: 0.425, z: 0.222, rx: Math.PI / 2 + 0.45 });
+  mk.add(S(0.012, 8, 6), 0xffd34d, { y: 0.392, z: 0.262 });
+  // petit sac à dos : sacoche arrondie, rabat, couverture roulée et poches latérales
+  const BAG = 0x9a5a2a, BAGD = 0x6a3a1c, ROLL = 0xb07a44;
+  mk.add(E(0.062, 0.042, 0.075, 18), BAG, { y: 0.355, z: -0.04 });
+  mk.add(E(0.064, 0.016, 0.06, 16), BAGD, { y: 0.385, z: -0.03, rx: 0.15 });
+  mk.add(new THREE.CylinderGeometry(0.024, 0.024, 0.13, 12), ROLL, { y: 0.4, z: 0.03, rz: Math.PI / 2 });
+  for (const sx of [-1, 1]) {
+    mk.add(new THREE.TorusGeometry(0.025, 0.004, 5, 14), BAGD, { x: sx * 0.045, y: 0.4, z: 0.03, ry: Math.PI / 2 });
+    mk.add(E(0.022, 0.032, 0.04, 12), BAG, { x: sx * 0.065, y: 0.33, z: -0.06 });
+    mk.add(S(0.006, 6, 4), 0xf0d08a, { x: sx * 0.086, y: 0.345, z: -0.06 });
+  }
   matcha.add(mk.build(new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.6 })));
   const MP = [0, 0.56, 0.27];
   const mhead = new THREE.Group(); at(mhead, ...MP); matcha.add(mhead);
+  mhead.scale.setScalar(1.1);
   mhead.add(sculpt('mHead', [0, 0, 0], 0.5));
   const mlegs = [];
 
@@ -717,9 +719,9 @@ const DECALS = {
       const cx = sx * 0.032, cy = 0.014, r = 0.0195;
       ctx.save(); ctx.translate(X(cx), Y(cy)); ctx.rotate(-sx * 0.1);
       ctx.beginPath(); ctx.ellipse(0, 0, L(r * 1.05), L(r * 0.92), 0, 0, 7);
-      ctx.fillStyle = '#1a0c06'; ctx.fill();
-      const g = ctx.createRadialGradient(0, L(r * 0.3), 0, 0, 0, L(r));
-      g.addColorStop(0, '#6a3214'); g.addColorStop(1, 'rgba(26,12,6,0)');
+      ctx.fillStyle = '#0e0806'; ctx.fill();
+      const g = ctx.createRadialGradient(-L(r * 0.2), L(r * 0.45), 0, 0, L(r * 0.2), L(r * 0.9));
+      g.addColorStop(0, '#4a2412'); g.addColorStop(1, 'rgba(14,8,6,0)');
       ctx.fillStyle = g; ctx.fill();
       ctx.lineWidth = L(0.0028); ctx.strokeStyle = '#000'; ctx.stroke();
       ctx.fillStyle = '#fff';
@@ -727,8 +729,8 @@ const DECALS = {
       ctx.beginPath(); ctx.arc(-L(r * 0.4), L(r * 0.35), L(0.0018), 0, 7); ctx.fill();
       ctx.restore();
     }
-    ctx.save(); ctx.translate(X(0), Y(-0.034));
-    ctx.beginPath(); ctx.ellipse(0, 0, L(0.02), L(0.014), 0, 0, 7); ctx.fillStyle = '#0c0a0c'; ctx.fill();
+    ctx.save(); ctx.translate(X(0), Y(-0.026));
+    ctx.beginPath(); ctx.ellipse(0, 0, L(0.0165), L(0.0125), 0, 0, 7); ctx.fillStyle = '#0c0a0c'; ctx.fill();
     ctx.fillStyle = 'rgba(255,255,255,0.5)'; ctx.beginPath(); ctx.ellipse(-L(0.004), -L(0.006), L(0.008), L(0.003), 0, 0, 7); ctx.fill();
     ctx.restore();
     const P = (x, y) => [X(x), Y(y)];

@@ -22,7 +22,7 @@ export function lockField(p, comb, freq, seed) {
  * Oreille : triangle arrondi, épaisseur décroissante vers la pointe, creusé devant.
  * Retourne { d, u, v, w, h, inner } (inner > 0 = dans le creux, pour la couleur).
  */
-export function ear(p, base, tip, face, width, thick, cup) {
+export function ear(p, base, tip, face, width, thick, cup, round) {
   const vax = norm(sub(tip, base)), h = len(sub(tip, base));
   let wax = sub(face, mul(vax, dot(face, vax))); wax = norm(wax);
   const uax = cross(vax, wax);
@@ -32,7 +32,7 @@ export function ear(p, base, tip, face, width, thick, cup) {
     const s = hw / hh, k = Math.sqrt(1 + s * s);
     return Math.max((Math.abs(uu) - hw * (1 - vv / hh)) / k, -vv - 0.02);
   };
-  const r = Math.min(width, h) * (width / h > 0.9 ? 0.28 : 0.17);
+  const r = Math.min(width, h) * (round || (width / h > 0.9 ? 0.28 : 0.17));
   const d2 = tri(width / 2 - r, h - r * 1.4, u, v) - r;
   const t = thick * (1 - 0.65 * clamp(v / h, 0, 1));
   const a = d2, b = Math.abs(w) - t;
@@ -303,52 +303,87 @@ export const ainuDecal = { x0: -0.32, x1: 0.32, y0: -0.4, y1: 0.24, fade: (p, n)
 // MATCHA (pinscher nain) — origine au pivot de la tête
 // ===========================================================================
 const B = {
-  blk: lin(0x1e1c28), blk2: lin(0x3a3a52), tan: lin(0xc6662a), tan2: lin(0xe08a46),
-  earIn: lin(0xe89280), earIn2: lin(0xf3b49c), nose: lin(0x0c0a0c), mouth: lin(0x3a0e0a),
+  blk: lin(0x1c1f2e), blk2: lin(0x3c4562), tan: lin(0xc0702e), tan2: lin(0xe2964e), tanD: lin(0x8e4a1e),
+  earIn: lin(0xe0806a), earIn2: lin(0xf2b496), nose: lin(0x0c0a10), mouth: lin(0x4a1010), tongue: lin(0xe86a7c),
 };
-const MEAR_L = { base: [-0.046, 0.054, -0.018], tip: [-0.084, 0.148, -0.03], face: [-0.25, 0.1, 1], width: 0.096, thick: 0.014 };
-const MEAR_R = { base: [0.046, 0.054, -0.018], tip: [0.084, 0.148, -0.03], face: [0.25, 0.1, 1], width: 0.096, thick: 0.014 };
-const earB = (p, e) => ear(p, e.base, e.tip, e.face, e.width, e.thick, true);
+// grandes oreilles dressées, larges à la base, un peu écartées, pointe arrondie
+// (profil en feuille : bords bombés, plus large un peu au-dessus de la base)
+const MEAR_L = { base: [-0.044, 0.066, -0.02], tip: [-0.11, 0.192, -0.036], face: [-0.42, 0.04, 1], width: 0.086, thick: 0.011 };
+const MEAR_R = { base: [0.044, 0.066, -0.02], tip: [0.11, 0.192, -0.036], face: [0.42, 0.04, 1], width: 0.086, thick: 0.011 };
+const leafW = (t) => (t <= 0 ? 1 : t >= 1 ? 0 : Math.pow(1 - t, 0.95) * (1 + 0.38 * t));
+function earB(p, e) {
+  const vax = norm(sub(e.tip, e.base)), h = len(sub(e.tip, e.base));
+  const wax = norm(sub(e.face, mul(vax, dot(e.face, vax))));
+  const uax = cross(vax, wax);
+  const d0 = sub(p, e.base);
+  const u = dot(d0, uax), v = dot(d0, vax), w = dot(d0, wax);
+  const prof = (hw, hh, uu, vv) => {
+    const t = vv / hh, f = (x) => leafW(x) * hw;
+    const sl = (f(clamp(t + 0.02, 0, 1)) - f(clamp(t - 0.02, 0, 1))) / (0.04 * hh);
+    const dd = (Math.abs(uu) - f(clamp(t, 0, 1))) / Math.sqrt(1 + Math.min(sl * sl, 9));
+    return Math.max(dd, vv - hh, -vv - 0.025);
+  };
+  const d2 = prof(e.width / 2, h, u, v);
+  const t = e.thick * (1 - 0.6 * clamp(v / h, 0, 1));
+  const a = d2, b = Math.abs(w) - t;
+  let d = Math.min(Math.max(a, b), 0) + len([Math.max(a, 0), Math.max(b, 0), 0]) - t * 0.3;
+  // creux à l'avant (conque), bord noir laissé tout autour
+  const di = prof(e.width * 0.37, h * 0.88, u, v + h * 0.01);
+  const pink = -prof(e.width * 0.43, h * 0.93, u, v);
+  const cupD = Math.max(di, -(w - t * 0.2));
+  d = smax(d, -cupD, t * 0.5);
+  return { d, u, v, w, h, inner: -di, pink };
+}
+// gueule ouverte : cavité entre la babine et la mâchoire, langue au fond
+const MCAV = (p) => ell([p[0], p[1] + (p[2] - 0.03) * 0.14, p[2]], [0, -0.055, 0.08], [0.022, 0.013, 0.048]);
+const MTONGUE = (p) => ell([p[0], p[1] + (p[2] - 0.03) * 0.26, p[2]], [0, -0.062, 0.075], [0.017, 0.0075, 0.038]);
 function matchaHeadBase(p) {
-  let d = ell(p, [0, 0.012, -0.014], [0.079, 0.072, 0.076]);                  // crâne rond
-  d = smin(d, ell(p, [0, -0.02, 0.04], [0.06, 0.05, 0.06]), 0.03);           // face
-  // museau fin et pointu
-  const m = rcone([p[0], (p[1] + 0.03) * 1.12 - 0.03, p[2]], [0, -0.026, 0.045], [0, -0.038, 0.094], 0.048, 0.03);
-  d = smin(d, m, 0.025);
-  d = smin(d, ell(p, [0, -0.034, 0.11], [0.022, 0.016, 0.013]), 0.008);     // truffe
-  d = smin(d, ell(p, [0, -0.066, 0.075], [0.03, 0.016, 0.05]), 0.02);        // mâchoire
-  const cav = ell(p, [0, -0.053, 0.095], [0.026, 0.011, 0.055]);
-  d = smax(d, -cav, 0.006);
-  for (const sx of [-1, 1]) d = smin(d, ell(p, [sx * 0.045, -0.04, 0.02], [0.03, 0.03, 0.03]), 0.03); // joues
-  d = smin(d, earB(p, MEAR_L).d, 0.015);
-  d = smin(d, earB(p, MEAR_R).d, 0.015);
+  let d = ell(p, [0, 0.016, -0.016], [0.074, 0.072, 0.074]);                 // crâne en pomme
+  d = smin(d, ell(p, [0, 0.022, 0.02], [0.056, 0.05, 0.05]), 0.02);          // front bombé (stop marqué)
+  for (const sx of [-1, 1]) d = smin(d, ell(p, [sx * 0.033, -0.028, 0.014], [0.028, 0.03, 0.034]), 0.022); // joues
+  // museau de longueur moyenne, un peu étroit, dessus droit
+  const q = [p[0] * 1.22, (p[1] + 0.03) * 1.08 - 0.03, p[2]];
+  d = smin(d, rcone(q, [0, -0.024, 0.04], [0, -0.03, 0.095], 0.04, 0.025), 0.022);
+  d = smin(d, ell(p, [0, -0.025, 0.107], [0.0155, 0.012, 0.012]), 0.007);    // truffe
+  d = smin(d, ell([p[0], p[1] + (p[2] - 0.03) * 0.28, p[2]], [0, -0.066, 0.06], [0.022, 0.013, 0.04]), 0.016);     // mâchoire inférieure, gueule entrouverte
+  d = smin(d, ell(p, [0, -0.056, -0.02], [0.034, 0.028, 0.038]), 0.03);         // gorge
+  d = smax(d, -MCAV(p), 0.005);
+  d = Math.min(d, MTONGUE(p));
+  d = smin(d, earB(p, MEAR_L).d, 0.014);
+  d = smin(d, earB(p, MEAR_R).d, 0.014);
   return d;
 }
 export function matchaHead(p) { return matchaHeadBase(p); }
 export function matchaHeadColor(p, n) {
   const ax = Math.abs(p[0]);
-  let c = lerp(B.blk, B.blk2, sstep(0.2, 0.9, n[1]) * 0.6);
-  // feu : museau, joues, dessous de la mâchoire
-  const muzzle = sstep(0.05, 0.06, p[2]) * sstep(-0.01, -0.02, p[1]);
-  const cheek = sstep(0.004, -0.004, p[1]) * sstep(0.074, 0.062, ax) * sstep(0.005, 0.02, p[2]);
-  const jaw = sstep(-0.05, -0.06, p[1]);
-  c = lerp(c, B.tan, clamp(muzzle + cheek + jaw, 0, 1));
-  // arête du museau noire qui descend vers la truffe
-  c = lerp(c, B.blk, sstep(0.026, 0.016, ax + Math.max(0, p[2] - 0.06) * 0.15) * sstep(-0.034, -0.022, p[1]) * sstep(0.03, 0.05, p[2]));  // arête noire du museau
-  // points feu au-dessus des yeux
+  // noir bleuté avec reflets bleus sur le dessus
+  let c = lerp(B.blk, B.blk2, sstep(0.25, 0.95, n[1]) * 0.55 + sstep(0.3, 0.9, -n[0] * 0.6 + n[1] * 0.5) * 0.2);
+  // feu : côtés du museau, joues sous les yeux, mâchoire et gorge
+  const cheekTop = 0.004 - Math.max(0, p[2] - 0.03) * 0.25 - Math.max(0, 0.02 - p[2]) * 0.35;
+  const cheek = sstep(cheekTop + 0.004, cheekTop - 0.004, p[1]) * sstep(0.072, 0.058, ax + Math.max(0, -p[2]) * 0.6) * sstep(-0.012, 0.008, p[2]);
+  const muzzle = sstep(0.045, 0.055, p[2]) * sstep(-0.004, -0.012, p[1]);
+  const jaw = sstep(-0.048, -0.058, p[1]) * sstep(-0.06, -0.03, p[2]);
+  c = lerp(c, B.tan, clamp(cheek + muzzle + jaw, 0, 1));
+  c = lerp(c, B.tan2, clamp(cheek + muzzle, 0, 1) * sstep(0.1, 0.6, n[1]) * 0.5);
+  // arête du museau noire, qui s'élargit vers le front et descend jusqu'à la truffe
+  const bridgeW = 0.021 + Math.max(0, 0.07 - p[2]) * 0.45;
+  c = lerp(c, B.blk, sstep(bridgeW, bridgeW - 0.007, ax) * sstep(-0.034, -0.024, p[1]) * sstep(0.03, 0.045, p[2]));
+  // points feu nets au-dessus des yeux
   for (const sx of [-1, 1]) {
-    const dd = Math.hypot((p[0] - sx * 0.031) / 0.012, (p[1] - 0.042) / 0.009);
-    c = lerp(c, B.tan2, sstep(1.0, 0.6, dd) * sstep(0.04, 0.06, p[2]));
+    const dd = Math.hypot((p[0] - sx * 0.031) / 0.0115, (p[1] - 0.043) / 0.0085);
+    c = lerp(c, B.tan2, sstep(1.0, 0.75, dd) * sstep(0.035, 0.05, p[2]));
   }
-  // oreilles : creux rose-feu
+  // oreilles : creux rose-orangé, bord noir
   for (const e of [MEAR_L, MEAR_R]) {
     const E = earB(p, e);
-    if (E.d < 0.01 && E.v > 0.0 && E.inner > -0.002 && E.w > 0) c = lerp(B.earIn, B.earIn2, sstep(0.2, 0.8, E.v / E.h));
+    if (E.d < 0.008 && E.v > 0.0 && E.pink > 0.0 && E.w > -0.004) c = lerp(lerp(B.earIn, B.earIn2, sstep(0.15, 0.75, E.v / E.h)), lin(0xb05a40), sstep(0.004, 0.0, E.pink) * 0.6);
   }
-  if (p[2] > 0.099 && p[1] > -0.052) c = lerp(c, B.nose, sstep(0.099, 0.106, p[2]));
-  c = mul(c, 0.8 + 0.2 * sstep(-0.3, 0.7, n[2]));
-  const cav = ell(p, [0, -0.053, 0.095], [0.026, 0.011, 0.055]);
-  c = lerp(c, B.mouth, sstep(0.005, -0.001, cav));
+  if (p[2] > 0.097 && p[1] > -0.044) c = lerp(c, B.nose, sstep(0.097, 0.103, p[2]));
+  // ombrage peint
+  c = mul(c, (0.78 + 0.22 * sstep(-0.3, 0.7, n[2])) * (0.85 + 0.15 * sstep(-0.8, 0.2, n[1])));
+  // gueule
+  c = lerp(c, B.mouth, sstep(0.004, -0.001, MCAV(p)));
+  if (MTONGUE(p) < 0.002) c = lerp(B.tongue, lin(0xf49aa6), sstep(0.2, 0.9, n[1]) * 0.5);
   return c;
 }
 export const matchaHeadBox = [[-0.17, -0.12, -0.12], [0.17, 0.25, 0.2]];

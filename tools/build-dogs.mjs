@@ -181,24 +181,73 @@ function legColor(p, n) {
 // ---------------------------------------------------------------------------
 // MATCHA — repère : pattes au sol en y = 0, avant +z. Tête pivot (0,0.56,0.27)
 // ---------------------------------------------------------------------------
-function matchaBody(p) {
-  let d = ell(p, [0, 0.24, -0.01], [0.095, 0.105, 0.2]);
-  d = smin(d, ell(p, [0, 0.28, 0.14], [0.088, 0.115, 0.09]), 0.05);
-  d = smin(d, rcone(p, [0, 0.31, 0.17], [0, 0.48, 0.25], 0.06, 0.048), 0.04);   // cou fier
+function matchaBodyBase(p) {
+  let d = ell(p, [0, 0.245, -0.02], [0.088, 0.1, 0.2]);                          // tronc fin
+  d = smin(d, ell(p, [0, 0.27, 0.13], [0.085, 0.118, 0.095]), 0.05);             // poitrail profond
+  d = smax(d, -ell(p, [0, 0.1, -0.05], [0.2, 0.06, 0.12]), 0.04);                // ventre levretté
+  d = smin(d, rcone(p, [0, 0.31, 0.17], [0, 0.48, 0.25], 0.058, 0.044), 0.04);   // cou fier
   for (const sx of [-1, 1]) for (const [z, back] of [[0.13, 0], [-0.14, 1]]) {
-    const x = sx * 0.06;
-    d = smin(d, ell(p, [x, 0.21, z - (back ? 0.01 : 0)], [0.045, 0.07, back ? 0.06 : 0.045]), 0.03);
-    d = smin(d, rcone(p, [x, 0.17, z + (back ? -0.02 : 0.01)], [x, 0.015, z + 0.01], 0.027, 0.02), 0.02);
-    d = smin(d, ell(p, [x, 0.012, z + 0.025], [0.026, 0.015, 0.034]), 0.012);
+    const x = sx * 0.058;
+    d = smin(d, ell(p, [x, 0.21, z - (back ? 0.01 : 0)], [0.043, 0.075, back ? 0.065 : 0.045]), 0.03);
+    d = smin(d, rcone(p, [x, 0.17, z + (back ? -0.03 : 0.01)], [x, 0.015, z + 0.01], 0.025, 0.018), 0.02);
+    d = smin(d, ell(p, [x, 0.012, z + 0.025], [0.024, 0.014, 0.032]), 0.012);
   }
-  d = smin(d, rcone(p, [0, 0.29, -0.2], [0, 0.4, -0.26], 0.025, 0.014), 0.02);  // queue courte relevée
+  d = smin(d, rcone(p, [0, 0.3, -0.2], [0, 0.4, -0.25], 0.022, 0.012), 0.02);   // queue courte relevée
   return d;
 }
+// Harnais orange clouté : sangles moulées sur le corps (coque épaisse limitée à des bandes)
+const MN_C = [0, 0.345, 0.195], MN_N = norm([0, 0.905, 0.426]);   // anneau à la base du cou
+const MG_C = [0, 0.25, 0.06], MG_N = norm([0, 0.3, 1]);           // sangle derrière les pattes avant
+function harnessBand(p) {
+  const neck = Math.abs(dot(sub(p, MN_C), MN_N)) - 0.02;
+  const girth = Math.abs(dot(sub(p, MG_C), MG_N)) - 0.021;
+  const sternum = Math.max(Math.abs(p[0]) - 0.032, 0.14 - p[2], p[1] - 0.36, 0.17 - p[1]);
+  const spine = Math.max(Math.abs(p[0]) - 0.018, 0.3 - p[1], p[2] - 0.2, 0.04 - p[2]);
+  // épaulières : bandes en biais du cou vers la sangle
+  const sh = Math.max(Math.abs(dot(sub([Math.abs(p[0]), p[1], p[2]], [0.06, 0.3, 0.13]), norm([0, 0.55, -0.83]))) - 0.018, 0.03 - Math.abs(p[0]), p[1] - 0.36, 0.22 - p[1]);
+  return Math.min(neck, girth, sternum, spine, sh);
+}
+// clous : posés à la surface, le long du plastron et de l'anneau du cou
+const surfPt = (dir0, from) => { let t = 0; for (let i = 0; i < 80; i++) { const q = add(from, mul(dir0, t)); const d = matchaBodyBase(q); if (d < 0.0004) return q; t += Math.max(d * 0.8, 0.0008); } return add(from, mul(dir0, t)); };
+const STUDS = [];
+for (let i = 0; i < 6; i++) STUDS.push(surfPt([0, 0, -1], [0, 0.185 + i * 0.03, 0.4]));
+for (const sx of [-1, 1]) for (let i = 0; i < 4; i++) { const a = 0.5 + i * 0.32; STUDS.push(surfPt(norm([sx * Math.sin(a), 0, Math.cos(a)]), add(MN_C, [sx * Math.sin(a) * 0.3, -0.02, Math.cos(a) * 0.3]))); }
+for (const sx of [-1, 1]) for (let i = 0; i < 4; i++) { const a = 0.35 + i * 0.3; STUDS.push(surfPt(norm([sx * Math.sin(a), Math.cos(a) * 0.3, 0]), [sx * 0.3, 0.25 + Math.cos(a) * 0.09, 0.06 - (Math.cos(a) * 0.09) * 0.3])); }
+for (const sx of [-1, 1]) for (let i = 0; i < 3; i++) STUDS.push(surfPt([-sx, 0, 0], [sx * 0.3, 0.33 - i * 0.04, 0.155 - i * 0.026 / 0.55 * 0.83 * 0.5]));
+const STUD_BIG = surfPt([0, 0, -1], [0, 0.27, 0.4]);
+function harness(p, bd) {
+  const shell = Math.abs(bd - 0.007) - 0.0068;
+  let h = smax(shell, harnessBand(p), 0.003);
+  for (const s of STUDS) h = Math.min(h, len(sub(p, s)) - 0.01);
+  h = Math.min(h, len(sub(p, STUD_BIG)) - 0.014);
+  return h;
+}
+function matchaBody(p) {
+  const bd = matchaBodyBase(p);
+  if (bd > 0.05) return bd;
+  return Math.min(bd, harness(p, bd));
+}
 function matchaBodyColor(p, n) {
-  let c = lerp(C.blk, C.blk2, sstep(0.3, 0.9, n[1]) * 0.6);
-  c = lerp(c, C.tan, sstep(0.12, 0.2, p[2]) * sstep(0.38, 0.22, p[1]));    // poitrail feu
-  c = lerp(c, C.tan, sstep(0.16, 0.12, p[1]) * sstep(-0.05, 0.05, n[2] + 0.3) * 0.0);
-  c = lerp(c, C.tan, sstep(0.11, 0.06, p[1]));                            // bas des pattes
+  const bd = matchaBodyBase(p);
+  // noir bleuté, reflets bleus sur le dessus
+  let c = lerp(C.blk, C.blk2, sstep(0.3, 0.95, n[1]) * 0.6);
+  // feu : gorge et deux taches au poitrail, intérieur et bas des pattes
+  const throat = sstep(0.15, 0.55, n[2] * 0.9 - n[1] * 0.3) * sstep(0.3, 0.34, p[1]) * sstep(0.5, 0.44, p[1]);
+  const chest = sstep(0.3, 0.65, n[2]) * sstep(0.33, 0.29, p[1]) * sstep(0.17, 0.21, p[1]) * sstep(0.055, 0.035, Math.abs(p[0]));
+  const legs = sstep(0.085, 0.06, p[1]) + sstep(0.15, 0.1, p[1]) * sstep(0.2, 0.6, -Math.sign(p[0]) * n[0]) * 0.9;
+  const front = sstep(0.1, 0.07, p[1]) * sstep(0.3, 0.7, n[2]) * sstep(0.05, 0.12, p[2]);
+  c = lerp(c, C.tan, clamp(throat + chest + legs + front, 0, 1));
+  c = mul(c, 0.82 + 0.18 * sstep(-0.8, 0.3, n[1]));
+  // harnais
+  if (bd > 0.0006) {
+    const hb = harnessBand(p);
+    let hc = lerp(lin(0x4a1e0c), lin(0xb4521c), sstep(-0.001, -0.006, hb));
+    let isStud = false;
+    for (const s of STUDS) if (len(sub(p, s)) < 0.0112) isStud = true;
+    if (isStud) hc = lin(0xffe6a8);
+    if (len(sub(p, STUD_BIG)) < 0.0155) hc = lerp(lin(0xb8c0cc), lin(0xf4f6fa), sstep(0.2, 0.9, n[1] + n[2] * 0.3));
+    c = mul(hc, 0.85 + 0.15 * sstep(-0.5, 0.6, n[1]));
+  }
   return c;
 }
 function matchaHead(p) {
