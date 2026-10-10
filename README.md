@@ -1,4 +1,4 @@
-# 🐕 Dogfight
+# Matcha & Ainu
 
 Jeu de baston 2D en ligne façon *Street Fighter*… mais avec des chiens. Combats en 1 contre 1, au meilleur des 3 manches.
 

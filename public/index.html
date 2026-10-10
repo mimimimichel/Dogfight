@@ -7,17 +7,18 @@
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-  <meta name="apple-mobile-web-app-title" content="Dogfight">
+  <meta name="apple-mobile-web-app-title" content="Matcha &amp; Ainu">
   <link rel="manifest" href="manifest.webmanifest">
   <link rel="apple-touch-icon" href="icon-192.png">
-  <title>Dogfight — Combat de chiens</title>
-  <meta name="description" content="Jeu de baston 2D en ligne : combats de chiens en 1 contre 1.">
+  <title>Matcha &amp; Ainu</title>
+  <meta name="description" content="Matcha et Ainu : une aventure 3D à quatre pattes et des combats de chiens en ligne.">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@400;500;600;700&family=Press+Start+2P&display=swap" rel="stylesheet">
   <link rel="icon" href="icon-192.png">
   <link rel="stylesheet" href="style.css">
   <link rel="stylesheet" href="adventure/adventure.css">
+  <link rel="stylesheet" href="home.css">
 </head>
 <body>
   <div id="rotate">
@@ -29,21 +30,42 @@
 
     <div id="ui">
       <!-- Menu principal -->
-      <section class="screen" id="screen-menu">
-        <h1 class="logo"><span>DOG</span><span>FIGHT</span></h1>
-        <p class="tagline">Combats de chiens en 1 contre 1</p>
-        <label class="name-field">Ton pseudo
-          <input id="name" maxlength="16" placeholder="Anonyme" autocomplete="off">
-        </label>
-        <div class="menu-buttons">
-          <button class="btn primary" data-action="adventure">Aventure</button>
-          <button class="btn" data-action="cpu">Combat contre l'ordi</button>
-          <button class="btn" data-action="online">Combat en ligne</button>
-          <button class="btn kb-only" data-action="local">2 joueurs (même clavier)</button>
-          <button class="btn ghost" data-action="controls">Commandes</button>
-          <button class="btn hidden" id="fs-btn" data-action="fullscreen">Plein écran</button>
+      <section class="screen home" id="screen-menu">
+        <div class="home-sky" aria-hidden="true">
+          <div class="home-sun"></div>
+          <div class="home-cloud c1"></div><div class="home-cloud c2"></div><div class="home-cloud c3"></div>
+          <svg class="home-hills" viewBox="0 0 960 220" preserveAspectRatio="none">
+            <path d="M0 120 C120 60 220 70 330 110 S560 170 700 100 S900 70 960 110 L960 220 L0 220Z" fill="#8fd16a"/>
+            <path d="M0 160 C150 110 300 130 420 165 S700 200 820 150 S930 140 960 150 L960 220 L0 220Z" fill="#5cb340"/>
+            <path d="M0 196 C200 176 380 186 520 200 S820 214 960 196 L960 220 L0 220Z" fill="#3f9a34"/>
+          </svg>
+          <div class="home-sparkles"><i></i><i></i><i></i><i></i><i></i><i></i></div>
         </div>
-        <p class="ios-tip hidden" id="ios-tip">Plein écran sur iPhone : touche <b>Partager</b> puis<br><b>« Sur l'écran d'accueil »</b>, et lance le jeu depuis l'icône.</p>
+        <div class="home-left">
+          <h1 class="home-logo" aria-label="Matcha et Ainu">
+            <span class="w matcha"><span style="--i:0">M</span><span style="--i:1">a</span><span style="--i:2">t</span><span style="--i:3">c</span><span style="--i:4">h</span><span style="--i:5">a</span></span>
+            <span class="amp">&amp;</span>
+            <span class="w ainu"><span style="--i:7">A</span><span style="--i:8">i</span><span style="--i:9">n</span><span style="--i:10">u</span></span>
+          </h1>
+          <p class="home-ribbon"><span>L'aventure à quatre pattes</span></p>
+          <img class="home-duo" src="img/duo.png" alt="Ainu l'eurasier roux, avec Matcha le pinscher debout sur son dos">
+        </div>
+        <div class="home-right">
+          <label class="home-name">Ton pseudo
+            <input id="name" maxlength="16" placeholder="Anonyme" autocomplete="off">
+          </label>
+          <div class="home-buttons">
+            <button class="hbtn play" data-action="adventure"><b>Aventure</b><small>Explore l'île avec Ainu et Matcha</small></button>
+            <button class="hbtn fight" data-action="cpu">Combat contre l'ordi</button>
+            <button class="hbtn online" data-action="online">Combat en ligne</button>
+            <button class="hbtn local kb-only" data-action="local">2 joueurs (même clavier)</button>
+            <div class="home-row">
+              <button class="hbtn small" data-action="controls">Commandes</button>
+              <button class="hbtn small hidden" id="fs-btn" data-action="fullscreen">Plein écran</button>
+            </div>
+          </div>
+          <p class="ios-tip hidden" id="ios-tip">Plein écran sur iPhone : touche <b>Partager</b> puis <b>« Sur l'écran d'accueil »</b>.</p>
+        </div>
       </section>
 
       <!-- Menu en ligne -->

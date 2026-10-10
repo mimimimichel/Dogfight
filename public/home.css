@@ -1,0 +1,155 @@
+/*
+ * Matcha & Ainu — écran d'accueil coloré (style plates-formes 3D),
+ * dans la scène de 960×540 CSS mise à l'échelle par main.js.
+ */
+#screen-menu.home {
+  --hf: 'Fredoka', 'Arial Rounded MT Bold', system-ui, sans-serif;
+  flex-direction: row;
+  justify-content: space-between;
+  align-items: stretch;
+  gap: 0;
+  padding: 0;
+  overflow: hidden;
+  background: linear-gradient(180deg, #3fa0f0 0%, #7cc8ff 42%, #c7ecff 70%, #fff3c8 100%);
+  font-family: var(--hf);
+  -webkit-font-smoothing: antialiased;
+}
+
+/* ---------- Décor ---------- */
+.home-sky { position: absolute; inset: 0; pointer-events: none; }
+.home-sun {
+  position: absolute; left: 44%; top: -60px; width: 260px; height: 260px; border-radius: 50%;
+  background: radial-gradient(circle, rgba(255, 250, 210, 0.95) 0 28%, rgba(255, 236, 150, 0.45) 45%, rgba(255, 236, 150, 0) 70%);
+  animation: homeSun 6s ease-in-out infinite;
+}
+@keyframes homeSun { 50% { transform: scale(1.08); } }
+.home-cloud {
+  position: absolute; width: 150px; height: 46px; border-radius: 40px; background: #fff;
+  box-shadow: inset 0 -8px 0 #dceefc; opacity: 0.95;
+  animation: homeDrift 38s linear infinite;
+}
+.home-cloud::before, .home-cloud::after { content: ''; position: absolute; background: #fff; border-radius: 50%; }
+.home-cloud::before { width: 70px; height: 70px; left: 22px; top: -34px; }
+.home-cloud::after { width: 54px; height: 54px; left: 76px; top: -22px; }
+.home-cloud.c1 { top: 70px; left: -160px; }
+.home-cloud.c2 { top: 150px; left: -160px; transform: scale(0.7); animation-duration: 52s; animation-delay: -20s; }
+.home-cloud.c3 { top: 36px; left: -160px; transform: scale(0.55); animation-duration: 44s; animation-delay: -34s; }
+@keyframes homeDrift { to { translate: 1300px 0; } }
+.home-isle {
+  position: absolute; right: 70px; top: 150px; width: 90px; height: 24px; border-radius: 50% 50% 12px 12px;
+  background: #6cc24a; box-shadow: inset 0 -6px 0 #4ea235;
+  animation: homeFloat 5s ease-in-out infinite;
+}
+.home-isle::after {
+  content: ''; position: absolute; left: 14px; top: 18px; width: 62px; height: 44px;
+  background: #9a7a5e; clip-path: polygon(0 0, 100% 0, 55% 100%);
+}
+@keyframes homeFloat { 50% { transform: translateY(-10px); } }
+.home-hills { position: absolute; left: 0; right: 0; bottom: 0; width: 100%; height: 220px; }
+.home-sparkles i {
+  position: absolute; width: 14px; height: 14px; background: #fff7a8;
+  clip-path: polygon(50% 0, 62% 38%, 100% 50%, 62% 62%, 50% 100%, 38% 62%, 0 50%, 38% 38%);
+  animation: homeTwinkle 2.4s ease-in-out infinite;
+}
+.home-sparkles i:nth-child(1) { left: 8%; top: 22%; }
+.home-sparkles i:nth-child(2) { left: 36%; top: 12%; animation-delay: -0.6s; }
+.home-sparkles i:nth-child(3) { left: 50%; top: 58%; animation-delay: -1.2s; transform: scale(0.7); }
+.home-sparkles i:nth-child(4) { left: 88%; top: 10%; animation-delay: -1.8s; }
+.home-sparkles i:nth-child(5) { left: 22%; top: 70%; animation-delay: -0.9s; transform: scale(0.6); }
+.home-sparkles i:nth-child(6) { left: 64%; top: 30%; animation-delay: -1.5s; transform: scale(0.8); }
+@keyframes homeTwinkle { 0%, 100% { opacity: 0; scale: 0.4; } 50% { opacity: 1; scale: 1.1; } }
+
+/* ---------- Colonne gauche : logo + héros ---------- */
+.home-left {
+  position: relative; flex: 1 1 auto; display: flex; flex-direction: column; align-items: center;
+  padding: 18px 0 0 24px; min-width: 0;
+}
+.home-logo {
+  position: relative; z-index: 2; margin: 0; display: flex; align-items: baseline; gap: 6px;
+  font-family: var(--hf); font-weight: 700; line-height: 1; letter-spacing: 1px;
+  transform: rotate(-4deg);
+}
+.home-logo .w span {
+  display: inline-block; font-size: 66px;
+  -webkit-text-stroke: 10px #2a1408; paint-order: stroke fill;
+  text-shadow: 0 7px 0 #2a1408;
+  animation: homeBob 2.6s ease-in-out infinite; animation-delay: calc(var(--i) * -0.18s);
+}
+.home-logo .w span:nth-child(odd) { rotate: -5deg; }
+.home-logo .w span:nth-child(even) { rotate: 4deg; translate: 0 -4px; }
+.home-logo .matcha span { color: #9ade52; }
+.home-logo .ainu span { color: #ff8f3c; }
+.home-logo .amp {
+  font-size: 40px; color: #fff; -webkit-text-stroke: 7px #2a1408; paint-order: stroke fill;
+  text-shadow: 0 5px 0 #2a1408; align-self: center; rotate: 8deg; color: #ffd23a;
+}
+@keyframes homeBob { 50% { transform: translateY(-5px); } }
+.home-ribbon {
+  position: relative; z-index: 2; margin: 10px 0 0; padding: 0 30px; transform: rotate(-3deg);
+}
+.home-ribbon span {
+  display: inline-block; padding: 6px 22px 8px; font-size: 18px; font-weight: 600; color: #fff;
+  background: linear-gradient(#b05ae8, #7a2ec0); border-radius: 10px;
+  border: 3px solid #2a1408; box-shadow: 0 4px 0 #2a1408; letter-spacing: 0.5px;
+}
+.home-ribbon::before, .home-ribbon::after {
+  content: ''; position: absolute; top: 10px; width: 34px; height: 30px; background: #6420a4; border: 3px solid #2a1408; z-index: -1;
+}
+.home-ribbon::before { left: 6px; clip-path: polygon(0 0, 100% 0, 100% 100%, 0 100%, 35% 50%); }
+.home-ribbon::after { right: 6px; clip-path: polygon(0 0, 100% 0, 65% 50%, 100% 100%, 0 100%); }
+.home-duo {
+  position: absolute; z-index: 1; left: 50%; bottom: 6px; height: 330px; width: auto;
+  transform: translateX(-46%);
+  filter: drop-shadow(0 10px 0 rgba(30, 80, 20, 0.35));
+  animation: homeHop 3.2s ease-in-out infinite;
+}
+@keyframes homeHop { 0%, 100% { translate: 0 0; } 45% { translate: 0 -8px; } 55% { translate: 0 -8px; } }
+
+/* ---------- Colonne droite : pseudo + boutons ---------- */
+.home-right {
+  position: relative; z-index: 2; flex: 0 0 360px; display: flex; flex-direction: column; justify-content: center;
+  gap: 12px; padding: 18px 28px 18px 0;
+}
+.home-name {
+  display: flex; align-items: center; gap: 10px; font-size: 17px; font-weight: 600; color: #fff; white-space: nowrap;
+  -webkit-text-stroke: 4px #2a1408; paint-order: stroke fill;
+}
+#screen-menu .home-name input {
+  flex: 1; width: auto; font-family: var(--hf); font-size: 18px; font-weight: 600; padding: 8px 12px;
+  background: #fff; color: #3a2010; border: 3px solid #2a1408; border-radius: 14px;
+  box-shadow: 0 4px 0 #2a1408, inset 0 3px 0 #e4e8f0; -webkit-text-stroke: 0;
+}
+#screen-menu .home-name input:focus { background: #fffbe0; box-shadow: 0 4px 0 #2a1408, 0 0 0 4px #ffd34d; }
+.home-buttons { display: flex; flex-direction: column; gap: 12px; }
+.home-row { display: flex; gap: 12px; }
+.home-row .hbtn { flex: 1; }
+.hbtn {
+  position: relative; font-family: var(--hf); font-weight: 700; font-size: 20px; line-height: 1.1;
+  color: #fff; padding: 12px 18px 14px; cursor: pointer;
+  border: 3px solid #2a1408; border-radius: 18px;
+  -webkit-text-stroke: 4px #2a1408; paint-order: stroke fill; letter-spacing: 0.3px;
+  box-shadow: 0 6px 0 #2a1408, inset 0 -6px 0 rgba(0, 0, 0, 0.18), inset 0 5px 0 rgba(255, 255, 255, 0.35);
+  transition: transform 0.08s, box-shadow 0.08s, filter 0.15s;
+}
+.hbtn:hover { filter: brightness(1.08); transform: translateY(-2px); box-shadow: 0 8px 0 #2a1408, inset 0 -6px 0 rgba(0, 0, 0, 0.18), inset 0 5px 0 rgba(255, 255, 255, 0.35); }
+.hbtn:active { transform: translateY(5px); box-shadow: 0 1px 0 #2a1408, inset 0 -3px 0 rgba(0, 0, 0, 0.18), inset 0 4px 0 rgba(255, 255, 255, 0.3); }
+.hbtn:focus-visible { outline: 4px solid #fff; outline-offset: 3px; }
+.hbtn.play {
+  font-size: 30px; padding: 12px 18px 14px; display: flex; flex-direction: column; align-items: center; gap: 2px;
+  background: linear-gradient(#ffe066, #ffb21c); animation: homePulse 1.8s ease-in-out infinite;
+}
+.hbtn.play small { font-size: 13px; font-weight: 600; -webkit-text-stroke: 3px #2a1408; color: #fff8dc; }
+@keyframes homePulse { 50% { scale: 1.03; } }
+.hbtn.fight { background: linear-gradient(#ff9a5a, #ee5a24); }
+.hbtn.online { background: linear-gradient(#5ad6c8, #1e9a9a); }
+.hbtn.local { background: linear-gradient(#a98cf0, #6a4ad0); font-size: 17px; }
+.hbtn.small { font-size: 16px; padding: 9px 12px 11px; background: linear-gradient(#ffffff, #d8e2f0); color: #3a2a6a; -webkit-text-stroke: 0; }
+#screen-menu .ios-tip {
+  font-family: var(--hf); font-size: 13px; line-height: 1.3; color: #3a2010; background: rgba(255, 255, 255, 0.85);
+  border: 2px solid #2a1408; border-radius: 12px; box-shadow: none; padding: 6px 10px;
+}
+#screen-menu .ios-tip b { color: #c0400a; font-weight: 700; }
+
+@media (prefers-reduced-motion: reduce) {
+  #screen-menu *, #screen-menu *::before, #screen-menu *::after { animation: none !important; }
+}
