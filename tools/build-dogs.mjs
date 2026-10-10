@@ -38,6 +38,8 @@ function ainuBodyBase(p) {
   d = smin(d, rcone(p, [0, 1.12, 0.45], [0, 1.47, 0.74], 0.25, 0.17), 0.1); // cou porté haut
   d = smin(d, ell(p, RUFF_C, [0.33, 0.37, 0.3]), 0.12);                // collerette
   d = smin(d, ell(p, [0, 0.96, 0.6], [0.22, 0.28, 0.17]), 0.08);       // plastron
+  // dégagement sous la tête : rien ne doit apparaître dans la gueule ouverte
+  d = smax(d, -ell(p, [0, 1.45, 1.0], [0.17, 0.11, 0.2]), 0.04);
   return d;
 }
 function ainuBodyComb(p) {
@@ -239,7 +241,7 @@ const run = (name, sdf, col, bmin, bmax, h, decal) => {
   console.log(name, m.pos.length, 'sommets', m.idx.length / 3, 'triangles');
 };
 run('body', ainuBody, ainuBodyColor, [-0.5, 0.5, -0.95], [0.5, 1.75, 0.95]);
-run('head', HD.ainuHead, HD.ainuHeadColor, ...HD.ainuHeadBox, 0.0075, HD.ainuDecal);
+run('head', HD.ainuHead, HD.ainuHeadColor, ...HD.ainuHeadBox, 0.0062, HD.ainuDecal);
 run('tail', ainuTail, ainuTailColor, [-0.36, 0.95, -1.25], [0.36, 2.2, -0.1]);
 for (const [name, x, z, back] of [['legFL', -0.16, 0.4, 0], ['legFR', 0.16, 0.4, 0], ['legBL', -0.16, -0.5, 1], ['legBR', 0.16, -0.5, 1]]) {
   run(name, legSdf(x, z, back), legColor, [x - 0.24, -0.05, z - 0.42], [x + 0.24, 1.12, z + 0.3], 0.012);

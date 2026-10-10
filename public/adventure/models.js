@@ -670,14 +670,16 @@ function paintDecal(box, draw) {
   t.anisotropy = 4;
   return t;
 }
+// Yeux d'Ainu (décalque) ; truffe, gueule et langue sont sculptées (tools/heads.mjs)
+const EYE = { x: 0.088, y: 0.048, w: 0.036, h: 0.024, tilt: 0.16 };
 const DECALS = {
-  // Visage d'Ainu : yeux en amande rieurs, truffe, grande gueule souriante
+  // Visage d'Ainu : petits yeux en amande rieurs
   head(ctx, X, Y, S) {
     const L = (w) => w * S;
     ctx.lineJoin = ctx.lineCap = 'round';
     for (const sx of [-1, 1]) {
-      const cx = sx * 0.096, cy = 0.03, w = 0.039, h = 0.028;
-      ctx.save(); ctx.translate(X(cx), Y(cy)); ctx.rotate(-sx * 0.12);
+      const cx = sx * EYE.x, cy = EYE.y, w = EYE.w, h = EYE.h;
+      ctx.save(); ctx.translate(X(cx), Y(cy)); ctx.scale(sx, 1); ctx.rotate(-EYE.tilt);
       // amande : paupière supérieure bombée, inférieure plus plate
       ctx.beginPath();
       ctx.moveTo(-L(w), 0);
@@ -685,61 +687,27 @@ const DECALS = {
       ctx.bezierCurveTo(L(w * 0.5), L(h * 0.95), -L(w * 0.5), L(h * 0.95), -L(w), 0);
       ctx.fillStyle = '#2a140a'; ctx.fill();
       ctx.lineWidth = L(0.006); ctx.strokeStyle = '#120804'; ctx.stroke();
+      // paupière supérieure appuyée, qui file vers l'extérieur
+      ctx.beginPath(); ctx.moveTo(-L(w * 1.02), L(h * 0.05));
+      ctx.bezierCurveTo(-L(w * 0.55), -L(h * 1.4), L(w * 0.6), -L(h * 1.4), L(w * 1.18), -L(h * 0.2));
+      ctx.lineWidth = L(0.008); ctx.stroke();
       const g = ctx.createRadialGradient(0, L(h * 0.2), 0, 0, 0, L(w * 0.75));
       g.addColorStop(0, '#5a2a12'); g.addColorStop(1, 'rgba(20,8,4,0)');
       ctx.fillStyle = g; ctx.fill();
       ctx.fillStyle = '#ffffff';
       ctx.beginPath(); ctx.arc(L(w * 0.28), -L(h * 0.35), L(0.0085), 0, 7); ctx.fill();
       ctx.beginPath(); ctx.arc(-L(w * 0.35), L(h * 0.25), L(0.004), 0, 7); ctx.fill();
-      // trait du coin de l'œil
-      ctx.beginPath(); ctx.moveTo(L(w * 0.95), -L(h * 0.1)); ctx.lineTo(L(w * 1.35), -L(h * 0.45));
-      ctx.lineWidth = L(0.005); ctx.stroke();
       ctx.restore();
     }
-    // truffe
-    ctx.save(); ctx.translate(X(0), Y(-0.046));
-    ctx.scale(1.08, 1.08);
-    ctx.beginPath();
-    ctx.moveTo(-L(0.044), -L(0.012));
-    ctx.bezierCurveTo(-L(0.044), -L(0.03), L(0.044), -L(0.03), L(0.044), -L(0.012));
-    ctx.bezierCurveTo(L(0.044), L(0.018), L(0.012), L(0.03), 0, L(0.03));
-    ctx.bezierCurveTo(-L(0.012), L(0.03), -L(0.044), L(0.018), -L(0.044), -L(0.012));
-    ctx.fillStyle = '#16100e'; ctx.fill();
-    ctx.fillStyle = 'rgba(255,255,255,0.55)';
-    ctx.beginPath(); ctx.ellipse(-L(0.008), -L(0.016), L(0.016), L(0.006), -0.15, 0, 7); ctx.fill();
-    ctx.restore();
-    // gueule ouverte : babine supérieure en « w », mâchoire en U, langue
-    const mouth = new Path2D();
-    const yT = -0.098, yB = -0.205;
-    ctx.save(); ctx.translate(X(0), 0);
-    const P = (x, y) => [L(x), Y(y)];
-    mouth.moveTo(...P(-0.14, -0.075));
-    mouth.bezierCurveTo(...P(-0.1, -0.118), ...P(-0.035, -0.125), ...P(0, yT - 0.01));
-    mouth.bezierCurveTo(...P(0.035, -0.125), ...P(0.1, -0.118), ...P(0.14, -0.075));
-    mouth.bezierCurveTo(...P(0.115, -0.17), ...P(0.06, yB), ...P(0, yB));
-    mouth.bezierCurveTo(...P(-0.06, yB), ...P(-0.115, -0.17), ...P(-0.14, -0.075));
-    ctx.fillStyle = '#3c0e0a'; ctx.fill(mouth);
-    ctx.save(); ctx.clip(mouth);
-    // langue
-    ctx.beginPath(); ctx.ellipse(L(0.0), Y(-0.19), L(0.065), L(0.05), 0, 0, 7);
-    ctx.fillStyle = '#ec6f84'; ctx.fill();
-    ctx.beginPath(); ctx.ellipse(-L(0.012), Y(-0.18), L(0.02), L(0.012), -0.3, 0, 7); ctx.fillStyle = '#f7a2ae'; ctx.fill();
-    ctx.beginPath(); ctx.moveTo(L(0), Y(-0.165)); ctx.lineTo(L(0), Y(-0.205)); ctx.strokeStyle = '#b84058'; ctx.lineWidth = L(0.004); ctx.stroke();
-    // petites dents aux coins
-    ctx.fillStyle = '#fff6ea';
-    for (const sx of [-1, 1]) { ctx.beginPath(); ctx.moveTo(L(sx * 0.105), Y(-0.1)); ctx.lineTo(L(sx * 0.095), Y(-0.12)); ctx.lineTo(L(sx * 0.085), Y(-0.104)); ctx.fill(); }
-    ctx.restore();
-    ctx.lineWidth = L(0.007); ctx.strokeStyle = '#120604'; ctx.stroke(mouth);
-    // fossettes au coin de la bouche
-    for (const sx of [-1, 1]) { ctx.beginPath(); ctx.moveTo(L(sx * 0.14), Y(-0.075)); ctx.quadraticCurveTo(L(sx * 0.152), Y(-0.07), L(sx * 0.15), Y(-0.06)); ctx.lineWidth = L(0.005); ctx.stroke(); }
-    // philtrum
-    ctx.beginPath(); ctx.moveTo(L(0), Y(-0.075)); ctx.lineTo(L(0), Y(yT - 0.01)); ctx.lineWidth = L(0.005); ctx.stroke();
-    ctx.restore();
-    // quelques traits d'encre dans la fourrure (front, joues)
-    ctx.strokeStyle = 'rgba(90,30,8,0.55)'; ctx.lineWidth = L(0.003);
-    for (const [x0, y0, x1, y1] of [[-0.03, 0.15, -0.025, 0.12], [0.03, 0.15, 0.025, 0.12], [0, 0.16, 0, 0.13], [-0.2, -0.02, -0.22, -0.07], [0.2, -0.02, 0.22, -0.07], [-0.17, -0.14, -0.2, -0.19], [0.17, -0.14, 0.2, -0.19]]) {
-      ctx.beginPath(); ctx.moveTo(X(x0), Y(y0)); ctx.lineTo(X(x1), Y(y1)); ctx.stroke();
+    // truffe (le volume est sculpté) : narines et reflet ; sillon jusqu'à la babine
+    ctx.fillStyle = '#050303';
+    for (const sx of [-1, 1]) {
+      ctx.beginPath(); ctx.ellipse(X(sx * 0.02), Y(-0.044), L(0.011), L(0.0065), sx * 0.5, 0, 7); ctx.fill();
     }
+    ctx.fillStyle = 'rgba(190,190,200,0.75)';
+    ctx.beginPath(); ctx.ellipse(X(-0.008), Y(-0.022), L(0.017), L(0.0065), -0.1, 0, 7); ctx.fill();
+    ctx.strokeStyle = '#120604'; ctx.lineWidth = L(0.0045);
+    ctx.beginPath(); ctx.moveTo(X(0), Y(-0.06)); ctx.lineTo(X(0), Y(-0.1)); ctx.stroke();
   },
   // Visage de Matcha : grands yeux brillants, truffe, sourire gueule ouverte
   mHead(ctx, X, Y, S) {
