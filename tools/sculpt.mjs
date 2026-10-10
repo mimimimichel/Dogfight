@@ -126,5 +126,19 @@ export function pack(m) {
   }
   const Ix = n > 65535 ? new Uint32Array(m.idx) : new Uint16Array(m.idx);
   const b64 = (a) => Buffer.from(a.buffer, a.byteOffset, a.byteLength).toString('base64');
-  return { n, min, max, pos: b64(P), nrm: b64(N), col: b64(C), idx: b64(Ix), big: n > 65535 };
+  const out = { n, min, max, pos: b64(P), nrm: b64(N), col: b64(C), idx: b64(Ix), big: n > 65535 };
+  if (m.decal) {
+    // Décalque peint projeté de face (orthographique selon z) : uv + atténuation selon l'orientation
+    const { x0, x1, y0, y1, fade } = m.decal;
+    const U = new Uint16Array(n * 2), F = new Uint8Array(n);
+    for (let i = 0; i < n; i++) {
+      const [x, y] = m.pos[i];
+      U[i * 2] = Math.round(clamp((x - x0) / (x1 - x0), 0, 1) * 65535);
+      U[i * 2 + 1] = Math.round(clamp((y - y0) / (y1 - y0), 0, 1) * 65535);
+      F[i] = Math.round(clamp(fade ? fade(m.pos[i], m.nrm[i]) : 1, 0, 1) * 255);
+    }
+    out.decal = { x0, x1, y0, y1 };
+    out.uv = b64(U); out.fade = b64(F);
+  }
+  return out;
 }

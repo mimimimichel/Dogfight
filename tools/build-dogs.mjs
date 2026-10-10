@@ -4,6 +4,7 @@
  * Usage : node tools/build-dogs.mjs
  */
 import fs from 'node:fs';
+import * as HD from './heads.mjs';
 import { ell, rcone, flatCone, smin, smax, strands, noise, mesh, pack, sstep, clamp, norm, sub, add, mul, dot, len, mixv } from './sculpt.mjs';
 
 const lin = (hex) => [(hex >> 16) & 255, (hex >> 8) & 255, hex & 255].map(c => { c /= 255; return c <= 0.04045 ? c / 12.92 : Math.pow((c + 0.055) / 1.055, 2.4); });
@@ -54,8 +55,8 @@ function ainuBody(p) {
   if (d > 0.12) return d;
   const r = sub(p, RUFF_C);
   const edge = Math.max(sstep(0.62, 0.3, len([r[0], r[1], r[2] * 1.3])), sstep(0.8, 0.7, p[1]), sstep(0.55, 0.65, p[2]) * sstep(1.15, 0.9, p[1]));
-  const amp = 0.018 + 0.035 * edge;
-  return d - amp * lockField(p, ainuBodyComb(p), 13, 1.3);
+  const amp = 0.008 + 0.022 * edge;
+  return d - amp * lockField(p, ainuBodyComb(p), 20, 1.3);
 }
 function ainuBodyColor(p, n) {
   let c = C.org;
@@ -64,7 +65,10 @@ function ainuBodyColor(p, n) {
   c = lerp(c, C.cream, sstep(0.55, 0.7, p[2]) * sstep(1.12, 0.85, p[1]));                // plastron crème
   c = lerp(c, C.cream, sstep(-0.2, -0.8, n[1]) * sstep(0.9, 0.75, p[1]) * 0.85);         // ventre crème
   const s = stroke(p, ainuBodyComb(p), 26);
-  return mul(c, 0.94 + s * 0.16);
+  const h = strands(p, ainuBodyComb(p), 50, 8.8);
+  c = lerp(c, mul(c, 0.55), sstep(0.62, 0.7, h) * 0.5);
+  const occ = 0.82 + 0.18 * sstep(-0.9, 0.2, n[1]);
+  return mul(c, (0.94 + s * 0.12) * occ);
 }
 
 const HEAD_C = [0, 1.6, 0.82];
@@ -221,21 +225,26 @@ function matchaHeadColor(p, n) {
 
 // ---------------------------------------------------------------------------
 const LITE = process.argv.includes('--lite');
+const ONLY = (process.argv.find(a => a.startsWith('--only=')) || '').slice(7).split(',').filter(Boolean);
 const out = { version: 1, parts: {} };
+const OUTF = new URL('../public/adventure/assets/' + (LITE ? 'dogs-lite.json' : 'dogs.json'), import.meta.url);
+const prev = ONLY.length ? JSON.parse(fs.readFileSync(OUTF)) : { parts: {} };
 const H = LITE ? 0.026 : 0.017;
 const t0 = Date.now();
-const run = (name, sdf, col, bmin, bmax, h) => {
+const run = (name, sdf, col, bmin, bmax, h, decal) => {
+  if (ONLY.length && !ONLY.includes(name)) { if (prev.parts[name]) out.parts[name] = prev.parts[name]; return; }
   const m = mesh(sdf, col, bmin, bmax, (h || H) * (LITE ? 1.6 : 1));
+  if (decal) m.decal = decal;
   out.parts[name] = pack(m);
   console.log(name, m.pos.length, 'sommets', m.idx.length / 3, 'triangles');
 };
 run('body', ainuBody, ainuBodyColor, [-0.5, 0.5, -0.95], [0.5, 1.75, 0.95]);
-run('head', ainuHead, ainuHeadColor, [-0.36, 1.3, 0.5], [0.36, 2.05, 1.32], 0.01);
+run('head', HD.ainuHead, HD.ainuHeadColor, ...HD.ainuHeadBox, 0.0075, HD.ainuDecal);
 run('tail', ainuTail, ainuTailColor, [-0.36, 0.95, -1.25], [0.36, 2.2, -0.1]);
 for (const [name, x, z, back] of [['legFL', -0.16, 0.4, 0], ['legFR', 0.16, 0.4, 0], ['legBL', -0.16, -0.5, 1], ['legBR', 0.16, -0.5, 1]]) {
   run(name, legSdf(x, z, back), legColor, [x - 0.24, -0.05, z - 0.42], [x + 0.24, 1.12, z + 0.3], 0.012);
 }
 run('mBody', matchaBody, matchaBodyColor, [-0.15, -0.02, -0.32], [0.15, 0.56, 0.33], 0.006);
-run('mHead', matchaHead, matchaHeadColor, [-0.18, 0.45, 0.15], [0.18, 0.88, 0.47], 0.005);
-fs.writeFileSync(new URL('../public/adventure/assets/' + (LITE ? 'dogs-lite.json' : 'dogs.json'), import.meta.url), JSON.stringify(out));
+run('mHead', HD.matchaHead, HD.matchaHeadColor, ...HD.matchaHeadBox, 0.0028, HD.matchaDecal);
+fs.writeFileSync(OUTF, JSON.stringify(out));
 console.log('fini en', (Date.now() - t0) / 1000, 's');

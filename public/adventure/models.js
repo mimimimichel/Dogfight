@@ -285,19 +285,8 @@ export function buildDuo() {
   // Tête
   const HP = [0, 1.6, 0.78];
   const head = new THREE.Group(); at(head, ...HP); ainu.add(head);
-  head.scale.setScalar(1.18);
-  head.add(sculpt('head', HP));
-  const fk = new Kit();
-  for (const sx of [-1, 1]) {
-    // petits yeux en amande, bruns, légèrement tombants (regard doux)
-    fk.add(E(0.04, 0.026, 0.014, 16), 0x2a0e04, { x: sx * 0.105, y: 0.03, z: 0.262, ry: sx * 0.4, rz: sx * 0.28 }); // contour sombre
-    fk.add(E(0.031, 0.021, 0.016, 16), 0x1c0c06, { x: sx * 0.105, y: 0.03, z: 0.268, ry: sx * 0.4, rz: sx * 0.28 });
-    fk.add(S(0.009, 8, 6), 0xffffff, { x: sx * 0.105 + 0.008, y: 0.038, z: 0.282 });
-  }
-  fk.add(E(0.042, 0.032, 0.034, 16), DK, { y: -0.07, z: 0.295 });          // truffe
-  fk.add(E(0.06, 0.022, 0.05, 14), 0x4a1008, { y: -0.135, z: 0.215 });    // bouche ouverte souriante
-  fk.add(E(0.042, 0.014, 0.05, 12), 0xf0607a, { y: -0.148, z: 0.24, rx: 0.3 }); // langue
-  head.add(fk.build(gloss()));
+  head.scale.setScalar(1.12);
+  head.add(sculpt('head', [0, 0, 0]));
 
   // Queue (pivot à la base)
   const TP = [0, 1.15, -0.72];
@@ -326,14 +315,7 @@ export function buildDuo() {
   matcha.add(mk.build(new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.6 })));
   const MP = [0, 0.56, 0.27];
   const mhead = new THREE.Group(); at(mhead, ...MP); matcha.add(mhead);
-  mhead.add(sculpt('mHead', MP, 0.4));
-  const mfk = new Kit();
-  for (const sx of [-1, 1]) {
-    mfk.add(E(0.024, 0.026, 0.014, 12), 0x120604, { x: sx * 0.045, y: 0.022, z: 0.074, ry: sx * 0.45 });
-    mfk.add(S(0.008, 6, 4), 0xffffff, { x: sx * 0.045 + 0.007, y: 0.032, z: 0.086 });
-  }
-  mfk.add(E(0.022, 0.016, 0.016, 10), 0x050505, { y: -0.045, z: 0.185 });
-  mhead.add(mfk.build(gloss()));
+  mhead.add(sculpt('mHead', [0, 0, 0], 0.5));
   const mlegs = [];
 
   root.userData = { ainu, head, tail, legs, matcha, mhead, mlegs, body };
@@ -643,12 +625,162 @@ export function sculptGeo(name) {
   g.setAttribute('normal', new THREE.BufferAttribute(nrm, 3));
   g.setAttribute('color', new THREE.BufferAttribute(col, 3));
   g.setIndex(new THREE.BufferAttribute(d.big ? new Uint32Array(b64(d.idx)) : new Uint16Array(b64(d.idx)), 1));
+  if (d.uv) {
+    const U = new Uint16Array(b64(d.uv)), F = new Uint8Array(b64(d.fade));
+    const uv = new Float32Array(d.n * 2), fade = new Float32Array(d.n);
+    for (let i = 0; i < d.n * 2; i++) uv[i] = U[i] / 65535;
+    for (let i = 0; i < d.n; i++) fade[i] = F[i] / 255;
+    g.setAttribute('uv', new THREE.BufferAttribute(uv, 2));
+    g.setAttribute('fade', new THREE.BufferAttribute(fade, 1));
+    g.userData.decal = d.decal;
+  }
   geoCache.set(name, g);
   return g;
 }
+/**
+ * Matériau avec décalque peint (visage) : la peinture se pose PAR-DESSUS les
+ * couleurs de sommets, atténuée selon l'attribut « fade » (faces de côté).
+ */
+function decalMaterial(tex, rough) {
+  const m = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: rough || 0.85, map: tex });
+  m.onBeforeCompile = (sh) => {
+    sh.vertexShader = 'attribute float fade;\nvarying float vFade;\n' + sh.vertexShader.replace('#include <begin_vertex>', '#include <begin_vertex>\n  vFade = fade;');
+    sh.fragmentShader = 'varying float vFade;\n' + sh.fragmentShader
+      .replace('#include <map_fragment>', '')
+      .replace('#include <color_fragment>', '#include <color_fragment>\n#ifdef USE_MAP\n  vec4 dcl = texture2D( map, vMapUv );\n  diffuseColor.rgb = mix( diffuseColor.rgb, dcl.rgb, dcl.a * vFade );\n#endif');
+  };
+  m.customProgramCacheKey = () => 'decal';
+  return m;
+}
+/** Peint un décalque : draw(ctx, X, Y, S) avec X/Y = conversion mètres → pixels, S = échelle. */
+function paintDecal(box, draw) {
+  const N = 1024, c = document.createElement('canvas'); c.width = c.height = N;
+  const x = c.getContext('2d');
+  const sx = N / (box.x1 - box.x0), sy = N / (box.y1 - box.y0);
+  draw(x, (v) => (v - box.x0) * sx, (v) => (box.y1 - v) * sy, sx);
+  const t = new THREE.CanvasTexture(c);
+  t.colorSpace = THREE.SRGBColorSpace;
+  t.anisotropy = 4;
+  return t;
+}
+const DECALS = {
+  // Visage d'Ainu : yeux en amande rieurs, truffe, grande gueule souriante
+  head(ctx, X, Y, S) {
+    const L = (w) => w * S;
+    ctx.lineJoin = ctx.lineCap = 'round';
+    for (const sx of [-1, 1]) {
+      const cx = sx * 0.096, cy = 0.03, w = 0.039, h = 0.028;
+      ctx.save(); ctx.translate(X(cx), Y(cy)); ctx.rotate(-sx * 0.12);
+      // amande : paupière supérieure bombée, inférieure plus plate
+      ctx.beginPath();
+      ctx.moveTo(-L(w), 0);
+      ctx.bezierCurveTo(-L(w * 0.55), -L(h * 1.35), L(w * 0.55), -L(h * 1.35), L(w), -L(h * 0.1));
+      ctx.bezierCurveTo(L(w * 0.5), L(h * 0.95), -L(w * 0.5), L(h * 0.95), -L(w), 0);
+      ctx.fillStyle = '#2a140a'; ctx.fill();
+      ctx.lineWidth = L(0.006); ctx.strokeStyle = '#120804'; ctx.stroke();
+      const g = ctx.createRadialGradient(0, L(h * 0.2), 0, 0, 0, L(w * 0.75));
+      g.addColorStop(0, '#5a2a12'); g.addColorStop(1, 'rgba(20,8,4,0)');
+      ctx.fillStyle = g; ctx.fill();
+      ctx.fillStyle = '#ffffff';
+      ctx.beginPath(); ctx.arc(L(w * 0.28), -L(h * 0.35), L(0.0085), 0, 7); ctx.fill();
+      ctx.beginPath(); ctx.arc(-L(w * 0.35), L(h * 0.25), L(0.004), 0, 7); ctx.fill();
+      // trait du coin de l'œil
+      ctx.beginPath(); ctx.moveTo(L(w * 0.95), -L(h * 0.1)); ctx.lineTo(L(w * 1.35), -L(h * 0.45));
+      ctx.lineWidth = L(0.005); ctx.stroke();
+      ctx.restore();
+    }
+    // truffe
+    ctx.save(); ctx.translate(X(0), Y(-0.046));
+    ctx.scale(1.08, 1.08);
+    ctx.beginPath();
+    ctx.moveTo(-L(0.044), -L(0.012));
+    ctx.bezierCurveTo(-L(0.044), -L(0.03), L(0.044), -L(0.03), L(0.044), -L(0.012));
+    ctx.bezierCurveTo(L(0.044), L(0.018), L(0.012), L(0.03), 0, L(0.03));
+    ctx.bezierCurveTo(-L(0.012), L(0.03), -L(0.044), L(0.018), -L(0.044), -L(0.012));
+    ctx.fillStyle = '#16100e'; ctx.fill();
+    ctx.fillStyle = 'rgba(255,255,255,0.55)';
+    ctx.beginPath(); ctx.ellipse(-L(0.008), -L(0.016), L(0.016), L(0.006), -0.15, 0, 7); ctx.fill();
+    ctx.restore();
+    // gueule ouverte : babine supérieure en « w », mâchoire en U, langue
+    const mouth = new Path2D();
+    const yT = -0.098, yB = -0.205;
+    ctx.save(); ctx.translate(X(0), 0);
+    const P = (x, y) => [L(x), Y(y)];
+    mouth.moveTo(...P(-0.14, -0.075));
+    mouth.bezierCurveTo(...P(-0.1, -0.118), ...P(-0.035, -0.125), ...P(0, yT - 0.01));
+    mouth.bezierCurveTo(...P(0.035, -0.125), ...P(0.1, -0.118), ...P(0.14, -0.075));
+    mouth.bezierCurveTo(...P(0.115, -0.17), ...P(0.06, yB), ...P(0, yB));
+    mouth.bezierCurveTo(...P(-0.06, yB), ...P(-0.115, -0.17), ...P(-0.14, -0.075));
+    ctx.fillStyle = '#3c0e0a'; ctx.fill(mouth);
+    ctx.save(); ctx.clip(mouth);
+    // langue
+    ctx.beginPath(); ctx.ellipse(L(0.0), Y(-0.19), L(0.065), L(0.05), 0, 0, 7);
+    ctx.fillStyle = '#ec6f84'; ctx.fill();
+    ctx.beginPath(); ctx.ellipse(-L(0.012), Y(-0.18), L(0.02), L(0.012), -0.3, 0, 7); ctx.fillStyle = '#f7a2ae'; ctx.fill();
+    ctx.beginPath(); ctx.moveTo(L(0), Y(-0.165)); ctx.lineTo(L(0), Y(-0.205)); ctx.strokeStyle = '#b84058'; ctx.lineWidth = L(0.004); ctx.stroke();
+    // petites dents aux coins
+    ctx.fillStyle = '#fff6ea';
+    for (const sx of [-1, 1]) { ctx.beginPath(); ctx.moveTo(L(sx * 0.105), Y(-0.1)); ctx.lineTo(L(sx * 0.095), Y(-0.12)); ctx.lineTo(L(sx * 0.085), Y(-0.104)); ctx.fill(); }
+    ctx.restore();
+    ctx.lineWidth = L(0.007); ctx.strokeStyle = '#120604'; ctx.stroke(mouth);
+    // fossettes au coin de la bouche
+    for (const sx of [-1, 1]) { ctx.beginPath(); ctx.moveTo(L(sx * 0.14), Y(-0.075)); ctx.quadraticCurveTo(L(sx * 0.152), Y(-0.07), L(sx * 0.15), Y(-0.06)); ctx.lineWidth = L(0.005); ctx.stroke(); }
+    // philtrum
+    ctx.beginPath(); ctx.moveTo(L(0), Y(-0.075)); ctx.lineTo(L(0), Y(yT - 0.01)); ctx.lineWidth = L(0.005); ctx.stroke();
+    ctx.restore();
+    // quelques traits d'encre dans la fourrure (front, joues)
+    ctx.strokeStyle = 'rgba(90,30,8,0.55)'; ctx.lineWidth = L(0.003);
+    for (const [x0, y0, x1, y1] of [[-0.03, 0.15, -0.025, 0.12], [0.03, 0.15, 0.025, 0.12], [0, 0.16, 0, 0.13], [-0.2, -0.02, -0.22, -0.07], [0.2, -0.02, 0.22, -0.07], [-0.17, -0.14, -0.2, -0.19], [0.17, -0.14, 0.2, -0.19]]) {
+      ctx.beginPath(); ctx.moveTo(X(x0), Y(y0)); ctx.lineTo(X(x1), Y(y1)); ctx.stroke();
+    }
+  },
+  // Visage de Matcha : grands yeux brillants, truffe, sourire gueule ouverte
+  mHead(ctx, X, Y, S) {
+    const L = (w) => w * S;
+    ctx.lineJoin = ctx.lineCap = 'round';
+    for (const sx of [-1, 1]) {
+      const cx = sx * 0.032, cy = 0.014, r = 0.0195;
+      ctx.save(); ctx.translate(X(cx), Y(cy)); ctx.rotate(-sx * 0.1);
+      ctx.beginPath(); ctx.ellipse(0, 0, L(r * 1.05), L(r * 0.92), 0, 0, 7);
+      ctx.fillStyle = '#1a0c06'; ctx.fill();
+      const g = ctx.createRadialGradient(0, L(r * 0.3), 0, 0, 0, L(r));
+      g.addColorStop(0, '#6a3214'); g.addColorStop(1, 'rgba(26,12,6,0)');
+      ctx.fillStyle = g; ctx.fill();
+      ctx.lineWidth = L(0.0028); ctx.strokeStyle = '#000'; ctx.stroke();
+      ctx.fillStyle = '#fff';
+      ctx.beginPath(); ctx.arc(L(r * 0.35), -L(r * 0.35), L(0.0042), 0, 7); ctx.fill();
+      ctx.beginPath(); ctx.arc(-L(r * 0.4), L(r * 0.35), L(0.0018), 0, 7); ctx.fill();
+      ctx.restore();
+    }
+    ctx.save(); ctx.translate(X(0), Y(-0.034));
+    ctx.beginPath(); ctx.ellipse(0, 0, L(0.02), L(0.014), 0, 0, 7); ctx.fillStyle = '#0c0a0c'; ctx.fill();
+    ctx.fillStyle = 'rgba(255,255,255,0.5)'; ctx.beginPath(); ctx.ellipse(-L(0.004), -L(0.006), L(0.008), L(0.003), 0, 0, 7); ctx.fill();
+    ctx.restore();
+    const P = (x, y) => [X(x), Y(y)];
+    const mouth = new Path2D();
+    mouth.moveTo(...P(-0.042, -0.044));
+    mouth.bezierCurveTo(...P(-0.03, -0.056), ...P(-0.01, -0.056), ...P(0, -0.052));
+    mouth.bezierCurveTo(...P(0.01, -0.056), ...P(0.03, -0.056), ...P(0.042, -0.044));
+    mouth.bezierCurveTo(...P(0.035, -0.07), ...P(0.015, -0.08), ...P(0, -0.08));
+    mouth.bezierCurveTo(...P(-0.015, -0.08), ...P(-0.035, -0.07), ...P(-0.042, -0.044));
+    ctx.fillStyle = '#3c0e0a'; ctx.fill(mouth);
+    ctx.save(); ctx.clip(mouth);
+    ctx.beginPath(); ctx.ellipse(X(0), Y(-0.075), L(0.022), L(0.016), 0, 0, 7); ctx.fillStyle = '#ec6f84'; ctx.fill();
+    ctx.restore();
+    ctx.lineWidth = L(0.0028); ctx.strokeStyle = '#000'; ctx.stroke(mouth);
+    ctx.beginPath(); ctx.moveTo(...P(0, -0.046)); ctx.lineTo(...P(0, -0.052)); ctx.stroke();
+  },
+};
+const decalTex = new Map();
 /** Maillage d'une partie sculptée, recentré sur son pivot. */
 export function sculptMesh(name, pivot, rough) {
-  const m = new THREE.Mesh(sculptGeo(name), new THREE.MeshStandardMaterial({ vertexColors: true, roughness: rough || 0.85 }));
+  const geo = sculptGeo(name);
+  let mat;
+  if (geo.userData.decal && DECALS[name]) {
+    if (!decalTex.has(name)) decalTex.set(name, paintDecal(geo.userData.decal, DECALS[name]));
+    mat = decalMaterial(decalTex.get(name), rough);
+  } else mat = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: rough || 0.85 });
+  const m = new THREE.Mesh(geo, mat);
   m.position.set(-pivot[0], -pivot[1], -pivot[2]);
   m.castShadow = m.receiveShadow = true;
   return m;
