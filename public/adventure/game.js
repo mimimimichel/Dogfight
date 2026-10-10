@@ -211,7 +211,7 @@ class Adventure {
     const hp = this.player ? this.me.hearts : MAX_HEARTS;
     // à deux, le joueur de Matcha voit Matcha en grand
     const mt = this.player && this.me.kind === 'matcha';
-    if (this.dom.partyMatcha !== mt && this.dom.pAinu.src) {
+    if (!!this.dom.partyMatcha !== mt && this.dom.pAinu.src) {
       this.dom.partyMatcha = mt;
       const [a, b] = [this.dom.pAinu.src, this.dom.pMatcha.src];
       this.dom.pAinu.src = b; this.dom.pMatcha.src = a;
