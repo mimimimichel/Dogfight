@@ -37,6 +37,8 @@ for g in same.values():
 
 # graines : tout près des pattes de Matcha, au-dessus du dos ; on étend aux voisins sombres
 R = (dist < 0.03) & (V[:, 1] > 1.3)
+# taches très sombres restées à l'avant du dos (patte avant de Matcha)
+R |= (lum < 0.2) & (V[:, 1] > 1.35) & (V[:, 2] > 0.05) & (V[:, 2] < 0.45) & (np.abs(V[:, 0]) < 0.25)
 for _ in range(6):
     grow = R.copy()
     for i in np.nonzero(R)[0]:
