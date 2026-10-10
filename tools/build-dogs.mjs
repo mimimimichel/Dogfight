@@ -96,10 +96,12 @@ function ainuHeadColor(p, n) {
   c = lerp(c, C.gold, sstep(0.88, 1.0, p[2]) * sstep(1.66, 1.52, p[1]));
   c = lerp(c, C.cream, sstep(0.98, 1.08, p[2]) * sstep(1.56, 1.46, p[1]));
   c = lerp(c, C.gold, sstep(0.1, 0.25, Math.abs(p[0])) * sstep(1.52, 1.4, p[1]) * 0.8);
+  // joues claires sous les yeux (masque du spitz)
+  c = lerp(c, C.cream, sstep(0.86, 0.98, p[2]) * sstep(1.6, 1.5, p[1]) * sstep(0.06, 0.12, Math.abs(p[0])) * 0.7);
   // sourire : un trait sombre qui remonte vers les joues
   const ax = Math.abs(p[0]);
   const smileY = 1.44 + ax * ax * 3.2;
-  if (p[2] > 0.95 && ax < 0.13) c = lerp(c, C.dark, sstep(0.016, 0.006, Math.abs(p[1] - smileY)));
+  if (p[2] > 0.95 && ax < 0.14) c = lerp(c, lin(0x2a0c04), sstep(0.02, 0.009, Math.abs(p[1] - smileY)));
   if (p[2] > 1.08 && ax < 0.012) c = lerp(c, C.dark, sstep(1.5, 1.46, p[1]) * sstep(1.43, 1.46, p[1]));
   const s = stroke(p, ainuHeadComb(p), 28);
   return mul(c, 0.88 + s * 0.22);

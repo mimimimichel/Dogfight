@@ -294,7 +294,7 @@ class Adventure {
     this.scene.fog = new THREE.Fog(W.SKY.horizon.getHex(), 80, 230);
     this.sky = W.buildSky(this.scene);
     this.camera = new THREE.PerspectiveCamera(55, 16 / 9, 0.1, 1200);
-    this.scene.add(new THREE.HemisphereLight(0xd8ecff, 0x7a9a5a, 0.6));
+    this.scene.add(new THREE.HemisphereLight(0xd8ecff, 0xa87a4a, 0.7));
     const sun = new THREE.DirectionalLight(0xfff1d6, 2.6);
     sun.castShadow = true;
     const sc = sun.shadow.camera;

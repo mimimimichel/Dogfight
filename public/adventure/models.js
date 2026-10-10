@@ -287,6 +287,7 @@ export function buildDuo() {
   const fk = new Kit();
   for (const sx of [-1, 1]) {
     // yeux en amande, brun très foncé, gros reflet
+    fk.add(E(0.05, 0.037, 0.02, 16), 0x3a1206, { x: sx * 0.115, y: 0.045, z: 0.278, ry: sx * 0.42, rz: sx * 0.22 }); // contour sombre
     fk.add(E(0.04, 0.03, 0.022, 16), 0x1c0c06, { x: sx * 0.115, y: 0.045, z: 0.285, ry: sx * 0.42, rz: sx * 0.22 });
     fk.add(S(0.011, 8, 6), 0xffffff, { x: sx * 0.115 + 0.01, y: 0.058, z: 0.302 });
   }
