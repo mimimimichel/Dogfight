@@ -32,7 +32,7 @@ export function ear(p, base, tip, face, width, thick, cup) {
     const s = hw / hh, k = Math.sqrt(1 + s * s);
     return Math.max((Math.abs(uu) - hw * (1 - vv / hh)) / k, -vv - 0.02);
   };
-  const r = Math.min(width, h) * (width / h > 0.9 ? 0.2 : 0.17);
+  const r = Math.min(width, h) * (width / h > 0.9 ? 0.28 : 0.17);
   const d2 = tri(width / 2 - r, h - r * 1.4, u, v) - r;
   const t = thick * (1 - 0.65 * clamp(v / h, 0, 1));
   const a = d2, b = Math.abs(w) - t;
@@ -52,17 +52,17 @@ const A = {
   cream2: lin(0xf2cfa0), earIn: lin(0xfbe6cc), earPink: lin(0xe9a089), nose: lin(0x1a1210), dark: lin(0x4a1606),
   mouth: lin(0x3a0e0a),
 };
-const EAR_L = { base: [-0.14, 0.16, -0.04], tip: [-0.18, 0.33, -0.05], face: [-0.2, 0.08, 1], width: 0.24, thick: 0.055 };
-const EAR_R = { base: [0.14, 0.16, -0.04], tip: [0.18, 0.33, -0.05], face: [0.2, 0.08, 1], width: 0.24, thick: 0.055 };
+const EAR_L = { base: [-0.14, 0.16, -0.04], tip: [-0.175, 0.3, -0.04], face: [-0.2, 0.08, 1], width: 0.25, thick: 0.055 };
+const EAR_R = { base: [0.14, 0.16, -0.04], tip: [0.175, 0.3, -0.04], face: [0.2, 0.08, 1], width: 0.25, thick: 0.055 };
 const earA = (p, e) => ear(p, e.base, e.tip, e.face, e.width, e.thick, true);
 
 function ainuHeadBase(p) {
-  let d = ell(p, [0, 0.04, -0.03], [0.215, 0.21, 0.22]);                      // crâne en dôme
+  let d = ell(p, [0, 0.03, -0.03], [0.235, 0.215, 0.235]);                      // crâne en dôme
   d = smin(d, ell(p, [0, -0.02, 0.09], [0.2, 0.15, 0.15]), 0.06);            // face
   // museau : coin arrondi, dessus plat, qui s'affine vers la truffe
-  const m = rcone([p[0], (p[1] + 0.06) * 1.15 - 0.06, p[2]], [0, -0.05, 0.12], [0, -0.065, 0.252], 0.11, 0.068);
+  const m = rcone([p[0], (p[1] + 0.06) * 1.15 - 0.06, p[2]], [0, -0.05, 0.12], [0, -0.062, 0.235], 0.115, 0.075);
   d = smin(d, m, 0.06);
-  d = smin(d, ell(p, [0, -0.05, 0.276], [0.05, 0.034, 0.032]), 0.02);       // truffe
+  d = smin(d, ell(p, [0, -0.05, 0.262], [0.054, 0.037, 0.034]), 0.02);       // truffe
   // mâchoire inférieure (gueule ouverte)
   d = smin(d, ell(p, [0, -0.165, 0.15], [0.085, 0.04, 0.1]), 0.05);
   // joues touffues qui font une tête en cœur, et gorge
@@ -90,7 +90,7 @@ export function ainuHead(p) {
   let earIn = 0;
   for (const e of [EAR_L, EAR_R]) { const E = earA(p, e); if (E.d < 0.03) earIn = Math.max(earIn, sstep(-0.01, 0.01, E.inner) * sstep(0, 0.01, E.w)); }
   const amp = (0.01 + 0.03 * clamp(ruff, 0, 1)) * (1 - face) * (1 - earIn * 0.6);
-  return d - amp * lockField(p, ainuHeadComb(p), 22, 4.1);
+  return d - amp * 0.8 * lockField(p, ainuHeadComb(p), 12, 4.1);
 }
 export function ainuHeadColor(p, n) {
   const ax = Math.abs(p[0]);
@@ -118,7 +118,7 @@ export function ainuHeadColor(p, n) {
     }
   }
   // truffe
-  if (p[2] > 0.255 && p[1] > -0.085) c = lerp(c, A.nose, sstep(0.255, 0.27, p[2]));
+  if (p[2] > 0.24 && p[1] > -0.088) c = lerp(c, A.nose, sstep(0.24, 0.255, p[2]));
   // intérieur de la gueule
   const cav = ell(p, [0, -0.128, 0.19], [0.08, 0.03, 0.12]);
   c = lerp(c, A.mouth, sstep(0.012, -0.002, cav));
@@ -128,7 +128,7 @@ export function ainuHeadColor(p, n) {
   const hatch = sstep(0.62, 0.7, h) * (1 - mask * sstep(0.2, 0.1, ax)) * sstep(0.05, -0.05, p[1] - 0.2 + ax * 0.2);
   c = lerp(c, lerp(c, A.dark, 0.6), hatch * 0.55);
   // ombrage peint : bords et dessous plus foncés, comme sur l'illustration
-  const occ = 0.78 + 0.22 * sstep(-0.3, 0.7, n[2]) * sstep(-0.9, -0.2, n[1]);
+  const occ = (0.62 + 0.38 * sstep(-0.4, 0.8, n[2])) * (0.85 + 0.15 * sstep(-0.8, 0.3, n[1])) * (1 + 0.08 * sstep(0.3, 0.9, n[1]));
   return mul(c, (0.95 + s * 0.1) * occ);
 }
 export const ainuHeadBox = [[-0.5, -0.5, -0.42], [0.5, 0.45, 0.42]];
@@ -141,16 +141,16 @@ const B = {
   blk: lin(0x1e1c28), blk2: lin(0x3a3a52), tan: lin(0xc6662a), tan2: lin(0xe08a46),
   earIn: lin(0xe89280), earIn2: lin(0xf3b49c), nose: lin(0x0c0a0c), mouth: lin(0x3a0e0a),
 };
-const MEAR_L = { base: [-0.046, 0.054, -0.018], tip: [-0.08, 0.152, -0.022], face: [-0.25, 0.1, 1], width: 0.096, thick: 0.014 };
-const MEAR_R = { base: [0.046, 0.054, -0.018], tip: [0.08, 0.152, -0.022], face: [0.25, 0.1, 1], width: 0.096, thick: 0.014 };
+const MEAR_L = { base: [-0.046, 0.054, -0.018], tip: [-0.084, 0.148, -0.03], face: [-0.25, 0.1, 1], width: 0.096, thick: 0.014 };
+const MEAR_R = { base: [0.046, 0.054, -0.018], tip: [0.084, 0.148, -0.03], face: [0.25, 0.1, 1], width: 0.096, thick: 0.014 };
 const earB = (p, e) => ear(p, e.base, e.tip, e.face, e.width, e.thick, true);
 function matchaHeadBase(p) {
   let d = ell(p, [0, 0.012, -0.014], [0.079, 0.072, 0.076]);                  // crâne rond
   d = smin(d, ell(p, [0, -0.02, 0.04], [0.06, 0.05, 0.06]), 0.03);           // face
   // museau fin et pointu
-  const m = rcone([p[0], (p[1] + 0.03) * 1.12 - 0.03, p[2]], [0, -0.026, 0.045], [0, -0.04, 0.1], 0.047, 0.027);
+  const m = rcone([p[0], (p[1] + 0.03) * 1.12 - 0.03, p[2]], [0, -0.026, 0.045], [0, -0.038, 0.094], 0.048, 0.03);
   d = smin(d, m, 0.025);
-  d = smin(d, ell(p, [0, -0.035, 0.115], [0.021, 0.015, 0.013]), 0.008);     // truffe
+  d = smin(d, ell(p, [0, -0.034, 0.11], [0.022, 0.016, 0.013]), 0.008);     // truffe
   d = smin(d, ell(p, [0, -0.066, 0.075], [0.03, 0.016, 0.05]), 0.02);        // mâchoire
   const cav = ell(p, [0, -0.053, 0.095], [0.026, 0.011, 0.055]);
   d = smax(d, -cav, 0.006);
@@ -180,7 +180,7 @@ export function matchaHeadColor(p, n) {
     const E = earB(p, e);
     if (E.d < 0.01 && E.v > 0.0 && E.inner > -0.002 && E.w > 0) c = lerp(B.earIn, B.earIn2, sstep(0.2, 0.8, E.v / E.h));
   }
-  if (p[2] > 0.104 && p[1] > -0.052) c = lerp(c, B.nose, sstep(0.104, 0.112, p[2]));
+  if (p[2] > 0.099 && p[1] > -0.052) c = lerp(c, B.nose, sstep(0.099, 0.106, p[2]));
   c = mul(c, 0.8 + 0.2 * sstep(-0.3, 0.7, n[2]));
   const cav = ell(p, [0, -0.053, 0.095], [0.026, 0.011, 0.055]);
   c = lerp(c, B.mouth, sstep(0.005, -0.001, cav));

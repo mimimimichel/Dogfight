@@ -312,6 +312,13 @@ export function buildDuo() {
   mk.add(new THREE.BoxGeometry(0.13, 0.09, 0.15), 0x8a5428, { y: 0.35, z: -0.04 });
   mk.add(new THREE.BoxGeometry(0.14, 0.035, 0.11), 0x6a3a1c, { y: 0.4, z: 0.0, rx: 0.2 });
   for (const sx of [-1, 1]) mk.add(new THREE.CylinderGeometry(0.03, 0.03, 0.11, 10), 0xa06a34, { x: sx * 0.08, y: 0.33, z: -0.06, rx: Math.PI / 2 });
+  // harnais orange clouté (comme sur l'illustration)
+  const HR = 0xc8662a, ST = 0xf0d27a;
+  mk.add(new THREE.TorusGeometry(0.075, 0.016, 6, 22), HR, { y: 0.32, z: 0.15, sy: 1.15 });
+  mk.add(new THREE.TorusGeometry(0.08, 0.016, 6, 22), HR, { y: 0.29, z: -0.05, sy: 1.1 });
+  mk.add(new THREE.BoxGeometry(0.03, 0.012, 0.22), HR, { y: 0.37, z: 0.05 });
+  mk.add(new THREE.BoxGeometry(0.035, 0.1, 0.012), HR, { y: 0.28, z: 0.215, rx: -0.3 });
+  for (let i = 0; i < 4; i++) mk.add(S(0.007, 6, 4), ST, { y: 0.31 - i * 0.024, z: 0.222 - i * 0.006 });
   matcha.add(mk.build(new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.6 })));
   const MP = [0, 0.56, 0.27];
   const mhead = new THREE.Group(); at(mhead, ...MP); matcha.add(mhead);
