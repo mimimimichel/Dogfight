@@ -17,15 +17,22 @@
   // Mise à l'échelle de la scène
   // ---------------------------------------------------------------------------
   function fit() {
-    // Agrandissement par pas entiers de pixels quand c'est possible (pixels nets)
-    const raw = Math.min(window.innerWidth / 480, window.innerHeight / 270);
-    const k = raw >= 2 ? Math.floor(raw) : raw;
+    const touchDevice = document.documentElement.classList.contains('touch');
+    const vw = window.innerWidth, vh = window.innerHeight;
+    // Largeur du rendu adaptée au format de l'écran : sur un téléphone allongé,
+    // le décor s'élargit au lieu de laisser des bandes noires (l'arène reste centrée).
+    const cw = Math.max(480, Math.min(R.MAX_W, Math.round((270 * vw / vh) / 2) * 2));
+    if (canvas.width !== cw) canvas.width = cw;
     const st = document.getElementById('stage');
+    st.style.width = (cw * 2) + 'px';
+    canvas.style.width = (cw * 2) + 'px';
+    // Agrandissement : pas entiers sur grand écran (pixels nets), plein cadre sur tactile
+    const raw = Math.min(vw / cw, vh / 270);
+    const k = raw >= 2 && !touchDevice ? Math.floor(raw) : raw;
     st.style.setProperty('--scale', String(Math.max(0.3, k / 2)));
     // Tablette : s'il reste beaucoup de place en bas, la scène monte et les commandes tactiles s'y logent
-    const spare = window.innerHeight - 270 * k;
-    const touchDevice = document.documentElement.classList.contains('touch');
-    st.classList.toggle('top', touchDevice && spare > window.innerHeight * 0.18);
+    const spare = vh - 270 * k;
+    st.classList.toggle('top', touchDevice && spare > vh * 0.18);
   }
   window.addEventListener('resize', fit);
   fit();
@@ -139,7 +146,7 @@
 
   // Plein écran + paysage sur téléphone (Android ; iOS ignore poliment)
   function goFullscreen() {
-    if (!IS_TOUCH || document.fullscreenElement) return;
+    if (!IS_TOUCH || isFullscreen()) return;
     const el = document.documentElement;
     const req = el.requestFullscreen || el.webkitRequestFullscreen;
     if (!req) return;
@@ -148,6 +155,21 @@
       if (pr && pr.then) pr.then(() => screen.orientation && screen.orientation.lock && screen.orientation.lock('landscape').catch(() => {})).catch(() => {});
     } catch (e) { /* ignore */ }
   }
+
+  const fsSupported = !!(document.documentElement.requestFullscreen || document.documentElement.webkitRequestFullscreen);
+  const isIOS = /iP(hone|od|ad)/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+  const standalone = window.navigator.standalone === true || (window.matchMedia && window.matchMedia('(display-mode: standalone), (display-mode: fullscreen)').matches);
+  function isFullscreen() { return !!(document.fullscreenElement || document.webkitFullscreenElement); }
+
+  function updateFullscreenUi() {
+    if (!IS_TOUCH) return;
+    // Android & co : bouton « plein écran » tant qu'on n'y est pas
+    $('fs-btn').classList.toggle('hidden', !fsSupported || isFullscreen() || standalone);
+    // iPhone : Safari n'autorise pas le plein écran d'une page → passer par l'écran d'accueil
+    $('ios-tip').classList.toggle('hidden', !(isIOS && !fsSupported && !standalone));
+  }
+  document.addEventListener('fullscreenchange', () => { updateFullscreenUi(); fit(); });
+  document.addEventListener('webkitfullscreenchange', () => { updateFullscreenUi(); fit(); });
 
   function togglePause() {
     if (app.screen === 'game') { app.paused = app.mode !== 'online'; show('pause'); }
@@ -235,6 +257,7 @@
   }
 
   function onCardClick(id) {
+    goFullscreen();
     sfx.unlock();
     sfx.click();
     const s = app.sel;
@@ -568,12 +591,13 @@
   function playerName() { return (app.name || '').trim() || 'Anonyme'; }
 
   function onAction(a) {
-    if (a === 'online' || a === 'cpu' || a === 'ready' || a === 'join' || a === 'quick' || a === 'create') goFullscreen();
+    goFullscreen(); // sur tactile, chaque bouton remet en plein écran si on en est sorti
     switch (a) {
       case 'online': app.mode = 'online'; show('online'); $('online-status').textContent = ''; break;
       case 'cpu': app.mode = 'cpu'; enterSelect(); break;
       case 'local': app.mode = 'local'; enterSelect(); break;
       case 'controls': show('controls'); break;
+      case 'fullscreen': break; // déjà traité par goFullscreen()
       case 'back': app.mode = null; show('menu'); break;
       case 'quick': connect(() => send({ t: 'quick', name: playerName() })); break;
       case 'create': connect(() => send({ t: 'create', name: playerName() })); break;
@@ -663,6 +687,7 @@
   // ---------------------------------------------------------------------------
   // Boucle principale
   // ---------------------------------------------------------------------------
+  updateFullscreenUi();
   if (IS_TOUCH) {
     T.onChange = () => { if (app.screen === 'game') onInputEvent(); };
     $('pause-btn').addEventListener('click', (e) => { e.stopPropagation(); togglePause(); });
@@ -720,8 +745,8 @@
       });
     } else if (inGame) {
       ctx.fillStyle = '#120a1c';
-      ctx.fillRect(0, 0, R.W, R.H);
-      R.textOutlined(ctx, 'SYNCHRONISATION...', R.W / 2, R.H / 2, 8, '#fff');
+      ctx.fillRect(0, 0, canvas.width, R.H);
+      R.textOutlined(ctx, 'SYNCHRONISATION...', canvas.width / 2, R.H / 2, 8, '#fff');
     } else if (app.demoSnap) {
       R.drawScene(ctx, app.demoSnap, { fx: app.demoFx, noHud: true });
     }

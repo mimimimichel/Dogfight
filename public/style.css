@@ -38,7 +38,7 @@ html, body {
   position: absolute;
   left: 50%;
   top: 50%;
-  width: 960px;
+  width: 960px; /* ajusté par main.js selon le format de l'écran */
   height: 540px;
   transform-origin: center center;
   transform: translate(-50%, -50%) scale(var(--scale, 1));
@@ -300,3 +300,6 @@ html.touch .kb-only { display: none !important; }
 }
 
 #stage.top { top: max(8px, env(safe-area-inset-top)); transform-origin: top center; transform: translate(-50%, 0) scale(var(--scale, 1)); }
+
+.ios-tip { margin: 0; font-size: 8px; line-height: 16px; color: var(--gold); background: rgba(14, 8, 22, 0.8); padding: 8px 12px; box-shadow: var(--px-border); }
+.ios-tip b { color: #fff6e6; font-weight: normal; }

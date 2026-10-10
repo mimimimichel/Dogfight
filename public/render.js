@@ -14,7 +14,10 @@
   const TAU = Math.PI * 2;
 
   const PS = 0.5;                       // monde → pixels
-  const W = Math.round(STAGE_W * PS);   // 480
+  const W = Math.round(STAGE_W * PS);   // 480 : largeur de l'arène
+  // Le décor est plus large que l'arène pour remplir les écrans allongés (téléphones)
+  const MAX_W = 656;
+  const SOFF = (MAX_W - W) / 2;         // décalage de l'arène dans le décor
   const H = 270;
   const GY = Math.round(GROUND_Y * PS); // ligne du sol (235)
   const px = (x) => Math.round(x * PS);
@@ -1040,6 +1043,7 @@
   let stage = null;
 
   function buildStage() {
+    const W = MAX_W, O = SOFF;
     let seed = 11;
     const rnd = () => (seed = (seed * 16807) % 2147483647) / 2147483647;
 
@@ -1057,9 +1061,9 @@
         s32[(y - 1) * W + x] = star2; s32[(y + 1) * W + x] = star2; s32[y * W + x - 1] = star2; s32[y * W + x + 1] = star2;
       }
     }
-    const sunX = 240, sunY = 158, sunR = 26;
+    const sunX = 240 + O, sunY = 158, sunR = 26;
     const halo = [hex2u32('#ffd08a'), hex2u32('#ffb47a')];
-    for (let y = 100; y < 200; y++) for (let x = 160; x < 320; x++) {
+    for (let y = 100; y < 200; y++) for (let x = 160 + O; x < 320 + O; x++) {
       const d = Math.hypot(x - sunX, (y - sunY) * 1.1);
       if (d < sunR + 34 && d > sunR) {
         const k = 1 - (d - sunR) / 34;
@@ -1079,7 +1083,7 @@
     // Nuages (défilent lentement)
     const clouds = makeCanvas(W, 120);
     const cg = clouds.getContext('2d');
-    for (const [cx, cy, s] of [[40, 60, 1], [170, 38, 0.8], [300, 70, 1.2], [420, 45, 0.9]]) {
+    for (const [cx, cy, s] of [[40, 60, 1], [170, 38, 0.8], [300, 70, 1.2], [420, 45, 0.9], [540, 64, 1], [620, 36, 0.8]]) {
       const spr = shadedSprite(Math.round(90 * s), Math.round(40 * s), { c: CLOUD }, (r) => {
         r.fillStyle = 'c';
         r.beginPath(); r.ellipse(45 * s, 26 * s, 40 * s, 9 * s, 0, 0, TAU); r.fill();
@@ -1101,7 +1105,7 @@
     }, { noOutline: true });
     bg.drawImage(hill(['#2a1640', '#43234f', '#5c2e5e', '#7a3c6a', '#9a4c74'], 166, 0.012, 1.3, 16, 0.031, 0, 6), 0, 0);
     bg.drawImage(hill(['#1c1030', '#2e1a42', '#3e2250', '#542e60', '#6a3a6c'], 182, 0.02, 4, 9, 0.05, 1, 3), 0, 0);
-    const treeXs = [18, 70, 128, 352, 404, 462];
+    const treeXs = [-70, -20, 18, 70, 128, 352, 404, 462, 500, 550].map(x => x + O);
     for (let i = 0; i < treeXs.length; i++) {
       const s = 0.9 + (i % 3) * 0.12;
       const t = shadedSprite(70, 90, { trunk: WOOD, leaf: LEAF }, (r) => {
@@ -1114,7 +1118,7 @@
       });
       bg.drawImage(t, treeXs[i] - 35, 110);
     }
-    for (const lx of [176, 304]) {
+    for (const lx of [176 + O, 304 + O]) {
       for (let y = 148; y < 205; y++) for (let x = lx - 16; x < lx + 17; x++) {
         const d = Math.hypot(x - lx, (y - 161) * 1.2);
         if (d < 16 && (1 - d / 16) * 0.7 > bayer(x, y)) prect(bg, x, y, 1, 1, '#ffd890');
@@ -1160,10 +1164,10 @@
     }
     const line = hex2u32('#ecc898');
     for (let a = 0; a < TAU; a += 0.004) {
-      const x = Math.round(240 + Math.cos(a) * 62), y = Math.round(GY + 10 + Math.sin(a) * 11);
+      const x = Math.round(240 + O + Math.cos(a) * 62), y = Math.round(GY + 10 + Math.sin(a) * 11);
       if (y > 226 && y < H) f32[y * W + x] = line;
     }
-    for (let y = 228; y < H; y++) if (y % 4 !== 0) f32[y * W + 240] = line;
+    for (let y = 228; y < H; y++) if (y % 4 !== 0) f32[y * W + 240 + O] = line;
     fg.putImageData(fimg, 0, 0);
     const hyd = shadedSprite(26, 32, { red: ['#3a0808', '#8a1a18', '#c8302a', '#ee5a44', '#ff9a7a'], gold: COMMON_RAMPS.gold }, (r) => {
       r.group = 1; r.fillStyle = 'red';
@@ -1173,14 +1177,16 @@
       r.fillRect(6, 28, 14, 3);
       r.group = 3; r.fillStyle = 'gold'; r.fillRect(12, 2, 2, 3);
     }, { rim: true });
-    fg.drawImage(hyd, 14, 197);
+    fg.drawImage(hyd, 14 + O, 197);
     const boneSpr = shadedSprite(22, 12, { b: ['#6a5a48', '#bcae94', '#efe6d2', '#fffaf0', '#ffffff'] }, (r) => {
       r.fillStyle = 'b';
       r.fillRect(5, 4, 12, 4);
       for (const [x, y] of [[4, 4], [4, 8], [18, 4], [18, 8]]) { r.beginPath(); r.arc(x, y, 2.6, 0, TAU); r.fill(); }
     });
-    fg.drawImage(boneSpr, 430, 248);
-    fg.drawImage(boneSpr, 60, 256);
+    fg.drawImage(boneSpr, 430 + O, 248);
+    fg.drawImage(boneSpr, 60 + O, 256);
+    fg.drawImage(boneSpr, 20, 252);
+    fg.drawImage(boneSpr, W - 50, 258);
 
     stage = { sky, clouds, back, front };
   }
@@ -1200,7 +1206,7 @@
     let seed = 5;
     const rnd = () => (seed = (seed * 16807) % 2147483647) / 2147483647;
     crowd = [];
-    for (let x = 6; x < W - 6; x += 13 + Math.floor(rnd() * 5)) {
+    for (let x = 6; x < MAX_W - 6; x += 13 + Math.floor(rnd() * 5)) {
       if (rnd() < 0.12) continue;
       crowd.push({
         x, y: 183 + Math.floor(rnd() * 4), shape: Math.floor(rnd() * CROWD_SHAPES.length),
@@ -1497,6 +1503,7 @@
   }
 
   function drawHud(ctx, snap, names, fx, alts, extra, touch) {
+    const W = ctx.canvas.width; // l'interface se cale sur les bords de l'écran
     const barW = 168, barH = 9, top = 9;
     for (let i = 0; i < 2; i++) {
       const f = snap.fighters[i];
@@ -1563,6 +1570,7 @@
   }
 
   function drawAnnouncements(ctx, snap, names, fx) {
+    const W = ctx.canvas.width;
     const ph = snap.phase, t = snap.pt;
     const nameOf = (i) => (names[i] || CHARACTERS[snap.fighters[i].char].name);
     let big = null, sub = null, c1 = '#fff6c0', c2 = '#ffb020';
@@ -1616,21 +1624,30 @@
     if (!stage) buildStage();
     ctx.imageSmoothingEnabled = false;
 
+    // Largeur réelle de l'écran (≥ arène) : l'arène est centrée, le décor déborde
+    const CW = ctx.canvas.width;
+    const OX = Math.round((CW - W) / 2);
+    const bgx = OX - SOFF;
+
     ctx.save();
     if (fx.shake > 0) ctx.translate(Math.round((Math.random() - 0.5) * fx.shake), Math.round((Math.random() - 0.5) * fx.shake));
-    ctx.drawImage(stage.sky, 0, 0);
-    const cOff = Math.floor(snap.f * 0.04) % W;
-    ctx.drawImage(stage.clouds, -cOff, 0);
-    ctx.drawImage(stage.clouds, W - cOff, 0);
-    ctx.drawImage(stage.back, 0, 0);
+    ctx.drawImage(stage.sky, bgx, 0);
+    const cOff = Math.floor(snap.f * 0.04) % MAX_W;
+    ctx.drawImage(stage.clouds, bgx - cOff, 0);
+    ctx.drawImage(stage.clouds, bgx + MAX_W - cOff, 0);
+    ctx.drawImage(stage.back, bgx, 0);
+    ctx.save();
+    ctx.translate(bgx, 0);
     drawCrowd(ctx, snap.f, fx.excite);
-    ctx.drawImage(stage.front, 0, 0);
+    ctx.restore();
+    ctx.drawImage(stage.front, bgx, 0);
 
     const frozen = snap.freeze > 0;
     if (frozen) {
       ctx.fillStyle = 'rgba(12,2,30,0.6)';
-      ctx.fillRect(0, 0, W, H);
+      ctx.fillRect(-8, -8, CW + 16, H + 16);
     }
+    ctx.translate(OX, 0);
 
     // Ombres tramées
     for (const f of snap.fighters) {
@@ -1674,7 +1691,7 @@
 
     if (fx.flash > 0) {
       ctx.fillStyle = `rgba(255,255,255,${(fx.flash * 0.7).toFixed(2)})`;
-      ctx.fillRect(0, 0, W, H);
+      ctx.fillRect(0, 0, CW, H);
     }
 
     if (!opts.noHud) {
@@ -1703,7 +1720,7 @@
   }
 
   window.DogRender = {
-    W, H, drawScene, drawDogPreview, drawPortrait, Effects, buildStage, textOutlined, ptext, cardBackground,
+    W, H, MAX_W, drawScene, drawDogPreview, drawPortrait, Effects, buildStage, textOutlined, ptext, cardBackground,
     computePose, BUILD,
   };
 })();
