@@ -57,7 +57,7 @@ function paint(geo, fn) {
 
 let skinMat = null, glossMat = null;
 const skin = () => skinMat || (skinMat = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.62 }));
-const gloss = () => glossMat || (glossMat = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.12 }));
+const gloss = () => glossMat || (glossMat = Object.assign(new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.12 }), { userData: { gloss: true } }));
 
 /** Assemble des morceaux colorés en un seul maillage. */
 class Kit {
@@ -122,7 +122,7 @@ function addEyes(k, o) {
 // instanciation. Chaque couche est un peu plus loin de la peau ; un bruit 3D
 // découpe les mèches, qui s'affinent vers la pointe et se couchent vers l'arrière.
 // ---------------------------------------------------------------------------
-export const FUR = { layers: 14 };
+export const FUR = { layers: 10, mode: 'smooth' };
 const FUR_VERT = `
       #include <begin_vertex>
       vLayer = aLayer; vBase = position;
@@ -146,10 +146,46 @@ const FUR_FRAG = `
         float n = fnoise(q) * 0.55 + fnoise(q * 2.9 + 7.0) * 0.45;
         if (n < 0.18 + vLayer * 0.78) discard;
       }
-      diffuseColor.rgb *= mix(0.55, 1.08, sqrt(vLayer));`;
+      diffuseColor.rgb *= mix(0.72, 1.06, sqrt(vLayer));`;
+
+// Bruit de valeur 3D (pour placer les touffes de poils)
+function vhash(x, y, z) { let h = Math.sin(x * 127.1 + y * 311.7 + z * 74.7) * 43758.5453; return h - Math.floor(h); }
+function vnoise3(x, y, z) {
+  const ix = Math.floor(x), iy = Math.floor(y), iz = Math.floor(z);
+  let fx = x - ix, fy = y - iy, fz = z - iz;
+  fx = fx * fx * (3 - 2 * fx); fy = fy * fy * (3 - 2 * fy); fz = fz * fz * (3 - 2 * fz);
+  const l = (a, b, t) => a + (b - a) * t;
+  return l(l(l(vhash(ix, iy, iz), vhash(ix + 1, iy, iz), fx), l(vhash(ix, iy + 1, iz), vhash(ix + 1, iy + 1, iz), fx), fy),
+           l(l(vhash(ix, iy, iz + 1), vhash(ix + 1, iy, iz + 1), fx), l(vhash(ix, iy + 1, iz + 1), vhash(ix + 1, iy + 1, iz + 1), fx), fy), fz);
+}
+
+/**
+ * Pelage façon dessin animé : la surface se soulève en touffes (mèches
+ * peignées vers l'arrière) qui découpent la silhouette ; le contour les souligne.
+ */
+function tuftMesh(geo, opts) {
+  const g = geo.index ? geo.toNonIndexed() : geo;
+  const p = g.attributes.position, n = g.attributes.normal, col = g.attributes.color;
+  const den = (opts.density || 40) / 5, len = opts.length * 2.4;
+  const comb = new THREE.Vector3(...(opts.comb || [0, -0.35, -0.5]));
+  const v = new THREE.Vector3();
+  for (let i = 0; i < p.count; i++) {
+    const x = p.getX(i), y = p.getY(i), z = p.getZ(i);
+    const f = vnoise3(x * den, y * den, z * den) * 0.7 + vnoise3(x * den * 2.3 + 5, y * den * 2.3, z * den * 2.3) * 0.3;
+    const t = Math.pow(Math.min(1, Math.max(0, (f - 0.38) / 0.4)), 1.6);
+    v.set(n.getX(i), n.getY(i), n.getZ(i)).addScaledVector(comb, 0.7 * t).normalize();
+    p.setXYZ(i, x + v.x * len * t, y + v.y * len * t, z + v.z * len * t);
+    if (col) { const k = 1 + t * 0.12; col.setXYZ(i, Math.min(1, col.getX(i) * k), Math.min(1, col.getY(i) * k), Math.min(1, col.getZ(i) * k)); }
+  }
+  const m = new THREE.Mesh(g, new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.9 }));
+  m.castShadow = true; m.receiveShadow = true;
+  return m;
+}
 
 /** Maillage à fourrure. opts : length (longueur des poils), density, comb (direction du peigné). */
 export function furMesh(geo, opts) {
+  if (FUR.mode === 'tufts') return tuftMesh(geo, opts);
+  if (FUR.mode === 'smooth') return tuftMesh(geo, Object.assign({}, opts, { length: 0 }));
   const layers = Math.max(3, Math.round(FUR.layers * (opts.layerScale || 1)));
   const g = geo.index ? geo.toNonIndexed() : geo;
   const lay = new Float32Array(layers);
@@ -171,6 +207,7 @@ export function furMesh(geo, opts) {
   for (let i = 0; i < layers; i++) mesh.setMatrixAt(i, id);
   mesh.castShadow = true;
   mesh.receiveShadow = true;
+  mesh.userData.fur = { length: opts.length };
   return mesh;
 }
 
@@ -179,7 +216,7 @@ class FurKit extends Kit {
   build(opts) { return furMesh(mergeGeos(this.list), opts); }
 }
 /** Ellipsoïde lisse (rayons rx, ry, rz). */
-const E = (rx, ry, rz, seg) => { const g = new THREE.SphereGeometry(1, seg || 22, Math.round((seg || 22) * 0.7)); g.scale(rx, ry, rz); return g; };
+const E = (rx, ry, rz, seg) => { const g = new THREE.SphereGeometry(1, seg || 40, Math.round((seg || 40) * 0.7)); g.scale(rx, ry, rz); return g; };
 
 // ---------------------------------------------------------------------------
 // Le duo : Ainu (eurasier roux, tout en fourrure) avec Matcha (pinscher nain)
@@ -205,7 +242,14 @@ export function buildDuo() {
   bodyK.add(E(0.35, 0.36, 0.34), coat((x, y) => sstep(-0.14, -0.28, y)), { y: 0.97, z: -0.42 });
   // collerette épaisse autour du cou
   bodyK.add(E(0.36, 0.38, 0.32), coat((x, y, z) => sstep(0.08, 0.26, z) * sstep(0.12, -0.12, y)), { y: 1.28, z: 0.6, rx: -0.5 });
-  const body = bodyK.build({ length: 0.085, density: 48, comb: [0, -0.25, -0.65] });
+  // Mèches dessinées (style dessin animé) : collerette, nuque, cuisses
+  const tuft = (k, x, y, z, rx, ry, rz, r, h, col) => k.add(new THREE.ConeGeometry(r, h, 10, 1), col, { x, y, z, rx, ry, rz, sz: 0.55 });
+  for (let i = 0; i < 4; i++) {
+    const a = (i - 1.5) * 0.36;
+    tuft(bodyK, Math.sin(a) * 0.26, 0.96, 0.8 - Math.abs(a) * 0.12, Math.PI - 0.45, a, 0, 0.13, 0.2, CR);
+  }
+  for (let i = 0; i < 3; i++) tuft(bodyK, (i - 1) * 0.14, 1.4, 0.36, -Math.PI / 2 - 0.25, 0, 0, 0.08, 0.26, OR);
+  const body = bodyK.build({ length: 0.1, density: 22, comb: [0, -0.25, -0.65] });
   ainu.add(body);
 
   // Harnais, couverture et sacoches (cuir)
@@ -232,7 +276,10 @@ export function buildDuo() {
   for (const sx of [-1, 1]) headK.add(E(0.12, 0.13, 0.13), (x, y, z, c) => mix(c, OR, CR, sstep(-0.02, -0.12, y)), { x: sx * 0.17, y: -0.11, z: 0.0 });
   headK.add(E(0.13, 0.11, 0.2), (x, y, z, c) => mix(c, OR_L, CR, sstep(0.0, -0.06, y) + sstep(0.08, 0.18, z) * 0.6), { y: -0.08, z: 0.27 });
   for (const sx of [-1, 1]) headK.add(earGeo(0.12, 0.24, 0.05, 1), (x, y, z, c) => c.set(OR), { x: sx * 0.15, y: 0.26, z: -0.04, rz: -sx * 0.2 });
-  head.add(headK.build({ length: 0.03, density: 70, comb: [0, -0.2, -0.6] }));
+  for (const sx of [-1, 1]) for (const [dy, a] of [[-0.06, 0.25], [-0.15, -0.15]]) {
+    headK.add(new THREE.ConeGeometry(0.09, 0.16, 10, 1), (x, y, z, c) => mix(c, OR, CR, sstep(0.0, -0.06, y)), { x: sx * 0.28, y: dy, z: -0.02, rz: -sx * (Math.PI / 2 + a), sz: 0.55 });
+  }
+  head.add(headK.build({ length: 0.035, density: 38, comb: [0, -0.2, -0.6] }));
   const faceK = new Kit();
   for (const sx of [-1, 1]) {
     faceK.add(earGeo(0.07, 0.16, 0.02, 1), 0xe89a80, { x: sx * 0.145, y: 0.26, z: 0.0, rz: -sx * 0.2 });
@@ -252,7 +299,7 @@ export function buildDuo() {
   tailK.add(tt.tube, (x, y, z, c) => mix(c, OR, CR, sstep(0.3, 0.46, y) * sstep(0.05, 0.25, z) + sstep(0.2, 0.0, y) * 0));
   tailK.add(S(tt.r1, 14, 10), CR, { x: tt.end.x, y: tt.end.y, z: tt.end.z });
   tailK.add(S(tt.r0, 14, 10), OR, { x: tt.start.x, y: tt.start.y, z: tt.start.z });
-  tail.add(tailK.build({ length: 0.13, density: 40, comb: [0, -0.5, -0.3] }));
+  tail.add(tailK.build({ length: 0.14, density: 20, comb: [0, -0.5, -0.3] }));
 
   // Pattes (pivot à la hanche) : cuisse touffue, jambe fine, pied crème
   const legs = [];
@@ -263,7 +310,8 @@ export function buildDuo() {
     lk.add(E(0.15, 0.24, back ? 0.2 : 0.15), legCol, { y: -0.08, z: back ? -0.03 : 0 });
     lk.add(new THREE.CapsuleGeometry(0.075, 0.42, 6, 12), (x, y, z, c) => mix(c, OR, CR, sstep(-0.02, -0.22, y)), { y: -0.42, z: back ? -0.04 : 0.02 });
     lk.add(E(0.09, 0.06, 0.12), CR, { y: -0.72, z: 0.04 });
-    g.add(lk.build({ length: back ? 0.06 : 0.04, density: 55, comb: [0, -0.8, -0.2] }));
+    if (back) lk.add(new THREE.ConeGeometry(0.09, 0.26, 10, 1), OR, { y: -0.2, z: -0.17, rx: -Math.PI / 2 - 0.7, sx: 0.6 });
+    g.add(lk.build({ length: back ? 0.06 : 0.04, density: 30, comb: [0, -0.8, -0.2] }));
     ainu.add(g);
     legs.push(g);
   }
@@ -317,8 +365,8 @@ export function buildDuo() {
 // ---------------------------------------------------------------------------
 // Chat bandit (masque noir, queue rayée, bandana de pirate)
 // ---------------------------------------------------------------------------
-const NPC_FUR = { length: 0.04, density: 60, layerScale: 0.5 };
-const NPC_FUR_HEAD = { length: 0.03, density: 70, layerScale: 0.5 };
+const NPC_FUR = { length: 0.045, density: 30, layerScale: 0.6 };
+const NPC_FUR_HEAD = { length: 0.035, density: 36, layerScale: 0.6 };
 
 export function buildCat() {
   const g = new THREE.Group();

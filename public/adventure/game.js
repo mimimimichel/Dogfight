@@ -8,6 +8,7 @@ import * as THREE from '../vendor/three.module.min.js';
 import * as L from './level1.js';
 import * as M from './models.js';
 import * as W from './world.js';
+import * as T from './toon.js';
 
 const SAVE_KEY = 'dogfight.aventure.niveau1';
 const STEP = 1 / 60;
@@ -24,6 +25,7 @@ const STEP_UP = 0.6;
 const SOLID = new Set(['trunk', 'tree', 'rock']);
 const MAX_HEARTS = 3;
 
+const isChild = (o, root) => { for (let p = o.parent; p; p = p.parent) if (p === root) return true; return false; };
 const clamp = (v, a, b) => (v < a ? a : v > b ? b : v);
 const lerpAngle = (a, b, t) => { let d = ((b - a + Math.PI) % (Math.PI * 2) + Math.PI * 2) % (Math.PI * 2) - Math.PI; return a + d * t; };
 
@@ -72,8 +74,17 @@ class Adventure {
       const moving = [this.player.mesh, this.puppy.mesh, this.elevatorMesh, this.bonesI,
         ...this.cats.map(c => c.mesh), ...this.medals.map(m => m.mesh), ...this.balls.map(b => b.mesh), ...this.crates.map(c => c.mesh)];
       for (const o of moving) o.traverse(k => { k.castShadow = false; });
-      this.simplifyMaterials(this.scene);
     }
+    // Cel shading : aplats de lumière + contours sombres
+    T.toonify(this.scene);
+    const chars = [this.player.mesh, this.mamie, this.puppy.mesh, ...this.cats.map(c => c.mesh)];
+    for (const c of chars) T.outlineTree(c, 0.018, 0x1e120c);
+    const vista = this.vista.group;
+    T.outlineTree(this.scene, 0.035, 0x2a1c14, (o) => {
+      if (chars.some(c => c === o || isChild(o, c)) || isChild(o, vista)) return false;
+      if (!o.geometry.boundingSphere) o.geometry.computeBoundingSphere();
+      return o.geometry.boundingSphere.radius < 14;
+    });
     this.bindInput();
     this.resize();
     this.makePortraits();
@@ -273,8 +284,8 @@ class Adventure {
     this.lite = touch;
     this.quality = { high: !touch, lite: touch };
     const r = new THREE.WebGLRenderer({ canvas: this.dom.canvas, antialias: true, powerPreference: 'high-performance' });
-    r.toneMapping = THREE.ACESFilmicToneMapping;
-    r.toneMappingExposure = 1.05;
+    r.toneMapping = THREE.NeutralToneMapping;
+    r.toneMappingExposure = 1.0;
     r.outputColorSpace = THREE.SRGBColorSpace;
     r.shadowMap.enabled = true;
     r.shadowMap.type = touch ? THREE.PCFShadowMap : THREE.PCFSoftShadowMap;
@@ -282,19 +293,8 @@ class Adventure {
     this.scene = new THREE.Scene();
     this.scene.fog = new THREE.Fog(W.SKY.horizon.getHex(), 80, 230);
     this.sky = W.buildSky(this.scene);
-    // Lumière du ciel pour les reflets des matériaux (carte d'environnement)
-    try {
-      const envScene = new THREE.Scene();
-      W.buildSky(envScene);
-      const ground = new THREE.Mesh(new THREE.CircleGeometry(400, 24), new THREE.MeshBasicMaterial({ color: 0x5a8a3a }));
-      ground.rotation.x = -Math.PI / 2; ground.position.y = -20; envScene.add(ground);
-      const pm = new THREE.PMREMGenerator(r);
-      this.scene.environment = pm.fromScene(envScene, 0.02).texture;
-      this.scene.environmentIntensity = 0.45;
-      pm.dispose();
-    } catch (e) { /* pas grave */ }
     this.camera = new THREE.PerspectiveCamera(55, 16 / 9, 0.1, 1200);
-    this.scene.add(new THREE.HemisphereLight(0xcfe6ff, 0x6a8a4a, 0.75));
+    this.scene.add(new THREE.HemisphereLight(0xd8ecff, 0x7a9a5a, 0.6));
     const sun = new THREE.DirectionalLight(0xfff1d6, 2.6);
     sun.castShadow = true;
     const sc = sun.shadow.camera;

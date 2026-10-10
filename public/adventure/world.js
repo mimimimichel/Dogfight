@@ -285,6 +285,7 @@ export function buildGrass(scene, quality, windUniform) {
     inst.setColorAt(i, tint.setHSL(0.24 + n * 0.03, 0.6, 0.7 + n * 0.05));
   });
   inst.receiveShadow = quality.high;
+  inst.userData.noOutline = true;
   scene.add(inst);
   return inst;
 }
@@ -315,6 +316,7 @@ export function buildFlowers(scene, quality) {
     inst.setMatrixAt(i, m4);
     inst.setColorAt(i, c.set(cols[Math.floor(r() * cols.length)]));
   });
+  inst.userData.noOutline = true;
   scene.add(inst);
 }
 
@@ -429,6 +431,7 @@ export function buildButterflies(scene) {
     const L1 = new THREE.Group(); L1.add(lw); const R1 = new THREE.Group(); R1.add(rw);
     g.add(L1, R1);
     const a = r() * Math.PI * 2, d = 10 + r() * 40;
+    g.traverse(k => { k.userData.noOutline = true; });
     g.userData = { cx: Math.cos(a) * d, cz: Math.sin(a) * d, ph: r() * 10, L: L1, R: R1, sp: 0.4 + r() * 0.4 };
     scene.add(g);
     out.push(g);
