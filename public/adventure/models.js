@@ -246,82 +246,6 @@ function lock(k, pos, dir, nrm, w, len, thick, base, tip) {
 const toonSkin = (rough) => new THREE.MeshStandardMaterial({ vertexColors: true, roughness: rough || 0.85 });
 
 // ---------------------------------------------------------------------------
-// Le duo : Ainu (eurasier roux) et Matcha (pinscher nain) debout sur la selle.
-// Corps sculptés hors ligne (tools/build-dogs.mjs) ; yeux, truffe, harnais
-// et accessoires ajoutés ici. Repère : avant = +z, pattes au sol en y = 0.
-// ---------------------------------------------------------------------------
-const SCULPT_OUTLINE = 0.006;
-function sculpt(name, pivot, rough) {
-  const m = sculptMesh(name, pivot, rough);
-  m.userData.outlineThick = SCULPT_OUTLINE;
-  return m;
-}
-export function buildDuo() {
-  const root = new THREE.Group();
-  const ainu = new THREE.Group();
-  root.add(ainu);
-  const DK = 0x140a06;
-
-  const body = sculpt('body', [0, 0, 0]);
-  ainu.add(body);
-
-  // Harnais en Y sur le poitrail (médaillon), sangles ventrales, couverture
-  // turquoise bordée d'or, selle et sacoches : sculptés sur le corps
-  ainu.add(sculpt('harness', [0, 0, 0], 0.6));
-
-  // Tête
-  // tête plus basse et plus en avant : proportions du modèle généré d'après l'illustration
-  const HP = [0, 1.36, 0.9];
-  const head = new THREE.Group(); at(head, ...HP); ainu.add(head);
-  head.scale.setScalar(1.12);
-  head.add(sculpt('head', [0, 0, 0]));
-
-  // Queue (pivot à la base)
-  const TP = [0, 1.15, -0.72];
-  const tail = new THREE.Group(); at(tail, ...TP); ainu.add(tail);
-  // panache penché vers l'arrière (proportions du modèle généré)
-  const tailLean = new THREE.Group(); tailLean.rotation.x = -0.28; tailLean.scale.setScalar(0.86); tail.add(tailLean);
-  tailLean.add(sculpt('tail', TP));
-
-  // Pattes (pivot à la hanche, bas pour que la foulée ne découvre pas le haut du membre)
-  const legs = [];
-  for (const [name, lx, lz] of [['legFL', -0.16, 0.4], ['legFR', 0.16, 0.4], ['legBL', -0.16, -0.5], ['legBR', 0.16, -0.5]]) {
-    const pv = [lx, 0.62, lz];   // pivot à l'épaule / la hanche (dans le corps)
-    const g = at(new THREE.Group(), ...pv);
-    g.add(sculpt(name, pv));
-    ainu.add(g);
-    legs.push(g);
-  }
-
-  // Matcha, debout sur la selle
-  const matcha = new THREE.Group(); at(matcha, 0, 1.36, -0.14); matcha.scale.setScalar(1.3); ainu.add(matcha);
-  matcha.add(sculpt('mBody', [0, 0, 0], 0.4));
-  const mk = new Kit();
-  // collier rouge et médaille ; le harnais clouté est sculpté avec le corps (mBody)
-  mk.add(new THREE.TorusGeometry(0.052, 0.011, 8, 22), 0xc42430, { y: 0.425, z: 0.222, rx: Math.PI / 2 + 0.45 });
-  mk.add(S(0.012, 8, 6), 0xffd34d, { y: 0.392, z: 0.262 });
-  // petit sac à dos : sacoche arrondie, rabat, couverture roulée et poches latérales
-  const BAG = 0x9a5a2a, BAGD = 0x6a3a1c, ROLL = 0xb07a44;
-  mk.add(E(0.062, 0.042, 0.075, 18), BAG, { y: 0.355, z: -0.04 });
-  mk.add(E(0.064, 0.016, 0.06, 16), BAGD, { y: 0.385, z: -0.03, rx: 0.15 });
-  mk.add(new THREE.CylinderGeometry(0.024, 0.024, 0.13, 12), ROLL, { y: 0.4, z: 0.03, rz: Math.PI / 2 });
-  for (const sx of [-1, 1]) {
-    mk.add(new THREE.TorusGeometry(0.025, 0.004, 5, 14), BAGD, { x: sx * 0.045, y: 0.4, z: 0.03, ry: Math.PI / 2 });
-    mk.add(E(0.022, 0.032, 0.04, 12), BAG, { x: sx * 0.065, y: 0.33, z: -0.06 });
-    mk.add(S(0.006, 6, 4), 0xf0d08a, { x: sx * 0.086, y: 0.345, z: -0.06 });
-  }
-  matcha.add(mk.build(new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.6 })));
-  const MP = [0, 0.56, 0.27];
-  const mhead = new THREE.Group(); at(mhead, ...MP); matcha.add(mhead);
-  mhead.scale.setScalar(1.1);
-  mhead.add(sculpt('mHead', [0, 0, 0], 0.5));
-  const mlegs = [];
-
-  root.userData = { ainu, head, tail, legs, matcha, mhead, mlegs, body };
-  return root;
-}
-
-// ---------------------------------------------------------------------------
 // Chat bandit (masque noir, queue rayée, bandana de pirate)
 // ---------------------------------------------------------------------------
 const NPC_FUR = { length: 0.045, density: 30, layerScale: 0.6 };
@@ -598,12 +522,19 @@ export function buildPedestal() {
 // Modèles sculptés (générés par tools/build-dogs.mjs) : chargement et décodage
 // ---------------------------------------------------------------------------
 let dogData = null;
+let duoData = null;
 export async function preloadDogs() {
-  if (dogData) return dogData;
+  if (duoData) return duoData;
   const lite = document.documentElement.classList.contains('touch');
-  const res = await fetch(new URL(lite ? './assets/dogs-lite.json' : './assets/dogs.json', import.meta.url));
-  dogData = await res.json();
-  return dogData;
+  const res = await fetch(new URL(lite ? './assets/duo3d-lite.json' : './assets/duo3d.json', import.meta.url));
+  duoData = await res.json();
+  const loader = new THREE.TextureLoader();
+  await Promise.all(Object.entries(duoData.parts).map(async ([name, d]) => {
+    const t = await loader.loadAsync(new URL('./assets/' + d.tex, import.meta.url).href);
+    t.colorSpace = THREE.SRGBColorSpace; t.anisotropy = 4;
+    duoTextures[name] = t;
+  }));
+  return duoData;
 }
 const b64 = (s) => Uint8Array.from(atob(s), c => c.charCodeAt(0)).buffer;
 const geoCache = new Map();
@@ -752,3 +683,74 @@ export function sculptMesh(name, pivot, rough) {
   m.castShadow = m.receiveShadow = true;
   return m;
 }
+
+// ---------------------------------------------------------------------------
+// Le duo : Ainu (eurasier roux) et Matcha (pinscher nain) debout sur la selle.
+// Modèle texturé reconstruit d'après le modèle Meshy « Adventure Companions »
+// (tools/meshy), animé par un petit squelette (tête, queue, 4 pattes).
+// Repère : avant = +z, pattes au sol en y = 0.
+// ---------------------------------------------------------------------------
+function decodeDuoPart(d) {
+  const n = d.n;
+  const P = new Uint16Array(b64(d.pos)), N = new Int8Array(b64(d.nrm)), U = new Uint16Array(b64(d.uv));
+  const pos = new Float32Array(n * 3), nrm = new Float32Array(n * 3), uv = new Float32Array(n * 2);
+  for (let i = 0; i < n * 3; i++) { const k = i % 3; pos[i] = d.min[k] + (P[i] / 65535) * (d.max[k] - d.min[k]); nrm[i] = N[i] / 127; }
+  for (let i = 0; i < n * 2; i++) uv[i] = U[i] / 65535;
+  const g = new THREE.BufferGeometry();
+  g.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+  g.setAttribute('normal', new THREE.BufferAttribute(nrm, 3));
+  g.setAttribute('uv', new THREE.BufferAttribute(uv, 2));
+  g.setIndex(new THREE.BufferAttribute(d.big ? new Uint32Array(b64(d.idx)) : new Uint16Array(b64(d.idx)), 1));
+  const Sk = new Uint8Array(b64(d.skinIndex)), Sw = new Uint8Array(b64(d.skinWeight));
+  const si = new Uint16Array(n * 4), sw = new Float32Array(n * 4);
+  for (let i = 0; i < n; i++) { si[i * 4] = Sk[i * 2]; si[i * 4 + 1] = Sk[i * 2 + 1]; sw[i * 4] = Sw[i * 2] / 255; sw[i * 4 + 1] = Sw[i * 2 + 1] / 255; }
+  g.setAttribute('skinIndex', new THREE.Uint16BufferAttribute(si, 4));
+  g.setAttribute('skinWeight', new THREE.Float32BufferAttribute(sw, 4));
+  return g;
+}
+const duoTextures = {};
+function skinnedDuoPart(name) {
+  const d = duoData.parts[name];
+  // la texture contient déjà l'ombrage peint : éclairage doux, pas de cel shading
+  const mat = new THREE.MeshStandardMaterial({ map: duoTextures[name], roughness: 0.95, emissive: 0xffffff, emissiveMap: duoTextures[name], emissiveIntensity: 0.35 });
+  mat.userData.keepPBR = true;
+  const mesh = new THREE.SkinnedMesh(decodeDuoPart(d), mat);
+  const bones = {}, list = [];
+  const rootP = d.bones[0].pivot;
+  for (const b of d.bones) {
+    const bone = new THREE.Bone(); bone.name = b.name;
+    if (list.length) { bone.position.set(b.pivot[0] - rootP[0], b.pivot[1] - rootP[1], b.pivot[2] - rootP[2]); list[0].add(bone); }
+    else bone.position.set(...rootP);
+    bones[b.name] = bone; list.push(bone);
+  }
+  mesh.add(list[0]);
+  mesh.updateMatrixWorld(true);
+  mesh.bind(new THREE.Skeleton(list));
+  mesh.castShadow = mesh.receiveShadow = true;
+  mesh.frustumCulled = false;
+  mesh.userData.outlineThick = 0.008;
+  return { mesh, bones };
+}
+export function buildDuo() {
+  const root = new THREE.Group();
+  const ainu = new THREE.Group();
+  root.add(ainu);
+  const A = skinnedDuoPart('ainu');
+  ainu.add(A.mesh);
+  const legs = ['legFL', 'legFR', 'legBL', 'legBR'].map(n => A.bones[n]);
+  // Matcha : groupe centré sur son corps (pour les saltos)
+  const Mt = skinnedDuoPart('matcha');
+  const mPivot = [0, 1.7, 0.0];
+  const matcha = new THREE.Group(); matcha.position.set(...mPivot); ainu.add(matcha);
+  Mt.mesh.position.set(-mPivot[0], -mPivot[1], -mPivot[2]);
+  matcha.add(Mt.mesh);
+  // repères au centre des visages (portraits)
+  const headFace = new THREE.Object3D(); headFace.position.set(0, 0.12, 0.42); A.bones.head.add(headFace);
+  const mheadFace = new THREE.Object3D(); mheadFace.position.set(0, 0.12, 0.12); Mt.bones.head.add(mheadFace);
+  root.userData = {
+    ainu, head: A.bones.head, tail: A.bones.tail, legs, matcha, mhead: Mt.bones.head, mlegs: [], body: A.mesh,
+    headFace, mheadFace, tailY0: A.bones.tail.position.y, matchaY0: mPivot[1],
+  };
+  return root;
+}
+

@@ -21,7 +21,7 @@ export function toonify(root) {
   root.traverse(o => {
     if (!(o.isMesh || o.isInstancedMesh)) return;
     const m = o.material;
-    if (!m || !(m.isMeshStandardMaterial || m.isMeshLambertMaterial)) return;
+    if (!m || !(m.isMeshStandardMaterial || m.isMeshLambertMaterial) || (m.userData && m.userData.keepPBR)) return;
     if (!cache.has(m)) {
       const metal = m.metalness > 0.5;
       const t = new THREE.MeshToonMaterial({
@@ -85,7 +85,11 @@ export function addOutline(mesh, thick, color) {
   if (mesh.userData.outlineThick) thick = mesh.userData.outlineThick;
   const mat = outlineMaterial(fur ? fur.length * 0.75 + thick : thick, color || 0x2a1810);
   let o;
-  if (mesh.isInstancedMesh && !fur) {
+  if (mesh.isSkinnedMesh) {
+    o = new THREE.SkinnedMesh(mesh.geometry, mat);
+    o.bind(mesh.skeleton, mesh.bindMatrix);
+    o.frustumCulled = false;
+  } else if (mesh.isInstancedMesh && !fur) {
     o = new THREE.InstancedMesh(mesh.geometry, mat, mesh.count);
     o.instanceMatrix = mesh.instanceMatrix;
   } else {
