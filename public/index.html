@@ -82,6 +82,29 @@
         </div>
       </section>
 
+      <!-- Choix du niveau -->
+      <section class="screen home levels hidden" id="screen-levels">
+        <div class="home-sky" aria-hidden="true">
+          <div class="home-cloud c1"></div><div class="home-cloud c2"></div>
+        </div>
+        <div class="coop-card">
+          <h2 class="coop-title">Choisis ton niveau</h2>
+          <div class="level-cards">
+            <button class="level-card l1" data-action="level-1">
+              <span class="lv-num">1</span>
+              <b>Le Parc des Toutous</b>
+              <small id="lv1-prog">Nouveau</small>
+            </button>
+            <button class="level-card l2" data-action="level-2">
+              <span class="lv-num">2</span>
+              <b>La Forêt des Moustaches</b>
+              <small id="lv2-prog">Nouveau</small>
+            </button>
+          </div>
+          <button class="hbtn small coop-back" data-action="back">Retour</button>
+        </div>
+      </section>
+
       <!-- Aventure à deux -->
       <section class="screen home coop hidden" id="screen-coop">
         <div class="home-sky" aria-hidden="true">
@@ -114,6 +137,11 @@
               <button class="hbtn cbtn" data-action="coop-copy">Copier le lien</button>
             </div>
             <p class="coop-status pulse" id="coop-wait-status">Ton ami pourra rejoindre quand il veut, même en pleine partie !</p>
+            <div class="coop-levels">
+              <span>Niveau :</span>
+              <button class="hbtn lvpick active" data-action="coop-lv-1">1 · Le Parc</button>
+              <button class="hbtn lvpick" data-action="coop-lv-2">2 · La Forêt</button>
+            </div>
             <div class="coop-go">
               <button class="hbtn small" data-action="coop-cancel">Annuler</button>
               <button class="hbtn go" data-action="coop-go" id="coop-go" disabled>Lancer la partie ▶</button>

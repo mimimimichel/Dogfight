@@ -143,7 +143,7 @@
 
   function show(screen) {
     app.screen = screen;
-    if (screen === 'menu') updateAdventureButton();
+    if (screen === 'menu' || screen === 'levels') updateAdventureButton();
     // musique : aventure, combat (partie, pause, résultat) ou menus
     sfx.music(screen === 'adventure' ? 'adventure' : (screen === 'game' || screen === 'pause' || screen === 'result') ? 'fight' : 'menu');
     for (const el of document.querySelectorAll('.screen')) el.classList.add('hidden');
@@ -156,15 +156,22 @@
     }
   }
 
+  /** Progression sauvegardée d'un niveau de l'aventure (ou null). */
+  function levelSave(n) {
+    try { return JSON.parse(localStorage.getItem('dogfight.aventure.niveau' + n) || 'null'); } catch (e) { return null; }
+  }
   /** Le gros bouton d'aventure indique la progression sauvegardée. */
   function updateAdventureButton() {
-    let save = null;
-    try { save = JSON.parse(localStorage.getItem('dogfight.aventure.niveau1') || 'null'); } catch (e) { /* ignore */ }
-    const started = save && save.intro && ((save.bones || []).length || (save.medals || []).length);
-    $('adv-play-label').textContent = started ? 'Continuer' : 'Jouer';
-    $('adv-play-sub').textContent = started
-      ? `Médailles ${(save.medals || []).length}/5 · Os ${(save.bones || []).length}/100`
+    const s1 = levelSave(1), s2 = levelSave(2);
+    const started = (s) => s && s.intro && ((s.bones || []).length || (s.medals || []).length);
+    const medals = (s) => (s && s.medals ? s.medals.length : 0);
+    $('adv-play-label').textContent = started(s1) || started(s2) ? 'Continuer' : 'Jouer';
+    $('adv-play-sub').textContent = started(s1) || started(s2)
+      ? `2 niveaux · Médailles ${medals(s1) + medals(s2)}/10`
       : "Explore l'île avec tes chiens !";
+    const prog = (s, what) => (started(s) ? `Médailles ${medals(s)}/5 · ${what} ${(s.bones || []).length}/100` : 'Nouveau !');
+    $('lv1-prog').textContent = prog(s1, 'Os');
+    $('lv2-prog').textContent = prog(s2, 'Croquettes');
   }
   updateAdventureButton();
 
@@ -616,7 +623,7 @@
 
   // Mode aventure 3D : chargé à la demande (Three.js n'alourdit pas le jeu de combat)
   let adventureLoading = false;
-  function startAdventure(coop, coopHost) {
+  function startAdventure(coop, coopHost, level) {
     if (adventureLoading || app.mode === 'adventure') { if (coop) coop.link.close(); if (coopHost) coopHost.close(); return; }
     adventureLoading = true;
     if (document.activeElement && document.activeElement.blur) document.activeElement.blur();
@@ -629,6 +636,7 @@
         sfx,
         coop,
         coopHost,
+        level: level || 1,
         onExit: () => { app.mode = null; show('menu'); },
       });
     }).catch((err) => {
@@ -650,12 +658,12 @@
     $('coop-wait').classList.add('hidden');
     $('coop-status').textContent = status || '';
   }
-  function coopStart(link, role, isHost) {
+  function coopStart(link, role, isHost, level) {
     if (app.screen !== 'coop') { link.close(); return; }
     coopReset();
-    startAdventure({ link, role, isHost });
+    startAdventure({ link, role, isHost }, null, level);
   }
-  let coopSession = null;
+  let coopSession = null, coopLevel = 1;
   function coopHost(role) {
     $('coop-choose').classList.add('hidden');
     $('coop-wait').classList.remove('hidden');
@@ -667,6 +675,7 @@
     window.AdvCoop.host(role, {
       onCode: (code, session) => {
         coopSession = session;
+        session.level = coopLevel;
         $('coop-show-code').textContent = code;
         $('coop-go').disabled = false;
         const q = new URLSearchParams(location.search).get('peer');
@@ -683,14 +692,14 @@
     coopSession = null;
     ses.onJoin = null;
     coopReset();
-    startAdventure(null, ses);
+    startAdventure(null, ses, ses.level || coopLevel);
   }
   function coopJoin() {
     const code = $('coop-code').value.trim().toUpperCase();
     if (code.length !== 4) { $('coop-status').textContent = 'Le code fait 4 lettres.'; return; }
     $('coop-status').textContent = 'Connexion à la partie ' + code + '…';
     window.AdvCoop.join(code, {
-      onReady: (link, role) => coopStart(link, role, false),
+      onReady: (link, role, level) => coopStart(link, role, false, level),
       onError: (msg) => coopReset(msg),
     });
   }
@@ -703,7 +712,15 @@
       case 'online': app.mode = 'online'; show('online'); $('online-status').textContent = ''; break;
       case 'cpu': app.mode = 'cpu'; enterSelect(); break;
       case 'local': app.mode = 'local'; enterSelect(); break;
-      case 'adventure': startAdventure(); break;
+      case 'adventure': show('levels'); break;
+      case 'level-1': startAdventure(null, null, 1); break;
+      case 'level-2': startAdventure(null, null, 2); break;
+      case 'coop-lv-1': case 'coop-lv-2': {
+        coopLevel = a === 'coop-lv-1' ? 1 : 2;
+        for (const b of document.querySelectorAll('.lvpick')) b.classList.toggle('active', b.dataset.action === a);
+        if (coopSession) coopSession.level = coopLevel;
+        break;
+      }
       case 'coop': show('coop'); coopReset(); break;
       case 'coop-host-ainu': coopHost('ainu'); break;
       case 'coop-host-matcha': coopHost('matcha'); break;
