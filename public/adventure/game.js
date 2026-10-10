@@ -1186,6 +1186,7 @@ class Adventure {
     this.remotePressed.clear();
     link.onmessage = (m) => this.onCoopMessage(m);
     link.onclose = () => this.onCoopClose();
+    link.send({ t: 'level', id: L.ID });   // si l'hôte vient de changer de niveau, l'ami suit
     this.coopBadge(role, `<b>À deux</b> · tu es <span>${role === 'ainu' ? 'Ainu' : 'Matcha'}</span>`);
     if (!this.dom.overlay.classList.contains('hidden')) this.paused = false;
     const other = role === 'ainu' ? 'Matcha' : 'Ainu';
