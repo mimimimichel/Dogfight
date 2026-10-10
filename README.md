@@ -26,7 +26,14 @@ Puis ouvrir <http://localhost:3000>.
 - **Contre l'ordi** : 3 niveaux de difficulté.
 - **2 joueurs (même clavier)**.
 
-Pour jouer avec des amis sur un autre réseau, il faut héberger le serveur sur un service qui accepte les WebSockets (Render, Railway, Fly.io, un VPS…). La commande de démarrage est `npm start`, le port est lu depuis la variable `PORT`.
+**Version en ligne : <https://dogfight-flax.vercel.app>** (hébergement statique gratuit sur Vercel).
+
+Le mode en ligne fonctionne de deux façons, choisies automatiquement :
+
+- **Hébergement statique (Vercel, GitHub Pages…)** : pair-à-pair WebRTC. Le navigateur de celui qui crée le salon fait tourner la partie. La mise en relation passe par le service public gratuit de PeerJS, avec ses relais TURN en secours. Rien à installer côté serveur : il suffit de publier le dossier `public/`.
+- **Serveur Node (`npm start`)** : serveur autoritaire en WebSocket, utilisé dès que `/health` répond.
+
+En pair-à-pair, l'hôte doit garder l'onglet du jeu au premier plan : un onglet en arrière-plan est ralenti par le navigateur et la partie saccade.
 
 ## Commandes
 
@@ -52,6 +59,8 @@ public/game-core.js  Moteur de combat partagé serveur/navigateur + IA
 public/render.js     Rendu pixel art : rasteriseur, ombrage auto, chiens, décor, effets, HUD
 public/audio.js      Sons synthétisés (WebAudio, aucun fichier)
 public/main.js       Menus, entrées clavier/manette, réseau, boucles de jeu
+public/room.js       Logique de salon partagée (serveur Node et hôte pair-à-pair)
+public/p2p.js        Transport pair-à-pair WebRTC (PeerJS)
 test/sim.test.js     Tests du moteur (npm test)
 ```
 
