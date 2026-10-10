@@ -17,8 +17,10 @@
   // Mise à l'échelle de la scène
   // ---------------------------------------------------------------------------
   function fit() {
-    const s = Math.min(window.innerWidth / 960, window.innerHeight / 540);
-    document.getElementById('stage').style.setProperty('--scale', String(Math.max(0.3, s)));
+    // Agrandissement par pas entiers de pixels quand c'est possible (pixels nets)
+    const raw = Math.min(window.innerWidth / 480, window.innerHeight / 270);
+    const k = raw >= 2 ? Math.floor(raw) : raw;
+    document.getElementById('stage').style.setProperty('--scale', String(Math.max(0.3, k / 2)));
   }
   window.addEventListener('resize', fit);
   fit();
@@ -168,14 +170,14 @@
       const ch = CHARACTERS[id];
       const card = document.createElement('div');
       card.className = 'card';
+      card.title = ch.desc;
       card.dataset.char = id;
       const m = ch.moves;
       card.innerHTML = `
         <div class="badges"></div>
-        <canvas width="306" height="150"></canvas>
+        <canvas width="153" height="75"></canvas>
         <h4>${ch.name}</h4>
         <div class="breed">${ch.breed}</div>
-        <p>${ch.desc}</p>
         <div class="stats">${Object.entries(STATS[id]).map(([k, v]) => `<span>${k}</span><div class="bar"><i style="width:${v * 20}%"></i></div>`).join('')}</div>
         <div class="moves">
           <div><b>Spéciale :</b> ${m.special.name}</div>
@@ -241,12 +243,12 @@
     const btn = $('ready-btn');
     btn.disabled = false;
     if (app.mode === 'cpu') {
-      st.textContent = 'Clique sur un chien (ou Q/D puis J). L\'ordi prend l\'autre.';
+      st.textContent = 'Q/D ou clic pour choisir, J pour valider';
       btn.textContent = 'Combattre !';
     } else if (app.mode === 'local') {
       st.textContent = s.active === 0
-        ? 'Joueur 1 : choisis avec Q/D puis valide avec F (ou clic).'
-        : 'Joueur 2 : choisis avec les flèches puis valide avec J (ou clic).';
+        ? 'Joueur 1 : Q/D puis F pour valider'
+        : 'Joueur 2 : flèches puis J pour valider';
       btn.textContent = s.active === 0 ? 'Valider J1' : 'Valider J2';
     } else {
       const other = app.lobby && app.lobby.players[1 - app.slot];
@@ -303,19 +305,15 @@
       const cv = previewCanvases[id];
       if (!cv) continue;
       const c = cv.getContext('2d');
-      c.clearRect(0, 0, cv.width, cv.height);
-      c.fillStyle = 'rgba(0,0,0,0.25)';
-      c.beginPath();
-      c.ellipse(cv.width / 2, 136, 70, 9, 0, 0, Math.PI * 2);
-      c.fill();
+      R.cardBackground(c, cv.width, cv.height);
       const picked = app.sel.picks.includes(id);
-      const alt = app.sel.picks[0] === id && app.sel.picks[1] === id;
-      R.drawDogPreview(c, id, false, cv.width / 2, 138, 0.95, 1, time, picked ? 'win' : 'idle');
-      if (alt) {
-        c.save();
-        c.globalAlpha = 0.9;
-        R.drawDogPreview(c, id, true, cv.width / 2 + 90, 140, 0.55, -1, time + 20, 'win');
-        c.restore();
+      const mirror = app.sel.picks[0] === id && app.sel.picks[1] === id;
+      const gy = cv.height - 5;
+      if (mirror) {
+        R.drawDogPreview(c, id, false, cv.width / 2 - 34, gy, 1, 1, time, 'win');
+        R.drawDogPreview(c, id, true, cv.width / 2 + 34, gy, 1, -1, time + 20, 'win');
+      } else {
+        R.drawDogPreview(c, id, false, cv.width / 2 - 6, gy, 1, 1, time, picked ? 'win' : 'idle');
       }
     }
   }
@@ -670,8 +668,8 @@
       });
     } else if (inGame) {
       ctx.fillStyle = '#120a1c';
-      ctx.fillRect(0, 0, 960, 540);
-      R.textOutlined(ctx, 'Synchronisation…', 480, 270, 16, '#fff');
+      ctx.fillRect(0, 0, R.W, R.H);
+      R.textOutlined(ctx, 'SYNCHRONISATION...', R.W / 2, R.H / 2, 8, '#fff');
     } else if (app.demoSnap) {
       R.drawScene(ctx, app.demoSnap, { fx: app.demoFx, noHud: true });
     }
