@@ -113,19 +113,19 @@ def paint_matcha(m):
     c = mix(c, 0x3a3a52, ss(0.3, 0.9, N[:, 1]) * 0.6)
     eyeY = nose[1] + 0.085
     # feu : museau, joues, points au-dessus des yeux, poitrail, bas des pattes
-    muzzle = head * ss(nose[2] - 0.13, nose[2] - 0.1, z) * ss(nose[1] + 0.005, nose[1] - 0.015, y) * ss(nose[1] - 0.075, nose[1] - 0.06, y)
+    muzzle = head * ss(nose[2] - 0.15, nose[2] - 0.11, z) * ss(nose[1] + 0.005, nose[1] - 0.015, y)
     cheek = head * ss(eyeY - 0.025, eyeY - 0.045, y) * ss(nose[1] + 0.0, nose[1] - 0.04, y + 0.03) * ss(0.11, 0.08, ax) * ss(0.05, 0.4, N[:, 2])
     c = mix(c, 0xc6662a, np.clip(muzzle + cheek, 0, 1))
     c = mix(c, 0x1e1c28, head * ss(0.02, 0.008, ax) * ss(-0.2, 0.5, N[:, 1]) * ss(eyeY - 0.06, eyeY - 0.03, y) * ss(nose[2] - 0.03, nose[2] - 0.07, z))  # arête noire
     for sx in (-1, 1):
         dd = np.hypot((hx - sx * 0.05) / 0.018, (y - (eyeY + 0.045)) / 0.012)
         c = mix(c, 0xe08a46, head * ss(1.0, 0.6, dd) * ss(0.1, 0.4, N[:, 2]))
-    chest = sum(ss(1.0, 0.6, np.hypot((hx - sx * 0.03) / 0.02, (y - 1.79) / 0.025)) for sx in (-1, 1)) * ss(0.15, 0.22, z) * ss(0.2, 0.6, N[:, 2])
+    chest = ss(1.93, 1.86, y) * ss(1.68, 1.75, y) * ss(0.05, 0.12, z) * ss(0.1, 0.5, N[:, 2])
     c = mix(c, 0xc6662a, chest)
     c = mix(c, 0xc6662a, ss(1.5, 1.44, y))
     # oreilles : creux rose-feu
-    ear = head * ss(eyeY + 0.07, eyeY + 0.1, y) * np.maximum(ss(0.06, 0.09, ax), ss(eyeY + 0.15, eyeY + 0.18, y))
-    c = mix(c, 0xe89280, ear * ss(0.1, 0.4, N[:, 2]) * 0.95)
+    ear = head * ss(eyeY + 0.08, eyeY + 0.12, y)
+    c = mix(c, 0xe89280, ear * ss(0.15, 0.5, N[:, 2]) * 0.95)
     # truffe
     c = mix(c, 0x0c0a0c, ss(0.04, 0.028, np.linalg.norm(P - nose, axis=1)))
     # collier rouge au cou, harnais orange clouté sur le poitrail et les épaules, sac à dos brun
@@ -133,7 +133,7 @@ def paint_matcha(m):
     collar = ss(0.022, 0.01, np.abs(y - (neckY - (nose[2] - 0.25 - z) * 0.35))) * ss(nose[2] - 0.38, nose[2] - 0.3, z) * ss(nose[2] - 0.12, nose[2] - 0.18, z)
     harness = ss(0.03, 0.018, np.abs(z - 0.1 + (y - 1.8) * 0.4)) * ss(1.6, 1.64, y) * ss(1.9, 1.86, y)
     harness = np.maximum(harness, ss(0.025, 0.012, np.abs(y - 1.8 - (z - 0.15) * 0.3)) * ss(0.1, 0.16, z) * ss(0.3, 0.25, z))
-    c = mix(c, 0x8a4a1e, harness)
+    c = mix(c, 0xc8662a, harness)
     c = mix(c, 0xd02828, collar)
     bag = ss(1.81, 1.85, y) * ss(-0.16, -0.12, z) * ss(0.08, 0.04, z) * ss(-0.1, 0.3, N[:, 1])
     c = mix(c, 0x8a5428, bag)
