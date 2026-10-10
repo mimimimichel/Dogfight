@@ -270,7 +270,8 @@ export function buildDuo() {
   ainu.add(sculpt('harness', [0, 0, 0], 0.6));
 
   // Tête
-  const HP = [0, 1.6, 0.78];
+  // tête plus basse et plus en avant : proportions du modèle généré d'après l'illustration
+  const HP = [0, 1.36, 0.9];
   const head = new THREE.Group(); at(head, ...HP); ainu.add(head);
   head.scale.setScalar(1.12);
   head.add(sculpt('head', [0, 0, 0]));
@@ -278,7 +279,9 @@ export function buildDuo() {
   // Queue (pivot à la base)
   const TP = [0, 1.15, -0.72];
   const tail = new THREE.Group(); at(tail, ...TP); ainu.add(tail);
-  tail.add(sculpt('tail', TP));
+  // panache penché vers l'arrière (proportions du modèle généré)
+  const tailLean = new THREE.Group(); tailLean.rotation.x = -0.28; tailLean.scale.setScalar(0.86); tail.add(tailLean);
+  tailLean.add(sculpt('tail', TP));
 
   // Pattes (pivot à la hanche, bas pour que la foulée ne découvre pas le haut du membre)
   const legs = [];
