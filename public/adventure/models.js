@@ -770,6 +770,7 @@ export function buildMatchaSolo() {
   body.add(Mt.mesh);
   root.add(body);
   const mheadFace = new THREE.Object3D(); mheadFace.position.set(0, 0.12, 0.12); Mt.bones.head.add(mheadFace);
-  root.userData = { matcha: body, mhead: Mt.bones.head, mheadFace, matchaY0: body.position.y, height: (d.max[1] - d.min[1]) * S };
+  const legs = ['legFL', 'legFR', 'legBL', 'legBR'].map(n => Mt.bones[n]).filter(Boolean);
+  root.userData = { matcha: body, mhead: Mt.bones.head, mtail: Mt.bones.tail || null, legs, mheadFace, matchaY0: body.position.y, height: (d.max[1] - d.min[1]) * S };
   return root;
 }

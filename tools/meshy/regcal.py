@@ -17,6 +17,7 @@ P = V[F[fi, 0]] * (1 - s)[:, None] + V[F[fi, 1]] * (s * (1 - r2))[:, None] + V[F
 x, y, z = P.T
 REG = {
     'head': (z > 0.78) & (y > 0.95),
+    'mhead': (y > 1.76) & (z > 0.05) & (np.abs(x) < 0.26),
     'matcha': (y > 1.27) & (np.abs(x) < 0.26) & (z > -0.45) & np.where(z < 0.12, True, y > 1.5 + np.maximum(0, z - 0.12) * 0.5),
 }[region]
 
@@ -38,21 +39,30 @@ for name, c in sorted(cal.items()):
     if x1 - x0 < 20 or y1 - y0 < 20: continue
     mw = m[y0:y1, x0:x1]
     cx, cy = ur.mean(), vr.mean()
-    def score(dx, dy, ds):
-        uu = (u - cx) * ds + cx + dx - x0; vv = (v - cy) * ds + cy + dy - y0
+    AFF = len(sys.argv) > 6 and sys.argv[6] == 'affine'
+    def warp(dx, dy, ds, rot=0.0, asp=1.0):
+        cr, sr = np.cos(rot), np.sin(rot)
+        a, b = (u - cx) * ds * asp, (v - cy) * ds / asp
+        return cr * a - sr * b + cx + dx, sr * a + cr * b + cy + dy
+    def score(dx, dy, ds, rot=0.0, asp=1.0):
+        uu, vv = warp(dx, dy, ds, rot, asp); uu = uu - x0; vv = vv - y0
         ok = (uu >= 0) & (uu < x1 - x0) & (vv >= 0) & (vv < y1 - y0)
         g = np.zeros(mw.shape, bool); g[vv[ok].astype(int), uu[ok].astype(int)] = True
         g = binary_closing(g, iterations=2)
         return (g & mw).sum() / max(1, (g | mw).sum())
-    best = (score(0, 0, 1), 0.0, 0.0, 1.0)
+    best = (score(0, 0, 1), 0.0, 0.0, 1.0, 0.0, 1.0)
     for step in (8, 4, 2, 1):
-        for _ in range(8):
+        for _ in range(10):
             imp = False
-            _, dx, dy, ds = best
-            for ddx, ddy, dds in ((step, 0, 0), (-step, 0, 0), (0, step, 0), (0, -step, 0), (0, 0, 0.01 * step / 2), (0, 0, -0.01 * step / 2)):
-                sc = score(dx + ddx, dy + ddy, ds + dds)
-                if sc > best[0]: best = (sc, dx + ddx, dy + ddy, ds + dds); imp = True
+            _, dx, dy, ds, rr, asp = best
+            moves = [(step, 0, 0, 0, 0), (-step, 0, 0, 0, 0), (0, step, 0, 0, 0), (0, -step, 0, 0, 0), (0, 0, 0.01 * step / 2, 0, 0), (0, 0, -0.01 * step / 2, 0, 0)]
+            if AFF: moves += [(0, 0, 0, 0.01 * step, 0), (0, 0, 0, -0.01 * step, 0), (0, 0, 0, 0, 0.01 * step / 2), (0, 0, 0, 0, -0.01 * step / 2)]
+            for ddx, ddy, dds, drot, dasp in moves:
+                c2 = (dx + ddx, dy + ddy, ds + dds, rr + drot, asp + dasp)
+                if AFF and (abs(c2[3]) > 0.5 or not 0.75 < c2[4] < 1.33): continue
+                sc = score(*c2)
+                if sc > best[0]: best = (sc, *c2); imp = True
             if not imp: break
-    out[name] = {'dx': best[1], 'dy': best[2], 'ds': best[3], 'cx': float(cx), 'cy': float(cy), 'iou': best[0]}
+    out[name] = {'dx': best[1], 'dy': best[2], 'ds': best[3], 'rot': best[4], 'asp': best[5], 'cx': float(cx), 'cy': float(cy), 'iou': best[0]}
     print(name, region, {k: round(v, 3) for k, v in out[name].items()}, flush=True)
 json.dump(out, open(outp, 'w'), indent=1)

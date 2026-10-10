@@ -28,11 +28,19 @@ def skin_ainu(P):
     return names, bones, W
 
 def skin_matcha(P):
+    # Matcha (forme détaillée) : corps, tête, queue, 4 pattes — il marche tout seul à deux
     x, y, z = P.T
-    bones = {'root': [0, 1.7, 0.0], 'head': [0, 1.8, 0.18]}
-    names = list(bones); W = np.zeros((len(P), 2))
-    W[:, 1] = ss(1.74, 1.82, y) * ss(0.02, 0.12, z)
-    W[:, 0] = 1 - W[:, 1]
+    bones = {'root': [0, 1.7, 0.0], 'head': [0, 1.8, 0.16], 'tail': [0, 1.72, -0.33],
+             'legFL': [-0.115, 1.56, 0.19], 'legFR': [0.115, 1.56, 0.19], 'legBL': [-0.1, 1.56, -0.32], 'legBR': [0.1, 1.56, -0.32]}
+    names = list(bones); W = np.zeros((len(P), len(names)))
+    wh = ss(1.70, 1.80, y) * ss(0.0, 0.12, z)
+    wt = ss(-0.33, -0.39, z) * ss(1.66, 1.74, y)
+    wl = ss(1.53, 1.42, y) * (1 - wh) * (1 - wt)
+    W[:, names.index('head')] = wh
+    W[:, names.index('tail')] = wt
+    for n, front, right in (('legFL', 1, 0), ('legFR', 1, 1), ('legBL', 0, 0), ('legBR', 0, 1)):
+        W[:, names.index(n)] = wl * ((z > -0.07) == front) * ((x > 0) == right)
+    W[:, 0] = np.clip(1 - W[:, 1:].sum(1), 0, 1)
     return names, bones, W
 
 def pack(part, skin):

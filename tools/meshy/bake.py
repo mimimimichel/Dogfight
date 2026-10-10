@@ -107,11 +107,13 @@ for name, c in sorted(cal.items()):
     g = binary_erosion(g, iterations=max(3, W // 300))
     u, v, z = project(P, c, R)
     expo = np.full(len(P), EXP)
+    u0, v0 = u.copy(), v.copy()   # chaque correction part de la projection brute ; la dernière région l'emporte
     for rname, (rc, rexp) in REGS.items():
         if name not in rc: continue
         r = rc[name]; inr = region_mask(P, rname)
-        u = np.where(inr, (u - r['cx']) * r['ds'] + r['cx'] + r['dx'], u)
-        v = np.where(inr, (v - r['cy']) * r['ds'] + r['cy'] + r['dy'], v)
+        cr, sr, asp = np.cos(r.get('rot', 0.0)), np.sin(r.get('rot', 0.0)), r.get('asp', 1.0)
+        a, b = (u0 - r['cx']) * r['ds'] * asp, (v0 - r['cy']) * r['ds'] / asp
+        u, v = np.where(inr, cr * a - sr * b + r['cx'] + r['dx'], u), np.where(inr, sr * a + cr * b + r['cy'] + r['dy'], v)
         expo = np.where(inr, rexp, expo)
     ui, vi = np.clip(u.astype(int), 0, W - 1), np.clip(v.astype(int), 0, H - 1)
     zz = zb[np.clip(vi // 2, 0, h2 - 1), np.clip(ui // 2, 0, w2 - 1)]

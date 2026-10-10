@@ -1101,7 +1101,7 @@ class Adventure {
     if (this.dialog) { this.stepDialog(dt); still(); }
     if (this.freeze > 0) { this.freeze -= dt; still(); this.pressed.clear(); }
     this.stepCamera(dt);
-    players.forEach((P, i) => this.stepPlayer(dt, inputs[i], P, presses[i]));
+    players.forEach((P, i) => this.stepPlayer(dt, inputs[i] || { x: 0, y: 0, wx: 0, wz: 0 }, P, presses[i] || new Set()));
     this.stepCats(dt);
     this.stepNpcs(dt);
     this.stepCollect(dt);
@@ -2149,9 +2149,14 @@ class Adventure {
     const speed = Math.hypot(Q.vel.x, Q.vel.z);
     Q.phase += dt * speed * 2.4;
     const run = Math.min(1, speed / 5);
-    u.matcha.position.y = u.matchaY0 + (Q.grounded ? Math.abs(Math.sin(Q.phase)) * 0.25 * run : 0);
+    u.matcha.position.y = u.matchaY0 + (Q.grounded ? Math.abs(Math.sin(Q.phase)) * (u.legs.length ? 0.07 : 0.25) * run : 0);
     u.matcha.rotation.x = Q.flipT > 0 ? (1 - Q.flipT / 0.45) * Math.PI * 2 : Q.dashT > 0 ? 0.45 : Q.grounded ? Math.sin(Q.phase * 2) * 0.1 * run : clamp(-Q.vel.y * 0.02, -0.25, 0.3);
     u.mhead.rotation.x = Math.sin(t * 2.3) * 0.06;
+    u.legs.forEach((l, i) => {
+      if (Q.grounded) l.rotation.x = Math.sin(Q.phase * 2 + (i === 0 || i === 3 ? 0 : Math.PI)) * 0.9 * run;
+      else l.rotation.x = i < 2 ? -0.8 : 0.8;
+    });
+    if (u.mtail) u.mtail.rotation.y = Math.sin(t * (speed > 1 ? 16 : 8)) * 0.5;
     if (Q.cheerT > 0) { u.matcha.position.y += Math.abs(Math.sin(Q.cheerT * 9)) * 0.45; u.matcha.rotation.z = Math.sin(Q.cheerT * 12) * 0.3; } else u.matcha.rotation.z = 0;
     m.visible = !(Q.invuln > 0 && Math.floor(t * 12) % 2 === 0);
     this.placeShadow(Q.shadow, Q.pos, 0.5);
