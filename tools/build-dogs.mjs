@@ -5,6 +5,7 @@
  */
 import fs from 'node:fs';
 import * as HD from './heads.mjs';
+import * as AI from './ainu.mjs';
 import { ell, rcone, flatCone, smin, smax, strands, noise, mesh, pack, sstep, clamp, norm, sub, add, mul, dot, len, mixv } from './sculpt.mjs';
 
 const lin = (hex) => [(hex >> 16) & 255, (hex >> 8) & 255, hex & 255].map(c => { c /= 255; return c <= 0.04045 ? c / 12.92 : Math.pow((c + 0.055) / 1.055, 2.4); });
@@ -28,7 +29,7 @@ function stroke(p, comb, freq) { return strands(p, comb, freq, 7.3); }
 
 // ---------------------------------------------------------------------------
 // AINU — spitz élancé. Repère : sol y = 0, avant +z. Pivots utilisés par le jeu :
-// tête (0,1.6,0.78) ; queue (0,1.15,-0.72) ; pattes (±0.16,0.8,0.4) et (±0.16,0.8,-0.5)
+// tête (0,1.6,0.78) ; queue (0,1.15,-0.72) ; pattes (±0.16,0.62,0.4) et (±0.16,0.62,-0.5)
 // ---------------------------------------------------------------------------
 const RUFF_C = [0, 1.24, 0.55];
 function ainuBodyBase(p) {
@@ -289,12 +290,14 @@ const run = (name, sdf, col, bmin, bmax, h, decal) => {
   out.parts[name] = pack(m);
   console.log(name, m.pos.length, 'sommets', m.idx.length / 3, 'triangles');
 };
-run('body', ainuBody, ainuBodyColor, [-0.5, 0.5, -0.95], [0.5, 1.75, 0.95]);
+run('body', AI.body, AI.bodyColor, [-0.55, 0.3, -1.05], [0.55, 1.75, 1.0]);
 run('head', HD.ainuHead, HD.ainuHeadColor, ...HD.ainuHeadBox, 0.0062, HD.ainuDecal);
-run('tail', ainuTail, ainuTailColor, [-0.36, 0.95, -1.25], [0.36, 2.2, -0.1]);
+run('tail', AI.tail, AI.tailColor, ...AI.tailBox, 0.015);
 for (const [name, x, z, back] of [['legFL', -0.16, 0.4, 0], ['legFR', 0.16, 0.4, 0], ['legBL', -0.16, -0.5, 1], ['legBR', 0.16, -0.5, 1]]) {
-  run(name, legSdf(x, z, back), legColor, [x - 0.24, -0.05, z - 0.42], [x + 0.24, 1.12, z + 0.3], 0.012);
+  const f = AI.legSdf(x, z, back);
+  run(name, f, AI.legColorFn(x, z, back, f.locks), [x - 0.3, -0.05, z - (back ? 0.75 : 0.45)], [x + 0.3, 1.12, z + 0.35], 0.011);
 }
+run('harness', AI.harness, AI.harnessColor, ...AI.harnessBox, 0.011);
 run('mBody', matchaBody, matchaBodyColor, [-0.15, -0.02, -0.32], [0.15, 0.56, 0.33], 0.006);
 run('mHead', HD.matchaHead, HD.matchaHeadColor, ...HD.matchaHeadBox, 0.0028, HD.matchaDecal);
 fs.writeFileSync(OUTF, JSON.stringify(out));

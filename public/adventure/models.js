@@ -265,22 +265,9 @@ export function buildDuo() {
   const body = sculpt('body', [0, 0, 0]);
   ainu.add(body);
 
-  // Harnais en Y sur le poitrail, sangle, couverture turquoise, selle et sacoches
-  const lk = new Kit();
-  const BR = 0x5e3218, BRL = 0x7a4422, GD = 0xe0b040;
-  lk.add(new THREE.TorusGeometry(0.31, 0.03, 8, 34), BR, { y: 1.3, z: 0.6, rx: Math.PI / 2 - 0.75, sx: 1.05 });   // collier du harnais
-  lk.add(new THREE.BoxGeometry(0.07, 0.42, 0.03), BR, { y: 0.97, z: 0.66, rx: -0.15 });                           // sangle du poitrail
-  lk.add(new THREE.TorusGeometry(0.34, 0.034, 8, 34), BR, { y: 0.98, z: 0.16, sy: 1.12 });                         // sangle derrière les épaules
-  lk.add(new THREE.TorusGeometry(0.33, 0.03, 8, 34), BR, { y: 1.0, z: -0.38, sy: 1.0 });
-  lk.add(new THREE.CylinderGeometry(0.045, 0.045, 0.015, 14), GD, { y: 1.15, z: 0.72, rx: Math.PI / 2 - 0.4 });     // boucle dorée
-  lk.add(new THREE.SphereGeometry(1, 28, 10, 0, Math.PI * 2, 0, 0.85), (x, y, z, c) => c.set(y < 0.7 ? GD : 0x1e8a86), { y: 0.97, z: -0.1, sx: 0.36, sy: 0.36, sz: 0.4 });
-  lk.add(E(0.17, 0.06, 0.22), BRL, { y: 1.33, z: -0.12 });
-  for (const sx of [-1, 1]) {
-    lk.add(new THREE.BoxGeometry(0.12, 0.24, 0.26), 0x8a4e24, { x: sx * 0.35, y: 0.86, z: 0.0 });
-    lk.add(new THREE.BoxGeometry(0.135, 0.07, 0.28), BR, { x: sx * 0.355, y: 0.98, z: 0.0, rz: sx * 0.2 });
-    lk.add(new THREE.CylinderGeometry(0.025, 0.025, 0.02, 10), GD, { x: sx * 0.415, y: 0.9, z: 0.0, rz: Math.PI / 2 });
-  }
-  ainu.add(lk.build(new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.7 })));
+  // Harnais en Y sur le poitrail (médaillon), sangles ventrales, couverture
+  // turquoise bordée d'or, selle et sacoches : sculptés sur le corps
+  ainu.add(sculpt('harness', [0, 0, 0], 0.6));
 
   // Tête
   const HP = [0, 1.6, 0.78];
@@ -293,10 +280,10 @@ export function buildDuo() {
   const tail = new THREE.Group(); at(tail, ...TP); ainu.add(tail);
   tail.add(sculpt('tail', TP));
 
-  // Pattes (pivot à la hanche)
+  // Pattes (pivot à la hanche, bas pour que la foulée ne découvre pas le haut du membre)
   const legs = [];
   for (const [name, lx, lz] of [['legFL', -0.16, 0.4], ['legFR', 0.16, 0.4], ['legBL', -0.16, -0.5], ['legBR', 0.16, -0.5]]) {
-    const pv = [lx, 0.8, lz];
+    const pv = [lx, 0.62, lz];   // pivot à l'épaule / la hanche (dans le corps)
     const g = at(new THREE.Group(), ...pv);
     g.add(sculpt(name, pv));
     ainu.add(g);
