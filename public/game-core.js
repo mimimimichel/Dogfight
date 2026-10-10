@@ -134,7 +134,9 @@
   }
 
   class Game {
-    constructor(charIds) {
+    // opts.damageScale : multiplicateur des dégâts infligés par chaque joueur (handicap)
+    constructor(charIds, opts) {
+      this.damageScale = (opts && opts.damageScale) || [1, 1];
       this.chars = charIds.slice();
       this.fighters = [makeFighter(charIds[0], 0), makeFighter(charIds[1], 1)];
       this.inputs = [0, 0];
@@ -598,7 +600,7 @@
       def.move = null;
       def.frame = 0;
       if (blocked) {
-        def.hp = Math.max(0, def.hp - (mv.chip || 0));
+        def.hp = Math.max(0, def.hp - Math.round((mv.chip || 0) * this.damageScale[att.slot]));
         def.state = 'blockstun';
         def.stateTimer = mv.blockstun;
         def.crouching = !!(this.inputs[def.slot] & IN.DOWN);
@@ -610,7 +612,7 @@
         this.events.push({ type: 'block', x: hx, y: hy, slot: def.slot });
         if (def.hp <= 0) this._koFighter(def, dir);
       } else {
-        const scale = Math.max(0.3, 1 - 0.1 * def.comboTaken);
+        const scale = Math.max(0.3, 1 - 0.1 * def.comboTaken) * this.damageScale[att.slot];
         const dmg = Math.max(1, Math.round(mv.damage * scale));
         def.hp = Math.max(0, def.hp - dmg);
         def.comboTaken++;
@@ -754,21 +756,41 @@
   }
 
   /*
-   * IA simple pour le mode « contre l'ordi ».
+   * IA pour le mode « contre l'ordi ».
+   * Le niveau (0 = très gentil … 1 = coriace) règle tout : temps de réaction,
+   * envie d'attaquer, garde, usage de la spéciale et du super.
    */
+  function cpuProfile(lvl) {
+    return {
+      decisionGap: Math.round(8 + (1 - lvl) * 40),  // images entre deux décisions
+      activity: 0.3 + 0.7 * lvl,                      // envie d'agir à chaque décision
+      block: 0.65 * Math.pow(lvl, 1.6),               // probabilité de se protéger
+      dodge: 0.05 + 0.55 * lvl,                       // éviter un projectile
+      special: 0.08 + 0.3 * lvl,                      // utiliser sa spéciale
+      useSuper: lvl >= 0.5,
+      airAttack: 0.1 + 0.3 * lvl,
+      reaction: Math.round(4 + (1 - lvl) * 22),       // retard de réaction aux menaces
+    };
+  }
+
+  // Dégâts infligés par l'ordi selon le niveau (aide les débutants)
+  function cpuDamageScale(lvl) { return lvl < 0.3 ? 0.5 : Math.min(1, 0.7 + 0.35 * lvl); }
+
   class CpuBrain {
     constructor(level) {
-      this.level = level || 0.6; // 0..1
+      this.level = level === undefined ? 0.5 : level; // 0..1
+      this.p = cpuProfile(this.level);
       this.bits = 0;
       this.holdTicks = 0;
-      this.reactDelay = 0;
       this.lastDecision = 0;
+      this.threatSeen = -1; // image où une menace a été repérée
     }
 
     think(game, slot) {
       const me = game.fighters[slot];
       const op = game.fighters[1 - slot];
       const ch = CHARACTERS[me.char];
+      const P = this.p;
       if (game.phase !== 'fight') { this.bits = 0; return 0; }
 
       const dx = op.x - me.x;
@@ -776,58 +798,69 @@
       const toward = dx > 0 ? IN.RIGHT : IN.LEFT;
       const away = dx > 0 ? IN.LEFT : IN.RIGHT;
       const r = Math.random;
-      const lvl = this.level;
+      const now = game.frameCount;
 
       // Les boutons d'attaque doivent être relâchés pour être réappuyés
       const attackBits = IN.LIGHT | IN.HEAVY | IN.SPECIAL | IN.SUPER;
       if (this.bits & attackBits) { this.bits &= ~attackBits; return this.bits; }
 
       if (this.holdTicks > 0) { this.holdTicks--; return this.bits; }
+      if (me.state === 'blockstun') return this.bits;
 
-      // Menaces : projectile qui arrive, adversaire qui attaque de près
+      // Menaces : projectile qui arrive, adversaire qui attaque de près.
+      // Un ordi facile met du temps à réagir.
       const incoming = game.projectiles.find(p => p.owner !== slot && Math.sign(p.vx) === Math.sign(me.x - p.x) && Math.abs(p.x - me.x) < 260);
       const opAttacking = op.state === 'attack' && dist < 190;
+      if (incoming || opAttacking) {
+        if (this.threatSeen < 0) this.threatSeen = now;
+      } else this.threatSeen = -1;
+      const reacted = this.threatSeen >= 0 && now - this.threatSeen >= P.reaction;
 
-      if (me.state === 'blockstun') { return this.bits; }
-
-      if (incoming && r() < 0.55 * lvl + 0.1) {
+      if (incoming && reacted && r() < P.dodge) {
         if (r() < 0.5 && me.onGround) { this.bits = IN.UP | toward; this.holdTicks = 4; }
         else { this.bits = away; this.holdTicks = 14; }
+        this.threatSeen = -1;
         return this.bits;
       }
-      if (opAttacking && r() < 0.5 * lvl) {
+      if (opAttacking && reacted && r() < P.block) {
         const mv = CHARACTERS[op.char].moves[op.move];
         this.bits = away | (mv && mv.level === 'low' ? IN.DOWN : 0);
         this.holdTicks = 10;
+        this.threatSeen = -1;
         return this.bits;
       }
 
       if (!(me.state === 'idle' || me.state === 'walk' || me.state === 'crouch')) {
-        // Attaque aérienne en descente
-        if (me.state === 'jump' && me.vy < 2 && dist < 150 && r() < 0.3) {
+        if (me.state === 'jump' && me.vy < 2 && dist < 150 && r() < P.airAttack * 0.3) {
           this.bits = r() < 0.5 ? IN.HEAVY : IN.LIGHT;
         }
         return this.bits;
       }
 
       // Rythme de décision
-      if (game.frameCount - this.lastDecision < 6 + Math.floor((1 - lvl) * 14)) return this.bits;
-      this.lastDecision = game.frameCount;
+      if (now - this.lastDecision < P.decisionGap) return this.bits;
+      this.lastDecision = now;
 
-      if (me.meter >= METER_MAX && dist < (me.char === 'matcha' ? 320 : 520) && r() < 0.35) {
+      // Moments d'hésitation (beaucoup en facile)
+      if (r() > P.activity) {
+        this.bits = r() < 0.5 ? 0 : (r() < 0.6 ? away : toward);
+        this.holdTicks = 10 + Math.floor(r() * 25);
+        return this.bits;
+      }
+
+      if (P.useSuper && me.meter >= METER_MAX && dist < (me.char === 'matcha' ? 320 : 520) && r() < 0.35) {
         this.bits = IN.SUPER; return this.bits;
       }
 
       if (dist > 340) {
-        if (ch.moves.special.projectile && r() < 0.35) { this.bits = IN.SPECIAL; return this.bits; }
-        if (me.char === 'matcha' && dist < 420 && r() < 0.15) { this.bits = IN.SPECIAL; return this.bits; }
+        if (ch.moves.special.projectile && r() < P.special) { this.bits = IN.SPECIAL; return this.bits; }
+        if (me.char === 'matcha' && dist < 420 && r() < P.special * 0.5) { this.bits = IN.SPECIAL; return this.bits; }
         this.bits = toward; this.holdTicks = 10 + Math.floor(r() * 15); return this.bits;
       }
       if (dist > 150) {
         const roll = r();
-        if (roll < 0.15) { this.bits = IN.UP | toward; this.holdTicks = 3; }
-        else if (roll < 0.25 && me.char === 'matcha') { this.bits = IN.SPECIAL; }
-        else if (roll < 0.25 && ch.moves.special.projectile) { this.bits = IN.SPECIAL; }
+        if (roll < 0.12) { this.bits = IN.UP | toward; this.holdTicks = 3; }
+        else if (roll < 0.12 + P.special * 0.5 && (me.char === 'matcha' || ch.moves.special.projectile)) { this.bits = IN.SPECIAL; }
         else if (roll < 0.85) { this.bits = toward; this.holdTicks = 6 + Math.floor(r() * 10); }
         else { this.bits = away; this.holdTicks = 8; }
         return this.bits;
@@ -846,6 +879,6 @@
 
   return {
     TICK_RATE, STAGE_W, STAGE_H, GROUND_Y, ROUND_TIME, WINS_NEEDED, METER_MAX,
-    IN, CHARACTERS, CHAR_IDS, Game, CpuBrain,
+    IN, CHARACTERS, CHAR_IDS, Game, CpuBrain, cpuDamageScale,
   };
 });

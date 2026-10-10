@@ -99,7 +99,7 @@
     name: '',
     game: null, // jeu local
     brain: null,
-    cpuLevel: 0.6,
+    cpuLevel: 0.15,
     snap: null,
     fx: new R.Effects(),
     names: ['', ''],
@@ -126,6 +126,14 @@
   };
 
   try { app.name = localStorage.getItem('dogfight.name') || ''; } catch (e) { /* ignore */ }
+  try {
+    const lv = parseFloat(localStorage.getItem('dogfight.cpuLevel'));
+    const chip = [...document.querySelectorAll('[data-level]')].find(c => parseFloat(c.dataset.level) === lv);
+    if (chip) {
+      app.cpuLevel = lv;
+      for (const c of document.querySelectorAll('[data-level]')) c.classList.toggle('active', c === chip);
+    }
+  } catch (e) { /* ignore */ }
   $('name').value = app.name;
   $('name').addEventListener('input', () => {
     app.name = $('name').value;
@@ -190,7 +198,7 @@
   // ---------------------------------------------------------------------------
   function newDemo() {
     app.demo = new C.Game(['ainu', 'matcha']);
-    app.demoBrains = [new C.CpuBrain(0.7), new C.CpuBrain(0.7)];
+    app.demoBrains = [new C.CpuBrain(0.9), new C.CpuBrain(0.9)];
     app.demoFx = new R.Effects();
   }
   newDemo();
@@ -376,7 +384,8 @@
   // ---------------------------------------------------------------------------
   function startLocal(chars) {
     app.chars = chars;
-    app.game = new C.Game(chars);
+    // Contre l'ordi : il frappe moins fort en Facile
+    app.game = new C.Game(chars, app.mode === 'cpu' ? { damageScale: [1, C.cpuDamageScale(app.cpuLevel)] } : undefined);
     app.brain = app.mode === 'cpu' ? new C.CpuBrain(app.cpuLevel) : null;
     app.alts = [false, chars[0] === chars[1]];
     const n = app.name.trim();
@@ -584,6 +593,7 @@
     const chip = e.target.closest('[data-level]');
     if (chip) {
       app.cpuLevel = parseFloat(chip.dataset.level);
+      try { localStorage.setItem('dogfight.cpuLevel', String(app.cpuLevel)); } catch (err) { /* ignore */ }
       for (const c of document.querySelectorAll('[data-level]')) c.classList.toggle('active', c === chip);
     }
   });

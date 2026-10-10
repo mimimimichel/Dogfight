@@ -181,4 +181,31 @@ test('ordi contre ordi : des matchs complets sans erreur', () => {
   }
 });
 
+test('l\'ordi en Facile est battu par un joueur qui tape au hasard', () => {
+  let won = 0;
+  for (let m = 0; m < 10; m++) {
+    const g = new C.Game(m % 2 ? ['ainu', 'matcha'] : ['matcha', 'ainu'], { damageScale: [1, C.cpuDamageScale(0.15)] });
+    const cpu = new C.CpuBrain(0.15);
+    let t = 0;
+    while (g.phase !== 'matchover' && t < 60 * 600) {
+      const me = g.fighters[0], op = g.fighters[1];
+      const toward = op.x > me.x ? IN.RIGHT : IN.LEFT;
+      const b = t % 14 === 0 ? (Math.random() < 0.6 ? IN.LIGHT : IN.HEAVY) : (Math.abs(op.x - me.x) > 110 ? toward : 0);
+      g.setInput(0, b); g.setInput(1, cpu.think(g, 1)); g.tick(); t++;
+    }
+    if (g.matchWinner === 0) won++;
+  }
+  assert.ok(won >= 8, 'victoires : ' + won + '/10');
+});
+
+test('le handicap de dégâts s\'applique', () => {
+  const g = new C.Game(['ainu', 'matcha'], { damageScale: [1, 0.5] });
+  skipIntro(g);
+  g.fighters[0].x = 400; g.fighters[1].x = 490; g.fighters[1].facing = -1; g.fighters[0].facing = 1;
+  run(g, 1, 0, IN.LIGHT);
+  run(g, 20, 0, 0);
+  const lost = C.CHARACTERS.ainu.maxHp - g.fighters[0].hp;
+  assert.strictEqual(lost, Math.round(C.CHARACTERS.matcha.moves.light.damage * 0.5));
+});
+
 console.log(`\n${passed} test(s) réussi(s)` + (process.exitCode ? ' — ÉCHECS ci-dessus' : ''));
