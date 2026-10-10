@@ -98,7 +98,19 @@ def paint_ainu(m):
     # sangles du harnais (poitrail et sangle ventrale)
     strap = (1 - head) * (ss(0.03, 0.015, np.abs(z - 0.38)) + ss(0.03, 0.015, np.abs(z + 0.42))) * ss(0.7, 0.8, y) * ss(1.32, 1.22, y)
     c = mix(c, 0x5e3218, np.clip(strap, 0, 1) * 0)
-    return c, nose, MX, eyeY
+    # collerette des joues dorée sur les bords, roux plus soutenu derrière
+    ruff = head * ss(0.18, 0.3, ax) * ss(eyeY - 0.02, eyeY - 0.15, y)
+    c = mix(c, 0xf5a95a, ruff * 0.55)
+    # traits de fourrure peints dans le sens du poil (hors masque du visage)
+    comb = np.stack([np.sign(hx) * 0.6, -np.ones_like(hx), -0.5 * np.ones_like(hx)], 1)
+    q = P - comb * (np.sum(P * comb, 1, keepdims=True) * 0.8 / np.sum(comb * comb, 1, keepdims=True))
+    st = noise(q, 38.0, 1.3) * 0.6 + noise(q, 81.0, 7.1) * 0.4
+    face = mask * ss(0.22, 0.12, ax)
+    c = c * (1 - 0.32 * ss(0.62, 0.78, st) * (1 - face))[:, None]
+    c = c * (1 + 0.12 * ss(0.3, 0.15, st) * (1 - face))[:, None]
+    # ombrage peint : faces tournées vers le bas et l'arrière plus foncées
+    c = c * (0.78 + 0.22 * ss(-0.6, 0.4, N[:, 1]))[:, None]
+    return np.clip(c, 0, 1), nose, MX, eyeY
 
 # ---------------------------------------------------------------------------
 # MATCHA
@@ -191,7 +203,7 @@ def build(lite):
     a = load('ainu', 9000 if lite else 26000)
     ca, nose, MX, eyeY = paint_ainu(a)
     cav = cavity(a)
-    ca = ca * (1 - 0.45 * ss(0.15, 0.6, cav))[:, None]          # encre dans les creux de la fourrure
+    ca = ca * (1 - 0.6 * ss(0.1, 0.5, cav))[:, None]          # encre dans les creux de la fourrure
     names, bones, W = skin_ainu(a, nose, MX)
     dec = (MX - 0.32, MX + 0.32, nose[1] - 0.26, nose[1] + 0.38,
            lambda P, N: ss(0.15, 0.5, N[:, 2]) * ss(nose[2] - 0.4, nose[2] - 0.3, P[:, 2]))
