@@ -209,6 +209,14 @@ class Adventure {
     this.dom.balls.textContent = s.balls.length;
     this.dom.ballsBox.classList.toggle('hidden', !(s.balls.length > 0 && !s.medals.includes('m_balls')));
     const hp = this.player ? this.me.hearts : MAX_HEARTS;
+    // à deux, le joueur de Matcha voit Matcha en grand
+    const mt = this.player && this.me.kind === 'matcha';
+    if (this.dom.partyMatcha !== mt && this.dom.pAinu.src) {
+      this.dom.partyMatcha = mt;
+      const [a, b] = [this.dom.pAinu.src, this.dom.pMatcha.src];
+      this.dom.pAinu.src = b; this.dom.pMatcha.src = a;
+      this.dom.root.querySelector('.adv-name').innerHTML = mt ? 'Matcha <small>&amp; Ainu</small>' : 'Ainu <small>&amp; Matcha</small>';
+    }
     this.dom.hearts.innerHTML = Array.from({ length: MAX_HEARTS }, (_, i) => `<img src="${i < hp ? ICONS.heart : ICONS.heartEmpty}" alt="">`).join('');
     let q;
     if (!s.intro) q = 'Parle à Mamie Labrador';
