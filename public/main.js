@@ -20,7 +20,12 @@
     // Agrandissement par pas entiers de pixels quand c'est possible (pixels nets)
     const raw = Math.min(window.innerWidth / 480, window.innerHeight / 270);
     const k = raw >= 2 ? Math.floor(raw) : raw;
-    document.getElementById('stage').style.setProperty('--scale', String(Math.max(0.3, k / 2)));
+    const st = document.getElementById('stage');
+    st.style.setProperty('--scale', String(Math.max(0.3, k / 2)));
+    // Tablette : s'il reste beaucoup de place en bas, la scène monte et les commandes tactiles s'y logent
+    const spare = window.innerHeight - 270 * k;
+    const touchDevice = document.documentElement.classList.contains('touch');
+    st.classList.toggle('top', touchDevice && spare > window.innerHeight * 0.18);
   }
   window.addEventListener('resize', fit);
   fit();
@@ -70,9 +75,12 @@
     return b;
   }
 
+  const T = window.DogTouch;
+  const IS_TOUCH = !!(T && T.isTouch);
+
   function playerBits(slot) {
-    if (app.mode === 'local') return keyBits(slot === 0 ? KEYMAPS.p1 : KEYMAPS.p2) | padBits(slot);
-    return keyBits(KEYMAPS.solo) | padBits(0);
+    if (app.mode === 'local') return keyBits(slot === 0 ? KEYMAPS.p1 : KEYMAPS.p2) | padBits(slot) | (slot === 0 && T ? T.bits() : 0);
+    return keyBits(KEYMAPS.solo) | padBits(0) | (T ? T.bits() : 0);
   }
 
   // ---------------------------------------------------------------------------
@@ -122,6 +130,28 @@
     for (const el of document.querySelectorAll('.screen')) el.classList.add('hidden');
     const el = $('screen-' + screen);
     if (el) el.classList.remove('hidden');
+    const playing = screen === 'game';
+    if (IS_TOUCH) {
+      T.setVisible(playing);
+      $('pause-btn').classList.toggle('hidden', !playing);
+    }
+  }
+
+  // Plein écran + paysage sur téléphone (Android ; iOS ignore poliment)
+  function goFullscreen() {
+    if (!IS_TOUCH || document.fullscreenElement) return;
+    const el = document.documentElement;
+    const req = el.requestFullscreen || el.webkitRequestFullscreen;
+    if (!req) return;
+    try {
+      const pr = req.call(el, { navigationUI: 'hide' });
+      if (pr && pr.then) pr.then(() => screen.orientation && screen.orientation.lock && screen.orientation.lock('landscape').catch(() => {})).catch(() => {});
+    } catch (e) { /* ignore */ }
+  }
+
+  function togglePause() {
+    if (app.screen === 'game') { app.paused = app.mode !== 'online'; show('pause'); }
+    else if (app.screen === 'pause') { app.paused = false; show('game'); }
   }
 
   let toastTimer = null;
@@ -243,7 +273,7 @@
     const btn = $('ready-btn');
     btn.disabled = false;
     if (app.mode === 'cpu') {
-      st.textContent = 'Q/D ou clic pour choisir, J pour valider';
+      st.textContent = IS_TOUCH ? 'Touche un chien pour le choisir' : 'Q/D ou clic pour choisir, J pour valider';
       btn.textContent = 'Combattre !';
     } else if (app.mode === 'local') {
       st.textContent = s.active === 0
@@ -538,6 +568,7 @@
   function playerName() { return (app.name || '').trim() || 'Anonyme'; }
 
   function onAction(a) {
+    if (a === 'online' || a === 'cpu' || a === 'ready' || a === 'join' || a === 'quick' || a === 'create') goFullscreen();
     switch (a) {
       case 'online': app.mode = 'online'; show('online'); $('online-status').textContent = ''; break;
       case 'cpu': app.mode = 'cpu'; enterSelect(); break;
@@ -609,11 +640,7 @@
 
     if (app.screen === 'select') { selectKey(e.code); return; }
 
-    if (e.code === 'Escape') {
-      if (app.screen === 'game') { app.paused = app.mode !== 'online'; show('pause'); }
-      else if (app.screen === 'pause') { app.paused = false; show('game'); }
-      return;
-    }
+    if (e.code === 'Escape') { togglePause(); return; }
     if (app.screen === 'game' || app.screen === 'result') onInputEvent();
   });
 
@@ -636,6 +663,20 @@
   // ---------------------------------------------------------------------------
   // Boucle principale
   // ---------------------------------------------------------------------------
+  if (IS_TOUCH) {
+    T.onChange = () => { if (app.screen === 'game') onInputEvent(); };
+    $('pause-btn').addEventListener('click', (e) => { e.stopPropagation(); togglePause(); });
+  }
+  // Débloque le son au premier contact (exigence des navigateurs mobiles)
+  window.addEventListener('pointerdown', () => sfx.unlock(), { passive: true });
+
+  function updateTouchHud() {
+    if (!IS_TOUCH || app.screen !== 'game' || !app.snap) return;
+    const me = app.mode === 'online' ? app.slot : 0;
+    const f = app.snap.fighters[me];
+    T.setSuperReady(!!f && f.meter >= C.METER_MAX);
+  }
+
   let last = performance.now();
   let acc = 0;
   let netAcc = 0;
@@ -675,7 +716,7 @@
       R.drawScene(ctx, app.snap, {
         fx: app.fx, names: app.names, alts: app.alts, paused: app.paused,
         extra: app.mode === 'online' ? { ping: app.ping } : null,
-        debug: app.debug, game: app.game,
+        debug: app.debug, game: app.game, touch: IS_TOUCH,
       });
     } else if (inGame) {
       ctx.fillStyle = '#120a1c';
@@ -686,6 +727,7 @@
     }
 
     if (app.screen === 'select') drawPreviews(Math.floor(now / STEP));
+    updateTouchHud();
 
     requestAnimationFrame(frame);
   }

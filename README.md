@@ -37,6 +37,15 @@ En pair-à-pair, l'hôte doit garder l'onglet du jeu au premier plan : un onglet
 
 ## Commandes
 
+### Téléphone et tablette (en paysage)
+
+- **Pouce gauche** : un joystick apparaît là où on pose le doigt. Glisser à droite ou à gauche pour avancer ou reculer (reculer protège), vers le haut pour sauter, vers le bas pour s'accroupir.
+- **Pouce droit** : boutons LÉGER, LOURD, SPÉ. et SUPER (il clignote quand la jauge est pleine).
+- Bouton **II** pour la pause. En portrait, le jeu demande de tourner l'appareil.
+- Astuce : « Ajouter à l'écran d'accueil » installe le jeu comme une appli, en plein écran.
+
+### Clavier
+
 Clavier AZERTY (les touches physiques correspondent à WASD en QWERTY).
 
 | Action | Solo / En ligne | J1 (local) | J2 (local) |

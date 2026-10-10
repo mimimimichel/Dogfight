@@ -186,7 +186,9 @@
     opts = opts || {};
     const { w, h, idx, grp } = r;
     const n = w * h;
-    const dt = new Int16Array(n), db = new Int16Array(n), dl = new Int16Array(n), dr = new Int16Array(n);
+    // Tampons réutilisés d'une image à l'autre (pas d'allocation par image)
+    if (!r._d || r._d.n !== n) r._d = { n, dt: new Int16Array(n), db: new Int16Array(n), dl: new Int16Array(n), dr: new Int16Array(n) };
+    const { dt, db, dl, dr } = r._d;
     for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
       const i = y * w + x; if (!idx[i]) continue;
       dt[i] = (y > 0 && idx[i - w] && grp[i - w] === grp[i]) ? dt[i - w] + 1 : 0;
@@ -839,7 +841,23 @@
     return { x: Math.round(SPR_OX + hx - size / 2), y: Math.round(SPR_OY + hy - size / 2), size };
   }
 
+  const portraitCache = new Map();
   function drawPortrait(ctx, charId, alt, x, y, facing, mood) {
+    const key = charId + (alt ? 'A' : '') + mood;
+    let c = portraitCache.get(key);
+    if (!c) {
+      c = makeCanvas(32, 32);
+      renderPortrait(c.getContext('2d'), charId, alt, 0, 0, 1, mood);
+      portraitCache.set(key, c);
+    }
+    ctx.save();
+    ctx.translate(x + (facing < 0 ? 32 : 0), y);
+    ctx.scale(facing, 1);
+    ctx.drawImage(c, 0, 0);
+    ctx.restore();
+  }
+
+  function renderPortrait(ctx, charId, alt, x, y, facing, mood) {
     const pose = basePose();
     pose.mouth = mood === 'hurt' ? 0.45 : 0.2;
     pose.tongue = mood !== 'hurt';
@@ -1190,20 +1208,27 @@
       });
     }
   }
+  function crowdSprite(c) {
+    const shape = CROWD_SHAPES[c.shape];
+    const cv = makeCanvas(shape[0].length, shape.length);
+    const g = cv.getContext('2d');
+    for (let j = 0; j < shape.length; j++) {
+      for (let i = 0; i < shape[j].length; i++) {
+        const ch = shape[j][i];
+        if (ch === '.') continue;
+        pset(g, i, j, ch === 'X' ? c.fur[0] : ch === 'o' ? c.fur[1] : ch === 'E' ? '#fff4d0' : '#0a0606');
+      }
+    }
+    return cv;
+  }
+
   function drawCrowd(ctx, frame, excite) {
     if (!crowd) buildCrowd();
     for (const c of crowd) {
-      const shape = CROWD_SHAPES[c.shape];
+      if (!c.img) c.img = crowdSprite(c);
       let dy = Math.sin(frame * 0.05 + c.phase) > 0.92 ? -1 : 0;
       if (excite > 0) dy = -Math.round(Math.abs(Math.sin(frame * 0.25 * c.hop + c.phase)) * Math.min(5, excite * 5));
-      for (let j = 0; j < shape.length; j++) {
-        const row = shape[j];
-        for (let i = 0; i < row.length; i++) {
-          const ch = row[i];
-          if (ch === '.') continue;
-          pset(ctx, c.x + i, c.y + j + dy, ch === 'X' ? c.fur[0] : ch === 'o' ? c.fur[1] : ch === 'E' ? '#fff4d0' : '#0a0606');
-        }
-      }
+      ctx.drawImage(c.img, c.x, c.y + dy);
     }
   }
 
@@ -1471,7 +1496,7 @@
     }
   }
 
-  function drawHud(ctx, snap, names, fx, alts, extra) {
+  function drawHud(ctx, snap, names, fx, alts, extra, touch) {
     const barW = 168, barH = 9, top = 9;
     for (let i = 0; i < 2; i++) {
       const f = snap.fighters[i];
@@ -1501,8 +1526,9 @@
         drawPawIcon(ctx, wx, top + barH + 7, snap.wins[i] > k);
       }
       // Jauge de super
-      const mW = 96, mH = 5, my = H - 11;
-      const mx = i === 0 ? 10 : W - 10 - mW;
+      // Sur tactile, les boutons occupent le bas de l'écran : jauge sous la barre de vie
+      const mW = 96, mH = 5, my = touch ? top + barH + 18 : H - 11;
+      const mx = touch ? (i === 0 ? x0 : x0 + barW - mW) : (i === 0 ? 10 : W - 10 - mW);
       const full = f.meter >= C.METER_MAX;
       prect(ctx, mx - 2, my - 2, mW + 4, mH + 4, '#0e0816');
       prect(ctx, mx - 1, my - 1, mW + 2, mH + 2, '#3a5a8a');
@@ -1514,7 +1540,7 @@
       prect(ctx, mx0, my, mw, 1, pulse ? '#ffffff' : '#7ac8ff');
       prect(ctx, mx0, my + mH - 1, mw, 1, pulse ? '#5ad8f0' : '#1a5aa8');
       for (let s = 1; s < 4; s++) prect(ctx, mx + (mW * s) / 4, my, 1, mH, '#0e0816');
-      ptext(ctx, full ? 'SUPER OK!' : 'SUPER', i === 0 ? mx : mx + mW, my - 12, { align: i === 0 ? 'left' : 'right', color: full ? (pulse ? '#ffffff' : '#a8f8ff') : '#9ac0ff', color2: full ? '#5ad8f0' : '#6a90d0' });
+      if (!touch) ptext(ctx, full ? 'SUPER OK!' : 'SUPER', i === 0 ? mx : mx + mW, my - 12, { align: i === 0 ? 'left' : 'right', color: full ? (pulse ? '#ffffff' : '#a8f8ff') : '#9ac0ff', color2: full ? '#5ad8f0' : '#6a90d0' });
       // Combo
       const cs = fx.comboShow[i];
       if (cs.t > 0 && cs.n >= 2 && (cs.t > 20 || cs.t % 4 < 2)) {
@@ -1652,7 +1678,7 @@
     }
 
     if (!opts.noHud) {
-      drawHud(ctx, snap, names, fx, alts, opts.extra);
+      drawHud(ctx, snap, names, fx, alts, opts.extra, opts.touch);
       drawAnnouncements(ctx, snap, names, fx);
     }
   }
