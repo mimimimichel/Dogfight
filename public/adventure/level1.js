@@ -4,6 +4,10 @@
  * personnages. Utilisé par le jeu et par les tests (Node).
  */
 
+export const ID = 1;
+export const NAME = 'Le Parc des Toutous';
+export const SAVE_KEY = 'dogfight.aventure.niveau1';
+export const CAT_PLACE = 'dans la clairière';
 export const WATER_Y = 0;
 export const ISLAND_R = 68;
 
@@ -330,3 +334,13 @@ export const trees = [];
 }
 
 export const START = { x: SPOTS.spawn.x, z: SPOTS.spawn.z, y: groundY(SPOTS.spawn.x, SPOTS.spawn.z), yaw: Math.PI };
+
+// Chemins de terre (suivent les os dorés)
+export const PATHS = [
+  [[0, 48], [0, 10]], [[0, -8], [0, -40]], [[6, 8], [26, 4]], [[-6, 8], [-22, 5]],
+  [[14, -10], [ELEVATOR.x + 2, ELEVATOR.z + 2]], [[0, 46], [-5, 44]],
+];
+
+// Cristaux lumineux décoratifs [x, z, couleur]
+export const CRYSTALS = [[-5.5, 36, 0x3ee8d8], [5.2, 32.5, 0xb070ff], [-5.5, -17, 0x3ee8d8], [5.6, -33, 0xb070ff], [-8, -48, 0x3ee8d8], [8.5, -40, 0xff70c8],
+  [-22, -16, 0xb070ff], [-17, 21, 0x3ee8d8], [19, 19, 0xff70c8], [38, -30, 0x3ee8d8], [29, -39, 0xb070ff], [-47, 8.5, 0x3ee8d8]];

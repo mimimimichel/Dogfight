@@ -5,12 +5,12 @@
  * l'île, ramasse 100 os dorés et récupère 5 Médailles Patounes.
  */
 import * as THREE from '../vendor/three.module.min.js';
-import * as L from './level1.js';
+import { L, setLevel } from './current.js';
+import * as F from './forest.js';
 import * as M from './models.js';
 import * as W from './world.js';
 import * as T from './toon.js';
 
-const SAVE_KEY = 'dogfight.aventure.niveau1';
 const STEP = 1 / 60;
 const GRAVITY = 32;
 const RUN_SPEED = 8.5;
@@ -23,6 +23,7 @@ const ATTACK_TIME = 0.45;
 const PLAYER_R = 0.55;
 const STEP_UP = 0.6;
 const SOLID = new Set(['trunk', 'tree', 'rock']);
+const CAM_BLOCK = new Set(['trunk', 'tree', 'stump']);
 const MAX_HEARTS = 3;
 
 const isChild = (o, root) => { for (let p = o.parent; p; p = p.parent) if (p === root) return true; return false; };
@@ -41,11 +42,18 @@ const ICONS = {
   medal: svg('<path d="M20 4h10l4 16H24zM34 4h10l-4 16H30z" fill="#3a8ae0" stroke="#1a4a90" stroke-width="2"/><circle cx="32" cy="40" r="20" fill="url(#g)" stroke="#8a5200" stroke-width="3"/><g fill="#c07a08"><ellipse cx="32" cy="45" rx="7" ry="6"/><circle cx="23" cy="36" r="3.4"/><circle cx="29" cy="31" r="3.4"/><circle cx="35" cy="31" r="3.4"/><circle cx="41" cy="36" r="3.4"/></g>'),
   heart: svg('<path d="M32 56 9 33a13 13 0 0 1 23-17 13 13 0 0 1 23 17z" fill="url(#r)" stroke="#7a0a18" stroke-width="3" stroke-linejoin="round"/><ellipse cx="20" cy="24" rx="5" ry="3.5" fill="#fff" opacity=".6" transform="rotate(-35 20 24)"/>'),
   heartEmpty: svg('<path d="M32 56 9 33a13 13 0 0 1 23-17 13 13 0 0 1 23 17z" fill="rgba(0,0,0,.28)" stroke="rgba(255,255,255,.75)" stroke-width="3" stroke-linejoin="round"/>'),
+  kibble: svg('<g fill="#8a5200"><circle cx="32" cy="32" r="22"/></g><circle cx="32" cy="32" r="18" fill="url(#g)"/><g fill="#c07a08"><circle cx="25" cy="27" r="3"/><circle cx="38" cy="25" r="2.6"/><circle cx="36" cy="38" r="3.2"/><circle cx="24" cy="39" r="2.4"/></g><ellipse cx="25" cy="22" rx="5" ry="3" fill="#fff" opacity=".55"/>'),
   ball: svg('<circle cx="32" cy="32" r="24" fill="url(#t)" stroke="#5a7000" stroke-width="3"/><path d="M12 20c10 6 10 18 0 24M52 20c-10 6-10 18 0 24" fill="none" stroke="#fff" stroke-width="3.5"/>'),
 };
 
 // ---------------------------------------------------------------------------
-export async function start(opts) { await M.preloadDogs(); return new Adventure(opts || {}); }
+export async function start(opts) {
+  opts = opts || {};
+  setLevel(opts.level || 1);
+  W.applySky(L.SKY);
+  await M.preloadDogs();
+  return new Adventure(opts);
+}
 
 class Adventure {
   constructor(opts) {
@@ -78,13 +86,13 @@ class Adventure {
     this.buildEntities();
     if (this.lite) {
       // ombres figées : seuls les éléments immobiles du décor en projettent
-      const moving = [this.player.mesh, this.puppy.mesh, this.elevatorMesh, this.bonesI,
+      const moving = [this.player.mesh, this.puppy.mesh, this.elevatorMesh, this.bonesI, ...(this.levelLogic ? this.levelLogic.moving : []),
         ...this.cats.map(c => c.mesh), ...this.medals.map(m => m.mesh), ...this.balls.map(b => b.mesh), ...this.crates.map(c => c.mesh)];
-      for (const o of moving) o.traverse(k => { k.castShadow = false; });
+      for (const o of moving) if (o) o.traverse(k => { k.castShadow = false; });
     }
     // Cel shading : aplats de lumière + contours sombres
     T.toonify(this.scene);
-    const chars = [this.player.mesh, this.mamie, this.puppy.mesh, ...this.cats.map(c => c.mesh)];
+    const chars = [this.player.mesh, this.mamie, this.puppy.mesh, ...this.cats.map(c => c.mesh), ...(this.levelLogic ? this.levelLogic.chars : [])];
     for (const c of chars) T.outlineTree(c, 0.018, 0x1e120c);
     const vista = this.vista.group;
     T.outlineTree(this.scene, 0.035, 0x2a1c14, (o) => {
@@ -111,15 +119,15 @@ class Adventure {
   // -------------------------------------------------------------------------
   // Sauvegarde
   // -------------------------------------------------------------------------
-  emptySave() { return { bones: [], medals: [], balls: [], crates: [], cats: [], puppy: 'lost', intro: false, done: false, time: 0 }; }
+  emptySave() { return { bones: [], medals: [], balls: [], crates: [], cats: [], lanterns: [], boss: false, puppy: L.ID === 1 ? 'lost' : 'home', intro: false, done: false, time: 0 }; }
   loadSave() {
     this.save = this.emptySave();
     try {
-      const s = JSON.parse(localStorage.getItem(SAVE_KEY) || 'null');
+      const s = JSON.parse(localStorage.getItem(L.SAVE_KEY) || 'null');
       if (s) Object.assign(this.save, s);
     } catch (e) { /* ignore */ }
   }
-  persist() { if (this.guest) return; try { localStorage.setItem(SAVE_KEY, JSON.stringify(this.save)); } catch (e) { /* ignore */ } }
+  persist() { if (this.guest) return; try { localStorage.setItem(L.SAVE_KEY, JSON.stringify(this.save)); } catch (e) { /* ignore */ } }
   hasProgress() { const s = this.save; return s.intro && (s.bones.length || s.medals.length || s.balls.length); }
 
   // -------------------------------------------------------------------------
@@ -141,7 +149,7 @@ class Adventure {
         </div>
         <div class="adv-right">
           <div class="adv-counts">
-            <div class="adv-count"><img src="${ICONS.bone}" alt=""><span id="adv-bones">0</span><small>/100</small></div>
+            <div class="adv-count"><img src="${L.ID === 2 ? ICONS.kibble : ICONS.bone}" alt=""><span id="adv-bones">0</span><small>/100</small></div>
             <div class="adv-count"><img src="${ICONS.medal}" alt=""><span id="adv-medals">0</span><small>/5</small></div>
             <div class="adv-count adv-balls hidden"><img src="${ICONS.ball}" alt=""><span id="adv-balls">0</span><small>/5</small></div>
           </div>
@@ -299,11 +307,12 @@ class Adventure {
     r.shadowMap.type = touch ? THREE.PCFShadowMap : THREE.PCFSoftShadowMap;
     this.renderer = r;
     this.scene = new THREE.Scene();
-    this.scene.fog = new THREE.Fog(W.SKY.horizon.getHex(), 80, 230);
+    const LT = Object.assign({ hemi: [0xd8ecff, 0xa87a4a, 0.7], sun: [0xfff1d6, 2.6], fog: [80, 230] }, L.LIGHT || {});
+    this.scene.fog = new THREE.Fog(W.SKY.horizon.getHex(), LT.fog[0], LT.fog[1]);
     this.sky = W.buildSky(this.scene);
     this.camera = new THREE.PerspectiveCamera(55, 16 / 9, 0.1, 1200);
-    this.scene.add(new THREE.HemisphereLight(0xd8ecff, 0xa87a4a, 0.7));
-    const sun = new THREE.DirectionalLight(0xfff1d6, 2.6);
+    this.scene.add(new THREE.HemisphereLight(...LT.hemi));
+    const sun = new THREE.DirectionalLight(...LT.sun);
     sun.castShadow = true;
     const sc = sun.shadow.camera;
     if (touch) {
@@ -391,6 +400,32 @@ class Adventure {
     this.grass = W.buildGrass(sc, q0, this.wind);
     W.buildFlowers(sc, q0);
     W.buildTrees(sc, q0);
+    this.fallTex = this.makeWaterfallTexture();
+    this.pedestalBalls = [];
+    if (L.ID === 1) this.buildParc();
+    else this.levelLogic = F.buildForest(this, { THREE, M, W, T });
+
+    // Nuages et papillons
+    this.clouds = W.buildPaintedClouds(sc);
+    this.vista = W.buildVista(sc, this.fallTex);
+    W.buildRuins(sc);
+    W.buildPaths(sc);
+    this.crystals = W.buildCrystals(sc);
+    this.butterflies = W.buildButterflies(sc);
+
+    // Panneaux
+    for (const s of L.signs) {
+      const m = M.buildSign(s.text);
+      m.position.set(s.x, L.heightAt(s.x, s.z), s.z);
+      m.rotation.y = Math.atan2(L.START.x - s.x, L.START.z - s.z) * 0.3;
+      sc.add(m);
+    }
+  }
+
+  /** Décor propre au niveau 1 : Grand Chêne, îlot, ascenseur, cascade, niche, clôture, piédestal. */
+  buildParc() {
+    const sc = this.scene;
+    const m4 = new THREE.Matrix4(), q = new THREE.Quaternion(), v = new THREE.Vector3(), sv = new THREE.Vector3(), e = new THREE.Euler();
 
     // Grand Chêne : tronc noueux, branches rondes en spirale, grand feuillage
     const T = L.TREE;
@@ -551,8 +586,7 @@ class Adventure {
     sc.add(bridge);
 
     // Cascade : un ruisseau traverse le plateau puis se jette du bord de la falaise
-    const fallTex = this.makeWaterfallTexture();
-    this.fallTex = fallTex;
+    const fallTex = this.fallTex;
     const S = L.STREAM, PL = L.POOL, fz = S.z;
     const edgeX = S.x1, topY = S.y, baseY = PL.y;
     const fallH = topY - baseY + 0.1;
@@ -646,22 +680,6 @@ class Adventure {
     postI.castShadow = railI.castShadow = true;
     sc.add(postI, railI);
 
-    // Nuages et papillons
-    this.clouds = W.buildPaintedClouds(sc);
-    this.vista = W.buildVista(sc, this.fallTex);
-    W.buildRuins(sc);
-    W.buildPaths(sc);
-    this.crystals = W.buildCrystals(sc);
-    this.butterflies = W.buildButterflies(sc);
-
-    // Panneaux
-    for (const s of L.signs) {
-      const m = M.buildSign(s.text);
-      m.position.set(s.x, L.heightAt(s.x, s.z), s.z);
-      m.rotation.y = Math.atan2(L.START.x - s.x, L.START.z - s.z) * 0.3;
-      sc.add(m);
-    }
-
     // Piédestal des balles
     this.pedestal = M.buildPedestal();
     const P = L.SPOTS.pedestal;
@@ -715,7 +733,7 @@ class Adventure {
     this.shadow = this.makeShadow(0.8);
 
     // Os dorés (instanciés)
-    this.bonesI = new THREE.InstancedMesh(M.boneGeometry(), M.mat(0xffd34d, { metalness: 0.7, roughness: 0.3, emissive: 0x6a4800, emissiveIntensity: 0.6 }), L.bones.length);
+    this.bonesI = new THREE.InstancedMesh(L.ID === 2 ? F.kibbleGeometry() : M.boneGeometry(), M.mat(0xffd34d, { metalness: 0.7, roughness: 0.3, emissive: 0x6a4800, emissiveIntensity: 0.6 }), L.bones.length);
     this.boneTaken = new Set(s.bones);
     sc.add(this.bonesI);
 
@@ -857,7 +875,7 @@ class Adventure {
 
   updateMedalVisibility() {
     const s = this.save;
-    const reveal = {
+    const reveal = this.levelLogic ? this.levelLogic.reveal() : {
       m_tree: true,
       m_cats: L.cats.filter(c => c.group === 'clearing').every(c => s.cats.includes(c.id)),
       m_crate: s.crates.includes('c1'),
@@ -1007,7 +1025,7 @@ class Adventure {
   frame(now) {
     if (this.disposed) return;
     this.raf = requestAnimationFrame((t) => this.frame(t));
-    const dt = Math.min(0.1, (now - this.lastFrame) / 1000);
+    const dt = Math.max(0, Math.min(0.1, (now - this.lastFrame) / 1000));
     this.lastFrame = now;
     if (this.guest) this.guestFrame(dt);
     else if (!this.paused) {
@@ -1035,6 +1053,7 @@ class Adventure {
     this.stepCats(dt);
     this.stepNpcs(dt);
     this.stepCollect(dt);
+    if (this.levelLogic) this.levelLogic.step(dt);
     this.stepParticles(dt);
     this.stepEnd(dt);
     this.pressed.clear();
@@ -1083,6 +1102,7 @@ class Adventure {
   /** Hôte : joue seul avec les deux chiens tant que personne n'a rejoint. */
   initHostSession() {
     const ses = this.hostSession;
+    ses.level = L.ID;
     this.localBanner = this.banner.bind(this);
     // les effets (sons, particules, bandeaux) sont rejoués chez l'autre joueur
     this.coopEvents = [];
@@ -1149,19 +1169,30 @@ class Adventure {
       n: this.nearby ? (this.nearby.kind === 'sign' ? 'LIRE' : 'PARLER') : '',
       ev: this.coopEvents.splice(0),
     };
+    if (this.levelLogic) snap.x = this.levelLogic.snapshot();
     const sv = JSON.stringify(Object.assign({}, this.save, { time: 0 }));
     if (sv !== this.lastSaveSent) { snap.sv = this.save; this.lastSaveSent = sv; }
     this.coop.link.send(snap);
   }
 
   onCoopMessage(m) {
-    if (!this.guest && m.t === 'ready') this.lastSaveSent = undefined;
+    if (!this.guest && m.t === 'ready') { this.lastSaveSent = undefined; this.coop.link.send({ t: 'level', id: L.ID }); }
+    else if (this.guest && m.t === 'level' && m.id !== L.ID) this.guestSwitch(m.id);
     else if (!this.guest && m.t === 'in') {
       const l = Math.hypot(m.mx, m.mz) || 1;
       this.remote.mx = l > 1 ? m.mx / l : m.mx; this.remote.mz = l > 1 ? m.mz / l : m.mz;
       this.remote.h = !!m.h;
       for (const a of m.p || []) if (['jump', 'attack', 'dash', 'talk'].includes(a)) this.remotePressed.add(a);
     } else if (this.guest && m.t === 's') this.applySnapshot(m);
+  }
+
+  /** Invité : l'hôte a changé de niveau, on recharge le même. */
+  guestSwitch(id) {
+    const coop = this.coop;
+    coop.link.onmessage = null; coop.link.onclose = null;
+    this.coop = null;
+    this.dispose();
+    start({ sfx: this.sfx, onExit: this.onExit, coop, level: id });
   }
 
   onCoopClose() {
@@ -1252,6 +1283,7 @@ class Adventure {
     const prompt = this.dom.prompt;
     if (s.n && !this.isTouch) { prompt.textContent = `F : ${s.n.toLowerCase()}`; prompt.classList.remove('hidden'); }
     else prompt.classList.add('hidden');
+    if (s.x && this.levelLogic) this.levelLogic.apply(s.x);
     // effets
     for (const [n, ...a] of s.ev) {
       if (n === 'overlay') this.showOverlay(a[0]);
@@ -1268,6 +1300,7 @@ class Adventure {
     for (const c of this.crates) { c.broken = s.crates.includes(c.def.id); c.mesh.visible = !c.broken; }
     for (const m of this.medals) m.taken = s.medals.includes(m.def.id);
     this.updateMedalVisibility();
+    if (this.levelLogic && this.levelLogic.applySave) this.levelLogic.applySave();
     this.updateHud();
   }
 
@@ -1289,7 +1322,7 @@ class Adventure {
   pushOut(p, y) {
     const r = PLAYER_R;
     const solids = [];
-    for (const c of L.colliders) if (SOLID.has(c.kind)) solids.push(c);
+    for (const c of L.colliders) if ((SOLID.has(c.kind) || c.solid) && !c.off) solids.push(c);
     for (const c of this.crates) if (!c.broken) solids.push({ type: 'box', x: c.def.x, z: c.def.z, w: 1.2, d: 1.2, y0: c.def.y, y1: c.def.y + 1.2 });
     for (const c of solids) {
       if (c.y1 <= y + 0.35 || c.y0 >= y + 1.5) continue;
@@ -1406,6 +1439,13 @@ class Adventure {
     } else {
       P.grounded = false; P.onCol = null;
     }
+    // Champignons rebondissants
+    if (P.grounded && P.onCol && P.onCol.bounce) {
+      P.vel.y = P.onCol.bounce; P.grounded = false; P.jumps = 1; P.coyote = 0;
+      P.onCol.squashT = this.t;
+      this.sound('boing');
+      this.burst(P.pos.x, P.pos.y + 0.1, P.pos.z, 8, 0xffe0f0, 3, 0.4);
+    }
 
     // Point sûr pour réapparaître
     if (P.grounded && sup.y > 0.4 && !(sup.collider && sup.collider.moving) && this.t - P.lastSafeT > 0.4) {
@@ -1457,8 +1497,9 @@ class Adventure {
       setTimeout(() => {
         if (this.disposed) return;
         P.hearts = MAX_HEARTS;
-        P.pos.set(L.START.x, L.START.y, L.START.z); P.vel.set(0, 0, 0); P.invuln = 2;
-        this.camYaw = L.START.yaw + Math.PI;
+        const sp = (this.levelLogic && this.levelLogic.respawn()) || L.START;
+        P.pos.set(sp.x, sp.y, sp.z); P.vel.set(0, 0, 0); P.invuln = 2;
+        this.camYaw = (sp.yaw === undefined ? Math.PI : sp.yaw) + Math.PI;
         if (this.puppy.state === 'follow') this.puppy.pos.copy(P.pos);
         this.updateHud();
         this.fade(false);
@@ -1545,9 +1586,9 @@ class Adventure {
       const left = L.cats.filter(k => k.group === 'clearing' && !this.save.cats.includes(k.id)).length;
       if (left === 0) {
         this.updateMedalVisibility();
-        this.banner('Les chats bandits ont fui !', 'Une Médaille Patoune est apparue dans la clairière !', 3000);
+        this.banner('Les chats bandits ont fui !', `Une Médaille Patoune est apparue ${L.CAT_PLACE} !`, 3000);
         this.sound('reveal');
-      } else this.banner('Miaou… !', `Encore ${left} chat${left > 1 ? 's' : ''} bandit${left > 1 ? 's' : ''} dans la clairière`, 1600);
+      } else this.banner('Miaou… !', `Encore ${left} chat${left > 1 ? 's' : ''} bandit${left > 1 ? 's' : ''} ${L.CAT_PLACE}`, 1600);
     }
   }
 
@@ -1633,6 +1674,7 @@ class Adventure {
   }
 
   talkMamie(first) {
+    if (this.levelLogic) { this.levelLogic.talkMamie(first); return; }
     const s = this.save;
     const k = this.controlsHelp();
     if (first || !s.intro) {
@@ -1751,9 +1793,9 @@ class Adventure {
         this.sound('bone', s.bones.length);
         if (s.bones.length % 20 === 0) {
           if (P.hearts < MAX_HEARTS) P.hearts++;
-          this.banner(`${s.bones.length} os dorés !`, P.hearts === MAX_HEARTS ? 'Les cœurs sont pleins' : '+1 cœur', 1500);
+          this.banner(`${s.bones.length} ${L.COLLECT_NAME || 'os dorés'} !`, P.hearts === MAX_HEARTS ? 'Les cœurs sont pleins' : '+1 cœur', 1500);
         }
-        if (s.bones.length === L.bones.length) this.banner('TOUS LES OS DORÉS !', 'Bravo, chasseurs de trésor !', 3000);
+        if (s.bones.length === L.bones.length) this.banner(`TOUS LES ${(L.COLLECT_NAME || 'os dorés').toUpperCase()} !`, 'Bravo, chasseurs de trésor !', 3000);
         this.persist(); this.updateHud();
       }
     }
@@ -1812,7 +1854,7 @@ class Adventure {
     if (this.endTimer > 0) return;
     this.endTimer = undefined;
     const s = this.save;
-    this.say([
+    this.say(this.levelLogic ? this.levelLogic.endLines() : [
       { who: 'Mamie Labrador', text: 'Les 5 Médailles Patounes ! Le Parc des Toutous est sauvé !' },
       { who: 'Matcha', text: 'Ces chats bandits n\'avaient aucune chance !' },
       { who: 'Mamie Labrador', text: 'Mais la Capitaine Moustache s\'est enfuie vers la Forêt des Moustaches…' },
@@ -1858,6 +1900,11 @@ class Adventure {
       case 'meow': s.meow && s.meow(); break;
       case 'meowHi': s.meow && s.meow(1.35); break;
       case 'win': s.win(); break;
+      case 'boing': s.tone(220, 0.25, { type: 'sine', to: 660, vol: 0.18 }); s.tone(330, 0.2, { type: 'triangle', to: 990, vol: 0.08, delay: 0.05 }); break;
+      case 'lantern': [784, 988, 1175, 1568].forEach((f, i) => s.tone(f, 0.16, { type: 'sine', vol: 0.1, delay: i * 0.06 })); break;
+      case 'switch': s.tone(180, 0.12, { type: 'square', to: 120, vol: 0.12 }); s.tone(520, 0.18, { type: 'triangle', to: 1040, vol: 0.1, delay: 0.1 }); break;
+      case 'throw': s.noise(0.15, { filter: 'bandpass', freq: 600, freqTo: 1600, vol: 0.18 }); break;
+      case 'bossHit': s.hit(true); s.meow && s.meow(0.8); break;
       case 'poof': s.noise(0.25, { freq: 1500, freqTo: 300, vol: 0.3 }); s.tone(500, 0.2, { type: 'sawtooth', to: 180, vol: 0.08 }); break;
       case 'crate': s.noise(0.2, { freq: 700, vol: 0.4 }); s.tone(160, 0.15, { type: 'square', to: 80, vol: 0.12 }); break;
       case 'hurt': s.hit(true); break;
@@ -1947,22 +1994,25 @@ class Adventure {
     mk.puppy.position.set(pp.pos.x, pp.pos.y + 1.7 + Math.sin(t * 4) * 0.1, pp.pos.z);
 
     // Monde animé
-    this.elevatorMesh.position.set(L.ELEVATOR.x, L.elevatorTop(t) - 0.25, L.ELEVATOR.z);
+    if (this.elevatorMesh) this.elevatorMesh.position.set(L.ELEVATOR.x, L.elevatorTop(t) - 0.25, L.ELEVATOR.z);
     this.fallTex.offset.y = (t * 1.4) % 1;
-    this.streamTex.offset.y = (t * 0.9) % 1;
+    if (this.streamTex) this.streamTex.offset.y = (t * 0.9) % 1;
+    if (this.levelLogic) this.levelLogic.render(dt, t);
     this.water.material.uniforms.uTime.value = t;
     this.wind.value = t;
     for (const c of this.clouds) { const u = c.userData, a = u.a + t * 0.004; c.position.set(Math.cos(a) * u.r, u.y, Math.sin(a) * u.r); }
     this.vista.isles.forEach((isl, i) => { isl.position.y = isl.userData.y0 + Math.sin(t * 0.35 + i * 1.7) * 1.6; });
     for (const [i, c] of this.crystals.entries()) c.children[c.children.length - 1].material.opacity = 0.4 + Math.sin(t * 2 + i) * 0.15;
     W.animateButterflies(this.butterflies, t);
-    const fp = this.flag.geometry.attributes.position;
-    for (let i = 0; i < fp.count; i++) {
-      const bx = this.flagBase[i * 3], k = (bx + 0.6) / 1.2;
-      fp.setZ(i, Math.sin(t * 6 - bx * 4) * 0.12 * k);
+    if (this.flag) {
+      const fp = this.flag.geometry.attributes.position;
+      for (let i = 0; i < fp.count; i++) {
+        const bx = this.flagBase[i * 3], k = (bx + 0.6) / 1.2;
+        fp.setZ(i, Math.sin(t * 6 - bx * 4) * 0.12 * k);
+      }
+      fp.needsUpdate = true;
     }
-    fp.needsUpdate = true;
-    if (Math.random() < dt * 20) {
+    if (this.fallPos && Math.random() < dt * 20) {
       const f = this.fallPos;
       this.spawnParticle(f.x + Math.random() * 2, f.y, f.z + (Math.random() - 0.5) * 3, (Math.random() - 0.3) * 1.5, 1.5 + Math.random() * 2, (Math.random() - 0.5) * 1.5, 0xe8f8ff, 0.25 + Math.random() * 0.2, 0.6, 6);
     }
@@ -1994,6 +2044,31 @@ class Adventure {
       this.camTarget.x + Math.sin(this.camYaw) * cp * this.camDist,
       this.camTarget.y + sp * this.camDist,
       this.camTarget.z + Math.cos(this.camYaw) * cp * this.camDist);
+    // un tronc entre la caméra et le duo : la caméra se rapproche
+    {
+      const tx = this.camTarget.x, tz = this.camTarget.z, dx = desired.x - tx, dz = desired.z - tz;
+      const len2 = dx * dx + dz * dz;
+      let f = 1;
+      for (const c of L.colliders) {
+        if (c.type !== 'cyl' || !CAM_BLOCK.has(c.kind)) continue;
+        const r = c.r + 0.35;
+        // intersection segment / cercle (plan horizontal)
+        const ox = tx - c.x, oz = tz - c.z;
+        const b = ox * dx + oz * dz, cc = ox * ox + oz * oz - r * r;
+        if (cc < 0) continue; // le duo est contre le tronc : on ignore
+        const disc = b * b - len2 * cc;
+        if (disc < 0) continue;
+        const hit = (-b - Math.sqrt(disc)) / len2;
+        if (hit <= 0 || hit >= f) continue;
+        const y = this.camTarget.y + (desired.y - this.camTarget.y) * hit;
+        if (y > c.y1 + 0.5 || y < c.y0) continue;
+        f = hit;
+      }
+      if (f < 1) {
+        f = Math.max(0.28, f - 0.06);
+        desired.set(tx + dx * f, this.camTarget.y + (desired.y - this.camTarget.y) * f, tz + dz * f);
+      }
+    }
     const ground = Math.max(L.heightAt(desired.x, desired.z), L.WATER_Y) + 1.0;
     if (desired.y < ground) desired.y = ground;
     if (!this.camInit) { this.camPos.copy(desired); this.camTarget.copy(target); this.camInit = true; }
@@ -2039,7 +2114,7 @@ class Adventure {
         ${this.coop ? '' : '<button class="btn" data-a="restart">Recommencer le niveau</button>'}
         <button class="btn ghost" data-a="quit">Menu principal</button>`;
     } else if (kind === 'continue') {
-      html = `<h2>Le Parc des Toutous</h2>
+      html = `<h2>${L.NAME}</h2>
         <div class="adv-stats">Médailles ${s.medals.length}/5 · Os ${s.bones.length}/100</div>
         <button class="btn primary" data-a="resume-save">Continuer l'aventure</button>
         <button class="btn" data-a="new">Nouvelle partie</button>
@@ -2054,10 +2129,11 @@ class Adventure {
         <div class="adv-stats">L'autre joueur a quitté la partie.</div>
         <button class="btn primary" data-a="lost">Menu principal</button>`;
     } else if (kind === 'complete') {
-      html = `<h2>Niveau 1 terminé !</h2>
+      html = `<h2>Niveau ${L.ID} terminé !</h2>
         <div class="adv-medals">${('<img src="' + ICONS.medal + '" alt="">').repeat(5)}</div>
         <div class="adv-stats">Os dorés ${s.bones.length}/100 · Temps ${fmt}</div>
-        <button class="btn primary" data-a="resume">Continuer à explorer</button>
+        ${L.ID === 1 && !this.guest ? '<button class="btn primary" data-a="next">Niveau 2 : la Forêt des Moustaches →</button>' : ''}
+        <button class="btn ${L.ID === 1 && !this.guest ? '' : 'primary'}" data-a="resume">Continuer à explorer</button>
         <button class="btn ghost" data-a="quit">Menu principal</button>`;
     }
     o.innerHTML = `<div class="adv-panel">${html}</div>`;
@@ -2083,14 +2159,22 @@ class Adventure {
       case 'restart': this.showOverlay('confirm'); break;
       case 'back-pause': this.showOverlay('pause'); break;
       case 'new':
-        try { localStorage.removeItem(SAVE_KEY); } catch (e) { /* ignore */ }
+        try { localStorage.removeItem(L.SAVE_KEY); } catch (e) { /* ignore */ }
         if (this.coop) { this.coop.link.onclose = null; this.coop = null; }
         this.dispose(true);
-        start({ sfx: this.sfx, onExit: this.onExit, coopHost: this.hostSession });
+        start({ sfx: this.sfx, onExit: this.onExit, coopHost: this.hostSession, level: L.ID });
         break;
+      case 'next': this.switchLevel(2); break;
       case 'quit': this.dispose(); this.onExit(); break;
       case 'lost': this.dispose(); this.onExit(); break;
     }
+  }
+
+  /** Passe à un autre niveau (l'ami connecté suit). */
+  switchLevel(id) {
+    if (this.coop) { this.coop.link.onclose = null; this.coop = null; }
+    this.dispose(true);
+    start({ sfx: this.sfx, onExit: this.onExit, coopHost: this.hostSession, level: id });
   }
 
   beginLevel(fresh) {
@@ -2100,7 +2184,7 @@ class Adventure {
       this.freeze = 0.6;
       setTimeout(() => { if (!this.disposed && !this.dialog) this.talkMamie(true); }, 700);
     } else {
-      this.banner('Le Parc des Toutous', `Médailles ${this.save.medals.length}/5`, 2200);
+      this.banner(L.NAME, `Médailles ${this.save.medals.length}/5`, 2200);
     }
   }
 

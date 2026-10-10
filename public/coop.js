@@ -86,7 +86,7 @@
         if (session.closed) { conn.close(); return; }
         const link = new Link(peer, conn, true, false);
         session.link = link;
-        link.send({ t: 'hello', role: other(role) });
+        link.send({ t: 'hello', role: other(role), level: session.level || 1 });
         if (session.onJoin) session.onJoin(link);
       });
     });
@@ -111,7 +111,7 @@
           if (m.t !== 'hello' || done) return;
           done = true; clearTimeout(timer); pending = null;
           link.onmessage = null;
-          cb.onReady(link, m.role);
+          cb.onReady(link, m.role, m.level || 1);
         };
       });
     });

@@ -3,7 +3,7 @@
  * ciel, eau, terrain, herbe animée par le vent, arbres, rochers, décor.
  */
 import * as THREE from '../vendor/three.module.min.js';
-import * as L from './level1.js';
+import { L } from './current.js';
 import * as M from './models.js';
 
 const smooth = (a, b, x) => { const t = Math.min(1, Math.max(0, (x - a) / (b - a))); return t * t * (3 - 2 * t); };
@@ -14,6 +14,13 @@ export const SKY = {
   bottom: new THREE.Color(0x9fd4f0),
   sunDir: new THREE.Vector3(0.45, 0.6, 0.38).normalize(),
 };
+const SKY_DEFAULT = { top: 0x1f74dc, horizon: 0xbcdcf6, bottom: 0x9fd4f0, sunDir: [0.45, 0.6, 0.38] };
+/** Ambiance du niveau (ciel, brume) : couleurs recopiées dans SKY, que les shaders partagent. */
+export function applySky(p) {
+  p = Object.assign({}, SKY_DEFAULT, p || {});
+  SKY.top.set(p.top); SKY.horizon.set(p.horizon); SKY.bottom.set(p.bottom);
+  SKY.sunDir.set(...p.sunDir).normalize();
+}
 
 // Générateur pseudo-aléatoire déterministe
 function rng(seed) { let s = seed; return () => (s = (s * 16807) % 2147483647) / 2147483647; }
@@ -22,14 +29,10 @@ function noise2(x, z) {
   return Math.sin(x * 0.21 + Math.sin(z * 0.13) * 1.7) * 0.5 + Math.sin(z * 0.17 + Math.cos(x * 0.11) * 2.1) * 0.35 + Math.sin((x + z) * 0.47) * 0.15;
 }
 
-// Chemins de terre (suivent les os dorés)
-const PATHS = [
-  [[0, 48], [0, 10]], [[0, -8], [0, -40]], [[6, 8], [26, 4]], [[-6, 8], [-22, 5]],
-  [[14, -10], [L.ELEVATOR.x + 2, L.ELEVATOR.z + 2]], [[0, 46], [-5, 44]],
-];
+// Chemins de terre : L.PATHS (suivent les os dorés)
 function pathDist(x, z) {
   let best = 1e9;
-  for (const [[ax, az], [bx, bz]] of PATHS) {
+  for (const [[ax, az], [bx, bz]] of L.PATHS) {
     const dx = bx - ax, dz = bz - az, l = dx * dx + dz * dz;
     let t = ((x - ax) * dx + (z - az) * dz) / l; t = Math.max(0, Math.min(1, t));
     best = Math.min(best, Math.hypot(x - ax - t * dx, z - az - t * dz));
@@ -102,7 +105,8 @@ export function buildTerrain(scene, quality) {
   const nrm = geo.attributes.normal;
   const colors = new Float32Array(pos.count * 3);
   const c = new THREE.Color(), tmp = new THREE.Color();
-  const G1 = new THREE.Color(0x5cb83c), G2 = new THREE.Color(0x86cf4a), G3 = new THREE.Color(0x3f9a36);
+  const gp = (L.PALETTE && L.PALETTE.ground) || [0x5cb83c, 0x86cf4a, 0x3f9a36];
+  const G1 = new THREE.Color(gp[0]), G2 = new THREE.Color(gp[1]), G3 = new THREE.Color(gp[2]);
   const SAND = new THREE.Color(0xf2dca6), WET = new THREE.Color(0xc8b07a), ROCK = new THREE.Color(0x9c8a78), ROCK2 = new THREE.Color(0x7c6c5e), DIRT = new THREE.Color(0xc89a62), DEEP = new THREE.Color(0x8aa890);
   for (let i = 0; i < pos.count; i++) {
     const x = pos.getX(i), y = pos.getY(i), z = pos.getZ(i), ny = nrm.getY(i);
@@ -338,16 +342,18 @@ export function buildTrees(scene, quality) {
   const trunks = new THREE.InstancedMesh(trunkGeo, M.mat(0x7a4e2c, { roughness: 0.95 }), n);
   const blobGeo = leafClusterGeo(quality && quality.lite ? 10 : 16);
   const blobs = [];
+  // style du feuillage selon le niveau (la forêt du niveau 2 a moins de touffes, plus grosses)
+  const ST = Object.assign({ min: 5, extra: 3, rad: 1.1, big: 1.9, small: 1.3, bushes: 2 }, L.TREE_STYLE || {});
   L.trees.forEach((t) => {
-    const top = t.y + 5 * t.s;
-    const k = 5 + Math.floor(r() * 3);
+    const top = t.y + (t.h || 5 * t.s);
+    const k = ST.min + Math.floor(r() * ST.extra);
     for (let i = 0; i < k; i++) {
       const a = (i / k) * Math.PI * 2 + r();
-      const rad = i === 0 ? 0 : 1.1 * t.s;
-      blobs.push({ x: t.x + Math.cos(a) * rad, y: top + (i === 0 ? 0.9 : r() * 0.8) * t.s, z: t.z + Math.sin(a) * rad, s: (i === 0 ? 1.9 : 1.3 + r() * 0.4) * t.s });
+      const rad = i === 0 ? 0 : ST.rad * t.s;
+      blobs.push({ x: t.x + Math.cos(a) * rad, y: top + (i === 0 ? 0.9 : r() * 0.8) * t.s, z: t.z + Math.sin(a) * rad, s: (i === 0 ? ST.big : ST.small + r() * 0.4) * t.s });
     }
     // buissons au pied
-    for (let i = 0; i < 2; i++) {
+    for (let i = 0; i < ST.bushes; i++) {
       const a = r() * Math.PI * 2;
       const bx = t.x + Math.cos(a) * 1.6, bz = t.z + Math.sin(a) * 1.6;
       blobs.push({ x: bx, y: L.heightAt(bx, bz) + 0.25, z: bz, s: 0.55 + r() * 0.3, bush: true });
@@ -357,9 +363,10 @@ export function buildTrees(scene, quality) {
   leaves.customDepthMaterial = leafDepthMaterial();
   const m4 = new THREE.Matrix4(), q = new THREE.Quaternion(), v = new THREE.Vector3(), s = new THREE.Vector3(), e = new THREE.Euler();
   const c = new THREE.Color();
-  const greens = [0x4caf3a, 0x5cc046, 0x3e9e34, 0x6ccf4e, 0x56b83e];
+  const greens = (L.PALETTE && L.PALETTE.leaves) || [0x4caf3a, 0x5cc046, 0x3e9e34, 0x6ccf4e, 0x56b83e];
   L.trees.forEach((t, i) => {
-    m4.compose(v.set(t.x, t.y + 2.4 * t.s, t.z), q.setFromEuler(e.set(0, r() * 6, (r() - 0.5) * 0.08)), s.set(t.s, t.s, t.s));
+    const th = t.h || 5 * t.s;
+    m4.compose(v.set(t.x, t.y + 2.4 * th / 5, t.z), q.setFromEuler(e.set(0, r() * 6, (r() - 0.5) * 0.08)), s.set(t.s, th / 5, t.s));
     trunks.setMatrixAt(i, m4);
   });
   blobs.forEach((b, i) => {
@@ -625,7 +632,7 @@ function pavingTexture() {
 export function buildPaths(scene) {
   const tex = pavingTexture();
   const geos = [];
-  for (const [[ax, az], [bx, bz]] of PATHS) {
+  for (const [[ax, az], [bx, bz]] of L.PATHS) {
     const len = Math.hypot(bx - ax, bz - az), n = Math.ceil(len / 0.6);
     const dx = (bx - ax) / len, dz = (bz - az) / len, nx = -dz, nz = dx, W = 1.7;
     const pos = [], uv = [], idx = [];
@@ -657,8 +664,7 @@ export function buildPaths(scene) {
 
 /** Cristaux lumineux (turquoise et violets). */
 export function buildCrystals(scene) {
-  const spots = [[-5.5, 36, 0x3ee8d8], [5.2, 32.5, 0xb070ff], [-5.5, -17, 0x3ee8d8], [5.6, -33, 0xb070ff], [-8, -48, 0x3ee8d8], [8.5, -40, 0xff70c8],
-    [-22, -16, 0xb070ff], [-17, 21, 0x3ee8d8], [19, 19, 0xff70c8], [38, -30, 0x3ee8d8], [29, -39, 0xb070ff], [-47, 8.5, 0x3ee8d8]];
+  const spots = L.CRYSTALS;
   const out = [];
   const glow = M.glowTexture();
   spots.forEach(([x, z, col], i) => {
