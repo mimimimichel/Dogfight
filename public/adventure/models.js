@@ -265,35 +265,38 @@ export function buildDuo() {
   const body = sculpt('body', [0, 0, 0]);
   ainu.add(body);
 
-  // Harnais de cuir, couverture turquoise bordée d'or, selle et sacoches
+  // Harnais en Y sur le poitrail, sangle, couverture turquoise, selle et sacoches
   const lk = new Kit();
-  lk.add(new THREE.TorusGeometry(0.43, 0.035, 8, 34), 0x6a3a1c, { y: 1.05, z: 0.3, sy: 1.1 });
-  lk.add(new THREE.TorusGeometry(0.44, 0.035, 8, 34), 0x6a3a1c, { y: 1.0, z: -0.3, sx: 0.97 });
-  lk.add(new THREE.TorusGeometry(0.4, 0.035, 8, 34), 0x6a3a1c, { y: 1.24, z: 0.66, rx: Math.PI / 2 - 0.85 });
-  lk.add(new THREE.SphereGeometry(1, 28, 10, 0, Math.PI * 2, 0, 0.8), (x, y, z, c) => c.set(y < 0.74 ? 0xe0b040 : 0x1e8a86), { y: 1.0, z: -0.04, sx: 0.47, sy: 0.43, sz: 0.5 });
-  lk.add(E(0.19, 0.07, 0.24), 0x7a4220, { y: 1.43, z: -0.06 });
-  lk.add(new THREE.TorusGeometry(0.05, 0.015, 6, 16), 0xe0b040, { y: 1.05, z: 0.74, rx: 0.3 });
+  const BR = 0x5e3218, BRL = 0x7a4422, GD = 0xe0b040;
+  lk.add(new THREE.TorusGeometry(0.31, 0.03, 8, 34), BR, { y: 1.3, z: 0.6, rx: Math.PI / 2 - 0.75, sx: 1.05 });   // collier du harnais
+  lk.add(new THREE.BoxGeometry(0.07, 0.42, 0.03), BR, { y: 0.97, z: 0.66, rx: -0.15 });                           // sangle du poitrail
+  lk.add(new THREE.TorusGeometry(0.34, 0.034, 8, 34), BR, { y: 0.98, z: 0.16, sy: 1.12 });                         // sangle derrière les épaules
+  lk.add(new THREE.TorusGeometry(0.33, 0.03, 8, 34), BR, { y: 1.0, z: -0.38, sy: 1.0 });
+  lk.add(new THREE.CylinderGeometry(0.045, 0.045, 0.015, 14), GD, { y: 1.15, z: 0.72, rx: Math.PI / 2 - 0.4 });     // boucle dorée
+  lk.add(new THREE.SphereGeometry(1, 28, 10, 0, Math.PI * 2, 0, 0.85), (x, y, z, c) => c.set(y < 0.7 ? GD : 0x1e8a86), { y: 0.97, z: -0.1, sx: 0.36, sy: 0.36, sz: 0.4 });
+  lk.add(E(0.17, 0.06, 0.22), BRL, { y: 1.33, z: -0.12 });
   for (const sx of [-1, 1]) {
-    lk.add(new THREE.BoxGeometry(0.14, 0.3, 0.34), 0x8a4e24, { x: sx * 0.48, y: 0.9, z: -0.08 });
-    lk.add(new THREE.BoxGeometry(0.16, 0.09, 0.36), 0x6a3a1c, { x: sx * 0.49, y: 1.05, z: -0.08, rz: sx * 0.25 });
-    lk.add(new THREE.CylinderGeometry(0.03, 0.03, 0.02, 10), 0xe0b040, { x: sx * 0.56, y: 0.96, z: -0.08, rz: Math.PI / 2 });
+    lk.add(new THREE.BoxGeometry(0.12, 0.24, 0.26), 0x8a4e24, { x: sx * 0.35, y: 0.86, z: 0.0 });
+    lk.add(new THREE.BoxGeometry(0.135, 0.07, 0.28), BR, { x: sx * 0.355, y: 0.98, z: 0.0, rz: sx * 0.2 });
+    lk.add(new THREE.CylinderGeometry(0.025, 0.025, 0.02, 10), GD, { x: sx * 0.415, y: 0.9, z: 0.0, rz: Math.PI / 2 });
   }
   ainu.add(lk.build(new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.7 })));
 
   // Tête
   const HP = [0, 1.6, 0.78];
   const head = new THREE.Group(); at(head, ...HP); ainu.add(head);
+  head.scale.setScalar(1.18);
   head.add(sculpt('head', HP));
   const fk = new Kit();
   for (const sx of [-1, 1]) {
-    // yeux en amande, brun très foncé, gros reflet
-    fk.add(E(0.05, 0.037, 0.02, 16), 0x3a1206, { x: sx * 0.115, y: 0.045, z: 0.278, ry: sx * 0.42, rz: sx * 0.22 }); // contour sombre
-    fk.add(E(0.04, 0.03, 0.022, 16), 0x1c0c06, { x: sx * 0.115, y: 0.045, z: 0.285, ry: sx * 0.42, rz: sx * 0.22 });
-    fk.add(S(0.011, 8, 6), 0xffffff, { x: sx * 0.115 + 0.01, y: 0.058, z: 0.302 });
+    // petits yeux en amande, bruns, légèrement tombants (regard doux)
+    fk.add(E(0.04, 0.026, 0.014, 16), 0x2a0e04, { x: sx * 0.105, y: 0.03, z: 0.262, ry: sx * 0.4, rz: sx * 0.28 }); // contour sombre
+    fk.add(E(0.031, 0.021, 0.016, 16), 0x1c0c06, { x: sx * 0.105, y: 0.03, z: 0.268, ry: sx * 0.4, rz: sx * 0.28 });
+    fk.add(S(0.009, 8, 6), 0xffffff, { x: sx * 0.105 + 0.008, y: 0.038, z: 0.282 });
   }
-  fk.add(E(0.048, 0.036, 0.04, 16), DK, { y: -0.068, z: 0.425 });          // truffe
-  fk.add(E(0.07, 0.03, 0.05, 14), 0x4a1008, { y: -0.165, z: 0.33 });    // bouche ouverte
-  fk.add(E(0.045, 0.02, 0.07, 12), 0xf0607a, { y: -0.185, z: 0.35, rx: 0.35 }); // langue
+  fk.add(E(0.042, 0.032, 0.034, 16), DK, { y: -0.07, z: 0.295 });          // truffe
+  fk.add(E(0.06, 0.022, 0.05, 14), 0x4a1008, { y: -0.135, z: 0.215 });    // bouche ouverte souriante
+  fk.add(E(0.042, 0.014, 0.05, 12), 0xf0607a, { y: -0.148, z: 0.24, rx: 0.3 }); // langue
   head.add(fk.build(gloss()));
 
   // Queue (pivot à la base)
@@ -303,7 +306,7 @@ export function buildDuo() {
 
   // Pattes (pivot à la hanche)
   const legs = [];
-  for (const [name, lx, lz] of [['legFL', -0.2, 0.42], ['legFR', 0.2, 0.42], ['legBL', -0.21, -0.46], ['legBR', 0.21, -0.46]]) {
+  for (const [name, lx, lz] of [['legFL', -0.16, 0.4], ['legFR', 0.16, 0.4], ['legBL', -0.16, -0.5], ['legBR', 0.16, -0.5]]) {
     const pv = [lx, 0.8, lz];
     const g = at(new THREE.Group(), ...pv);
     g.add(sculpt(name, pv));
@@ -312,7 +315,7 @@ export function buildDuo() {
   }
 
   // Matcha, debout sur la selle
-  const matcha = new THREE.Group(); at(matcha, 0, 1.38, -0.12); matcha.scale.setScalar(1.35); ainu.add(matcha);
+  const matcha = new THREE.Group(); at(matcha, 0, 1.36, -0.14); matcha.scale.setScalar(1.3); ainu.add(matcha);
   matcha.add(sculpt('mBody', [0, 0, 0], 0.4));
   const mk = new Kit();
   mk.add(new THREE.TorusGeometry(0.058, 0.014, 6, 18), 0xd02828, { y: 0.43, z: 0.225, rx: Math.PI / 2 + 0.6 });

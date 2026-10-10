@@ -1601,7 +1601,7 @@ class Adventure {
     u.tail.rotation.set(P.gliding ? -1.2 : 0, P.gliding ? t * 28 : Math.sin(t * (speed > 1 ? 14 : 7)) * 0.45, 0);
     u.tail.position.y = P.gliding ? 1.45 : 1.15;
     u.matcha.rotation.x = P.flipT > 0 ? (1 - P.flipT / 0.45) * Math.PI * 2 : (P.dashT > 0 ? 0.4 : 0);
-    u.matcha.position.y = 1.47 + (P.grounded ? Math.abs(Math.sin(P.phase + 0.6)) * 0.06 * run : 0.05) + (P.flipT > 0 ? Math.sin((1 - P.flipT / 0.45) * Math.PI) * 0.8 : 0);
+    u.matcha.position.y = 1.36 + (P.grounded ? Math.abs(Math.sin(P.phase + 0.6)) * 0.06 * run : 0.05) + (P.flipT > 0 ? Math.sin((1 - P.flipT / 0.45) * Math.PI) * 0.8 : 0);
     u.head.rotation.x = Math.sin(t * 2) * 0.05;
     if (P.cheerT > 0) { u.ainu.position.y = Math.abs(Math.sin(P.cheerT * 9)) * 0.5; u.matcha.rotation.z = Math.sin(P.cheerT * 12) * 0.3; } else u.matcha.rotation.z = 0;
     duo.visible = !(P.invuln > 0 && Math.floor(t * 12) % 2 === 0);

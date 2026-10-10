@@ -8,7 +8,7 @@ import { ell, rcone, flatCone, smin, smax, strands, noise, mesh, pack, sstep, cl
 
 const lin = (hex) => [(hex >> 16) & 255, (hex >> 8) & 255, hex & 255].map(c => { c /= 255; return c <= 0.04045 ? c / 12.92 : Math.pow((c + 0.055) / 1.055, 2.4); });
 const C = {
-  red: lin(0xcc5520), org: lin(0xe8732e), gold: lin(0xf8b058), cream: lin(0xfbe0b4), dark: lin(0x6a2408), earIn: lin(0xf4b890),
+  red: lin(0xc24c1c), org: lin(0xe46c2a), gold: lin(0xf6aa5c), cream: lin(0xfde6c2), dark: lin(0x5a2008), earIn: lin(0xf6c8a4),
   blk: lin(0x16131c), blk2: lin(0x2c2a3c), tan: lin(0xc2622a), tan2: lin(0xe08a44),
 };
 const lerp = mixv;
@@ -26,90 +26,97 @@ function lockField(p, comb, freq, seed) {
 function stroke(p, comb, freq) { return strands(p, comb, freq, 7.3); }
 
 // ---------------------------------------------------------------------------
-// AINU — repère : sol y = 0, avant +z. Pivots utilisés par le jeu :
-// tête (0,1.6,0.78) ; queue (0,1.15,-0.72) ; pattes (±0.2,0.8,0.42) et (±0.21,0.8,-0.46)
+// AINU — spitz élancé. Repère : sol y = 0, avant +z. Pivots utilisés par le jeu :
+// tête (0,1.6,0.78) ; queue (0,1.15,-0.72) ; pattes (±0.16,0.8,0.4) et (±0.16,0.8,-0.5)
 // ---------------------------------------------------------------------------
-const RUFF_C = [0, 1.36, 0.6];
+const RUFF_C = [0, 1.24, 0.55];
 function ainuBodyBase(p) {
-  let d = ell(p, [0, 1.0, -0.06], [0.37, 0.38, 0.62]);
-  d = smin(d, ell(p, [0, 1.02, 0.36], [0.37, 0.43, 0.36]), 0.12);
-  d = smin(d, ell(p, [0, 0.99, -0.48], [0.36, 0.37, 0.33]), 0.1);
-  d = smin(d, ell(p, RUFF_C, [0.47, 0.46, 0.34]), 0.14);          // grosse collerette autour du cou
-  d = smin(d, ell(p, [0, 1.06, 0.62], [0.3, 0.34, 0.24]), 0.1);   // plastron
+  let d = ell(p, [0, 0.99, 0.32], [0.3, 0.37, 0.34]);                 // poitrail profond
+  d = smin(d, ell(p, [0, 1.0, -0.12], [0.27, 0.29, 0.52]), 0.12);      // dos
+  d = smin(d, ell(p, [0, 0.99, -0.55], [0.28, 0.3, 0.29]), 0.1);       // croupe
+  d = smin(d, rcone(p, [0, 1.12, 0.45], [0, 1.47, 0.74], 0.25, 0.17), 0.1); // cou porté haut
+  d = smin(d, ell(p, RUFF_C, [0.33, 0.37, 0.3]), 0.12);                // collerette
+  d = smin(d, ell(p, [0, 0.96, 0.6], [0.22, 0.28, 0.17]), 0.08);       // plastron
   return d;
 }
 function ainuBodyComb(p) {
   const r = sub(p, RUFF_C);
-  const wr = sstep(0.75, 0.35, len([r[0], r[1], r[2] * 1.4]));
-  const back = [0, -0.35, -1];
-  const radial = norm([r[0], r[1] - 0.25, -0.5]);
-  const chest = p[2] > 0.55 && p[1] < 1.2 ? [0, -1, 0.25] : null;
+  const wr = sstep(0.6, 0.25, len([r[0], r[1], r[2] * 1.3]));
+  const back = [0, -0.3, -1];
+  const radial = norm([r[0], r[1] - 0.3, -0.6]);
   let c = lerp(back, radial, wr);
-  if (chest) c = lerp(c, chest, sstep(0.55, 0.75, p[2]));
+  if (p[2] > 0.45 && p[1] < 1.15) c = lerp(c, [0, -1, 0.2], sstep(0.45, 0.62, p[2]));
+  if (p[1] < 0.82) c = lerp(c, [0, -1, -0.4], sstep(0.82, 0.72, p[1]));
   return norm(c);
 }
 function ainuBody(p) {
   const d = ainuBodyBase(p);
   if (d > 0.12) return d;
-  return d - 0.045 * lockField(p, ainuBodyComb(p), 9, 1.3);
+  const r = sub(p, RUFF_C);
+  const edge = Math.max(sstep(0.62, 0.3, len([r[0], r[1], r[2] * 1.3])), sstep(0.8, 0.7, p[1]), sstep(0.55, 0.65, p[2]) * sstep(1.15, 0.9, p[1]));
+  const amp = 0.018 + 0.035 * edge;
+  return d - amp * lockField(p, ainuBodyComb(p), 13, 1.3);
 }
 function ainuBodyColor(p, n) {
   let c = C.org;
-  c = lerp(c, C.red, sstep(0.0, 0.8, n[1]) * sstep(1.2, 1.38, p[1]) * 0.5);           // dos plus foncé
-  c = lerp(c, C.gold, sstep(0.25, 0.75, n[2]) * sstep(1.45, 0.9, p[1]) * 0.9);         // poitrail doré
-  c = lerp(c, C.cream, sstep(0.72, 0.9, p[2]) * sstep(1.0, 0.75, p[1]) * 0.8);         // bas du plastron crème
-  c = lerp(c, C.gold, sstep(-0.3, -0.85, n[1]) * 0.6);                                 // ventre
-  const s = stroke(p, ainuBodyComb(p), 22);
-  return mul(c, 0.92 + s * 0.2);
+  c = lerp(c, C.red, sstep(0.2, 0.9, n[1]) * sstep(1.15, 1.3, p[1]) * 0.45);            // dos plus soutenu
+  c = lerp(c, C.gold, sstep(0.2, 0.7, n[2]) * sstep(1.5, 1.0, p[1]) * 0.8);              // devant doré
+  c = lerp(c, C.cream, sstep(0.55, 0.7, p[2]) * sstep(1.12, 0.85, p[1]));                // plastron crème
+  c = lerp(c, C.cream, sstep(-0.2, -0.8, n[1]) * sstep(0.9, 0.75, p[1]) * 0.85);         // ventre crème
+  const s = stroke(p, ainuBodyComb(p), 26);
+  return mul(c, 0.94 + s * 0.16);
 }
 
-const HEAD_C = [0, 1.62, 0.8];
+const HEAD_C = [0, 1.6, 0.82];
 function ainuHeadBase(p) {
-  let d = ell(p, HEAD_C, [0.3, 0.28, 0.29]);
-  d = smin(d, ell(p, [0, 1.5, 1.04], [0.15, 0.11, 0.19]), 0.09);           // museau
-  d = smin(d, ell(p, [0, 1.42, 0.97], [0.11, 0.06, 0.12]), 0.06);           // mâchoire
+  let d = ell(p, HEAD_C, [0.29, 0.235, 0.245]);
+  d = smin(d, ell(p, [0, 1.52, 1.0], [0.135, 0.095, 0.12]), 0.08);               // museau court et large
+  d = smin(d, ell(p, [0, 1.47, 0.99], [0.1, 0.045, 0.1]), 0.05);                 // mâchoire
+  for (const sx of [-1, 1]) d = smin(d, ell(p, [sx * 0.1, 1.68, 0.99], [0.07, 0.035, 0.05]), 0.04); // arcades
   for (const sx of [-1, 1]) {
-    d = smin(d, ell(p, [sx * 0.23, 1.5, 0.82], [0.2, 0.18, 0.16]), 0.08);   // joues duveteuses
-    d = smin(d, flatCone(p, [sx * 0.16, 1.8, 0.76], [sx * 0.24, 1.95, 0.74], 0.07, 0.014, [0, 0.15, 1], 2.4), 0.03); // oreilles
+    d = smin(d, ell(p, [sx * 0.22, 1.5, 0.8], [0.19, 0.17, 0.16]), 0.07);       // joues duveteuses (rouflaquettes)
+    d = smin(d, flatCone(p, [sx * 0.17, 1.76, 0.77], [sx * 0.225, 1.875, 0.75], 0.07, 0.03, [sx * 0.2, 0.1, 1], 2.4), 0.025); // petites oreilles écartées
   }
-  d = smin(d, ell(p, [0, 1.62, 0.66], [0.32, 0.3, 0.22]), 0.08);           // arrière du crâne
+  d = smin(d, ell(p, [0, 1.58, 0.7], [0.3, 0.27, 0.2]), 0.08);              // arrière de la tête duveteux
   return d;
 }
 function ainuHeadComb(p) {
-  const r = sub(p, [0, 1.58, 0.85]);
-  return norm([r[0] * 1.2, r[1] * 0.6 - 0.35, -0.6]);
+  const r = sub(p, [0, 1.56, 0.86]);
+  return norm([r[0] * 1.3, r[1] * 0.5 - 0.35, -0.6]);
 }
 function ainuHead(p) {
   const d = ainuHeadBase(p);
   if (d > 0.1) return d;
-  // poils sur les joues et l'arrière de la tête (pas sur le museau ni les oreilles)
-  const mask = sstep(1.0, 0.9, p[2]) * sstep(1.86, 1.75, p[1]);
-  return d - 0.04 * mask * lockField(p, ainuHeadComb(p), 11, 4.1);
+  const cheek = sstep(0.12, 0.26, Math.abs(p[0])) * sstep(1.66, 1.45, p[1]);
+  const mask = sstep(1.0, 0.9, p[2]) * sstep(1.8, 1.7, p[1]);
+  return d - (0.012 + 0.06 * cheek) * mask * lockField(p, ainuHeadComb(p), 13, 4.1);
 }
 function ainuHeadColor(p, n) {
   let c = C.org;
-  c = lerp(c, C.red, sstep(1.66, 1.86, p[1]) * 0.6);
-  // oreilles : bord foncé, intérieur clair
-  const ear = p[1] > 1.78 && Math.abs(p[0]) > 0.12;
-  if (ear) c = n[2] > 0.45 && Math.abs(Math.abs(p[0]) - (0.16 + (p[1] - 1.8) * 0.5)) < 0.035 ? C.earIn : lerp(C.red, C.dark, sstep(1.88, 1.96, p[1]));
-  // masque : museau et bas des joues dorés/crème
-  c = lerp(c, C.gold, sstep(0.88, 1.0, p[2]) * sstep(1.66, 1.52, p[1]));
-  c = lerp(c, C.cream, sstep(0.98, 1.08, p[2]) * sstep(1.56, 1.46, p[1]));
-  c = lerp(c, C.gold, sstep(0.1, 0.25, Math.abs(p[0])) * sstep(1.52, 1.4, p[1]) * 0.8);
-  // joues claires sous les yeux (masque du spitz)
-  c = lerp(c, C.cream, sstep(0.86, 0.98, p[2]) * sstep(1.6, 1.5, p[1]) * sstep(0.06, 0.12, Math.abs(p[0])) * 0.7);
-  // sourire : un trait sombre qui remonte vers les joues
+  c = lerp(c, C.red, sstep(1.6, 1.78, p[1]) * 0.6);
   const ax = Math.abs(p[0]);
-  const smileY = 1.44 + ax * ax * 3.2;
-  if (p[2] > 0.95 && ax < 0.14) c = lerp(c, lin(0x2a0c04), sstep(0.02, 0.009, Math.abs(p[1] - smileY)));
-  if (p[2] > 1.08 && ax < 0.012) c = lerp(c, C.dark, sstep(1.5, 1.46, p[1]) * sstep(1.43, 1.46, p[1]));
-  const s = stroke(p, ainuHeadComb(p), 28);
-  return mul(c, 0.88 + s * 0.22);
+  // oreilles : intérieur clair, pointes foncées
+  if (p[1] > 1.75 && ax > 0.08) {
+    const t = (p[1] - 1.75) / 0.15, axisX = 0.14 + t * 0.06, half = 0.062 * (1 - t * 0.7);
+    const inner = sstep(half * 0.95, half * 0.5, Math.abs(ax - axisX)) * sstep(0.1, 0.45, n[2]);
+    c = lerp(lerp(C.org, C.dark, sstep(1.85, 1.93, p[1]) * 0.8), C.earIn, inner);
+  }
+  // masque : sourcils dorés, museau et joues crème
+  c = lerp(c, C.gold, sstep(0.9, 1.0, p[2]) * sstep(1.64, 1.56, p[1]) * 0.8);
+  c = lerp(c, C.cream, sstep(0.9, 1.0, p[2]) * sstep(1.6, 1.54, p[1]));                  // masque crème sous les yeux
+  c = lerp(c, C.cream, sstep(0.05, 0.13, ax) * sstep(1.58, 1.5, p[1]) * sstep(0.8, 0.95, p[2]));
+  c = lerp(c, C.gold, sstep(0.16, 0.26, ax) * sstep(1.56, 1.44, p[1]) * 0.75);          // rouflaquettes dorées
+  c = lerp(c, lin(0x6a2208), sstep(0.022, 0.01, Math.hypot(ax - 0.11, (p[1] - 1.685) * 2.2)) * sstep(0.93, 1.0, p[2]));  // sourcils sombres
+  // babines noires : sourire qui remonte vers les joues
+  const smileY = 1.465 + ax * ax * 6;
+  if (p[2] > 0.98 && ax < 0.11) c = lerp(c, lin(0x1e0a04), sstep(0.016, 0.007, Math.abs(p[1] - smileY)));
+  const s = stroke(p, ainuHeadComb(p), 30);
+  return mul(c, 0.95 + s * 0.12);
 }
 
-// Queue : panache épais enroulé sur le dos
-const TAIL = [[0, 1.12, -0.7], [0, 1.38, -0.88], [0, 1.68, -0.8], [0, 1.82, -0.56], [0, 1.74, -0.3], [0, 1.58, -0.18]];
-const TAIL_R = [0.1, 0.16, 0.2, 0.19, 0.15, 0.08];
+// Queue : grand panache enroulé en cercle sur le dos, dessous crème
+const TAIL = [[0, 1.12, -0.76], [0, 1.4, -0.96], [0, 1.72, -0.92], [0, 1.9, -0.68], [0, 1.84, -0.42], [0, 1.62, -0.34], [0, 1.48, -0.46]];
+const TAIL_R = [0.1, 0.17, 0.22, 0.22, 0.19, 0.14, 0.07];
 function tailInfo(p) {
   let best = 1e9, bi = 0, bt = 0;
   for (let i = 0; i < TAIL.length - 1; i++) {
@@ -124,45 +131,45 @@ function tailInfo(p) {
 }
 function ainuTail(p) {
   const { d, tan } = tailInfo(p);
-  if (d > 0.12) return d;
-  return d - 0.06 * lockField(p, tan, 8, 9.2);
+  if (d > 0.14) return d;
+  return d - 0.07 * lockField(p, tan, 9, 9.2);
 }
 function ainuTailColor(p, n) {
   const { u, tan } = tailInfo(p);
-  let c = lerp(C.org, C.gold, sstep(0.3, 0.9, u));
-  // dessous / intérieur du panache crème
-  c = lerp(c, C.cream, sstep(0.0, -0.7, n[1]) * sstep(0.35, 0.6, u) * 0.8 + sstep(0.85, 1.0, u) * 0.5);
-  return mul(c, 0.86 + stroke(p, tan, 20) * 0.28);
+  let c = lerp(C.org, C.gold, sstep(0.45, 1.0, u) * 0.55);
+  // l'intérieur de la boucle (vers le dos) et le bout sont crème
+  const toCenter = norm(sub([0, 1.6, -0.62], p));
+  c = lerp(c, C.cream, sstep(0.1, 0.7, dot(n, toCenter)) * 0.55 + sstep(0.85, 1.0, u) * 0.6);
+  return mul(c, 0.92 + stroke(p, tan, 22) * 0.2);
 }
 
-// Pattes
+// Pattes : longues et fines, cuisses musclées à « culotte »
 function legBase(p, x, z, back) {
   if (!back) {
-    let d = ell(p, [x, 0.74, z], [0.16, 0.25, 0.16]);
-    d = smin(d, rcone(p, [x, 0.6, z + 0.01], [x, 0.1, z + 0.03], 0.12, 0.1), 0.06);
-    d = smin(d, ell(p, [x, 0.06, z + 0.07], [0.11, 0.07, 0.14]), 0.04);
+    let d = ell(p, [x, 0.8, z], [0.11, 0.2, 0.12]);
+    d = smin(d, rcone(p, [x, 0.64, z + 0.02], [x, 0.13, z + 0.03], 0.078, 0.058), 0.05);
+    d = smin(d, ell(p, [x, 0.05, z + 0.07], [0.075, 0.05, 0.1]), 0.035);
     return d;
   }
-  let d = ell(p, [x, 0.8, z], [0.19, 0.27, 0.23]);
-  d = smin(d, rcone(p, [x, 0.62, z - 0.06], [x, 0.32, z - 0.12], 0.13, 0.1), 0.06);
-  d = smin(d, rcone(p, [x, 0.32, z - 0.12], [x, 0.08, z - 0.05], 0.1, 0.09), 0.04);
-  d = smin(d, ell(p, [x, 0.06, z + 0.01], [0.11, 0.07, 0.14]), 0.04);
+  let d = ell(p, [x, 0.83, z], [0.14, 0.24, 0.2]);
+  d = smin(d, rcone(p, [x, 0.66, z - 0.08], [x, 0.33, z - 0.17], 0.09, 0.058), 0.05);
+  d = smin(d, rcone(p, [x, 0.33, z - 0.17], [x, 0.08, z - 0.09], 0.055, 0.052), 0.03);
+  d = smin(d, ell(p, [x, 0.05, z - 0.04], [0.075, 0.05, 0.1]), 0.03);
   return d;
 }
 function legSdf(x, z, back) {
   return (p) => {
     const d = legBase(p, x, z, back);
     if (d > 0.1) return d;
-    // franges à l'arrière des pattes, « culotte » sur les cuisses
-    const backSide = sstep(0.0, -0.08, p[2] - z + (back ? 0.02 : 0));
-    const amp = back ? 0.05 * sstep(0.35, 0.6, p[1]) + 0.03 * backSide : 0.035 * backSide * sstep(0.15, 0.4, p[1]);
-    return d - amp * lockField(p, [0, -1, -0.5], 10, x * 3 + z);
+    const backSide = sstep(0.0, -0.06, p[2] - z + (back ? 0.05 : 0));
+    const amp = back ? 0.05 * sstep(0.5, 0.7, p[1]) * backSide + 0.012 : 0.03 * backSide * sstep(0.25, 0.5, p[1]) + 0.01;
+    return d - amp * lockField(p, [0, -1, -0.5], 13, x * 3 + z);
   };
 }
 function legColor(p, n) {
-  let c = lerp(C.org, C.gold, sstep(0.35, 0.1, p[1]));
-  c = lerp(c, C.cream, sstep(0.14, 0.04, p[1]) * 0.7);
-  return mul(c, 0.88 + stroke(p, [0, -1, -0.3], 24) * 0.22);
+  let c = lerp(C.org, C.gold, sstep(0.45, 0.15, p[1]));
+  c = lerp(c, C.cream, sstep(-0.1, -0.7, n[2]) * 0.6 + sstep(0.12, 0.04, p[1]) * 0.7);   // arrière des pattes et pieds clairs
+  return mul(c, 0.94 + stroke(p, [0, -1, -0.3], 26) * 0.14);
 }
 
 // ---------------------------------------------------------------------------
@@ -192,7 +199,7 @@ function matchaHead(p) {
   let d = ell(p, [0, 0.56, 0.27], [0.09, 0.085, 0.09]);
   d = smin(d, rcone(p, [0, 0.535, 0.32], [0, 0.515, 0.43], 0.048, 0.027), 0.04);   // museau fin
   for (const sx of [-1, 1]) {
-    d = Math.min(d, flatCone(p, [sx * 0.06, 0.615, 0.255], [sx * 0.145, 0.8, 0.24], 0.04, 0.006, [sx * 0.2, 0.1, 1], 3.0)); // grandes oreilles bien séparées
+    d = Math.min(d, flatCone(p, [sx * 0.06, 0.615, 0.255], [sx * 0.13, 0.77, 0.24], 0.038, 0.008, [sx * 0.2, 0.1, 1], 3.0)); // grandes oreilles bien séparées
   }
   return d;
 }
@@ -201,7 +208,7 @@ function matchaHeadColor(p, n) {
   const ax = Math.abs(p[0]);
   // oreilles : intérieur rose-feu (face avant), bord noir
   if (p[1] > 0.635 && ax > 0.04) {
-    const t = (p[1] - 0.615) / 0.185, axisX = 0.06 + t * 0.085, half = 0.034 * (1 - t);
+    const t = (p[1] - 0.615) / 0.155, axisX = 0.06 + t * 0.07, half = 0.032 * (1 - t);
     const inner = sstep(half * 0.95, half * 0.55, Math.abs(ax - axisX)) * sstep(0.1, 0.4, n[2]);
     c = lerp(c, lin(0xe89a84), inner * 0.9);
   }
@@ -222,11 +229,11 @@ const run = (name, sdf, col, bmin, bmax, h) => {
   out.parts[name] = pack(m);
   console.log(name, m.pos.length, 'sommets', m.idx.length / 3, 'triangles');
 };
-run('body', ainuBody, ainuBodyColor, [-0.55, 0.45, -0.95], [0.55, 1.95, 1.0]);
-run('head', ainuHead, ainuHeadColor, [-0.42, 1.25, 0.4], [0.42, 2.1, 1.25], 0.012);
-run('tail', ainuTail, ainuTailColor, [-0.32, 0.9, -1.15], [0.32, 2.1, 0.0]);
-for (const [name, x, z, back] of [['legFL', -0.2, 0.42, 0], ['legFR', 0.2, 0.42, 0], ['legBL', -0.21, -0.46, 1], ['legBR', 0.21, -0.46, 1]]) {
-  run(name, legSdf(x, z, back), legColor, [x - 0.28, -0.05, z - 0.4], [x + 0.28, 1.12, z + 0.3]);
+run('body', ainuBody, ainuBodyColor, [-0.5, 0.5, -0.95], [0.5, 1.75, 0.95]);
+run('head', ainuHead, ainuHeadColor, [-0.36, 1.3, 0.5], [0.36, 2.05, 1.32], 0.01);
+run('tail', ainuTail, ainuTailColor, [-0.36, 0.95, -1.25], [0.36, 2.2, -0.1]);
+for (const [name, x, z, back] of [['legFL', -0.16, 0.4, 0], ['legFR', 0.16, 0.4, 0], ['legBL', -0.16, -0.5, 1], ['legBR', 0.16, -0.5, 1]]) {
+  run(name, legSdf(x, z, back), legColor, [x - 0.24, -0.05, z - 0.42], [x + 0.24, 1.12, z + 0.3], 0.012);
 }
 run('mBody', matchaBody, matchaBodyColor, [-0.15, -0.02, -0.32], [0.15, 0.56, 0.33], 0.006);
 run('mHead', matchaHead, matchaHeadColor, [-0.18, 0.45, 0.15], [0.18, 0.88, 0.47], 0.005);
