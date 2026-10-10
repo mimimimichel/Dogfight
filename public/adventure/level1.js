@@ -25,8 +25,8 @@ export const SPOTS = {
 const PLATEAU_R = 9.5;      // rayon du sommet plat
 const PLATEAU_H = 11;       // hauteur de la falaise
 
-/** Hauteur du terrain (sans les obstacles). */
-export function heightAt(x, z) {
+/** Relief brut, avant le lit du ruisseau et le bassin de la cascade. */
+function baseHeight(x, z) {
   const r = Math.hypot(x, z) / ISLAND_R;
   let h = 2.2 * (1 - smooth(0.78, 1.0, r)) - 3.2 * smooth(0.92, 1.2, r);
   const inland = 1 - smooth(0.7, 0.95, r);
@@ -44,6 +44,49 @@ export function heightAt(x, z) {
   const dp = Math.hypot(x - SPOTS.plateau.x, z - SPOTS.plateau.z);
   h += PLATEAU_H * (1 - smooth(PLATEAU_R, PLATEAU_R + 1.4, dp));
   return h;
+}
+
+// Ruisseau du plateau → cascade → bassin. L'eau est posée un peu au-dessus
+// d'un lit creusé dans le terrain, pour que l'herbe ne passe jamais à travers.
+const FZ = SPOTS.plateau.z + 2;
+export const STREAM = (() => {
+  const x0 = SPOTS.plateau.x + 2.5, x1 = SPOTS.plateau.x + Math.sqrt(10.9 ** 2 - 4) + 0.35;
+  let lo = Infinity;
+  for (let x = x0 - 1; x <= x1; x += 0.25) for (let dz = -2; dz <= 2; dz += 0.5) {
+    if (Math.hypot(x - SPOTS.plateau.x, FZ + dz - SPOTS.plateau.z) < PLATEAU_R - 0.2) lo = Math.min(lo, baseHeight(x, FZ + dz));
+  }
+  return { x0, x1, z: FZ, bed: lo - 0.28, y: lo - 0.06, half: 1.3 };
+})();
+export const POOL = (() => {
+  const x = STREAM.x1 + 2.6, z = FZ;
+  let lo = Infinity;
+  for (let a = 0; a < 6.28; a += 0.3) for (const r of [0, 1.5, 3]) lo = Math.min(lo, baseHeight(x + Math.cos(a) * r, z + Math.sin(a) * r));
+  const y = Math.max(lo, WATER_Y + 0.6);
+  return { x, z, r: 3.2, bed: y - 0.35, y: y - 0.12 };
+})();
+
+/** Hauteur du terrain (sans les obstacles). */
+export function heightAt(x, z) {
+  let h = baseHeight(x, z);
+  const S = STREAM;
+  if (x > S.x0 - 1.4 && x < S.x1 && Math.abs(z - S.z) < 2.6) {
+    const w = (1 - smooth(1.5, 2.5, Math.abs(z - S.z))) * smooth(S.x0 - 1.4, S.x0 - 0.3, x);
+    h = Math.min(h, h + (S.bed - h) * w);
+  }
+  const dpool = Math.hypot(x - POOL.x, z - POOL.z);
+  if (dpool < POOL.r + 1.6) {
+    const dp = Math.hypot(x - SPOTS.plateau.x, z - SPOTS.plateau.z);
+    const w = (1 - smooth(POOL.r - 0.1, POOL.r + 1.5, dpool)) * smooth(10.7, 11.3, dp);
+    h += (POOL.bed - h) * w;
+  }
+  return h;
+}
+
+/** Points couverts par l'eau du ruisseau ou du bassin (pas d'herbe ni de fleurs). */
+export function inWater(x, z, m = 0.4) {
+  const S = STREAM;
+  if (x > S.x0 - 1 - m && x < S.x1 + m && Math.abs(z - S.z) < S.half + 0.3 + m) return true;
+  return Math.hypot(x - POOL.x, z - POOL.z) < POOL.r + m;
 }
 
 // ---------------------------------------------------------------------------

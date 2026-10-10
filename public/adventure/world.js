@@ -259,6 +259,7 @@ export function buildGrass(scene, quality, windUniform) {
     const slope = Math.abs(L.heightAt(x + 0.5, z) - h) + Math.abs(L.heightAt(x, z + 0.5) - h);
     if (slope > 0.45) continue;
     if (onPath(x, z) && r() < 0.85) continue;
+    if (L.inWater(x, z)) continue;
     if (L.colliders.some(c => c.kind !== 'trunk' && c.kind !== 'tree' && L.inside(c, x, z, 0.3) && c.y1 > h)) continue;
     spots.push([x, h, z]);
   }
@@ -305,7 +306,10 @@ export function buildFlowers(scene, quality) {
     if (h < 1.6 || onPath(x, z)) continue;
     // en petits bouquets
     const n = 1 + Math.floor(r() * 4);
-    for (let k = 0; k < n; k++) spots.push([x + (r() - 0.5) * 1.2, z + (r() - 0.5) * 1.2]);
+    for (let k = 0; k < n; k++) {
+      const fx = x + (r() - 0.5) * 1.2, fz = z + (r() - 0.5) * 1.2;
+      if (!L.inWater(fx, fz, 0.8)) spots.push([fx, fz]);
+    }
   }
   const inst = new THREE.InstancedMesh(geo, new THREE.MeshStandardMaterial({ roughness: 0.6 }), spots.length);
   const cols = [0xffffff, 0xffe04a, 0xff7aa8, 0xb48aff, 0xff9a4a];

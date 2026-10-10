@@ -553,13 +553,11 @@ class Adventure {
     // Cascade : un ruisseau traverse le plateau puis se jette du bord de la falaise
     const fallTex = this.makeWaterfallTexture();
     this.fallTex = fallTex;
-    const PX = L.SPOTS.plateau.x, PZ = L.SPOTS.plateau.z, fz = PZ + 2;
-    const topY = L.heightAt(PX, PZ);
-    const edgeX = PX + Math.sqrt(10.9 ** 2 - 4) + 0.35;          // juste au-delà du pied de la falaise
-    const baseY = L.heightAt(edgeX + 1.5, fz);
-    const fallH = topY - baseY + 0.25;
+    const S = L.STREAM, PL = L.POOL, fz = S.z;
+    const edgeX = S.x1, topY = S.y, baseY = PL.y;
+    const fallH = topY - baseY + 0.1;
     const waterMat = (map, op) => new THREE.MeshBasicMaterial({ map, transparent: true, opacity: op, depthWrite: false, side: THREE.DoubleSide });
-    const fall = new THREE.Mesh(new THREE.PlaneGeometry(3.2, fallH), waterMat(fallTex, 0.9));
+    const fall = new THREE.Mesh(new THREE.PlaneGeometry(2.8, fallH), waterMat(fallTex, 0.9));
     fall.position.set(edgeX, baseY + fallH / 2, fz);
     fall.rotation.y = Math.PI / 2;
     fall.renderOrder = 2;
@@ -568,21 +566,22 @@ class Adventure {
     const streamTex = fallTex.clone(); streamTex.needsUpdate = true;
     streamTex.repeat.set(1, 3);
     this.streamTex = streamTex;
-    const x0 = PX + 2.5, len = edgeX - x0;
-    const stream = new THREE.Mesh(new THREE.PlaneGeometry(2.6, len), waterMat(streamTex, 0.85));
+    const x0 = S.x0 - 0.6, len = edgeX - x0;
+    const stream = new THREE.Mesh(new THREE.PlaneGeometry(S.half * 2 + 0.3, len), waterMat(streamTex, 0.85));
     stream.rotation.set(-Math.PI / 2, 0, Math.PI / 2); // le courant file vers le bord
-    stream.position.set(x0 + len / 2, topY + 0.07, fz);
+    stream.position.set(x0 + len / 2, topY, fz);
     stream.renderOrder = 2;
     sc.add(stream);
     // berges et source
     const rockMat = M.mat(0x9a948a, { roughness: 0.9 });
     const spring = new THREE.Mesh(new THREE.IcosahedronGeometry(1.3, 1), rockMat);
-    spring.scale.set(1, 0.8, 1.2); spring.position.set(x0 - 0.6, topY + 0.4, fz);
+    spring.scale.set(1, 0.8, 1.2); spring.position.set(x0 - 0.5, topY + 0.3, fz);
     spring.castShadow = true; sc.add(spring);
     for (let i = 0; i < 6; i++) {
       for (const side of [-1, 1]) {
         const st = new THREE.Mesh(new THREE.IcosahedronGeometry(0.35 + ((i * 7 + side * 3) % 5) * 0.06, 0), rockMat);
-        st.position.set(x0 + 0.6 + i * (len - 1.6) / 5, topY + 0.15, fz + side * (1.45 + (i % 2) * 0.15));
+        const sx = x0 + 0.6 + i * (len - 2.2) / 5, sz = fz + side * (S.half + 0.45 + (i % 2) * 0.15);
+        st.position.set(sx, L.heightAt(sx, sz) + 0.12, sz);
         st.rotation.set(i, side * i, 0); st.castShadow = true; sc.add(st);
       }
     }
@@ -590,11 +589,11 @@ class Adventure {
     const foamMat = new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.75, depthWrite: false });
     const lip = new THREE.Mesh(new THREE.CylinderGeometry(0.28, 0.28, 3.1, 10), foamMat);
     lip.rotation.x = Math.PI / 2; lip.position.set(edgeX, topY + 0.12, fz); sc.add(lip);
-    const pool = new THREE.Mesh(new THREE.CircleGeometry(3.2, 40), new THREE.MeshStandardMaterial({ color: 0x5fd0f0, roughness: 0.15, metalness: 0.1, transparent: true, opacity: 0.85 }));
-    pool.rotation.x = -Math.PI / 2; pool.position.set(edgeX + 2.2, L.heightAt(edgeX + 2.2, fz) + 0.08, fz);
+    const pool = new THREE.Mesh(new THREE.CircleGeometry(PL.r + 0.25, 40), new THREE.MeshStandardMaterial({ color: 0x5fd0f0, roughness: 0.15, metalness: 0.1, transparent: true, opacity: 0.85 }));
+    pool.rotation.x = -Math.PI / 2; pool.position.set(PL.x, PL.y, PL.z);
     sc.add(pool);
     const foam = new THREE.Mesh(new THREE.RingGeometry(0.4, 1.6, 24), foamMat);
-    foam.rotation.x = -Math.PI / 2; foam.position.set(edgeX + 0.6, pool.position.y + 0.03, fz); sc.add(foam);
+    foam.rotation.x = -Math.PI / 2; foam.position.set(edgeX + 0.6, PL.y + 0.03, fz); sc.add(foam);
     this.fallPos = new THREE.Vector3(edgeX - 0.4, baseY + 0.3, fz);
 
     // Niche de Mamie
