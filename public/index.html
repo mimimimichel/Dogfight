@@ -51,17 +51,26 @@
           <img class="home-duo" src="img/duo.png" alt="Ainu l'eurasier roux, avec Matcha le pinscher debout sur son dos">
         </div>
         <div class="home-right">
-          <label class="home-name">Ton pseudo
-            <input id="name" maxlength="16" placeholder="Anonyme" autocomplete="off">
-          </label>
-          <div class="home-buttons">
-            <button class="hbtn play" data-action="adventure"><b>Aventure</b><small>Explore l'île avec Ainu et Matcha</small></button>
-            <button class="hbtn fight" data-action="cpu">Combat contre l'ordi</button>
-            <button class="hbtn online" data-action="online">Combat en ligne</button>
-            <button class="hbtn local kb-only" data-action="local">2 joueurs (même clavier)</button>
-            <div class="home-row">
-              <button class="hbtn small" data-action="controls">Commandes</button>
-              <button class="hbtn small hidden" id="fs-btn" data-action="fullscreen">Plein écran</button>
+          <button class="hbtn play" data-action="adventure">
+            <span class="play-ico" aria-hidden="true"></span>
+            <b id="adv-play-label">Jouer</b>
+            <small id="adv-play-sub">Explore l'île avec tes chiens !</small>
+          </button>
+          <div class="home-row">
+            <button class="hbtn small" data-action="controls">Commandes</button>
+            <button class="hbtn small hidden" id="fs-btn" data-action="fullscreen">Plein écran</button>
+          </div>
+          <div class="combat-box">
+            <button class="hbtn combat-toggle" data-action="combat-menu" aria-expanded="false">Mode combat <span class="chev">▾</span></button>
+            <div class="combat-panel hidden" id="combat-panel">
+              <label class="home-name">Ton pseudo
+                <input id="name" maxlength="16" placeholder="Anonyme" autocomplete="off">
+              </label>
+              <div class="combat-btns">
+                <button class="hbtn cbtn" data-action="cpu">Contre l'ordi</button>
+                <button class="hbtn cbtn" data-action="online">En ligne</button>
+                <button class="hbtn cbtn kb-only" data-action="local">2 joueurs</button>
+              </div>
             </div>
           </div>
           <p class="ios-tip hidden" id="ios-tip">Plein écran sur iPhone : touche <b>Partager</b> puis <b>« Sur l'écran d'accueil »</b>.</p>

@@ -12,6 +12,10 @@ cap, dense, outp = Path(sys.argv[1]), sys.argv[2], sys.argv[3]
 KFIX = float(sys.argv[4]) if len(sys.argv) > 4 else None
 # tours de caméra : anneau -> (azimut initial, pas en degrés, élévation min, max)
 SEQ = {0: (46.0, -22.67, 5, 40), 1: (43.3, -22.67, -45, -3)} if len(sys.argv) > 5 and sys.argv[5] == 'seq' else None
+# mode « auto » : premier angle trouvé par recherche complète, les suivants prédits
+# (chaque anneau fait un tour complet en N pas égaux à partir du même azimut)
+AUTO = {int(a.split('=')[0]): int(a.split('=')[1]) for a in sys.argv[6:]} if len(sys.argv) > 5 and sys.argv[5] == 'auto' else None
+AZ0 = None
 D = np.load(dense); V, F = D['v'].astype(np.float64), D['f']
 # points échantillonnés sur la surface
 rng = np.random.default_rng(1)
@@ -32,7 +36,7 @@ def rot(az, el):
 def load_mask(f, k):
     im = np.asarray(Image.open(f).convert('L')).astype(float)
     m = im > 70
-    m[:100, :200] = False  # panneau de statistiques
+    m[:240, :280] = False  # panneau de statistiques
     from scipy.ndimage import label
     lab, n = label(m)
     if n > 1: m = lab == (np.argmax(np.bincount(lab.ravel())[1:]) + 1)  # plus grande tache (retire les icônes)
@@ -75,7 +79,11 @@ for f in files:
     best = (-1, None)
     name0 = Path(f).name[1:]
     ring, idx = int(name0[0]), int(name0[2:4])
-    if SEQ:
+    if AUTO and AZ0 is not None:
+        pred = AZ0 - np.radians(360 / AUTO[ring]) * idx
+        azs = pred + np.radians(np.arange(-10, 10.1, 2))
+        els = np.radians(np.arange(-60, 72, 3))
+    elif SEQ:
         # séquence connue : azimut prédit par le tour de caméra, élévation bornée
         az0, daz, elo, ehi = SEQ[ring]
         pred = np.radians(az0 + daz * idx)
@@ -112,6 +120,7 @@ for f in files:
             if not improved: break
     s, tx, ty = fr
     name = Path(f).name[1:]
+    if AUTO and AZ0 is None: AZ0 = az
     res[name] = {'az': float(az), 'el': float(el), 'k': float(k), 's': float(s * 2), 'tx': float(tx * 2), 'ty': float(ty * 2), 'iou': float(cur), 'center': C.tolist()}
     print(name, f'az {np.degrees(az):6.1f} el {np.degrees(el):5.1f} k {k:.2f} iou {cur:.3f}', flush=True)
 json.dump(res, open(outp, 'w'), indent=1)

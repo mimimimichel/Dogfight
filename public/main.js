@@ -142,6 +142,7 @@
 
   function show(screen) {
     app.screen = screen;
+    if (screen === 'menu') updateAdventureButton();
     for (const el of document.querySelectorAll('.screen')) el.classList.add('hidden');
     const el = $('screen-' + screen);
     if (el) el.classList.remove('hidden');
@@ -151,6 +152,18 @@
       $('pause-btn').classList.toggle('hidden', !playing);
     }
   }
+
+  /** Le gros bouton d'aventure indique la progression sauvegardée. */
+  function updateAdventureButton() {
+    let save = null;
+    try { save = JSON.parse(localStorage.getItem('dogfight.aventure.niveau1') || 'null'); } catch (e) { /* ignore */ }
+    const started = save && save.intro && ((save.bones || []).length || (save.medals || []).length);
+    $('adv-play-label').textContent = started ? 'Continuer' : 'Jouer';
+    $('adv-play-sub').textContent = started
+      ? `Médailles ${(save.medals || []).length}/5 · Os ${(save.bones || []).length}/100`
+      : "Explore l'île avec tes chiens !";
+  }
+  updateAdventureButton();
 
   // Plein écran + paysage sur téléphone (Android ; iOS ignore poliment)
   function goFullscreen() {
@@ -632,6 +645,12 @@
       case 'local': app.mode = 'local'; enterSelect(); break;
       case 'adventure': startAdventure(); break;
       case 'controls': show('controls'); break;
+      case 'combat-menu': {
+        const open = $('combat-panel').classList.toggle('hidden') === false;
+        document.querySelector('.combat-toggle').setAttribute('aria-expanded', open);
+        document.querySelector('.combat-box').classList.toggle('open', open);
+        break;
+      }
       case 'fullscreen': break; // déjà traité par goFullscreen()
       case 'back': app.mode = null; show('menu'); break;
       case 'quick': connect(() => send({ t: 'quick', name: playerName() })); break;

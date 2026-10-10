@@ -28,7 +28,7 @@ for name, c in sorted(cal.items()):
     R = rot(c); q = (P - np.array(c['center'])) @ R.T; w = 1 / (1 - c['k'] * q[:, 2])
     u = q[:, 0] * w * c['s'] + c['tx']; v = -q[:, 1] * w * c['s'] + c['ty']
     m = np.asarray(Image.open(f'{cap}/s{name}').convert('L')) > 70
-    m[:100, :200] = False
+    m[:240, :280] = False
     lab, k = label(m); m = lab == (np.argmax(np.bincount(lab.ravel())[1:]) + 1)
     H, W = m.shape
     ur, vr = u[REG], v[REG]

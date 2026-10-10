@@ -98,29 +98,18 @@
 .home-ribbon::before { left: 6px; clip-path: polygon(0 0, 100% 0, 100% 100%, 0 100%, 35% 50%); }
 .home-ribbon::after { right: 6px; clip-path: polygon(0 0, 100% 0, 65% 50%, 100% 100%, 0 100%); }
 .home-duo {
-  position: absolute; z-index: 1; left: 50%; bottom: 6px; height: 330px; width: auto;
-  transform: translateX(-46%);
+  position: absolute; z-index: 1; left: 50%; bottom: 4px; height: 360px; width: auto;
+  transform: translateX(-48%);
   filter: drop-shadow(0 10px 0 rgba(30, 80, 20, 0.35));
   animation: homeHop 3.2s ease-in-out infinite;
 }
 @keyframes homeHop { 0%, 100% { translate: 0 0; } 45% { translate: 0 -8px; } 55% { translate: 0 -8px; } }
 
-/* ---------- Colonne droite : pseudo + boutons ---------- */
+/* ---------- Colonne droite : aventure en vedette, combats repliés ---------- */
 .home-right {
-  position: relative; z-index: 2; flex: 0 0 360px; display: flex; flex-direction: column; justify-content: center;
-  gap: 12px; padding: 18px 28px 18px 0;
+  position: relative; z-index: 2; flex: 0 0 380px; display: flex; flex-direction: column; justify-content: center;
+  gap: 14px; padding: 18px 28px 18px 0;
 }
-.home-name {
-  display: flex; align-items: center; gap: 10px; font-size: 17px; font-weight: 600; color: #fff; white-space: nowrap;
-  -webkit-text-stroke: 4px #2a1408; paint-order: stroke fill;
-}
-#screen-menu .home-name input {
-  flex: 1; width: auto; font-family: var(--hf); font-size: 18px; font-weight: 600; padding: 8px 12px;
-  background: #fff; color: #3a2010; border: 3px solid #2a1408; border-radius: 14px;
-  box-shadow: 0 4px 0 #2a1408, inset 0 3px 0 #e4e8f0; -webkit-text-stroke: 0;
-}
-#screen-menu .home-name input:focus { background: #fffbe0; box-shadow: 0 4px 0 #2a1408, 0 0 0 4px #ffd34d; }
-.home-buttons { display: flex; flex-direction: column; gap: 12px; }
 .home-row { display: flex; gap: 12px; }
 .home-row .hbtn { flex: 1; }
 .hbtn {
@@ -134,16 +123,45 @@
 .hbtn:hover { filter: brightness(1.08); transform: translateY(-2px); box-shadow: 0 8px 0 #2a1408, inset 0 -6px 0 rgba(0, 0, 0, 0.18), inset 0 5px 0 rgba(255, 255, 255, 0.35); }
 .hbtn:active { transform: translateY(5px); box-shadow: 0 1px 0 #2a1408, inset 0 -3px 0 rgba(0, 0, 0, 0.18), inset 0 4px 0 rgba(255, 255, 255, 0.3); }
 .hbtn:focus-visible { outline: 4px solid #fff; outline-offset: 3px; }
+/* Le bouton principal : grand, doré, avec un pictogramme « lecture » */
 .hbtn.play {
-  font-size: 30px; padding: 12px 18px 14px; display: flex; flex-direction: column; align-items: center; gap: 2px;
-  background: linear-gradient(#ffe066, #ffb21c); animation: homePulse 1.8s ease-in-out infinite;
+  display: grid; grid-template-columns: auto 1fr; grid-template-rows: auto auto; column-gap: 14px; align-items: center; text-align: left;
+  padding: 18px 20px 20px; border-radius: 26px; border-width: 4px;
+  background: radial-gradient(circle at 30% 20%, #fff3a0, #ffd02a 45%, #f59a10);
+  box-shadow: 0 8px 0 #2a1408, 0 0 0 6px rgba(255, 255, 255, 0.55), 0 14px 30px rgba(120, 70, 0, 0.35), inset 0 -8px 0 rgba(0, 0, 0, 0.15), inset 0 6px 0 rgba(255, 255, 255, 0.5);
+  animation: homePulse 1.8s ease-in-out infinite;
 }
-.hbtn.play small { font-size: 13px; font-weight: 600; -webkit-text-stroke: 3px #2a1408; color: #fff8dc; }
+.hbtn.play .play-ico {
+  grid-row: 1 / 3; width: 64px; height: 64px; border-radius: 50%;
+  background: radial-gradient(circle at 35% 30%, #7ee06a, #2f9a2a); border: 4px solid #2a1408; box-shadow: 0 4px 0 #2a1408;
+  position: relative;
+}
+.hbtn.play .play-ico::after {
+  content: ''; position: absolute; left: 22px; top: 15px; width: 0; height: 0;
+  border-left: 24px solid #fff; border-top: 15px solid transparent; border-bottom: 15px solid transparent;
+  filter: drop-shadow(0 2px 0 #2a1408);
+}
+.hbtn.play b { font-size: 31px; line-height: 1; white-space: nowrap; }
+.hbtn.play small { font-size: 15px; font-weight: 600; -webkit-text-stroke: 3px #2a1408; color: #fff8dc; margin-top: 4px; }
 @keyframes homePulse { 50% { scale: 1.03; } }
-.hbtn.fight { background: linear-gradient(#ff9a5a, #ee5a24); }
-.hbtn.online { background: linear-gradient(#5ad6c8, #1e9a9a); }
-.hbtn.local { background: linear-gradient(#a98cf0, #6a4ad0); font-size: 17px; }
 .hbtn.small { font-size: 16px; padding: 9px 12px 11px; background: linear-gradient(#ffffff, #d8e2f0); color: #3a2a6a; -webkit-text-stroke: 0; }
+/* Mode combat : un seul bouton discret, qui déplie les options */
+.combat-box { display: flex; flex-direction: column; gap: 10px; padding: 10px; border-radius: 20px; background: rgba(255, 255, 255, 0.28); border: 3px solid rgba(42, 20, 8, 0.25); }
+.combat-box.open { background: rgba(255, 255, 255, 0.55); }
+.hbtn.combat-toggle { font-size: 18px; padding: 9px 14px 11px; background: linear-gradient(#ff9a5a, #e0541e); }
+.hbtn.combat-toggle .chev { display: inline-block; transition: transform 0.2s; }
+.combat-box.open .chev { transform: rotate(180deg); }
+.combat-btns { display: flex; gap: 8px; }
+.hbtn.cbtn { flex: 1; font-size: 15px; padding: 9px 6px 11px; border-radius: 14px; background: linear-gradient(#5ad6c8, #1e9a9a); -webkit-text-stroke: 3px #2a1408; }
+.home-name {
+  display: flex; align-items: center; gap: 10px; font-size: 15px; font-weight: 600; color: #fff; white-space: nowrap;
+  -webkit-text-stroke: 4px #2a1408; paint-order: stroke fill;
+}
+#screen-menu .home-name input {
+  flex: 1; width: auto; min-width: 0; font-family: var(--hf); font-size: 16px; font-weight: 600; padding: 6px 10px;
+  background: #fff; color: #3a2010; border: 3px solid #2a1408; border-radius: 12px;
+  box-shadow: 0 3px 0 #2a1408; -webkit-text-stroke: 0;
+}
 #screen-menu .ios-tip {
   font-family: var(--hf); font-size: 13px; line-height: 1.3; color: #3a2010; background: rgba(255, 255, 255, 0.85);
   border: 2px solid #2a1408; border-radius: 12px; box-shadow: none; padding: 6px 10px;

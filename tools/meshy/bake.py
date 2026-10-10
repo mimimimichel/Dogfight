@@ -103,8 +103,8 @@ for name, c in sorted(cal.items()):
     zb = -minimum_filter(-zb, size=3)  # bouche les petits trous du nuage de points
     # silhouette érodée (évite de prendre le fond sur les bords)
     g = np.asarray(Image.open(f'{cap}/s{name}').convert('L')) > 70
-    g[:100, :200] = False
-    g = binary_erosion(g, iterations=3)
+    g[:240, :280] = False
+    g = binary_erosion(g, iterations=max(3, W // 300))
     u, v, z = project(P, c, R)
     expo = np.full(len(P), EXP)
     for rname, (rc, rexp) in REGS.items():
