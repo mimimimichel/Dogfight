@@ -246,6 +246,90 @@ function lock(k, pos, dir, nrm, w, len, thick, base, tip) {
 const toonSkin = (rough) => new THREE.MeshStandardMaterial({ vertexColors: true, roughness: rough || 0.85 });
 
 // ---------------------------------------------------------------------------
+// Le duo : Ainu (eurasier roux) et Matcha (pinscher nain) debout sur la selle.
+// Corps sculptés hors ligne (tools/build-dogs.mjs) ; yeux, truffe, harnais
+// et accessoires ajoutés ici. Repère : avant = +z, pattes au sol en y = 0.
+// ---------------------------------------------------------------------------
+const SCULPT_OUTLINE = 0.006;
+function sculpt(name, pivot, rough) {
+  const m = sculptMesh(name, pivot, rough);
+  m.userData.outlineThick = SCULPT_OUTLINE;
+  return m;
+}
+export function buildDuo() {
+  const root = new THREE.Group();
+  const ainu = new THREE.Group();
+  root.add(ainu);
+  const DK = 0x140a06;
+
+  const body = sculpt('body', [0, 0, 0]);
+  ainu.add(body);
+
+  // Harnais en Y sur le poitrail, sangle, couverture turquoise, selle et sacoches
+  const lk = new Kit();
+  const BR = 0x5e3218, BRL = 0x7a4422, GD = 0xe0b040;
+  lk.add(new THREE.TorusGeometry(0.31, 0.03, 8, 34), BR, { y: 1.3, z: 0.6, rx: Math.PI / 2 - 0.75, sx: 1.05 });   // collier du harnais
+  lk.add(new THREE.BoxGeometry(0.07, 0.42, 0.03), BR, { y: 0.97, z: 0.66, rx: -0.15 });                           // sangle du poitrail
+  lk.add(new THREE.TorusGeometry(0.34, 0.034, 8, 34), BR, { y: 0.98, z: 0.16, sy: 1.12 });                         // sangle derrière les épaules
+  lk.add(new THREE.TorusGeometry(0.33, 0.03, 8, 34), BR, { y: 1.0, z: -0.38, sy: 1.0 });
+  lk.add(new THREE.CylinderGeometry(0.045, 0.045, 0.015, 14), GD, { y: 1.15, z: 0.72, rx: Math.PI / 2 - 0.4 });     // boucle dorée
+  lk.add(new THREE.SphereGeometry(1, 28, 10, 0, Math.PI * 2, 0, 0.85), (x, y, z, c) => c.set(y < 0.7 ? GD : 0x1e8a86), { y: 0.97, z: -0.1, sx: 0.36, sy: 0.36, sz: 0.4 });
+  lk.add(E(0.17, 0.06, 0.22), BRL, { y: 1.33, z: -0.12 });
+  for (const sx of [-1, 1]) {
+    lk.add(new THREE.BoxGeometry(0.12, 0.24, 0.26), 0x8a4e24, { x: sx * 0.35, y: 0.86, z: 0.0 });
+    lk.add(new THREE.BoxGeometry(0.135, 0.07, 0.28), BR, { x: sx * 0.355, y: 0.98, z: 0.0, rz: sx * 0.2 });
+    lk.add(new THREE.CylinderGeometry(0.025, 0.025, 0.02, 10), GD, { x: sx * 0.415, y: 0.9, z: 0.0, rz: Math.PI / 2 });
+  }
+  ainu.add(lk.build(new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.7 })));
+
+  // Tête
+  const HP = [0, 1.6, 0.78];
+  const head = new THREE.Group(); at(head, ...HP); ainu.add(head);
+  head.scale.setScalar(1.12);
+  head.add(sculpt('head', [0, 0, 0]));
+
+  // Queue (pivot à la base)
+  const TP = [0, 1.15, -0.72];
+  const tail = new THREE.Group(); at(tail, ...TP); ainu.add(tail);
+  tail.add(sculpt('tail', TP));
+
+  // Pattes (pivot à la hanche)
+  const legs = [];
+  for (const [name, lx, lz] of [['legFL', -0.16, 0.4], ['legFR', 0.16, 0.4], ['legBL', -0.16, -0.5], ['legBR', 0.16, -0.5]]) {
+    const pv = [lx, 0.8, lz];
+    const g = at(new THREE.Group(), ...pv);
+    g.add(sculpt(name, pv));
+    ainu.add(g);
+    legs.push(g);
+  }
+
+  // Matcha, debout sur la selle
+  const matcha = new THREE.Group(); at(matcha, 0, 1.36, -0.14); matcha.scale.setScalar(1.3); ainu.add(matcha);
+  matcha.add(sculpt('mBody', [0, 0, 0], 0.4));
+  const mk = new Kit();
+  mk.add(new THREE.TorusGeometry(0.058, 0.014, 6, 18), 0xd02828, { y: 0.43, z: 0.225, rx: Math.PI / 2 + 0.6 });
+  mk.add(S(0.018, 8, 6), 0xffd34d, { y: 0.39, z: 0.28 });
+  mk.add(new THREE.BoxGeometry(0.13, 0.09, 0.15), 0x8a5428, { y: 0.35, z: -0.04 });
+  mk.add(new THREE.BoxGeometry(0.14, 0.035, 0.11), 0x6a3a1c, { y: 0.4, z: 0.0, rx: 0.2 });
+  for (const sx of [-1, 1]) mk.add(new THREE.CylinderGeometry(0.03, 0.03, 0.11, 10), 0xa06a34, { x: sx * 0.08, y: 0.33, z: -0.06, rx: Math.PI / 2 });
+  // harnais orange clouté (comme sur l'illustration)
+  const HR = 0xc8662a, ST = 0xf0d27a;
+  mk.add(new THREE.TorusGeometry(0.075, 0.016, 6, 22), HR, { y: 0.32, z: 0.15, sy: 1.15 });
+  mk.add(new THREE.TorusGeometry(0.08, 0.016, 6, 22), HR, { y: 0.29, z: -0.05, sy: 1.1 });
+  mk.add(new THREE.BoxGeometry(0.03, 0.012, 0.22), HR, { y: 0.37, z: 0.05 });
+  mk.add(new THREE.BoxGeometry(0.035, 0.1, 0.012), HR, { y: 0.28, z: 0.215, rx: -0.3 });
+  for (let i = 0; i < 4; i++) mk.add(S(0.007, 6, 4), ST, { y: 0.31 - i * 0.024, z: 0.222 - i * 0.006 });
+  matcha.add(mk.build(new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.6 })));
+  const MP = [0, 0.56, 0.27];
+  const mhead = new THREE.Group(); at(mhead, ...MP); matcha.add(mhead);
+  mhead.add(sculpt('mHead', [0, 0, 0], 0.5));
+  const mlegs = [];
+
+  root.userData = { ainu, head, tail, legs, matcha, mhead, mlegs, body };
+  return root;
+}
+
+// ---------------------------------------------------------------------------
 // Chat bandit (masque noir, queue rayée, bandana de pirate)
 // ---------------------------------------------------------------------------
 const NPC_FUR = { length: 0.045, density: 30, layerScale: 0.6 };
@@ -523,11 +607,11 @@ export function buildPedestal() {
 // ---------------------------------------------------------------------------
 let dogData = null;
 export async function preloadDogs() {
-  if (duoData) return duoData;
+  if (dogData) return dogData;
   const lite = document.documentElement.classList.contains('touch');
-  const res = await fetch(new URL(lite ? './assets/duo-lite.json' : './assets/duo.json', import.meta.url));
-  duoData = await res.json();
-  return duoData;
+  const res = await fetch(new URL(lite ? './assets/dogs-lite.json' : './assets/dogs.json', import.meta.url));
+  dogData = await res.json();
+  return dogData;
 }
 const b64 = (s) => Uint8Array.from(atob(s), c => c.charCodeAt(0)).buffer;
 const geoCache = new Map();
@@ -708,151 +792,3 @@ export function sculptMesh(name, pivot, rough) {
   m.castShadow = m.receiveShadow = true;
   return m;
 }
-
-// ---------------------------------------------------------------------------
-// Le duo : Ainu (eurasier roux) et Matcha (pinscher nain) debout sur la selle.
-// Forme générée d'après l'illustration (tools/fuse), peinte avec la palette des
-// sculpteurs, animée par un petit squelette (tête, queue, 4 pattes).
-// Repère : avant = +z, pattes au sol en y = 0.
-// ---------------------------------------------------------------------------
-let duoData = null;
-function decodePart(d) {
-  const P = new Uint16Array(b64(d.pos)), N = new Int8Array(b64(d.nrm)), Co = new Uint8Array(b64(d.col));
-  const n = d.n, pos = new Float32Array(n * 3), nrm = new Float32Array(n * 3), col = new Float32Array(n * 3);
-  for (let i = 0; i < n * 3; i++) { const k = i % 3; pos[i] = d.min[k] + (P[i] / 65535) * (d.max[k] - d.min[k]); nrm[i] = N[i] / 127; col[i] = Co[i] / 255; }
-  const g = new THREE.BufferGeometry();
-  g.setAttribute('position', new THREE.BufferAttribute(pos, 3));
-  g.setAttribute('normal', new THREE.BufferAttribute(nrm, 3));
-  g.setAttribute('color', new THREE.BufferAttribute(col, 3));
-  g.setIndex(new THREE.BufferAttribute(d.big ? new Uint32Array(b64(d.idx)) : new Uint16Array(b64(d.idx)), 1));
-  const Sk = new Uint8Array(b64(d.skinIndex)), Sw = new Uint8Array(b64(d.skinWeight));
-  const si = new Uint16Array(n * 4), sw = new Float32Array(n * 4);
-  for (let i = 0; i < n; i++) { si[i * 4] = Sk[i * 2]; si[i * 4 + 1] = Sk[i * 2 + 1]; sw[i * 4] = Sw[i * 2] / 255; sw[i * 4 + 1] = Sw[i * 2 + 1] / 255; }
-  g.setAttribute('skinIndex', new THREE.Uint16BufferAttribute(si, 4));
-  g.setAttribute('skinWeight', new THREE.Float32BufferAttribute(sw, 4));
-  const U = new Uint16Array(b64(d.uv)), F = new Uint8Array(b64(d.fade));
-  const uv = new Float32Array(n * 2), fade = new Float32Array(n);
-  for (let i = 0; i < n * 2; i++) uv[i] = U[i] / 65535;
-  for (let i = 0; i < n; i++) fade[i] = F[i] / 255;
-  g.setAttribute('uv', new THREE.BufferAttribute(uv, 2));
-  g.setAttribute('fade', new THREE.BufferAttribute(fade, 1));
-  return g;
-}
-/** Maillage animé : un os par entrée de d.bones, tous enfants de l'os racine. */
-function skinnedPart(name, draw, rough) {
-  const d = duoData.parts[name];
-  const g = decodePart(d);
-  const tex = paintDecal(d.decal, (ctx, X, Y, S) => draw(ctx, X, Y, S, d.face));
-  const mesh = new THREE.SkinnedMesh(g, decalMaterial(tex, rough));
-  const bones = {}, list = [];
-  const rootP = d.bones[0].pivot;
-  for (const b of d.bones) {
-    const bone = new THREE.Bone(); bone.name = b.name;
-    if (list.length) { bone.position.set(b.pivot[0] - rootP[0], b.pivot[1] - rootP[1], b.pivot[2] - rootP[2]); list[0].add(bone); }
-    else bone.position.set(...rootP);
-    bones[b.name] = bone; list.push(bone);
-  }
-  mesh.add(list[0]);
-  mesh.updateMatrixWorld(true);
-  mesh.bind(new THREE.Skeleton(list));
-  mesh.castShadow = mesh.receiveShadow = true;
-  mesh.frustumCulled = false;
-  mesh.userData.outlineThick = 0.006;
-  return { mesh, bones, face: d.face };
-}
-const FACES = {
-  // Visage d'Ainu peint par-dessus le modèle : yeux, truffe, bouche souriante, langue
-  ainu(ctx, X, Y, S, f) {
-    const L = (w) => w * S;
-    ctx.lineJoin = ctx.lineCap = 'round';
-    const [nx, ny] = f.nose;
-    for (const sx of [-1, 1]) {
-      const cx = f.mid + sx * 0.125, cy = f.eyeY, w = 0.05, h = 0.034;
-      ctx.save(); ctx.translate(X(cx), Y(cy)); ctx.rotate(sx * 0.12);
-      ctx.beginPath();
-      ctx.moveTo(-L(w), 0);
-      ctx.bezierCurveTo(-L(w * 0.55), -L(h * 1.3), L(w * 0.55), -L(h * 1.3), L(w), -L(h * 0.05));
-      ctx.bezierCurveTo(L(w * 0.5), L(h * 0.95), -L(w * 0.5), L(h * 0.95), -L(w), 0);
-      ctx.fillStyle = '#2a140a'; ctx.fill();
-      const g = ctx.createRadialGradient(0, L(h * 0.25), 0, 0, 0, L(w * 0.75));
-      g.addColorStop(0, '#6a3214'); g.addColorStop(1, 'rgba(20,8,4,0)'); ctx.fillStyle = g; ctx.fill();
-      ctx.lineWidth = L(0.008); ctx.strokeStyle = '#120804'; ctx.stroke();
-      ctx.fillStyle = '#fff';
-      ctx.beginPath(); ctx.arc(L(w * 0.25), -L(h * 0.35), L(0.011), 0, 7); ctx.fill();
-      ctx.beginPath(); ctx.arc(-L(w * 0.35), L(h * 0.25), L(0.005), 0, 7); ctx.fill();
-      ctx.restore();
-    }
-    // truffe
-    ctx.save(); ctx.translate(X(nx), Y(ny + 0.005));
-    ctx.beginPath();
-    ctx.moveTo(-L(0.058), -L(0.012));
-    ctx.bezierCurveTo(-L(0.058), -L(0.04), L(0.058), -L(0.04), L(0.058), -L(0.012));
-    ctx.bezierCurveTo(L(0.058), L(0.024), L(0.016), L(0.04), 0, L(0.04));
-    ctx.bezierCurveTo(-L(0.016), L(0.04), -L(0.058), L(0.024), -L(0.058), -L(0.012));
-    ctx.fillStyle = '#16100e'; ctx.fill();
-    ctx.fillStyle = 'rgba(255,255,255,0.55)';
-    ctx.beginPath(); ctx.ellipse(-L(0.012), -L(0.022), L(0.022), L(0.008), -0.15, 0, 7); ctx.fill();
-    ctx.restore();
-    // bouche : philtrum, sourire en W qui remonte, langue
-    const P = (x, y) => [X(nx + x), Y(ny + y)];
-    ctx.strokeStyle = '#120604'; ctx.lineWidth = L(0.009);
-    ctx.beginPath(); ctx.moveTo(...P(0, -0.035)); ctx.lineTo(...P(0, -0.08)); ctx.stroke();
-    const mouth = new Path2D();
-    mouth.moveTo(...P(-0.16, -0.06));
-    mouth.bezierCurveTo(...P(-0.12, -0.105), ...P(-0.04, -0.105), ...P(0, -0.08));
-    mouth.bezierCurveTo(...P(0.04, -0.105), ...P(0.12, -0.105), ...P(0.16, -0.06));
-    mouth.bezierCurveTo(...P(0.12, -0.16), ...P(0.06, -0.19), ...P(0, -0.19));
-    mouth.bezierCurveTo(...P(-0.06, -0.19), ...P(-0.12, -0.16), ...P(-0.16, -0.06));
-    ctx.fillStyle = '#3c0e0a'; ctx.fill(mouth);
-    ctx.save(); ctx.clip(mouth);
-    ctx.beginPath(); ctx.ellipse(...P(0, -0.175), L(0.075), L(0.055), 0, 0, 7); ctx.fillStyle = '#ec6f84'; ctx.fill();
-    ctx.beginPath(); ctx.ellipse(...P(-0.015, -0.16), L(0.025), L(0.013), -0.3, 0, 7); ctx.fillStyle = '#f7a2ae'; ctx.fill();
-    ctx.fillStyle = '#fff6ea';
-    for (const sx of [-1, 1]) { ctx.beginPath(); ctx.moveTo(...P(sx * 0.12, -0.085)); ctx.lineTo(...P(sx * 0.108, -0.11)); ctx.lineTo(...P(sx * 0.096, -0.09)); ctx.fill(); }
-    ctx.restore();
-    ctx.lineWidth = L(0.008); ctx.stroke(mouth);
-  },
-  matcha(ctx, X, Y, S, f) {
-    const L = (w) => w * S;
-    for (const sx of [-1, 1]) {
-      const cx = f.mid + sx * 0.055, cy = f.eyeY, r = 0.022;
-      ctx.save(); ctx.translate(X(cx), Y(cy));
-      ctx.beginPath(); ctx.ellipse(0, 0, L(r * 1.05), L(r * 0.95), 0, 0, 7);
-      ctx.fillStyle = '#1a0c06'; ctx.fill();
-      const g = ctx.createRadialGradient(0, L(r * 0.3), 0, 0, 0, L(r));
-      g.addColorStop(0, '#6a3214'); g.addColorStop(1, 'rgba(26,12,6,0)'); ctx.fillStyle = g; ctx.fill();
-      ctx.lineWidth = L(0.003); ctx.strokeStyle = '#000'; ctx.stroke();
-      ctx.fillStyle = '#fff';
-      ctx.beginPath(); ctx.arc(L(r * 0.35), -L(r * 0.35), L(0.0048), 0, 7); ctx.fill();
-      ctx.beginPath(); ctx.arc(-L(r * 0.4), L(r * 0.35), L(0.002), 0, 7); ctx.fill();
-      ctx.restore();
-    }
-  },
-};
-export function buildDuo() {
-  const root = new THREE.Group();
-  const ainu = new THREE.Group();
-  root.add(ainu);
-  const A = skinnedPart('ainu', FACES.ainu, 0.85);
-  ainu.add(A.mesh);
-  const legs = ['legFL', 'legFR', 'legBL', 'legBR'].map(n => A.bones[n]);
-  // Matcha : pivot au centre de son corps (pour les saltos)
-  const Mt = skinnedPart('matcha', FACES.matcha, 0.5);
-  const mPivot = [Mt.face.mid, 1.75, 0.05];
-  const matcha = new THREE.Group(); matcha.position.set(...mPivot); ainu.add(matcha);
-  Mt.mesh.position.set(-mPivot[0], -mPivot[1], -mPivot[2]);
-  matcha.add(Mt.mesh);
-  // repères au centre des visages (portraits)
-  const headFace = new THREE.Object3D(); A.bones.head.add(headFace);
-  const hp = A.bones.head.getWorldPosition(new THREE.Vector3());
-  headFace.position.set(A.face.mid - hp.x, A.face.eyeY - 0.05 - hp.y, A.face.nose[2] - 0.2 - hp.z);
-  const mFace = new THREE.Object3D(); Mt.bones.head.add(mFace);
-  const mp = Mt.bones.head.getWorldPosition(new THREE.Vector3());
-  mFace.position.set(Mt.face.mid - mp.x, Mt.face.eyeY - 0.02 - mp.y, Mt.face.nose[2] - 0.1 - mp.z);
-  root.userData = {
-    ainu, head: A.bones.head, tail: A.bones.tail, legs, matcha, mhead: Mt.bones.head, mlegs: [], body: A.mesh,
-    headFace, mheadFace: mFace, tailY0: A.bones.tail.position.y, matchaY0: mPivot[1],
-  };
-  return root;
-}
-

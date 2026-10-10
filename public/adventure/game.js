@@ -221,8 +221,9 @@ class Adventure {
       return c.toDataURL('image/jpeg', 0.85);
     };
     try {
-      this.dom.pAinu.src = shot(duo.userData.headFace, 2.1, 0.75);
-      this.dom.pMatcha.src = shot(duo.userData.mheadFace, 1.0, 0.35);
+      this.dom.pAinu.src = shot(duo.userData.head, 2.1, 0.75);
+      duo.userData.head.visible = false;
+      this.dom.pMatcha.src = shot(duo.userData.mhead, 1.0, 0.35);
     } catch (e) { /* pas de portrait : pas grave */ }
     sc.traverse(o => { if (o.geometry) o.geometry.dispose(); });
   }
@@ -1592,15 +1593,15 @@ class Adventure {
     P.phase += dt * speed * 1.7;
     const run = Math.min(1, speed / 5);
     u.legs.forEach((l, i) => {
-      if (P.grounded) l.rotation.x = Math.sin(P.phase + (i === 0 || i === 3 ? 0 : Math.PI)) * 0.4 * run;
-      else l.rotation.x = i < 2 ? -0.25 : 0.25;
+      if (P.grounded) l.rotation.x = Math.sin(P.phase + (i === 0 || i === 3 ? 0 : Math.PI)) * 0.8 * run;
+      else l.rotation.x = i < 2 ? -0.7 : 0.7;
     });
     u.ainu.position.y = P.grounded ? Math.abs(Math.sin(P.phase)) * 0.08 * run : 0;
     u.ainu.rotation.x = P.dashT > 0 ? 0.18 : P.grounded ? 0 : clamp(-P.vel.y * 0.02, -0.25, 0.3);
     u.tail.rotation.set(P.gliding ? -1.2 : 0, P.gliding ? t * 28 : Math.sin(t * (speed > 1 ? 14 : 7)) * 0.45, 0);
-    u.tail.position.y = u.tailY0 + (P.gliding ? 0.3 : 0);
+    u.tail.position.y = P.gliding ? 1.45 : 1.15;
     u.matcha.rotation.x = P.flipT > 0 ? (1 - P.flipT / 0.45) * Math.PI * 2 : (P.dashT > 0 ? 0.4 : 0);
-    u.matcha.position.y = u.matchaY0 + (P.grounded ? Math.abs(Math.sin(P.phase + 0.6)) * 0.06 * run : 0.05) + (P.flipT > 0 ? Math.sin((1 - P.flipT / 0.45) * Math.PI) * 0.8 : 0);
+    u.matcha.position.y = 1.36 + (P.grounded ? Math.abs(Math.sin(P.phase + 0.6)) * 0.06 * run : 0.05) + (P.flipT > 0 ? Math.sin((1 - P.flipT / 0.45) * Math.PI) * 0.8 : 0);
     u.head.rotation.x = Math.sin(t * 2) * 0.05;
     if (P.cheerT > 0) { u.ainu.position.y = Math.abs(Math.sin(P.cheerT * 9)) * 0.5; u.matcha.rotation.z = Math.sin(P.cheerT * 12) * 0.3; } else u.matcha.rotation.z = 0;
     duo.visible = !(P.invuln > 0 && Math.floor(t * 12) % 2 === 0);
