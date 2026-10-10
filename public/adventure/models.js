@@ -754,3 +754,22 @@ export function buildDuo() {
   return root;
 }
 
+
+/** Matcha tout seul (aventure à deux : chaque joueur a son chien). Pieds au sol en y = 0. */
+export function buildMatchaSolo() {
+  const root = new THREE.Group();
+  const Mt = skinnedDuoPart('matcha');
+  const d = duoData.parts.matcha;
+  const S = 1.3;                       // un peu plus grand pour bien le voir quand il court seul
+  const cx = (d.min[0] + d.max[0]) / 2, cz = (d.min[2] + d.max[2]) / 2;
+  const pivotY = (d.min[1] + d.max[1]) / 2;
+  const body = new THREE.Group();      // pivot au centre du corps (saltos, attaque)
+  body.position.y = (pivotY - d.min[1]) * S;
+  body.scale.setScalar(S);
+  Mt.mesh.position.set(-cx, -pivotY, -cz);
+  body.add(Mt.mesh);
+  root.add(body);
+  const mheadFace = new THREE.Object3D(); mheadFace.position.set(0, 0.12, 0.12); Mt.bones.head.add(mheadFace);
+  root.userData = { matcha: body, mhead: Mt.bones.head, mheadFace, matchaY0: body.position.y, height: (d.max[1] - d.min[1]) * S };
+  return root;
+}

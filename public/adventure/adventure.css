@@ -134,7 +134,4 @@
 .adv-coop b { color: #ffd23a; }
 #adv.role-ainu .adv-coop span { color: #ffab6a; }
 #adv.role-matcha .adv-coop span { color: #b6ec7a; }
-#adv.role-ainu .adv-btn.attack { display: none; }
-#adv.role-matcha .adv-stick, #adv.role-matcha .adv-stick-zone, #adv.role-matcha .adv-btn.dash { display: none; }
-#adv.role-matcha .adv-cam-zone { width: 100%; }
 .adv-code { font-size: 1.4em; letter-spacing: 3px; color: #b05ae8; }

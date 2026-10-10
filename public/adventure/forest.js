@@ -501,7 +501,7 @@ export function buildForest(game) {
     yarns: [],
   };
   const save = () => game.save;
-  const P = () => game.player;
+  const near = (x, z) => game.nearestPlayer({ x, z });
   const leafCols = S.leaves.map(l => l.col);
 
   function refreshLanterns() {
@@ -549,16 +549,17 @@ export function buildForest(game) {
     st.yarns.length = 0;
   }
   function throwYarn() {
-    const p = P();
+    const p = near(B.x, B.z);
     const tx = p.pos.x + p.vel.x * 0.5, tz = p.pos.z + p.vel.z * 0.5;
     const dx = tx - B.x, dz = tz - B.z, d = Math.hypot(dx, dz) || 1;
     st.yarns.push({ x: B.x, y: B.y + 2.4, z: B.z, sx: B.x, sz: B.z, tx, tz, ty: AR.y + 0.45, t: 0, T: clamp(d / 11, 0.6, 1.2), roll: 0, dx: dx / d, dz: dz / d });
     game.sound('throw');
   }
   function stepBoss(dt) {
-    const p = P();
-    const inArena = Math.hypot(p.pos.x - AR.x, p.pos.z - AR.z) < AR.r - 1;
-    const far = Math.hypot(p.pos.x - AR.x, p.pos.z - AR.z) > AR.r + 8;
+    const p = near(B.x, B.z);
+    const dA = (q) => Math.hypot(q.pos.x - AR.x, q.pos.z - AR.z);
+    const inArena = game.players.some(q => dA(q) < AR.r - 1);
+    const far = game.players.every(q => dA(q) > AR.r + 8);
     B.inv = Math.max(0, B.inv - dt);
     B.anim += dt;
     if (B.phase === 'idle') {
@@ -603,21 +604,22 @@ export function buildForest(game) {
       B.x += Math.sin(B.yaw + Math.PI) * dt * 6; B.z += Math.cos(B.yaw + Math.PI) * dt * 6;
       if (h.t > 3.2) { B.phase = 'gone'; }
     }
-    // contact avec le duo
-    if (B.phase !== 'defeated' && B.phase !== 'gone' && B.phase !== 'hop') {
-      const dx = p.pos.x - B.x, dz = p.pos.z - B.z, d = Math.hypot(dx, dz), dy = p.pos.y - B.y;
+    // contact avec les chiens
+    for (const q of game.players) {
+      if (B.phase === 'defeated' || B.phase === 'gone' || B.phase === 'hop') break;
+      const dx = q.pos.x - B.x, dz = q.pos.z - B.z, d = Math.hypot(dx, dz), dy = q.pos.y - B.y;
       if (d < 2.3 && dy > -1 && dy < 3) {
-        const attacking = p.attackT > 0 || p.dashT > 0 || (p.vel.y < -1 && dy > 1.2);
-        if (B.phase === 'tired' && attacking && B.inv <= 0) hitBoss();
-        else if (B.phase !== 'tired') game.hurtPlayer({ x: B.x, z: B.z });
+        const attacking = q.attackT > 0 || q.dashT > 0 || (q.vel.y < -1 && dy > 1.2);
+        if (B.phase === 'tired' && attacking && B.inv <= 0) hitBoss(q);
+        else if (B.phase !== 'tired') game.hurtPlayer({ x: B.x, z: B.z }, q);
       }
     }
   }
-  function hitBoss() {
+  function hitBoss(q) {
     B.hp--; B.inv = 1;
     game.sound('bossHit');
     game.burst(B.x, B.y + 1.8, B.z, 22, 0xffffff, 5, 0.7);
-    if (P().vel.y < 0) P().vel.y = 10;
+    if (q.vel.y < 0) q.vel.y = 10;
     if (B.hp <= 0) {
       B.phase = 'defeated'; B.hop = { t: 0 };
       st.yarns.length = 0;
@@ -635,13 +637,12 @@ export function buildForest(game) {
     }
     game.banner(B.hp === 2 ? 'Bien joué !' : 'Encore une fois !', `Il reste ${B.hp} coup${B.hp > 1 ? 's' : ''}`, 1400);
     // un cœur tombe dans l'arène si le duo en a perdu
-    if (P().hearts < 3) game.spawnHeart(AR.x + (Math.random() - 0.5) * 6, AR.y + 0.9, AR.z + (Math.random() - 0.5) * 6);
+    if (game.players.some(o => o.hearts < 3)) game.spawnHeart(AR.x + (Math.random() - 0.5) * 6, AR.y + 0.9, AR.z + (Math.random() - 0.5) * 6);
     // saute ailleurs dans l'arène
     const a = Math.random() * Math.PI * 2, r = 3 + Math.random() * 3.5;
     B.phase = 'hop'; B.hop = { t: 0, T: 0.9, x0: B.x, z0: B.z, x1: AR.x + Math.cos(a) * r, z1: AR.z + Math.sin(a) * r };
   }
   function stepYarns(dt) {
-    const p = P();
     for (const y of st.yarns) {
       if (y.t < y.T) {
         y.t += dt;
@@ -653,8 +654,10 @@ export function buildForest(game) {
         y.roll += dt;
         y.x += y.dx * dt * 4.5; y.z += y.dz * dt * 4.5; y.y = y.ty;
       }
-      const d = Math.hypot(p.pos.x - y.x, p.pos.z - y.z), dy = p.pos.y + 0.6 - y.y;
-      if (d < 1.15 && Math.abs(dy) < 1.3 && y.t > y.T * 0.5) { game.hurtPlayer({ x: y.x, z: y.z }); y.roll = 99; }
+      for (const p of game.players) {
+        const d = Math.hypot(p.pos.x - y.x, p.pos.z - y.z), dy = p.pos.y + 0.6 - y.y;
+        if (d < 1.15 && Math.abs(dy) < 1.3 && y.t > y.T * 0.5) { game.hurtPlayer({ x: y.x, z: y.z }, p); y.roll = 99; break; }
+      }
     }
     st.yarns = st.yarns.filter(y => y.roll < 1.1 && Math.hypot(y.x - AR.x, y.z - AR.z) < AR.r + 1);
   }
@@ -663,9 +666,11 @@ export function buildForest(game) {
   const logic = {
     moving, chars,
     step(dt) {
-      const p = P(), s = save(), t = game.t;
+      const s = save(), t = game.t;
+      const players = game.players;
       // lanternes : coup de queue tournoyant à côté
-      if (p.attackT > 0) {
+      for (const p of players) {
+        if (p.attackT <= 0) continue;
         for (const l of lanterns) {
           if (l.lit) continue;
           const d = Math.hypot(l.def.x - p.pos.x, l.def.z - p.pos.z);
@@ -673,7 +678,7 @@ export function buildForest(game) {
         }
       }
       // patte géante
-      if (p.grounded && p.onCol && p.onCol.kind === 'switch' && t > st.leafUntil - LEAF_REARM) {
+      if (players.some(p => p.grounded && p.onCol && p.onCol.kind === 'switch') && t > st.leafUntil - LEAF_REARM) {
         const first = st.leafUntil < 0;
         st.leafUntil = t + S.LEAF_TIME; st.leafWarned = false;
         setLeaves(true);
@@ -684,7 +689,7 @@ export function buildForest(game) {
       if (st.leafUntil > 0 && t > st.leafUntil) { setLeaves(false); st.leafUntil = 0; }
       // porte du repaire
       if (!st.gateOpen && s.medals.length >= S.GATE_MEDALS) openGate(false);
-      if (!st.gateOpen && Math.hypot(p.pos.x - S.GATE.x, p.pos.z - S.GATE.z) < 3.2 && t - st.gateHintT > 6) {
+      if (!st.gateOpen && players.some(p => Math.hypot(p.pos.x - S.GATE.x, p.pos.z - S.GATE.z) < 3.2) && t - st.gateHintT > 6) {
         st.gateHintT = t;
         game.banner('La porte est fermée', `Il faut ${S.GATE_MEDALS} médailles pour entrer (tu en as ${s.medals.length})`, 2400);
       }
