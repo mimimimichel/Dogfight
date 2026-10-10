@@ -56,6 +56,11 @@
             <b id="adv-play-label">Jouer</b>
             <small id="adv-play-sub">Explore l'île avec tes chiens !</small>
           </button>
+          <button class="hbtn duo" data-action="coop">
+            <span class="duo-ico" aria-hidden="true"></span>
+            <b>Jouer à deux</b>
+            <small>Un joueur fait Ainu, l'autre fait Matcha !</small>
+          </button>
           <div class="home-row">
             <button class="hbtn small" data-action="controls">Commandes</button>
             <button class="hbtn small hidden" id="fs-btn" data-action="fullscreen">Plein écran</button>
@@ -74,6 +79,45 @@
             </div>
           </div>
           <p class="ios-tip hidden" id="ios-tip">Plein écran sur iPhone : touche <b>Partager</b> puis <b>« Sur l'écran d'accueil »</b>.</p>
+        </div>
+      </section>
+
+      <!-- Aventure à deux -->
+      <section class="screen home coop hidden" id="screen-coop">
+        <div class="home-sky" aria-hidden="true">
+          <div class="home-cloud c1"></div><div class="home-cloud c2"></div>
+        </div>
+        <div class="coop-card">
+          <h2 class="coop-title">Jouer à deux</h2>
+          <p class="coop-sub">Chacun sur son téléphone ou sa tablette : l'un joue Ainu, l'autre Matcha !</p>
+          <div class="coop-choose" id="coop-choose">
+            <div class="coop-col">
+              <p class="coop-label">Je crée la partie et je joue&nbsp;:</p>
+              <div class="coop-roles">
+                <button class="hbtn role ainu" data-action="coop-host-ainu"><b>Ainu</b><small>court, saute, fonce</small></button>
+                <button class="hbtn role matcha" data-action="coop-host-matcha"><b>Matcha</b><small>double saut, attaque</small></button>
+              </div>
+            </div>
+            <div class="coop-col">
+              <p class="coop-label">J'ai reçu un code&nbsp;:</p>
+              <div class="coop-join">
+                <input id="coop-code" maxlength="4" placeholder="CODE" autocomplete="off" autocapitalize="characters">
+                <button class="hbtn cbtn" data-action="coop-join">Rejoindre</button>
+              </div>
+            </div>
+          </div>
+          <div class="coop-wait hidden" id="coop-wait">
+            <p class="coop-label">Donne ce code à l'autre joueur&nbsp;:</p>
+            <div class="coop-code" id="coop-show-code">----</div>
+            <div class="coop-join">
+              <input id="coop-link" readonly>
+              <button class="hbtn cbtn" data-action="coop-copy">Copier le lien</button>
+            </div>
+            <p class="coop-status pulse" id="coop-wait-status">En attente de l'autre joueur…</p>
+            <button class="hbtn small" data-action="coop-cancel">Annuler</button>
+          </div>
+          <p class="coop-status" id="coop-status"></p>
+          <button class="hbtn small coop-back" data-action="coop-back">Retour</button>
         </div>
       </section>
 
@@ -219,6 +263,7 @@
   <script src="room.js"></script>
   <script src="vendor/peerjs.min.js"></script>
   <script src="p2p.js"></script>
+  <script src="coop.js"></script>
   <script src="render.js"></script>
   <script src="audio.js"></script>
   <script src="touch.js"></script>

@@ -616,8 +616,8 @@
 
   // Mode aventure 3D : chargé à la demande (Three.js n'alourdit pas le jeu de combat)
   let adventureLoading = false;
-  function startAdventure() {
-    if (adventureLoading || app.mode === 'adventure') return;
+  function startAdventure(coop) {
+    if (adventureLoading || app.mode === 'adventure') { if (coop) coop.link.close(); return; }
     adventureLoading = true;
     if (document.activeElement && document.activeElement.blur) document.activeElement.blur();
     app.mode = 'adventure';
@@ -627,14 +627,55 @@
       adventureLoading = false;
       return mod.start({
         sfx,
+        coop,
         onExit: () => { app.mode = null; show('menu'); },
       });
     }).catch((err) => {
       adventureLoading = false;
+      if (coop) coop.link.close();
       console.error(err);
       toast('Impossible de charger l\'aventure : ' + err.message, 5000);
       app.mode = null;
       show('menu');
+    });
+  }
+
+  // ---------------------------------------------------------------------------
+  // Aventure à deux (coop.js)
+  // ---------------------------------------------------------------------------
+  function coopReset(status) {
+    $('coop-choose').classList.remove('hidden');
+    $('coop-wait').classList.add('hidden');
+    $('coop-status').textContent = status || '';
+  }
+  function coopStart(link, role, isHost) {
+    if (app.screen !== 'coop') { link.close(); return; }
+    coopReset();
+    startAdventure({ link, role, isHost });
+  }
+  function coopHost(role) {
+    $('coop-choose').classList.add('hidden');
+    $('coop-wait').classList.remove('hidden');
+    $('coop-show-code').textContent = '····';
+    $('coop-link').value = '';
+    $('coop-status').textContent = '';
+    window.AdvCoop.host(role, {
+      onCode: (code) => {
+        $('coop-show-code').textContent = code;
+        const q = new URLSearchParams(location.search).get('peer');
+        $('coop-link').value = location.origin + location.pathname + '?coop=' + code + (q ? '&peer=' + q : '');
+      },
+      onReady: (link) => coopStart(link, role, true),
+      onError: (msg) => coopReset(msg),
+    });
+  }
+  function coopJoin() {
+    const code = $('coop-code').value.trim().toUpperCase();
+    if (code.length !== 4) { $('coop-status').textContent = 'Le code fait 4 lettres.'; return; }
+    $('coop-status').textContent = 'Connexion à la partie ' + code + '…';
+    window.AdvCoop.join(code, {
+      onReady: (link, role) => coopStart(link, role, false),
+      onError: (msg) => coopReset(msg),
     });
   }
 
@@ -647,6 +688,20 @@
       case 'cpu': app.mode = 'cpu'; enterSelect(); break;
       case 'local': app.mode = 'local'; enterSelect(); break;
       case 'adventure': startAdventure(); break;
+      case 'coop': show('coop'); coopReset(); break;
+      case 'coop-host-ainu': coopHost('ainu'); break;
+      case 'coop-host-matcha': coopHost('matcha'); break;
+      case 'coop-join': coopJoin(); break;
+      case 'coop-cancel': window.AdvCoop.cancel(); coopReset(); break;
+      case 'coop-back': window.AdvCoop.cancel(); show('menu'); break;
+      case 'coop-copy': {
+        const inp = $('coop-link');
+        inp.select();
+        (navigator.clipboard ? navigator.clipboard.writeText(inp.value) : Promise.reject())
+          .then(() => toast('Lien copié !', 1500))
+          .catch(() => { document.execCommand('copy'); toast('Lien copié !', 1500); });
+        break;
+      }
       case 'controls': show('controls'); break;
       case 'combat-menu': {
         const open = $('combat-panel').classList.toggle('hidden') === false;
@@ -821,6 +876,13 @@
   // ---------------------------------------------------------------------------
   const params = new URLSearchParams(location.search);
   const invite = (params.get('salon') || '').toUpperCase();
+  const coopInvite = (params.get('coop') || '').toUpperCase();
+  if (coopInvite) {
+    show('coop');
+    coopReset(`Invitation à jouer à deux : clique sur « Rejoindre » !`);
+    $('coop-code').value = coopInvite;
+    history.replaceState(null, '', location.pathname + (params.get('peer') ? '?peer=' + params.get('peer') : ''));
+  }
   if (invite) {
     app.mode = 'online';
     show('online');

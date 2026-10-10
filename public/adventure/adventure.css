@@ -128,3 +128,12 @@
 .adv-btn.dash { right: calc(max(14px, env(safe-area-inset-right)) + var(--b) * 0.15); bottom: calc(var(--b) * 1.6); }
 .adv-btn.talk { right: calc(max(14px, env(safe-area-inset-right)) + var(--b) * 1.4); bottom: calc(var(--b) * 1.45); color: #fff; border-color: #ffe08a; background: radial-gradient(circle at 40% 30%, #3ac8b8, #0e6a6a); animation: advpulse 0.9s ease-in-out infinite; }
 @keyframes advpulse { 50% { transform: scale(1.1); } }
+
+/* Aventure à deux : chacun ses commandes */
+.adv-coop { font-size: 12px; font-weight: 600; color: #fff4dc; text-shadow: 0 1px 2px #000; line-height: 1.1; }
+.adv-coop b { color: #ffd23a; }
+#adv.role-ainu .adv-coop span { color: #ffab6a; }
+#adv.role-matcha .adv-coop span { color: #b6ec7a; }
+#adv.role-ainu .adv-btn.attack { display: none; }
+#adv.role-matcha .adv-stick, #adv.role-matcha .adv-stick-zone, #adv.role-matcha .adv-btn.dash { display: none; }
+#adv.role-matcha .adv-cam-zone { width: 100%; }

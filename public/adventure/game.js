@@ -51,6 +51,11 @@ class Adventure {
   constructor(opts) {
     this.sfx = opts.sfx || null;
     this.onExit = opts.onExit || (() => {});
+    // Aventure à deux : { link, role: 'ainu' | 'matcha', isHost }
+    this.coop = opts.coop || null;
+    this.guest = !!(this.coop && !this.coop.isHost);
+    this.remote = { mx: 0, mz: 0, h: false };
+    this.remotePressed = new Set();
     this.isTouch = document.documentElement.classList.contains('touch');
     this.t = 0;          // temps de jeu
     this.acc = 0;
@@ -95,7 +100,8 @@ class Adventure {
     this.lastFrame = performance.now();
     this.raf = requestAnimationFrame((t) => this.frame(t));
 
-    if (this.hasProgress()) this.showOverlay('continue');
+    if (this.coop) this.initCoop();
+    else if (this.hasProgress()) this.showOverlay('continue');
     else this.beginLevel(true);
   }
 
@@ -110,7 +116,7 @@ class Adventure {
       if (s) Object.assign(this.save, s);
     } catch (e) { /* ignore */ }
   }
-  persist() { try { localStorage.setItem(SAVE_KEY, JSON.stringify(this.save)); } catch (e) { /* ignore */ } }
+  persist() { if (this.guest) return; try { localStorage.setItem(SAVE_KEY, JSON.stringify(this.save)); } catch (e) { /* ignore */ } }
   hasProgress() { const s = this.save; return s.intro && (s.bones.length || s.medals.length || s.balls.length); }
 
   // -------------------------------------------------------------------------
@@ -920,6 +926,14 @@ class Adventure {
     this.dom.dialog.addEventListener('pointerdown', () => this.pressed.add('talk'));
   }
 
+  /** Stick (x, y) relatif à la caméra → direction dans le monde. */
+  worldMove(x, y) {
+    const cy = this.camYaw;
+    const fx = -Math.sin(cy), fz = -Math.cos(cy);
+    const rx = Math.cos(cy), rz = -Math.sin(cy);
+    return [fx * -y + rx * x, fz * -y + rz * x];
+  }
+
   readInput() {
     const k = this.keys;
     let x = this.stick.x, y = this.stick.y;
@@ -959,7 +973,8 @@ class Adventure {
     this.raf = requestAnimationFrame((t) => this.frame(t));
     const dt = Math.min(0.1, (now - this.lastFrame) / 1000);
     this.lastFrame = now;
-    if (!this.paused) {
+    if (this.guest) this.guestFrame(dt);
+    else if (!this.paused) {
       this.acc += dt;
       let n = 0;
       while (this.acc >= STEP && n < 5) { this.step(STEP); this.acc -= STEP; n++; }
@@ -973,11 +988,12 @@ class Adventure {
     this.t += dt;
     if (!this.save.done) this.save.time += dt;
     const input = this.readInput();
+    if (this.coop) this.mergeCoopInput(input);
     if (this.dialog) {
       this.stepDialog(dt);
-      input.x = 0; input.y = 0;
+      input.x = 0; input.y = 0; input.wx = 0; input.wz = 0;
     }
-    if (this.freeze > 0) { this.freeze -= dt; input.x = 0; input.y = 0; this.pressed.clear(); }
+    if (this.freeze > 0) { this.freeze -= dt; input.x = 0; input.y = 0; input.wx = 0; input.wz = 0; this.pressed.clear(); this.ainuP = this.matchaP = this.ainuP && new Set(); }
     this.stepCamera(dt);
     this.stepPlayer(dt, input);
     this.stepCats(dt);
@@ -986,6 +1002,193 @@ class Adventure {
     this.stepParticles(dt);
     this.stepEnd(dt);
     this.pressed.clear();
+    if (this.coop) this.coopAfterStep();
+  }
+
+  // -------------------------------------------------------------------------
+  // Aventure à deux : le navigateur qui a créé la partie fait tourner le jeu ;
+  // l'autre envoie ses commandes et affiche l'état reçu.
+  // -------------------------------------------------------------------------
+  initCoop() {
+    const { link, role, isHost } = this.coop;
+    const name = role === 'ainu' ? 'Ainu' : 'Matcha';
+    this.dom.root.classList.add('coop', 'role-' + role);
+    const badge = document.createElement('div');
+    badge.className = 'adv-coop';
+    badge.innerHTML = `<b>À deux</b> · tu es <span>${name}</span>`;
+    this.dom.root.querySelector('.adv-party-info').appendChild(badge);
+    this.dom.coopBadge = badge;
+    if (role === 'matcha') this.dom.root.querySelector('.adv-btn.jump span').textContent = 'Double saut';
+    this.localBanner = this.banner.bind(this);
+    link.onmessage = (m) => this.onCoopMessage(m);
+    link.onclose = () => this.onCoopClose();
+    const help = role === 'ainu'
+      ? 'Tu cours, tu sautes et tu fonces ! Matcha fait le double saut et l\'attaque.'
+      : 'Tu fais le double saut et l\'attaque tournoyante ! Ainu court et saute.';
+    setTimeout(() => { if (!this.disposed && this.coop) this.localBanner(`Tu joues ${name} !`, help, 4200); }, isHost ? 400 : 900);
+    if (isHost) {
+      // les effets (sons, particules, bandeaux) sont rejoués chez l'autre joueur
+      this.coopEvents = [];
+      this.coopTick = 0;
+      for (const n of ['sound', 'burst', 'banner', 'fade']) {
+        const f = this[n].bind(this);
+        this[n] = (...a) => { if (this.coop) this.coopEvents.push([n, ...a]); return f(...a); };
+      }
+      this.beginLevel(!this.hasProgress());
+    } else {
+      this.lastSent = { mx: 0, mz: 0, h: false, at: 0 };
+      this.hpKey = '';
+    }
+  }
+
+  /** Hôte : sépare les actions d'Ainu et de Matcha, mélange les deux joueurs. */
+  mergeCoopInput(input) {
+    const local = new Set(this.pressed), remote = this.remotePressed;
+    for (const a of remote) this.pressed.add(a);
+    const ainu = this.coop.role === 'ainu';
+    this.ainuP = ainu ? local : new Set(remote);
+    this.matchaP = ainu ? new Set(remote) : local;
+    remote.clear();
+    if (ainu) [input.wx, input.wz] = this.worldMove(input.x, input.y);
+    else { input.wx = this.remote.mx; input.wz = this.remote.mz; }
+    input.jumpHeld = input.jumpHeld || this.remote.h;
+  }
+
+  coopAfterStep() {
+    if (this.guest || (this.coopTick = (this.coopTick + 1) % 3) !== 0) return;
+    const r = (v) => Math.round(v * 100) / 100;
+    const P = this.player, pp = this.puppy, d = this.dialog;
+    const snap = {
+      t: 's', time: r(this.t),
+      p: [r(P.pos.x), r(P.pos.y), r(P.pos.z), r(P.vel.x), r(P.vel.y), r(P.vel.z), r(P.yaw), (P.grounded ? 1 : 0) | (P.gliding ? 2 : 0),
+        r(P.attackT), r(P.dashT), r(P.flipT), r(P.cheerT), r(P.invuln), P.hearts],
+      c: this.cats.map(c => (c.dead ? 0 : [r(c.pos.x), r(c.pos.y), r(c.pos.z), r(c.yaw), r(c.phase), c.chasing ? 1 : 0])),
+      pp: [pp.state, r(pp.pos.x), r(pp.pos.y), r(pp.pos.z), r(pp.yaw), r(pp.phase)],
+      hp: this.hearts.filter(h => !h.taken).map(h => [r(h.x), r(h.y), r(h.z)]),
+      d: d ? [d.lines[d.i].who, d.lines[d.i].text, Math.floor(d.chars)] : 0,
+      n: this.nearby ? (this.nearby.kind === 'sign' ? 'LIRE' : 'PARLER') : '',
+      ev: this.coopEvents.splice(0),
+    };
+    const sv = JSON.stringify(Object.assign({}, this.save, { time: 0 }));
+    if (sv !== this.lastSaveSent) { snap.sv = this.save; this.lastSaveSent = sv; }
+    this.coop.link.send(snap);
+  }
+
+  onCoopMessage(m) {
+    if (!this.guest && m.t === 'in') {
+      const l = Math.hypot(m.mx, m.mz) || 1;
+      this.remote.mx = l > 1 ? m.mx / l : m.mx; this.remote.mz = l > 1 ? m.mz / l : m.mz;
+      this.remote.h = !!m.h;
+      for (const a of m.p || []) if (['jump', 'attack', 'dash', 'talk'].includes(a)) this.remotePressed.add(a);
+    } else if (this.guest && m.t === 's') this.applySnapshot(m);
+  }
+
+  onCoopClose() {
+    if (this.disposed) return;
+    if (this.guest) { this.showOverlay('lost'); return; }
+    // L'hôte continue seul avec les deux chiens
+    this.coop = null;
+    this.ainuP = this.matchaP = null;
+    this.dom.root.classList.remove('coop', 'role-ainu', 'role-matcha');
+    if (this.dom.coopBadge) this.dom.coopBadge.remove();
+    this.banner('L\'autre joueur est parti', 'Tu continues avec Ainu et Matcha.', 3000);
+  }
+
+  /** Invité : envoie ses commandes, suit l'état reçu de l'hôte. */
+  guestFrame(dt) {
+    this.t += dt;
+    const input = this.readInput();
+    this.stepCamera(dt);
+    const [mx, mz] = this.coop.role === 'ainu' ? this.worldMove(input.x, input.y) : [0, 0];
+    const p = [...this.pressed]; this.pressed.clear();
+    const ls = this.lastSent, now = performance.now();
+    if (p.length || Math.abs(mx - ls.mx) > 0.04 || Math.abs(mz - ls.mz) > 0.04 || input.jumpHeld !== ls.h || now - ls.at > 120) {
+      this.coop.link.send({ t: 'in', mx: Math.round(mx * 100) / 100, mz: Math.round(mz * 100) / 100, h: input.jumpHeld, p });
+      Object.assign(ls, { mx, mz, h: input.jumpHeld, at: now });
+    }
+    const P = this.player, s = this.snap;
+    for (const k of ['attackT', 'dashT', 'flipT', 'cheerT', 'invuln']) P[k] = Math.max(0, P[k] - dt);
+    if (s) {
+      const age = Math.min(0.15, (now - this.snapAt) / 1000), k = 1 - Math.exp(-dt * 16);
+      const q = s.p, tgt = new THREE.Vector3(q[0] + q[3] * age, q[1] + (q[7] & 1 ? 0 : q[4] * age), q[2] + q[5] * age);
+      if (P.pos.distanceTo(tgt) > 4) P.pos.copy(tgt); else P.pos.lerp(tgt, k);
+      P.yaw = lerpAngle(P.yaw, q[6], k);
+      s.c.forEach((d, i) => {
+        const c = this.cats[i];
+        if (!d || !c) return;
+        c.pos.x += (d[0] - c.pos.x) * k; c.pos.y += (d[1] - c.pos.y) * k; c.pos.z += (d[2] - c.pos.z) * k;
+        c.yaw = lerpAngle(c.yaw, d[3], k); c.phase += (d[4] - c.phase) * k;
+      });
+      const pp = this.puppy, e = s.pp;
+      if (pp.pos.distanceTo(new THREE.Vector3(e[1], e[2], e[3])) > 6) pp.pos.set(e[1], e[2], e[3]);
+      else { pp.pos.x += (e[1] - pp.pos.x) * k; pp.pos.y += (e[2] - pp.pos.y) * k; pp.pos.z += (e[3] - pp.pos.z) * k; }
+      pp.yaw = lerpAngle(pp.yaw, e[4], k); pp.phase += (e[5] - pp.phase) * k;
+    }
+    this.stepParticles(dt);
+  }
+
+  applySnapshot(s) {
+    this.snap = s; this.snapAt = performance.now();
+    if (Math.abs(this.t - s.time) > 0.3) this.t = s.time;
+    if (s.sv) this.applySave(s.sv);
+    const P = this.player, q = s.p;
+    P.vel.set(q[3], q[4], q[5]);
+    P.grounded = !!(q[7] & 1); P.gliding = !!(q[7] & 2);
+    if (q[10] > P.flipT + 0.1 || q[10] === 0) P.flipT = q[10];
+    P.attackT = q[8]; P.dashT = q[9]; P.cheerT = q[11]; P.invuln = q[12];
+    if (P.hearts !== q[13]) { P.hearts = q[13]; this.updateHud(); }
+    s.c.forEach((d, i) => {
+      const c = this.cats[i];
+      if (!c) return;
+      if (!d) { c.dead = true; c.mesh.visible = false; return; }
+      if (c.dead) { c.dead = false; c.mesh.visible = true; c.pos.set(d[0], d[1], d[2]); }
+      c.chasing = !!d[5];
+    });
+    const pp = this.puppy;
+    if (pp.state !== s.pp[0]) { pp.state = s.pp[0]; this.updateHud(); }
+    // cœurs à ramasser
+    const hk = JSON.stringify(s.hp);
+    if (hk !== this.hpKey) {
+      this.hpKey = hk;
+      for (const h of this.hearts) this.scene.remove(h.mesh);
+      this.hearts = [];
+      for (const h of s.hp) this.spawnHeart(h[0], h[1], h[2]);
+    }
+    // dialogue
+    const dl = this.dom.dialog;
+    if (s.d) {
+      const before = this.dialog ? this.dialog.chars : 0;
+      this.dialog = { remote: true, chars: s.d[2] };
+      dl.classList.remove('hidden');
+      this.dom.dname.textContent = s.d[0];
+      this.dom.dtext.textContent = s.d[1].slice(0, s.d[2]);
+      dl.classList.toggle('done', s.d[2] >= s.d[1].length);
+      if (s.d[2] > before && s.d[2] < s.d[1].length) this.voice(s.d[0]);
+    } else if (this.dialog) { this.dialog = null; dl.classList.add('hidden'); }
+    // bouton « parler »
+    this.nearby = s.n ? { kind: s.n } : null;
+    this.dom.talkBtn.classList.toggle('hidden', !s.n);
+    this.dom.talkBtn.textContent = s.n;
+    const prompt = this.dom.prompt;
+    if (s.n && !this.isTouch) { prompt.textContent = `F : ${s.n.toLowerCase()}`; prompt.classList.remove('hidden'); }
+    else prompt.classList.add('hidden');
+    // effets
+    for (const [n, ...a] of s.ev) {
+      if (n === 'overlay') this.showOverlay(a[0]);
+      else if (['sound', 'burst', 'banner', 'fade'].includes(n)) this[n](...a);
+    }
+  }
+
+  applySave(sv) {
+    this.save = Object.assign(this.emptySave(), sv);
+    const s = this.save;
+    this.boneTaken = new Set(s.bones);
+    for (const b of this.balls) { b.taken = s.balls.includes(b.def.id); b.mesh.visible = !b.taken; }
+    this.pedestalBalls.forEach((b, i) => { b.visible = i < s.balls.length; });
+    for (const c of this.crates) { c.broken = s.crates.includes(c.def.id); c.mesh.visible = !c.broken; }
+    for (const m of this.medals) m.taken = s.medals.includes(m.def.id);
+    this.updateMedalVisibility();
+    this.updateHud();
   }
 
   // -------------------------------------------------------------------------
@@ -1031,11 +1234,10 @@ class Adventure {
   stepPlayer(dt, input) {
     const P = this.player;
     const pr = this.pressed;
-    // Direction souhaitée, relative à la caméra
-    const cy = this.camYaw;
-    const fx = -Math.sin(cy), fz = -Math.cos(cy);
-    const rx = Math.cos(cy), rz = -Math.sin(cy);
-    const wx = fx * -input.y + rx * input.x, wz = fz * -input.y + rz * input.x;
+    // À deux : Ainu court, saute et charge ; Matcha fait le double saut et l'attaque
+    const ap = this.ainuP || pr, mp = this.matchaP || pr;
+    // Direction souhaitée, relative à la caméra (ou déjà dans le monde, à deux)
+    const [wx, wz] = input.wx !== undefined ? [input.wx, input.wz] : this.worldMove(input.x, input.y);
     const wlen = Math.hypot(wx, wz);
 
     P.invuln = Math.max(0, P.invuln - dt);
@@ -1047,23 +1249,24 @@ class Adventure {
     // Actions
     if (!this.dialog && this.freeze <= 0) {
       if (pr.has('talk') && this.nearby) { this.interact(this.nearby); pr.delete('talk'); }
-      if (pr.has('jump')) {
-        if (P.coyote > 0 && P.jumps === 0) {
-          P.vel.y = JUMP_V; P.jumps = 1; P.grounded = false; P.coyote = 0;
-          this.sound('jump');
-          this.burst(P.pos.x, P.pos.y + 0.1, P.pos.z, 6, 0xf0e0c0, 2.5, 0.35);
-        } else if (P.jumps < 2) {
+      const onGround = P.coyote > 0 && P.jumps === 0;
+      if (ap.has('jump') && onGround) {
+        P.vel.y = JUMP_V; P.jumps = 1; P.grounded = false; P.coyote = 0;
+        this.sound('jump');
+        this.burst(P.pos.x, P.pos.y + 0.1, P.pos.z, 6, 0xf0e0c0, 2.5, 0.35);
+      } else if (mp.has('jump') && !onGround) {
+        if (P.jumps < 2) {
           P.vel.y = DOUBLE_JUMP_V; P.jumps = 2; P.flipT = 0.45;
           this.sound('double');
           this.burst(P.pos.x, P.pos.y + 0.5, P.pos.z, 10, 0x8bc34a, 3, 0.4);
         }
       }
-      if (pr.has('attack') && P.attackT <= 0) {
+      if (mp.has('attack') && P.attackT <= 0) {
         P.attackT = ATTACK_TIME; P.hitIds.clear();
         if (!P.grounded) P.vel.y = Math.max(P.vel.y, 2);
         this.sound('spin');
       }
-      if (pr.has('dash') && P.dashCd <= 0 && (P.grounded || !P.airDash)) {
+      if (ap.has('dash') && P.dashCd <= 0 && (P.grounded || !P.airDash)) {
         P.dashT = DASH_TIME; P.dashCd = 0.6; P.hitIds.clear();
         if (!P.grounded) { P.airDash = true; P.vel.y = Math.max(P.vel.y, 3); }
         const dx = wlen > 0.2 ? wx / wlen : Math.sin(P.yaw), dz = wlen > 0.2 ? wz / wlen : Math.cos(P.yaw);
@@ -1219,7 +1422,7 @@ class Adventure {
       if (c.stun <= 0 && dist < 9 && Math.abs(P.pos.y - c.pos.y) < 3 && fromHome < 15 && !this.dialog) {
         dir = toP.normalize(); speed = 3.6;
         // petit miaulement aigu quand un chat repère le duo
-        if (!c.chasing && this.t - (c.lastMeow || -9) > 4 && this.sfx && this.sfx.ok) { c.lastMeow = this.t; this.sfx.meow(1.35); }
+        if (!c.chasing && this.t - (c.lastMeow || -9) > 4) { c.lastMeow = this.t; this.sound('meowHi'); }
         c.chasing = true;
       } else {
         c.chasing = false;
@@ -1434,6 +1637,7 @@ class Adventure {
         this.dialog = null;
         this.dom.dialog.classList.add('hidden');
         this.pressed.clear();
+        if (this.ainuP) { this.ainuP.clear(); this.matchaP.clear(); }
         if (d.onDone) d.onDone();
         return;
       }
@@ -1516,7 +1720,7 @@ class Adventure {
     this.burst(m.def.x, m.def.y, m.def.z, 14, 0xffffff, 4, 0.7);
     this.player.cheerT = 1.4;
     this.freeze = 1.4;
-    if (this.sfx) this.sfx.win();
+    this.sound('win');
     this.banner('MÉDAILLE PATOUNE !', `${m.def.label} — ${s.medals.length}/5`, 2800);
     if (s.medals.length >= 5 && !s.done) this.endTimer = 1.7;
   }
@@ -1534,7 +1738,7 @@ class Adventure {
       { who: 'Mamie Labrador', text: 'Mais la Capitaine Moustache s\'est enfuie vers la Forêt des Moustaches…' },
       { who: 'Ainu', text: 'Ouaf ! On la rattrapera, promis !' },
       { who: 'Mamie Labrador', text: '(À suivre dans le niveau 2 !)' },
-    ], () => { s.done = true; this.persist(); this.showOverlay('complete'); });
+    ], () => { s.done = true; this.persist(); this.showOverlay('complete'); if (this.coop) this.coopEvents.push(['overlay', 'complete']); });
   }
 
   // -------------------------------------------------------------------------
@@ -1572,6 +1776,8 @@ class Adventure {
       case 'ball': s.tone(660, 0.1, { vol: 0.1 }); s.tone(990, 0.12, { vol: 0.1, delay: 0.08 }); break;
       case 'heart': s.tone(700, 0.1, { type: 'sine', vol: 0.15 }); s.tone(1050, 0.15, { type: 'sine', vol: 0.15, delay: 0.08 }); break;
       case 'meow': s.meow && s.meow(); break;
+      case 'meowHi': s.meow && s.meow(1.35); break;
+      case 'win': s.win(); break;
       case 'poof': s.noise(0.25, { freq: 1500, freqTo: 300, vol: 0.3 }); s.tone(500, 0.2, { type: 'sawtooth', to: 180, vol: 0.08 }); break;
       case 'crate': s.noise(0.2, { freq: 700, vol: 0.4 }); s.tone(160, 0.15, { type: 'square', to: 80, vol: 0.12 }); break;
       case 'hurt': s.hit(true); break;
@@ -1748,7 +1954,7 @@ class Adventure {
       html = `<h2>Pause</h2>
         <div class="adv-stats">Médailles ${s.medals.length}/5 · Os ${s.bones.length}/100</div>
         <button class="btn primary" data-a="resume">Reprendre</button>
-        <button class="btn" data-a="restart">Recommencer le niveau</button>
+        ${this.coop ? '' : '<button class="btn" data-a="restart">Recommencer le niveau</button>'}
         <button class="btn ghost" data-a="quit">Menu principal</button>`;
     } else if (kind === 'continue') {
       html = `<h2>Le Parc des Toutous</h2>
@@ -1761,6 +1967,10 @@ class Adventure {
         <div class="adv-stats">Les médailles et les os ramassés seront perdus.</div>
         <button class="btn primary" data-a="new">Oui, recommencer</button>
         <button class="btn ghost" data-a="back-pause">Non</button>`;
+    } else if (kind === 'lost') {
+      html = `<h2>Connexion perdue</h2>
+        <div class="adv-stats">L'autre joueur a quitté la partie.</div>
+        <button class="btn primary" data-a="lost">Menu principal</button>`;
     } else if (kind === 'complete') {
       html = `<h2>Niveau 1 terminé !</h2>
         <div class="adv-medals">${('<img src="' + ICONS.medal + '" alt="">').repeat(5)}</div>
@@ -1772,7 +1982,7 @@ class Adventure {
     o.dataset.kind = kind;
     o.classList.remove('hidden');
     this.dom.banner.classList.add('hidden');
-    this.paused = true;
+    this.paused = !this.coop;
     o.querySelectorAll('[data-a]').forEach(b => b.addEventListener('click', () => this.overlayAction(b.dataset.a)));
   }
 
@@ -1796,6 +2006,7 @@ class Adventure {
         start({ sfx: this.sfx, onExit: this.onExit });
         break;
       case 'quit': this.dispose(); this.onExit(); break;
+      case 'lost': this.dispose(); this.onExit(); break;
     }
   }
 
@@ -1812,6 +2023,7 @@ class Adventure {
 
   dispose() {
     this.disposed = true;
+    if (this.coop) { clearInterval(this.coopPing); this.coop.link.onclose = null; this.coop.link.close(); }
     cancelAnimationFrame(this.raf);
     window.removeEventListener('keydown', this.onKeyDown);
     window.removeEventListener('keyup', this.onKeyUp);
