@@ -366,31 +366,42 @@
   // ---------------------------------------------------------------------------
   // Réseau
   // ---------------------------------------------------------------------------
+  // Transport : serveur Node (WebSocket) s'il répond, sinon pair-à-pair WebRTC
+  let transportKind = null;
+  function detectTransport() {
+    if (transportKind) return Promise.resolve(transportKind);
+    if (location.protocol === 'file:') return Promise.resolve(transportKind = 'p2p');
+    return fetch('health', { cache: 'no-store' })
+      .then(r => (r.ok ? r.json() : null))
+      .then(j => (transportKind = j && j.transport === 'ws' ? 'ws' : 'p2p'))
+      .catch(() => (transportKind = 'p2p'));
+  }
+
   function connect(onOpen) {
     if (app.ws && app.ws.readyState === 1) { onOpen(); return; }
-    if (location.protocol === 'file:') {
-      toast('Le jeu en ligne nécessite le serveur : lance « npm start ».');
-      return;
-    }
-    $('online-status').textContent = 'Connexion au serveur…';
-    const ws = new WebSocket((location.protocol === 'https:' ? 'wss://' : 'ws://') + location.host);
-    app.ws = ws;
-    ws.onopen = () => { $('online-status').textContent = ''; onOpen(); };
-    ws.onmessage = (ev) => {
-      let msg;
-      try { msg = JSON.parse(ev.data); } catch (e) { return; }
-      onNet(msg);
-    };
-    ws.onclose = () => {
-      const wasOnline = app.mode === 'online' && app.screen !== 'menu' && app.screen !== 'online';
-      app.ws = null;
-      if (wasOnline) {
-        toast('Connexion au serveur perdue.');
-        leaveToMenu();
-      } else {
-        $('online-status').textContent = 'Impossible de joindre le serveur.';
-      }
-    };
+    $('online-status').textContent = 'Connexion…';
+    detectTransport().then((kind) => {
+      const ws = kind === 'ws'
+        ? new WebSocket((location.protocol === 'https:' ? 'wss://' : 'ws://') + location.host)
+        : window.DogP2P.connect();
+      app.ws = ws;
+      ws.onopen = () => { $('online-status').textContent = ''; onOpen(); };
+      ws.onmessage = (ev) => {
+        let msg;
+        try { msg = JSON.parse(ev.data); } catch (e) { return; }
+        onNet(msg);
+      };
+      ws.onclose = () => {
+        const wasOnline = app.mode === 'online' && app.screen !== 'menu' && app.screen !== 'online';
+        app.ws = null;
+        if (wasOnline) {
+          toast(ws.lostReason === 'host-left' ? 'L\'hôte a quitté la partie.' : 'Connexion perdue.');
+          leaveToMenu();
+        } else {
+          $('online-status').textContent = 'Connexion impossible.';
+        }
+      };
+    });
   }
 
   function send(msg) { if (app.ws && app.ws.readyState === 1) app.ws.send(JSON.stringify(msg)); }
@@ -537,7 +548,7 @@
       case 'create': connect(() => send({ t: 'create', name: playerName() })); break;
       case 'join': {
         const code = $('join-code').value.trim().toUpperCase();
-        if (code.length !== 4) { toast('Le code fait 4 caractères.'); return; }
+        if (code.length < 2 || code.length > 4) { toast('Le code fait 4 caractères.'); return; }
         connect(() => send({ t: 'join', code, name: playerName() }));
         break;
       }
