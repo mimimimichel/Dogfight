@@ -295,38 +295,37 @@ export function buildWater(scene, fog) {
 // ---------------------------------------------------------------------------
 // Herbe : touffes instanciées qui ondulent au vent (shader)
 // ---------------------------------------------------------------------------
-function bladeClump(r, blades) {
-  const parts = [];
-  const pos = [], col = [];
-  const base = new THREE.Color(0x2c6a1c), tip = new THREE.Color(0xd8f088);
+function bladeClump(r, blades, fine) {
+  // fine (ordinateur) : beaucoup de brins fins et indexés, teintes variées (quelques brins secs)
+  const pos = [], col = [], idx = [];
+  const base = new THREE.Color(fine ? 0x3b6424 : 0x2c6a1c), tip = new THREE.Color(fine ? 0x9cba58 : 0xd8f088), dry = new THREE.Color(0xc8b878);
+  const rows = fine ? [0, 0.35, 0.68, 1] : [0, 0.4, 0.75, 1];
   for (let b = 0; b < blades; b++) {
-    const a = r() * Math.PI * 2, d = Math.sqrt(r()) * 0.75, h = 0.22 + r() * 0.38, w = 0.035 + r() * 0.025;
-    const lean = (r() - 0.5) * 0.7;
+    const a = r() * Math.PI * 2, d = Math.sqrt(r()) * 0.75;
+    const h = fine ? 0.16 + r() * 0.42 : 0.22 + r() * 0.38, w = fine ? 0.011 + r() * 0.01 : 0.035 + r() * 0.025;
+    const lean = (r() - 0.5) * (fine ? 1.0 : 0.7);
     const ox = Math.cos(a) * d, oz = Math.sin(a) * d;
-    const dirx = Math.cos(a + Math.PI / 2), dirz = Math.sin(a + Math.PI / 2);
-    const rows = [0, 0.4, 0.75, 1];
-    const pts = rows.map((k, i) => {
-      const ww = w * (1 - k * 0.92);
-      const bend = lean * k * k;
-      return [[ox - dirx * ww + Math.cos(a) * bend, k * h, oz - dirz * ww + Math.sin(a) * bend], [ox + dirx * ww + Math.cos(a) * bend, k * h, oz + dirz * ww + Math.sin(a) * bend], k];
+    const face = r() * Math.PI * 2, dirx = Math.cos(face), dirz = Math.sin(face);
+    const la = fine ? face + Math.PI / 2 : a;
+    const tipC = tip.clone().lerp(dry, fine && r() < 0.12 ? 0.7 : 0).multiplyScalar(fine ? 0.85 + r() * 0.3 : 1);
+    const b0 = pos.length / 3;
+    rows.forEach((k) => {
+      const ww = w * (1 - k * 0.92), bend = lean * k * k;
+      const cx = ox + Math.cos(fine ? la : a) * bend, cz = oz + Math.sin(fine ? la : a) * bend;
+      const dx = fine ? dirx : Math.cos(a + Math.PI / 2), dz = fine ? dirz : Math.sin(a + Math.PI / 2);
+      pos.push(cx - dx * ww, k * h, cz - dz * ww, cx + dx * ww, k * h, cz + dz * ww);
+      const cc = base.clone().lerp(tipC, Math.pow(k, 0.8));
+      col.push(cc.r, cc.g, cc.b, cc.r, cc.g, cc.b);
     });
-    for (let i = 0; i < pts.length - 1; i++) {
-      const [l0, r0, k0] = pts[i], [l1, r1, k1] = pts[i + 1];
-      for (const [v, k] of [[l0, k0], [r0, k0], [l1, k1], [r0, k0], [r1, k1], [l1, k1]]) {
-        pos.push(...v);
-        const cc = base.clone().lerp(tip, k);
-        col.push(cc.r, cc.g, cc.b);
-      }
-    }
+    for (let i = 0; i < rows.length - 1; i++) { const q = b0 + i * 2; idx.push(q, q + 1, q + 2, q + 1, q + 3, q + 2); }
   }
   const g = new THREE.BufferGeometry();
   g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
   g.setAttribute('color', new THREE.Float32BufferAttribute(col, 3));
-  g.computeVertexNormals();
   // Normales vers le haut : éclairage doux et homogène de l'herbe
-  const nrm = g.attributes.normal;
-  for (let i = 0; i < nrm.count; i++) nrm.setXYZ(i, 0, 1, 0);
-  parts.push(g);
+  const nrm = new Float32Array(pos.length); for (let i = 1; i < nrm.length; i += 3) nrm[i] = 1;
+  g.setAttribute('normal', new THREE.BufferAttribute(nrm, 3));
+  g.setIndex(idx);
   return g;
 }
 
@@ -357,7 +356,7 @@ export function buildGrass(scene, quality, windUniform) {
       transformed.x += w * k;
       transformed.z += w * 0.6 * k;`);
   };
-  const geo = bladeClump(rng(3), quality.lite ? 7 : 14);
+  const geo = quality.lite ? bladeClump(rng(3), 7) : bladeClump(rng(3), 34, true);
   const inst = new THREE.InstancedMesh(geo, mat, spots.length);
   const m4 = new THREE.Matrix4(), q = new THREE.Quaternion(), v = new THREE.Vector3(), s = new THREE.Vector3(), e = new THREE.Euler();
   const tint = new THREE.Color();
