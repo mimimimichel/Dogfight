@@ -466,6 +466,7 @@ export function buildTrees(scene, quality) {
     leaves.setColorAt(i, c.set(greens[i % greens.length]).offsetHSL(0, 0, b.bush ? -0.04 : (r() - 0.5) * 0.06));
   });
   trunks.castShadow = leaves.castShadow = true;
+  if (LOOK.real) buildFerns(scene, quality, r);
   if (false) {
     // (feuilles détaillées autour de chaque touffe : retiré, ça faisait des taches sombres sur téléphone)
     const per = quality && quality.lite ? 5 : L.WORLD ? 6 : 12;
@@ -667,6 +668,30 @@ function vine(x0, y0, z0, len, seed) {
   for (let i = 0; i <= 6; i++) pts.push(new THREE.Vector3(x0 + Math.sin(i + seed) * 0.12, y0 - (i / 6) * len, z0 + Math.cos(i * 1.3 + seed) * 0.12));
   const g = new THREE.TubeGeometry(new THREE.CatmullRomCurve3(pts), 10, 0.018 + r() * 0.012, 4);
   return g;
+}
+
+/** Fougères scannées au pied des arbres et des ruines (rendu réaliste). */
+function buildFerns(scene, quality, r) {
+  const F = RT.plant('fern_02');
+  if (!F || L.ID === 3) return;
+  const spots = [];
+  const max = quality && quality.lite ? 16 : 60;
+  for (const t of L.trees) {
+    if (spots.length >= max) break;
+    if (r() < 0.45) continue;
+    const a = r() * Math.PI * 2, d = 1.2 + r() * 1.2, x = t.x + Math.cos(a) * d, z = t.z + Math.sin(a) * d;
+    if (onPath(x, z) || L.inWater(x, z) || L.heightAt(x, z) < 0.5) continue;
+    spots.push([x, z, 0.55 + r() * 0.5]);
+  }
+  for (const ru of L.ruins || []) if (spots.length < max + 6 && ru.type !== 'arch') { const a = r() * 6.28; spots.push([ru.x + Math.cos(a) * 1.3, ru.z + Math.sin(a) * 1.3, 0.6]); }
+  if (!spots.length) return;
+  const mat = new THREE.MeshStandardMaterial({ map: F.tex, alphaTest: 0.5, side: THREE.DoubleSide, roughness: 0.8 });
+  const inst = new THREE.InstancedMesh(F.geo, mat, spots.length);
+  inst.customDepthMaterial = new THREE.MeshDepthMaterial({ depthPacking: THREE.RGBADepthPacking, map: F.tex, alphaTest: 0.5 });
+  const m4 = new THREE.Matrix4(), q = new THREE.Quaternion(), v = new THREE.Vector3(), sv = new THREE.Vector3(), e = new THREE.Euler();
+  spots.forEach(([x, z, k], i) => { m4.compose(v.set(x, L.heightAt(x, z) - 0.02, z), q.setFromEuler(e.set(0, r() * 6.28, 0)), sv.set(k, k, k)); inst.setMatrixAt(i, m4); });
+  inst.castShadow = !(quality && quality.lite); inst.receiveShadow = true; inst.userData.noOutline = true;
+  scene.add(inst);
 }
 
 /** Lierre touffu sur l'arche et les colonnes (rendu réaliste). */
@@ -954,6 +979,16 @@ export function leafClusterGeo(detail) {
   parts.push({ geo: new THREE.IcosahedronGeometry(0.5, tiny ? 0 : lite ? 1 : 2), y: 0.62, x: 0.05 });
   const g = M.mergeGeos(parts);
   const p = g.attributes.position, nrm = g.attributes.normal;
+  if (LOOK.real) {
+    // silhouette bosselée : chaque touffe gonfle et se creuse un peu (moins « boule »)
+    for (let i = 0; i < p.count; i++) {
+      const x = p.getX(i), y = p.getY(i), z = p.getZ(i);
+      const n = Math.sin(x * 5.1 + z * 2.3) * Math.cos(y * 4.7 - x * 1.9) * 0.5 + Math.sin((x + y + z) * 9.3) * 0.25;
+      const k = 1 + n * 0.16;
+      p.setXYZ(i, x * k, y * k, z * k);
+    }
+    g.computeVertexNormals();
+  }
   const col = new Float32Array(p.count * 3);
   for (let i = 0; i < p.count; i++) {
     const t = smooth(-0.9, 0.9, p.getY(i)) * 0.6 + smooth(-0.5, 1, nrm.getY(i)) * 0.4;
@@ -964,9 +999,46 @@ export function leafClusterGeo(detail) {
   return g;
 }
 let leafM = null;
+/** Motif de petites feuilles (gris : la couleur vient de l'arbre), projeté sur les couronnes. */
+function leafPatternTexture() {
+  const c = document.createElement('canvas'); c.width = c.height = 256;
+  const x = c.getContext('2d');
+  x.fillStyle = '#3a3a3a'; x.fillRect(0, 0, 256, 256);
+  const r = rng(808);
+  for (let i = 0; i < 1100; i++) {
+    const v = 120 + Math.floor(r() * 135);
+    x.fillStyle = `rgb(${v},${v},${v})`;
+    x.save(); x.translate(r() * 256, r() * 256); x.rotate(r() * 6.28);
+    x.beginPath(); x.ellipse(0, 0, 3 + r() * 2.5, 7 + r() * 4, 0, 0, 7); x.fill();
+    x.fillStyle = 'rgba(0,0,0,0.25)'; x.fillRect(-0.5, -6, 1, 12);
+    x.restore();
+  }
+  const t = new THREE.CanvasTexture(c);
+  t.wrapS = t.wrapT = THREE.RepeatWrapping; t.colorSpace = THREE.SRGBColorSpace; t.anisotropy = 4;
+  return t;
+}
 export function leafMaterial() {
   if (leafM) return leafM;
   leafM = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.9 });
+  if (LOOK.real) {
+    const tex = leafPatternTexture(), nrm = RT.normalFor(tex, 3);
+    leafM.onBeforeCompile = (sh) => {
+      sh.uniforms.uLeaf = { value: tex }; sh.uniforms.uLeafN = { value: nrm };
+      sh.vertexShader = 'varying vec3 vLeafP;\nvarying vec3 vLeafN;\n' + sh.vertexShader.replace('#include <worldpos_vertex>', `#include <worldpos_vertex>
+        vec4 lp = vec4(transformed, 1.0);
+        #ifdef USE_INSTANCING
+          lp = instanceMatrix * lp;
+        #endif
+        vLeafP = (modelMatrix * lp).xyz;
+        vLeafN = normalize(mat3(modelMatrix) * objectNormal);`);
+      sh.fragmentShader = 'uniform sampler2D uLeaf;\nvarying vec3 vLeafP;\nvarying vec3 vLeafN;\n' + sh.fragmentShader.replace('#include <color_fragment>', `#include <color_fragment>
+        vec3 bw = pow(abs(vLeafN), vec3(4.0)); bw /= (bw.x + bw.y + bw.z);
+        vec3 q = vLeafP * 0.9;
+        float leaf = texture2D(uLeaf, q.yz).r * bw.x + texture2D(uLeaf, q.xz).r * bw.y + texture2D(uLeaf, q.xy).r * bw.z;
+        diffuseColor.rgb *= 0.45 + leaf * 1.05;`);
+    };
+    leafM.customProgramCacheKey = () => 'leafy';
+  }
   return leafM;
 }
 export function leafDepthMaterial() {

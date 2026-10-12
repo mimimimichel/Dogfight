@@ -286,7 +286,12 @@ export function preloadPhotos(onProgress) {
   for (const n of PHOTO_NAMES) for (const k of ['d', 'n']) jobs.push([n + '_' + k, PH + n + '_' + k + '.jpg']);
   jobs.push(['leaves', PH + 'leaves.webp'], ['sky', PH + 'sky.jpg']);
   let done = 0;
-  photoPromise = Promise.all(jobs.map(([key, src]) => loadImg(src).then(im => { photos[key] = im; done++; if (onProgress) onProgress(done / jobs.length); })));
+  const total = jobs.length + PLANTS.length;
+  const tick = () => { done++; if (onProgress) onProgress(done / total); };
+  photoPromise = Promise.all([
+    ...jobs.map(([key, src]) => loadImg(src).then(im => { photos[key] = im; tick(); })),
+    ...PLANTS.map(n => loadPlant(n).then(tick)),
+  ]);
   return photoPromise;
 }
 export const hasPhotos = () => !!photos.sky;
@@ -400,3 +405,29 @@ export function photoGray(name, rx, ry, gain) {
   for (const t of [out.map, out.normalMap]) if (t) { t.wrapS = t.wrapT = THREE.RepeatWrapping; t.repeat.set(rx || 1, ry || rx || 1); t.anisotropy = 8; }
   return out;
 }
+
+// ---------------------------------------------------------------------------
+// Plantes scannées (format compact fait par tools/polyhaven/plants.mjs)
+// ---------------------------------------------------------------------------
+const PLANTS = ['fern_02'];
+const plants = {};
+async function loadPlant(name) {
+  try {
+    const [meta, bin, img] = await Promise.all([
+      fetch(PH + name + '.json').then(r => r.json()),
+      fetch(PH + name + '.bin').then(r => r.arrayBuffer()),
+      loadImg(PH + name + '.webp'),
+    ]);
+    const [oP, oN, oU, oI] = meta.offsets, n = meta.vertices;
+    const g = new THREE.BufferGeometry();
+    g.setAttribute('position', new THREE.BufferAttribute(new Float32Array(bin, oP, n * 3), 3));
+    g.setAttribute('normal', new THREE.BufferAttribute(new Int8Array(bin, oN, n * 3), 3, true));
+    g.setAttribute('uv', new THREE.BufferAttribute(new Float32Array(bin, oU, n * 2), 2));
+    g.setIndex(new THREE.BufferAttribute(meta.big ? new Uint32Array(bin, oI, meta.indices) : new Uint16Array(bin, oI, meta.indices), 1));
+    const tex = new THREE.Texture(img); tex.colorSpace = THREE.SRGBColorSpace; tex.anisotropy = 4; tex.needsUpdate = true;
+    // (les UV des glTF ont l'origine en haut)
+    tex.flipY = false;
+    plants[name] = { geo: g, tex, size: meta.size };
+  } catch (e) { /* pas de plante : tant pis */ }
+}
+export const plant = (name) => plants[name] || null;
