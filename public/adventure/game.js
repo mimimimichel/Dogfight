@@ -225,14 +225,7 @@ class Adventure {
     this.dom.balls.textContent = s.balls.length;
     this.dom.ballsBox.classList.toggle('hidden', !(s.balls.length > 0 && !s.medals.includes('m_balls')));
     const hp = this.player ? this.me.hearts : MAX_HEARTS;
-    // à deux, le joueur de Matcha voit Matcha en grand
-    const mt = this.player && this.me.kind === 'matcha';
-    if (!!this.dom.partyMatcha !== mt && this.dom.pAinu.src) {
-      this.dom.partyMatcha = mt;
-      const [a, b] = [this.dom.pAinu.src, this.dom.pMatcha.src];
-      this.dom.pAinu.src = b; this.dom.pMatcha.src = a;
-      this.dom.root.querySelector('.adv-name').innerHTML = mt ? 'Matcha <small>&amp; Ainu</small>' : 'Ainu <small>&amp; Matcha</small>';
-    }
+    this.updatePortraits();
     this.dom.hearts.innerHTML = Array.from({ length: MAX_HEARTS }, (_, i) => `<img src="${i < hp ? ICONS.heart : ICONS.heartEmpty}" alt="">`).join('');
     let q;
     if (!s.intro) q = 'Parle à Mamie Labrador';
@@ -244,14 +237,25 @@ class Adventure {
 
   /** Portraits ronds d'Ainu et de Matcha, rendus une fois depuis leurs modèles 3D. */
   makePortraits() {
+    this.portraits = {};
+    const duo = M.buildDuo();
+    this.portraits.ainu = this.portraitOf(duo, duo.userData.headFace, 2.1, 0.75);
+    this.portraits.matcha = this.portraitOf(duo, duo.userData.mheadFace, 1.0, 0.35);
+    if (this.portraits.ainu) this.dom.pAinu.src = this.portraits.ainu;
+    if (this.portraits.matcha) this.dom.pMatcha.src = this.portraits.matcha;
+  }
+
+  /** Portrait rond d'un chien, rendu une fois depuis son modèle 3D. */
+  portraitOf(root, target, dist, side) {
     const r = this.renderer, cv = r.domElement;
     const sc = new THREE.Scene();
     sc.background = new THREE.Color(0x9ad4ea);
     sc.add(new THREE.HemisphereLight(0xffffff, 0x8a6a4a, 1.4));
     const l = new THREE.DirectionalLight(0xfff0d8, 2.4); l.position.set(2, 3, 4); sc.add(l);
-    const duo = M.buildDuo(); sc.add(duo);
-    duo.updateMatrixWorld(true);
-    const shot = (target, dist, side) => {
+    sc.add(root);
+    root.updateMatrixWorld(true);
+    let url = null;
+    try {
       const p = new THREE.Vector3(); target.getWorldPosition(p);
       const cam = new THREE.PerspectiveCamera(30, cv.width / cv.height, 0.05, 50);
       cam.position.set(p.x + side, p.y + 0.05, p.z + dist); cam.lookAt(p.x, p.y - 0.02, p.z);
@@ -259,13 +263,27 @@ class Adventure {
       const s = Math.min(cv.width, cv.height) * 0.9;
       const c = document.createElement('canvas'); c.width = c.height = 160;
       c.getContext('2d').drawImage(cv, (cv.width - s) / 2, (cv.height - s) / 2, s, s, 0, 0, 160, 160);
-      return c.toDataURL('image/jpeg', 0.85);
-    };
-    try {
-      this.dom.pAinu.src = shot(duo.userData.headFace, 2.1, 0.75);
-      this.dom.pMatcha.src = shot(duo.userData.mheadFace, 1.0, 0.35);
+      url = c.toDataURL('image/jpeg', 0.85);
     } catch (e) { /* pas de portrait : pas grave */ }
     sc.traverse(o => { if (o.geometry) o.geometry.dispose(); });
+    return url;
+  }
+
+  /** En-tête : le portrait et le nom du chien joué sur cet écran. */
+  updatePortraits() {
+    if (!this.portraits || !this.player) return;
+    const k = this.me.kind;
+    if (this.dom.portraitKind === k) return;
+    this.dom.portraitKind = k;
+    let main = this.portraits[k === 'matcha' ? 'matcha' : 'ainu'];
+    if (M.FRIENDS[k]) {
+      if (!this.portraits[k]) { const m = M.FRIENDS[k].build(); T.toonify(m); this.portraits[k] = this.portraitOf(m, m.userData.mheadFace, 1.3, 0.45); }
+      main = this.portraits[k];
+    }
+    if (main) this.dom.pAinu.src = main;
+    const duo = k === 'duo';
+    this.dom.root.querySelector('.adv-portrait.small').classList.toggle('hidden', !duo);
+    this.dom.root.querySelector('.adv-name').innerHTML = duo ? 'Ainu <small>&amp; Matcha</small>' : `${dogName(k)}${this.party.size > 1 ? ` <small>${escapeHtml(this.me.name)}</small>` : ''}`;
   }
 
   /** Mini-carte : relief peint une fois, puis repères mis à jour en jeu. */
