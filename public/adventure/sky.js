@@ -6,6 +6,8 @@
 import * as THREE from '../vendor/three.module.min.js';
 import { L } from './current.js';
 import * as M from './models.js';
+import * as W from './world.js';
+import * as RT from './realtex.js';
 
 const clamp = (v, a, b) => (v < a ? a : v > b ? b : v);
 function rng(seed) { let s = seed >>> 0 || 1; return () => (s = (s * 16807) % 2147483647) / 2147483647; }
@@ -79,6 +81,9 @@ function islandMeshes(I, seed, lite) {
     c.multiplyScalar(0.92 + hash3(Math.floor(x * 2), Math.floor(y * 2), Math.floor(z * 2)) * 0.12);
     if (y > -0.9) c.lerp(new THREE.Color(0x5aa040), clamp((y + 0.9) / 0.9, 0, 1) * 0.85);   // mousse au bord
   });
+  // coordonnées de texture : la roche garde la même échelle quelle que soit l'île
+  const uv = under.attributes.uv;
+  if (uv) for (let i = 0; i < uv.count; i++) uv.setXY(i, uv.getX(i) * R * 6.28 / 6, uv.getY(i) * depth / 5);
   under.translate(I.x, top - 0.25, I.z);
   // dessus : disque bombé (suit heightAt), bord arrondi
   const rings = lite ? 6 : 10, segs = lite ? 24 : 40;
@@ -101,6 +106,9 @@ function islandMeshes(I, seed, lite) {
   topGeo.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
   topGeo.setAttribute('color', new THREE.Float32BufferAttribute(col, 3));
   topGeo.computeVertexNormals();
+  const tp = topGeo.attributes.position, tuv = new Float32Array(tp.count * 2);
+  for (let i = 0; i < tp.count; i++) { tuv[i * 2] = tp.getX(i) / 3; tuv[i * 2 + 1] = tp.getZ(i) / 3; }
+  topGeo.setAttribute('uv', new THREE.BufferAttribute(tuv, 2));
   return { under, top: topGeo, depth };
 }
 
@@ -213,12 +221,24 @@ export function buildSky(game) {
   const std = (opts) => new THREE.MeshStandardMaterial(Object.assign({ vertexColors: true, roughness: 0.9 }, opts || {}));
   const rockMat = std({ roughness: 0.95 });
   const grassMat = std({ roughness: 1 });
+  // rendu réaliste : roche en strates et herbe, avec relief
+  let islandRock = rockMat, islandGrass = grassMat;
+  if (W.LOOK.real) {
+    const rt = RT.rockTex();
+    islandRock = std({ roughness: 0.95, map: rt.map, normalMap: rt.normalMap });
+    const gt = W.grassGroundTexture(); gt.repeat.set(1, 1);
+    islandGrass = std({ roughness: 1, map: gt, normalMap: RT.normalFor(gt, 2) });
+  }
 
   // --- îles -------------------------------------------------------------------------
   const unders = [], tops = [];
   S.ISLANDS.forEach((I, i) => {
     const g = islandMeshes(I, 11 + i * 7, lite);
-    unders.push({ geo: g.under }); tops.push({ geo: g.top });
+    for (const [geo, mat] of [[g.under, islandRock], [g.top, islandGrass]]) {
+      const m = new THREE.Mesh(geo, mat);
+      m.receiveShadow = true; m.castShadow = mat === islandRock && !lite;
+      sc.add(m);
+    }
     // racines qui pendent sous l'île
     const r = rng(40 + i);
     for (let k = 0; k < Math.round(I.r * 0.8); k++) {
@@ -229,9 +249,8 @@ export function buildSky(game) {
   });
   const underMesh = new THREE.Mesh(M.mergeGeos(unders), rockMat);
   underMesh.castShadow = !lite; underMesh.receiveShadow = true;
-  const topMesh = new THREE.Mesh(M.mergeGeos(tops), grassMat);
-  topMesh.receiveShadow = true;
-  sc.add(underMesh, topMesh);
+  sc.add(underMesh);
+  void tops;
 
   // cascades qui tombent de l'île du départ et de l'île du trophée
   for (const [I, a] of [[S.ISLANDS[0], -0.9], [S.ISLANDS[0], 3.6], [S.ISLANDS.find(q => q.id === 'goal'), 2.2]]) {

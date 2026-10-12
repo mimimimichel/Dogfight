@@ -643,7 +643,7 @@ class Adventure {
     const list = (L.PORTALS || []).slice();
     if (!L.PORTALS && L.ID !== 1) {
       // portail de retour vers le Parc, à côté du départ, sur un sol libre
-      for (const [dx, dz] of [[5, -2], [-5, -2], [5, 3], [-5, 3], [7, 0]]) {
+      for (const [dx, dz] of [[-6, 4], [6, 4], [5, -2], [-5, -2], [7, 0]]) {   // de préférence derrière le départ (pas devant la vue)
         const x = L.START.x + dx, z = L.START.z + dz, h = L.heightAt(x, z);
         if (Math.abs(h - L.START.y) > 0.8 || (L.near ? L.near(x, z, 1.5) : L.colliders).some(c => !c.off && L.inside(c, x, z, 1.3))) continue;
         list.push({ x, z, to: 1 }); break;

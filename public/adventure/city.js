@@ -8,11 +8,84 @@ import * as THREE from '../vendor/three.module.min.js';
 import { L } from './current.js';
 import * as M from './models.js';
 import * as K from './citykit.js';
+import * as RT from './realtex.js';
+import { LOOK } from './world.js';
 import { buildPlay } from './cityplay.js';
 
 export { coinGeometry } from './citykit.js';
 
 const TILE = 64;
+
+/** Géométrie colorée (pour fusionner des pièces de couleurs différentes). */
+function tinted(geo, color) {
+  const g = geo.index ? geo.toNonIndexed() : geo, n = g.attributes.position.count, c = new THREE.Color(color), a = new Float32Array(n * 3);
+  for (let i = 0; i < n; i++) { a[i * 3] = c.r; a[i * 3 + 1] = c.g; a[i * 3 + 2] = c.b; }
+  g.setAttribute('color', new THREE.BufferAttribute(a, 3));
+  return g;
+}
+const part = (geo, color, x, y, z, rx, ry, rz) => ({ geo: tinted(geo, color), x, y, z, rx, ry, rz });
+
+/** Mobilier urbain détaillé, instancié : on l'ajoute au fil de l'eau puis done() le pose. */
+function streetProps(sc, S, G, spots, lite) {
+  const mat = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.55, metalness: 0.15 });
+  const iron = 0x2a2e30, wood = 0x9a6a42;
+  const kinds = {
+    bench: M.mergeGeos([
+      ...[0, 1, 2, 3].map(i => part(new THREE.BoxGeometry(1.9, 0.05, 0.11), wood, 0, 0.47, -0.2 + i * 0.13)),
+      ...[0, 1, 2].map(i => part(new THREE.BoxGeometry(1.9, 0.11, 0.04), wood, 0, 0.66 + i * 0.14, 0.26 + i * 0.015, -0.12)),
+      ...[-0.85, 0.85].flatMap(sx => [
+        part(new THREE.BoxGeometry(0.06, 0.47, 0.06), iron, sx, 0.235, -0.22), part(new THREE.BoxGeometry(0.06, 0.95, 0.06), iron, sx, 0.47, 0.25, -0.12),
+        part(new THREE.BoxGeometry(0.06, 0.05, 0.55), iron, sx, 0.44, 0.02), part(new THREE.BoxGeometry(0.06, 0.05, 0.4), iron, sx, 0.68, -0.05, 0.4),
+      ]),
+    ]),
+    hydrant: M.mergeGeos([
+      part(new THREE.CylinderGeometry(0.16, 0.18, 0.08, 14), 0xb02a20, 0, 0.04, 0),
+      part(new THREE.CylinderGeometry(0.13, 0.14, 0.55, 14), 0xc8382a, 0, 0.35, 0),
+      part(new THREE.SphereGeometry(0.14, 14, 8, 0, Math.PI * 2, 0, Math.PI / 2), 0xc8382a, 0, 0.62, 0),
+      part(new THREE.CylinderGeometry(0.17, 0.17, 0.05, 14), 0xa82a20, 0, 0.6, 0),
+      part(new THREE.CylinderGeometry(0.04, 0.04, 0.08, 8), 0xd8c070, 0, 0.78, 0),
+      part(new THREE.CylinderGeometry(0.06, 0.06, 0.12, 10), 0xc8382a, 0.15, 0.42, 0, 0, 0, Math.PI / 2),
+      part(new THREE.CylinderGeometry(0.06, 0.06, 0.12, 10), 0xc8382a, -0.15, 0.42, 0, 0, 0, Math.PI / 2),
+      part(new THREE.CylinderGeometry(0.07, 0.07, 0.1, 10), 0xc8382a, 0, 0.42, 0.15, Math.PI / 2, 0, 0),
+    ]),
+    bin: M.mergeGeos([
+      part(new THREE.CylinderGeometry(0.28, 0.24, 0.85, 16, 1), 0x2e5a3a, 0, 0.43, 0),
+      part(new THREE.CylinderGeometry(0.3, 0.3, 0.06, 16), 0x22442c, 0, 0.88, 0),
+      part(new THREE.SphereGeometry(0.27, 16, 6, 0, Math.PI * 2, 0, Math.PI / 2), 0x22442c, 0, 0.9, 0),
+      ...[0, 1, 2, 3, 4, 5].map(i => part(new THREE.BoxGeometry(0.03, 0.75, 0.02), 0x3e6e4a, Math.cos(i * 1.05) * 0.27, 0.43, Math.sin(i * 1.05) * 0.27, 0, -i * 1.05, 0)),
+    ]),
+    rack: M.mergeGeos([0, 1, 2, 3].map(i => part(new THREE.TorusGeometry(0.38, 0.03, 6, 16, Math.PI), 0x9aa0a8, 0, 0, i * 0.5))),
+    kiosk: M.mergeGeos([
+      part(new THREE.BoxGeometry(1.4, 1.5, 0.8), 0x2e4a38, 0, 0.85, 0),
+      part(new THREE.BoxGeometry(1.6, 0.08, 1.0), 0x223a2a, 0, 1.64, 0),
+      part(new THREE.BoxGeometry(1.25, 0.9, 0.04), 0xe8e0d0, 0, 0.95, 0.42),
+      ...[0, 1, 2, 3, 4, 5].map(i => part(new THREE.BoxGeometry(0.34, 0.24, 0.03), [0xd84a4a, 0x4a8ad8, 0xf0c040, 0x7ac05a, 0xe0e0e0, 0xc87ad8][i], -0.42 + (i % 3) * 0.42, 0.8 + Math.floor(i / 3) * 0.32, 0.45)),
+    ]),
+  };
+  const list = { bench: [], hydrant: [], bin: [], rack: [], kiosk: [] };
+  spots.forEach(([x, z], i) => {
+    if (i % 4 === 0) list.hydrant.push([x + 1.4, z, 0]);
+    else if (i % 4 === 1) list.bin.push([x - 1.2, z, 0]);
+  });
+  const P = S.PLAZA;
+  list.rack.push([P.x0 + 1.4, (P.z0 + P.z1) / 2, 0]);
+  list.kiosk.push([P.x0 + 1.5, P.z0 + 7, Math.PI / 2]);
+  list.bin.push([P.x0 + 6.2, P.z0 + 3, 0], [P.x1 - 6.2, P.z1 - 6, 0]);
+  return {
+    bench(x, z, along) { list.bench.push([x, z, along ? 0 : Math.PI / 2]); },
+    done() {
+      const m4 = new THREE.Matrix4(), q = new THREE.Quaternion(), v = new THREE.Vector3(), one = new THREE.Vector3(1, 1, 1), e = new THREE.Euler();
+      for (const [k, items] of Object.entries(list)) {
+        if (!items.length) continue;
+        const inst = new THREE.InstancedMesh(kinds[k], mat, items.length);
+        items.forEach(([x, z, a], i) => { m4.compose(v.set(x, G + 0.02, z), q.setFromEuler(e.set(0, a, 0)), one); inst.setMatrixAt(i, m4); });
+        inst.castShadow = !lite; inst.receiveShadow = true;
+        inst.userData.noOutline = true;
+        sc.add(inst);
+      }
+    },
+  };
+}
 
 /** Regroupe la géométrie par tuile et par matériau, puis crée un maillage par paire. */
 class Tiles {
@@ -68,6 +141,20 @@ function buildDecor(game) {
     shiny: new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.4, metalness: 0.4 }),
     container: new THREE.MeshStandardMaterial({ map: K.metalTex(), vertexColors: true, roughness: 0.55, metalness: 0.2 }),
   };
+  // rendu réaliste : textures détaillées avec relief (briques, pavés, fissures…)
+  if (LOOK.real) {
+    const real = (name, tex, extra) => { const m = mats[name] || (mats[name] = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.85 })); m.map = tex.map; m.normalMap = tex.normalMap; Object.assign(m, extra || {}); m.needsUpdate = true; };
+    real('windows', RT.facadeTex(false));
+    real('windowsBrick', RT.facadeTex(true), { roughness: 0.9 });
+    real('shop', RT.shopFrontTex());
+    real('groundCobble', RT.cobbleTex(), { roughness: 0.8 });
+    real('ground', RT.slabTex('#d4cec4'));
+    real('groundConcrete', RT.slabTex('#c4c4c6'));
+    real('road', RT.asphaltTex(true), { roughness: 0.9 });
+    real('cross', RT.asphaltTex(false), { roughness: 0.9 });
+    mats.cobbleGrey = mats.groundCobble;
+  }
+  const brickish = (b) => LOOK.real && !b.tower && !b.warehouse && ((Math.round(b.x0 * 7 + b.z0 * 13) % 5 + 5) % 5 < 2);
   const slab = (mat, x0, x1, z0, z1, col, y) => {
     const g = T.geo(mat, (x0 + x1) / 2, (z0 + z1) / 2), top = y === undefined ? G + 0.06 : y;
     g.top(x0, x1, z0, z1, top, col, 4);
@@ -161,10 +248,11 @@ function buildDecor(game) {
     for (const [ax, az, bx, bz] of sides) {
       if (b.base < g0 - 0.05) T.geo('plain', cx, cz).wall(ax, az, bx, bz, b.base - 0.5, g0, 0xb8ae9e, 2, 2);   // soubassement (pente)
       if (b.warehouse) T.geo('metal', cx, cz).wall(ax, az, bx, bz, g0, top - 0.4, b.color, 2, 4);
-      else if (b.house || b.villa) T.geo('windows', cx, cz).wall(ax, az, bx, bz, g0, top - 0.4, b.color, 3, 3);
+      else if (b.house || b.villa) T.geo(brickish(b) ? 'windowsBrick' : 'windows', cx, cz).wall(ax, az, bx, bz, g0, top - 0.4, brickish(b) ? 0xf4ece4 : b.color, 3, 3);
       else {
         T.geo('shop', cx, cz).wall(ax, az, bx, bz, g0, g0 + GF, b.color, 3.4, GF);
-        T.geo(upper, cx, cz).wall(ax, az, bx, bz, g0 + GF, top - 0.4, b.tower ? 0xffffff : b.color, 3, 3);
+        const brick = brickish(b);
+        T.geo(brick ? 'windowsBrick' : upper, cx, cz).wall(ax, az, bx, bz, g0 + GF, top - 0.4, b.tower ? 0xffffff : brick ? new THREE.Color(0xffffff).lerp(new THREE.Color(b.color), 0.15).getHex() : b.color, 3, 3);
       }
     }
     const o = 0.25, tg = T.geo('plain', cx, cz);
@@ -269,8 +357,14 @@ function buildDecor(game) {
   for (const s of S.fairStalls) stall(s);
   const FO = S.FOUNTAIN;
   {
-    const stone = M.mat(0xe8dcc8, { roughness: 0.8 });
-    const basin = new THREE.Mesh(new THREE.CylinderGeometry(FO.r, FO.r + 0.2, FO.top - G + 0.3, 40, 1, true), new THREE.MeshStandardMaterial({ color: 0xe8dcc8, roughness: 0.8, side: THREE.DoubleSide }));
+    let stone = M.mat(0xe8dcc8, { roughness: 0.8 }), basinMat = new THREE.MeshStandardMaterial({ color: 0xe8dcc8, roughness: 0.8, side: THREE.DoubleSide });
+    if (LOOK.real) {
+      const st = RT.stoneTex();
+      st.map.repeat.set(4, 1); st.normalMap.repeat.set(4, 1);
+      stone = new THREE.MeshStandardMaterial({ map: st.map, normalMap: st.normalMap, color: 0xd8d2c8, roughness: 0.85 });
+      basinMat = new THREE.MeshStandardMaterial({ map: st.map, normalMap: st.normalMap, color: 0xd8d2c8, roughness: 0.85, side: THREE.DoubleSide });
+    }
+    const basin = new THREE.Mesh(new THREE.CylinderGeometry(FO.r, FO.r + 0.2, FO.top - G + 0.3, 40, 1, true), basinMat);
     basin.position.set(FO.x, (FO.top + G - 0.3) / 2, FO.z);
     const rim = new THREE.Mesh(new THREE.TorusGeometry(FO.r - 0.15, 0.25, 8, 40), stone); rim.rotation.x = Math.PI / 2; rim.position.set(FO.x, FO.top - 0.05, FO.z);
     anim.fountainWater = new THREE.Mesh(new THREE.CircleGeometry(FO.r - 0.35, 40), new THREE.MeshStandardMaterial({ color: 0x5ad0f0, roughness: 0.15, metalness: 0.1, transparent: true, opacity: 0.85 }));
@@ -555,7 +649,10 @@ function buildDecor(game) {
     spots.forEach(([x, z], i) => { m4.makeTranslation(x, G + 2.1, z); pole.setMatrixAt(i, m4); m4.makeTranslation(x, G + 4.3, z); head.setMatrixAt(i, m4); });
     pole.castShadow = !lite;
     sc.add(pole, head);
+    // mobilier urbain détaillé (rendu réaliste) : bancs à lattes, bouches d'incendie, poubelles, arceaux, kiosque
+    const props = LOOK.real ? streetProps(sc, S, G, spots, lite) : null;
     const benchAt = (x, z, along) => {
+      if (props) { props.bench(x, z, along); return; }
       const w = along ? 2 : 0.6, d = along ? 0.6 : 2, g = T.geo('plain', x, z);
       g.box(x - w / 2, x + w / 2, G + 0.45, G + 0.55, z - d / 2, z + d / 2, 0xa87a50, 1);
       for (const s of [-1, 1]) g.box(x + (along ? s * 0.8 : 0) - 0.06, x + (along ? s * 0.8 : 0) + 0.06, G, G + 0.45, z + (along ? 0 : s * 0.8) - 0.06, z + (along ? 0 : s * 0.8) + 0.06, 0x2a3a4a, 1);
@@ -563,6 +660,7 @@ function buildDecor(game) {
     for (let x = -112; x <= 16; x += 12) benchAt(x + 6, S.PORT_QUAY - 1.4, true);
     const P = S.PLAZA;
     benchAt(P.x0 + 4, P.z0 + 3, true); benchAt(P.x1 - 4, P.z1 - 6, true); benchAt(S.KIOSK.x - 3.5, S.KIOSK.z + 4.5, true);
+    if (props) { benchAt(P.x1 - 4, P.z0 + 3, true); props.done(); }
   }
 
   const tiles = T.build(sc, mats, lite);

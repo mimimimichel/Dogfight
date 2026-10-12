@@ -8,6 +8,8 @@ import * as M from './models.js';
 
 const smooth = (a, b, x) => { const t = Math.min(1, Math.max(0, (x - a) / (b - a))); return t * t * (3 - 2 * t); };
 
+import * as RT from './realtex.js';
+
 /** Style de rendu : réaliste (par défaut) ou dessin animé. */
 export const LOOK = { real: true };
 
@@ -81,7 +83,7 @@ export function buildSky(scene) {
 // Terrain : géométrie lisse, couleurs fondues (herbe, sable, roche, chemins)
 // ---------------------------------------------------------------------------
 /** Sol vu de près : mille petits brins (gris, teinté par les couleurs du terrain). */
-function grassGroundTexture() {
+export function grassGroundTexture() {
   const c = document.createElement('canvas'); c.width = c.height = 512;
   const x = c.getContext('2d');
   x.fillStyle = '#d0d0d0'; x.fillRect(0, 0, 512, 512);
@@ -181,7 +183,8 @@ export function buildTerrain(scene, quality) {
     colors[i * 3] = c.r; colors[i * 3 + 1] = c.g; colors[i * 3 + 2] = c.b;
   }
   geo.setAttribute('color', new THREE.BufferAttribute(colors, 3));
-  const mat = new THREE.MeshStandardMaterial({ vertexColors: true, map: LOOK.real ? grassGroundTexture() : detailTexture(), roughness: 0.95 });
+  const gtex = LOOK.real ? grassGroundTexture() : detailTexture();
+  const mat = new THREE.MeshStandardMaterial({ vertexColors: true, map: gtex, roughness: 0.95, normalMap: LOOK.real ? RT.normalFor(gtex, 2) : null });
   const m = new THREE.Mesh(geo, mat);
   m.receiveShadow = true;
   scene.add(m);
@@ -411,7 +414,8 @@ export function buildTrees(scene, quality) {
   const tp = trunkGeo.attributes.position;
   for (let i = 0; i < tp.count; i++) { const y = tp.getY(i); if (y < -2) { const k = 1 + (-2 - y) * 0.35; tp.setX(i, tp.getX(i) * k); tp.setZ(i, tp.getZ(i) * k); } }
   trunkGeo.computeVertexNormals();
-  const trunks = new THREE.InstancedMesh(trunkGeo, LOOK.real ? new THREE.MeshStandardMaterial({ color: 0xb8a088, map: barkTexture(), roughness: 0.95 }) : M.mat(0x7a4e2c, { roughness: 0.95 }), n);
+  const bark = LOOK.real ? barkTexture() : null;
+  const trunks = new THREE.InstancedMesh(trunkGeo, LOOK.real ? new THREE.MeshStandardMaterial({ color: 0xb8a088, map: bark, normalMap: RT.normalFor(bark, 6), roughness: 0.95 }) : M.mat(0x7a4e2c, { roughness: 0.95 }), n);
   const blobGeo = leafClusterGeo(L.WORLD ? 6 : quality && quality.lite ? 10 : 16);
   const blobs = [];
   // style du feuillage selon le niveau (la forêt du niveau 2 a moins de touffes, plus grosses)
@@ -592,7 +596,7 @@ export function stoneTexture() {
   return stoneTex;
 }
 let stoneM = null;
-export const stoneMat = () => stoneM || (stoneM = new THREE.MeshStandardMaterial({ map: stoneTexture(), vertexColors: true, roughness: 0.9 }));
+export const stoneMat = () => stoneM || (stoneM = new THREE.MeshStandardMaterial({ map: stoneTexture(), vertexColors: true, roughness: 0.9, normalMap: LOOK.real ? RT.normalFor(stoneTexture(), 5) : null }));
 
 /** Mousse sur le dessus + assombrissement en bas (couleurs de sommets). */
 function mossy(g, top, bottom) {
@@ -731,7 +735,43 @@ export function buildRuins(scene) {
 }
 
 /** Chemins pavés : rubans de dalles qui épousent le terrain. */
+/** Chemin réaliste : petits pavés usés, terre et mousse dans les joints, bords qui s'effilochent. */
+function realPavingTexture() {
+  const c = document.createElement('canvas'); c.width = 256; c.height = 512;
+  const x = c.getContext('2d');
+  const r = rng(29);
+  // terre battue dans les joints (et sur les bords)
+  for (let i = 0; i < 2600; i++) {
+    const px = r() * 256, edge = Math.min(px, 256 - px) / 128;
+    if (r() > 0.25 + edge * 1.4) continue;
+    x.fillStyle = `rgba(${110 + r() * 30 | 0},${90 + r() * 20 | 0},${62 + r() * 15 | 0},${0.5 + r() * 0.4})`;
+    x.beginPath(); x.arc(px, r() * 512, 2 + r() * 5, 0, 7); x.fill();
+  }
+  const rows = 26, rh = 512 / rows;
+  for (let j = 0; j < rows; j++) {
+    let px = -r() * 12;
+    while (px < 256) {
+      const w = rh * (0.9 + r() * 0.7);
+      const edge = Math.min(px + w / 2, 256 - px - w / 2) / 128;
+      if (r() < 0.12 + edge * 1.5) {
+        const l = 140 + Math.floor(r() * 55), warm = r() * 12;
+        x.fillStyle = `rgb(${l + warm | 0},${l - 2 | 0},${l - 12 - warm | 0})`;
+        x.beginPath(); x.roundRect(px + 1.5, j * rh + 1.5, w - 3, rh - 3, 4); x.fill();
+        x.fillStyle = 'rgba(255,255,255,0.12)'; x.fillRect(px + 3, j * rh + 2, w * 0.6, 3);
+        x.fillStyle = 'rgba(40,30,20,0.18)'; x.fillRect(px + 3, j * rh + rh - 5, w - 6, 3);
+        if (r() < 0.2) { x.fillStyle = 'rgba(90,120,50,0.45)'; x.beginPath(); x.arc(px + r() * w, j * rh + r() * rh, 2 + r() * 4, 0, 7); x.fill(); }
+      }
+      px += w;
+    }
+  }
+  const t = new THREE.CanvasTexture(c);
+  t.wrapS = THREE.ClampToEdgeWrapping; t.wrapT = THREE.RepeatWrapping;
+  t.colorSpace = THREE.SRGBColorSpace;
+  t.anisotropy = 8;
+  return t;
+}
 function pavingTexture() {
+  if (LOOK.real) return realPavingTexture();
   const c = document.createElement('canvas'); c.width = 128; c.height = 256;
   const x = c.getContext('2d');
   const r = rng(17);
@@ -786,7 +826,7 @@ export function buildPaths(scene) {
   const all = M.mergeGeos(geos.map(geo => ({ geo })));
   const uvs = []; for (const g of geos) { const u = g.attributes.uv, id = g.index; for (let i = 0; i < id.count; i++) uvs.push(u.getX(id.getX(i)), u.getY(id.getX(i))); }
   all.setAttribute('uv', new THREE.Float32BufferAttribute(uvs, 2));
-  const m = new THREE.Mesh(all, new THREE.MeshStandardMaterial({ map: tex, transparent: true, alphaTest: 0.4, roughness: 0.85, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2 }));
+  const m = new THREE.Mesh(all, new THREE.MeshStandardMaterial({ map: tex, normalMap: LOOK.real ? RT.normalFor(tex, 5) : null, transparent: true, alphaTest: 0.4, roughness: 0.85, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2 }));
   m.receiveShadow = true;
   scene.add(m);
   return m;
