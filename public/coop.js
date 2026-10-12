@@ -24,15 +24,21 @@
   class Link {
     constructor(peer, conn, isHost, ownsPeer) {
       this.peer = peer; this.conn = conn; this.isHost = isHost; this.ownsPeer = ownsPeer;
-      this.onmessage = null; this.onclose = null; this.closed = false;
+      this.handler = null; this.queue = []; this.onclose = null; this.closed = false;
       conn.on('data', (d) => {
         let m; try { m = JSON.parse(d); } catch (e) { return; }
-        if (this.onmessage) this.onmessage(m);
+        if (this.handler) this.handler(m);
+        else if (this.queue.length < 50) this.queue.push(m);   // gardés jusqu'à ce que le jeu soit prêt
       });
       const end = () => { if (this.closed) return; this.closed = true; if (this.onclose) this.onclose(); };
       conn.on('close', end);
       conn.on('error', end);
       peer.on('disconnected', () => { /* le lien direct peut survivre au serveur de mise en relation */ });
+    }
+    get onmessage() { return this.handler; }
+    set onmessage(f) {
+      this.handler = f;
+      while (f && this.handler === f && this.queue.length) f(this.queue.shift());
     }
     send(obj) { if (!this.closed && this.conn.open) this.conn.send(JSON.stringify(obj)); }
     close() {
@@ -61,48 +67,68 @@
   function savedCode() { try { return localStorage.getItem(CODE_KEY); } catch (e) { return null; } }
   function keepCode(c) { try { localStorage.setItem(CODE_KEY, c); } catch (e) { /* ignore */ } }
 
+  // Copie locale des mondes visités (pour pouvoir les rouvrir quand leur gardien est parti)
+  const worldKey = (code, lv) => 'dogfight.w.' + code + '.' + lv;
+  function worldLevel(code) { try { return +localStorage.getItem(worldKey(code, 'lv')) || 0; } catch (e) { return 0; } }
+  function hasCopy(code) { return code === savedCode() || worldLevel(code) > 0; }
+
   /**
-   * Ouvre le monde de l'hôte : il garde toujours le même code (le monde est
-   * « à lui »), les amis rejoignent ou reviennent quand ils veulent, jusqu'à 5.
-   * cb : onCode(code, session), onError(texte).
+   * Ouvre (ou garde) un monde. Sans opts.code c'est le monde du joueur : il garde
+   * toujours le même code. Avec opts.code, on devient le gardien du monde d'un
+   * ami (il est parti, ou personne n'y était).
+   * cb : onCode(code, session), onError(texte), onTaken(code) si quelqu'un garde déjà ce monde.
    * session : { code, profile, links:Set, onJoin(link), close() }
    */
-  function host(profile, cb, tries) {
+  function host(profile, cb, opts) {
     cancel();
     if (!window.Peer) { cb.onError('Le jeu en ligne n\'est pas disponible.'); return; }
-    tries = tries || 0;
-    const code = (tries < 2 && savedCode()) || newCode();
+    opts = opts || {};
+    const tries = opts.tries || 0;
+    const own = !opts.code;
+    const code = opts.code || savedCode() || newCode();
     const peer = new window.Peer(PREFIX + code, PEER_OPTS);
     pending = peer;
     const session = {
-      code, profile, peer, links: new Set(), onJoin: null, closed: false, level: 1,
+      code, profile, peer, own, links: new Set(), onJoin: null, closed: false, level: 1,
       get link() { for (const l of this.links) if (!l.closed) return l; return null; },
+      /** Prévient les amis (ils se passent le monde) puis ferme. */
       close() {
+        if (this.closed) return;
         this.closed = true;
-        for (const l of this.links) l.close();
-        try { peer.destroy(); } catch (e) { /* ignore */ }
+        for (const l of this.links) { l.send({ t: 'bye' }); }
+        const links = [...this.links];
+        setTimeout(() => {
+          for (const l of links) l.close();
+          try { peer.destroy(); } catch (e) { /* ignore */ }
+        }, links.length ? 250 : 0);
         if (pending === peer) pending = null;
       },
       detach() { if (pending === peer) pending = null; },
     };
     let opened = false;
-    peer.on('open', () => { if (!opened) { opened = true; keepCode(code); cb.onCode(code, session); } });
+    peer.on('open', () => { if (!opened) { opened = true; if (own) keepCode(code); cb.onCode(code, session); } });
     // reste joignable si le serveur de mise en relation coupe la connexion
-    peer.on('disconnected', () => { if (!session.closed) setTimeout(() => { if (!session.closed && peer.disconnected) peer.reconnect(); }, 1500); });
+    peer.on('disconnected', () => { if (!session.closed) setTimeout(() => { if (!session.closed && !peer.destroyed && peer.disconnected) peer.reconnect(); }, 1500); });
     peer.on('error', (e) => {
-      // le code est encore pris (onglet précédent pas tout à fait fermé) : on réessaie, puis on change de code
-      if (!opened && e.type === 'unavailable-id' && tries < 5) {
+      if (!opened && e.type === 'unavailable-id') {
         try { peer.destroy(); } catch (err) { /* ignore */ }
-        setTimeout(() => host(profile, cb, tries + 1), tries < 1 ? 1500 : 0);
+        if (pending === peer) pending = null;
+        // quelqu'un garde déjà ce monde : on le rejoint
+        if (cb.onTaken && !opts.noTaken) { cb.onTaken(code); return; }
+        // l'ancien gardien vient de partir (le serveur libère son nom) : on patiente
+        if (tries < (opts.maxTries || 6)) { setTimeout(() => host(profile, cb, Object.assign({}, opts, { tries: tries + 1 })), 1500); return; }
+        cb.onError('Ce monde est déjà ouvert ailleurs. Réessaie dans un instant !');
         return;
       }
       if (!opened) cb.onError('Connexion impossible (' + e.type + ').');
     });
     peer.on('connection', (conn) => {
       conn.on('open', () => {
+        if (conn.linked) return;   // (PeerJS signale parfois deux fois la même ouverture)
+        conn.linked = true;
         for (const l of [...session.links]) if (l.closed) session.links.delete(l);
         if (session.closed || session.links.size >= MAX_GUESTS) {
-          try { conn.send(JSON.stringify({ t: 'full' })); } catch (e) { /* ignore */ }
+          try { conn.send(JSON.stringify({ t: session.closed ? 'gone' : 'full' })); } catch (e) { /* ignore */ }
           setTimeout(() => conn.close(), 300);
           return;
         }
@@ -112,26 +138,59 @@
         if (session.onJoin) session.onJoin(link);
       });
     });
+    // fermeture de l'onglet : on prévient les amis tout de suite
+    window.addEventListener('pagehide', () => { if (!session.closed) for (const l of session.links) l.send({ t: 'bye' }); });
   }
 
-  /** Rejoint une partie. cb : onReady(link, role), onError(texte). */
-  function join(code, cb) {
+  /**
+   * Rejoint un monde. cb : onReady(link, level), onError(texte), onEmpty(code) si
+   * personne ne garde ce monde. opts.retryFor : on réessaie pendant ce temps (ms)
+   * tant que le monde est vide (un ami est en train d'en devenir le gardien).
+   */
+  function join(code, cb, opts) {
     cancel();
     if (!window.Peer) { cb.onError('Le jeu en ligne n\'est pas disponible.'); return; }
+    opts = opts || {};
     code = String(code || '').toUpperCase().trim();
+    const until = opts.until || (Date.now() + (opts.retryFor || 0));
     const peer = new window.Peer(PEER_OPTS);
     pending = peer;
     let done = false;
-    const fail = (msg) => { if (done) return; done = true; cancel(); cb.onError(msg); };
-    const timer = setTimeout(() => fail('Pas de réponse de ce monde. Vérifie le code, ou demande à ton ami d\'ouvrir son monde, puis réessaie !'), 30000);
-    peer.on('error', (e) => fail(e.type === 'peer-unavailable' ? 'Partie introuvable. Vérifie le code !' : 'Connexion impossible (' + e.type + ').'));
+    const fail = (msg) => { if (done) return; done = true; clearTimeout(timer); cancel(); cb.onError(msg); };
+    // pendant un passage de relais, on retente vite (l'ancien gardien peut encore répondre à moitié)
+    const retrying = Date.now() < until;
+    const timer = setTimeout(() => {
+      if (done) return;
+      // pas de réponse : on retente (la connexion directe rate parfois du premier coup)
+      const attempt = opts.attempt || 0;
+      if (Date.now() < until || attempt < 2) { done = true; cancel(); join(code, cb, Object.assign({}, opts, { until, attempt: attempt + 1 })); return; }
+      fail('Pas de réponse de ce monde. Vérifie le code, puis réessaie !');
+    }, retrying ? 6000 : 10000);
+    peer.on('error', (e) => {
+      if (done) return;
+      if (e.type === 'peer-unavailable') {
+        done = true; clearTimeout(timer); cancel();
+        if (Date.now() < until) { setTimeout(() => join(code, cb, Object.assign({}, opts, { until })), 1500); return; }
+        if (cb.onEmpty) cb.onEmpty(code); else cb.onError('Partie introuvable. Vérifie le code !');
+        return;
+      }
+      fail('Connexion impossible (' + e.type + ').');
+    });
     peer.on('open', () => {
       const conn = peer.connect(PREFIX + code, { reliable: true, serialization: 'raw' });
       conn.on('open', () => {
+        if (conn.linked) return;
+        conn.linked = true;
         const link = new Link(peer, conn, false, true);
+        link.code = code;
         link.onmessage = (m) => {
           if (done) return;
           if (m.t === 'full') { fail('Ce monde est complet : il y a déjà 6 joueurs !'); link.close(); return; }
+          if (m.t === 'gone') {   // son gardien est en train de partir : on réessaie
+            done = true; clearTimeout(timer); link.close(); pending = null;
+            setTimeout(() => join(code, cb, Object.assign({}, opts, { until: Math.max(until, Date.now() + 8000) })), 1500);
+            return;
+          }
           if (m.t !== 'hello') return;
           done = true; clearTimeout(timer); pending = null;
           link.onmessage = null;
@@ -141,5 +200,5 @@
     });
   }
 
-  window.AdvCoop = { host, join, cancel, savedCode, MAX_PLAYERS: MAX_GUESTS + 1 };
+  window.AdvCoop = { host, join, cancel, savedCode, worldKey, worldLevel, hasCopy, PREFIX, MAX_PLAYERS: MAX_GUESTS + 1 };
 })();

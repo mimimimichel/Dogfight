@@ -42,6 +42,25 @@ const REGROW_MS = 8 * 60 * 1000;     // os / croquettes
 const CRATE_MS = 10 * 60 * 1000;     // caisses (sauf celles à médaille)
 const CAT_RESPAWN = 90;              // secondes de jeu pour les chats errants
 
+/**
+ * Fusionne deux sauvegardes du même monde (deux joueurs ont joué avec des copies
+ * différentes) : on garde tout ce que chacun a trouvé.
+ */
+function mergeSave(a, b) {
+  for (const k of Object.keys(b || {})) {
+    const x = a[k], y = b[k];
+    if (Array.isArray(x) && Array.isArray(y)) {
+      const seen = new Set(x.map(v => JSON.stringify(v)));
+      for (const v of y) { const j = JSON.stringify(v); if (!seen.has(j)) { seen.add(j); x.push(v); } }
+    } else if (x && y && typeof x === 'object' && typeof y === 'object') mergeSave(x, y);
+    else if (typeof x === 'number' && typeof y === 'number') a[k] = Math.max(x, y);
+    else if (typeof x === 'boolean' && typeof y === 'boolean') a[k] = x || y;
+    else if (k === 'puppy') { const R = ['lost', 'follow', 'home']; if (R.indexOf(y) > R.indexOf(x)) a[k] = y; }
+    else if (x === undefined) a[k] = y;
+  }
+  return a;
+}
+
 const isChild = (o, root) => { for (let p = o.parent; p; p = p.parent) if (p === root) return true; return false; };
 const clamp = (v, a, b) => (v < a ? a : v > b ? b : v);
 const lerpAngle = (a, b, t) => { let d = ((b - a + Math.PI) % (Math.PI * 2) + Math.PI * 2) % (Math.PI * 2) - Math.PI; return a + d * t; };
@@ -152,16 +171,26 @@ class Adventure {
   // Sauvegarde
   // -------------------------------------------------------------------------
   emptySave() { return { bones: [], gone: {}, crateT: {}, visitors: [], medals: [], balls: [], crates: [], cats: [], lanterns: [], boss: false, puppy: L.ID === 1 ? 'lost' : 'home', intro: false, done: false, time: 0 }; }
+  /** Code du monde partagé où l'on joue (ou null en solo). */
+  get worldCode() { return this.hostSession ? this.hostSession.code : (this.coop && this.coop.link && this.coop.link.code) || null; }
+  /** Sa propre sauvegarde (solo et son monde), ou la copie du monde d'un ami. */
+  get saveKey() {
+    const code = this.worldCode, AC = window.AdvCoop;
+    return !code || !AC || code === AC.savedCode() ? L.SAVE_KEY : AC.worldKey(code, L.ID);
+  }
   loadSave() {
     this.save = this.emptySave();
     try {
-      const s = JSON.parse(localStorage.getItem(L.SAVE_KEY) || 'null');
+      const code = this.worldCode;
+      if (code && window.AdvCoop) localStorage.setItem(window.AdvCoop.worldKey(code, 'lv'), String(L.ID));
+      const s = JSON.parse(localStorage.getItem(this.saveKey) || 'null');
       if (s) Object.assign(this.save, s);
       // anciennes sauvegardes : les os déjà ramassés repousseront
       if (s && !s.gone) { const now = Date.now(); for (const id of this.save.bones) this.save.gone[id] = now; }
     } catch (e) { /* ignore */ }
   }
-  persist() { if (this.guest) return; try { localStorage.setItem(L.SAVE_KEY, JSON.stringify(this.save)); } catch (e) { /* ignore */ } }
+  persist() { if (this.guest) return; this.writeSave(); }
+  writeSave() { try { localStorage.setItem(this.saveKey, JSON.stringify(this.save)); } catch (e) { /* ignore */ } }
   hasProgress() { const s = this.save; return s.intro && (s.bones.length || s.medals.length || s.balls.length); }
 
   // -------------------------------------------------------------------------
@@ -1285,7 +1314,9 @@ class Adventure {
     link.onclose = () => this.onCoopClose();
     this.lastSent = { mx: 0, mz: 0, h: false, at: 0 };
     this.hpKey = '';
-    link.send({ t: 'join', name: profile.name, kind: profile.kind, extra: profile.extra, color: profile.color });
+    // sa copie du monde : rien de ce qu'on y a trouvé ne se perd, même si le gardien a changé
+    const copy = this.save.intro ? this.save : null;
+    link.send({ t: 'join', name: profile.name, kind: profile.kind, extra: profile.extra, color: profile.color, sv: copy });
     link.send({ t: 'ready' }); // l'hôte renvoie alors tout l'état du monde
   }
 
@@ -1437,6 +1468,9 @@ class Adventure {
     link.pid = id;
     link.lastSave = undefined;
     this.coop = { isHost: true };
+    if (m.sv && typeof m.sv === 'object' && m.sv.intro) {
+      try { const before = JSON.stringify(this.save); mergeSave(this.save, m.sv); if (JSON.stringify(this.save) !== before) { this.applySave(this.save); this.persist(); } } catch (e) { /* ignore */ }
+    }
     // l'hôte quitte le duo : chacun son chien
     if (this.player.kind === 'duo') this.dogMesh(this.player, this.hostKind);
     if (!this.dom.overlay.classList.contains('hidden')) this.paused = false;
@@ -1507,6 +1541,7 @@ class Adventure {
     else if (m.t === 'roster') this.syncRoster(m.list);
     else if (m.t === 's') this.applySnapshot(m);
     else if (m.t === 'full') this.showOverlay('full');
+    else if (m.t === 'bye') this.onCoopClose();
   }
 
   welcomeBanner() {
@@ -1520,6 +1555,7 @@ class Adventure {
 
   /** Invité : met à jour la liste des chiens présents. */
   syncRoster(list) {
+    this.lastRoster = list;
     const ids = new Set(list.map(e => e.id));
     for (const [id, P] of [...this.party]) {
       if (id === 0 || ids.has(id)) continue;
@@ -1547,8 +1583,29 @@ class Adventure {
   }
 
   onCoopClose() {
-    if (this.disposed) return;
-    if (this.guest) this.showOverlay('lost');
+    if (this.disposed || !this.guest || this.handingOff) return;
+    const link = this.coop.link, code = link.code, AC = window.AdvCoop;
+    if (!code || !AC) { this.showOverlay('lost'); return; }
+    // le gardien du monde est parti : le monde continue. Un des amis encore là le
+    // reprend (toujours le même, choisi pareil par tout le monde), les autres le rejoignent.
+    this.handingOff = true;
+    const hostPid = link.conn && link.conn.peer, me = link.peer && link.peer.id;
+    const pids = (this.lastRoster || []).map(e => e.pid).filter(p => p && p !== hostPid).sort();
+    const keeper = pids[0] === me;
+    const { sfx, onExit } = this, profile = this.coop.profile, level = L.ID;
+    const hostName = this.player.name;
+    this.dispose();
+    const LD = window.AppLoader;
+    if (LD) { LD.show('Le monde continue !', `${hostName || 'Le gardien'} est parti${keeper ? ' : tu deviens le gardien du monde ' + code : ', on reste dans le monde ' + code}`); LD.progress(0.1, 'Passage de relais…'); }
+    const back = (msg) => { if (LD) LD.hide(); onExit(); if (msg) setTimeout(() => alert(msg), 50); };
+    // (le serveur de mise en relation met un instant à libérer le nom du monde)
+    const becomeKeeper = () => AC.host(profile, {
+      onCode: (c, ses) => { ses.level = level; start({ sfx, onExit, coopHost: ses, level }); },
+      onError: () => AC.join(code, { onReady: asGuest, onError: back }),   // un autre ami l'a repris avant
+    }, { code, noTaken: true, maxTries: 10 });
+    const asGuest = (lk, lv) => start({ sfx, onExit, coop: { link: lk, isHost: false, profile }, level: lv });
+    if (keeper) becomeKeeper();
+    else AC.join(code, { onReady: asGuest, onError: back, onEmpty: becomeKeeper }, { retryFor: 20000 });
   }
 
   /** Invité : envoie ses commandes, suit l'état reçu de l'hôte. */
@@ -1657,6 +1714,7 @@ class Adventure {
     this.updateMedalVisibility();
     if (this.levelLogic && this.levelLogic.applySave) this.levelLogic.applySave();
     this.updateHud();
+    if (this.guest) this.writeSave();   // copie du monde : on pourra le rouvrir si le gardien s'en va
   }
 
   // -------------------------------------------------------------------------
@@ -2562,7 +2620,7 @@ class Adventure {
     if (kind === 'pause') {
       html = `<h2>Pause</h2>
         <div class="adv-stats">${L.ID === 3 ? 'Trophées' : 'Médailles'} ${s.medals.length}/${L.medals.length} · ${L.ID === 2 ? 'Croquettes' : L.ID === 3 ? 'Pièces' : 'Os'} ${s.bones.length}/100</div>
-        ${this.hostSession ? `<div class="adv-stats">Code de ton monde : <b class="adv-code">${this.hostSession.code}</b> (jusqu'à 6 joueurs)</div>` : ''}
+        ${this.hostSession ? `<div class="adv-stats">${this.hostSession.own === false ? 'Code du monde' : 'Code de ton monde'} : <b class="adv-code">${this.hostSession.code}</b> (jusqu'à 6 joueurs)</div>` : ''}
         ${this.visitorsLine()}
         <button class="btn primary" data-a="resume">Reprendre</button>
         <div class="adv-toggles">
@@ -2633,7 +2691,7 @@ class Adventure {
       case 'restart': this.showOverlay('confirm'); break;
       case 'back-pause': this.showOverlay('pause'); break;
       case 'new':
-        try { localStorage.removeItem(L.SAVE_KEY); } catch (e) { /* ignore */ }
+        try { localStorage.removeItem(this.saveKey); } catch (e) { /* ignore */ }
         if (this.coop && this.coop.link) this.coop.link.onclose = null;
         this.coop = null;
         this.dispose(true);

@@ -712,7 +712,22 @@
     $('coop-status').textContent = '';
     $('coop-go').disabled = true;
     coopSession = null;
+    openWorld(pr, null);
+  }
+  /** Ouvre un monde (le sien si code est vide) ; si un ami le garde déjà, on le rejoint. */
+  function openWorld(pr, code, noTaken) {
+    $('coop-choose').classList.add('hidden');
+    $('coop-wait').classList.remove('hidden');
+    $('coop-wait-status').textContent = code ? 'On ouvre le monde ' + code + '…' : 'Tes amis (jusqu\'à 5) peuvent arriver quand ils veulent, même en pleine partie !';
     window.AdvCoop.host(pr, {
+      onTaken: (c) => {
+        $('coop-wait-status').textContent = 'Ton monde est déjà ouvert par un ami : on te connecte…';
+        window.AdvCoop.join(c, {
+          onReady: (link, level) => coopStart(link, level, pr),
+          onEmpty: () => openWorld(pr, code, true),
+          onError: () => openWorld(pr, code, true),
+        });
+      },
       onCode: (code, session) => {
         coopSession = session;
         session.level = coopLevel;
@@ -722,9 +737,15 @@
         $('coop-link').value = location.origin + location.pathname + '?coop=' + code + (q ? '&peer=' + q : '');
         // si un ami arrive avant qu'on ait lancé, on démarre tout de suite
         session.onJoin = () => coopGo();
+        // le monde d'un ami : on y entre directement, au niveau où il était
+        if (!session.own) coopGo();
       },
       onError: (msg) => coopReset(msg),
-    });
+    }, { code: code || undefined, noTaken, maxTries: 8 });
+    if (code) {
+      const lv = window.AdvCoop.worldLevel(code);
+      if (lv) { coopLevel = lv; for (const b of document.querySelectorAll('.lvpick')) b.classList.toggle('active', b.dataset.action === 'coop-lv-' + lv); }
+    }
   }
   function coopGo() {
     const ses = coopSession;
@@ -743,6 +764,12 @@
     window.AdvCoop.join(code, {
       onReady: (link, level) => coopStart(link, level, pr),
       onError: (msg) => coopReset(msg),
+      // personne n'est dans ce monde en ce moment : on peut l'ouvrir soi-même
+      onEmpty: (c) => {
+        if (window.AdvCoop.hasCopy(c)) { openWorld(pr, c === window.AdvCoop.savedCode() ? null : c); return; }
+        coopReset();
+        $('coop-status').innerHTML = `Personne n'est dans le monde <b>${c}</b> en ce moment. <button class="hbtn cbtn" data-action="coop-open-${c}">L'ouvrir quand même</button>`;
+      },
     });
   }
 
@@ -750,6 +777,7 @@
 
   function onAction(a) {
     goFullscreen(); // sur tactile, chaque bouton remet en plein écran si on en est sorti
+    if (a.startsWith('coop-open-')) { const pr = readyProfile(); if (pr) openWorld(pr, a.slice(10)); return; }
     switch (a) {
       case 'online': app.mode = 'online'; show('online'); $('online-status').textContent = ''; break;
       case 'cpu': app.mode = 'cpu'; enterSelect(); break;
