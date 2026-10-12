@@ -12,6 +12,7 @@ import { voiceFor } from './voice.js';
 import * as M from './models.js';
 import * as W from './world.js';
 import * as T from './toon.js';
+import { Post } from './post.js';
 
 const STEP = 1 / 60;
 const GRAVITY = 32;
@@ -438,6 +439,9 @@ class Adventure {
     r.shadowMap.enabled = true;
     r.shadowMap.type = touch ? THREE.PCFShadowMap : THREE.PCFSoftShadowMap;
     this.renderer = r;
+    // post-traitement « cinéma » (halo lumineux, étalonnage, vignettage) ; ?post=0 pour le couper
+    this.post = new Post(r, touch ? 'lite' : 'high', L.GRADE);
+    if (/[?&]post=0/.test(location.search)) this.post.enabled = false;
     this.scene = new THREE.Scene();
     const LT = Object.assign({ hemi: [0xd8ecff, 0xa87a4a, 0.7], sun: [0xfff1d6, 2.6], fog: [80, 230] }, L.LIGHT || {});
     this.scene.fog = new THREE.Fog(W.SKY.horizon.getHex(), LT.fog[0], LT.fog[1]);
@@ -523,6 +527,9 @@ class Adventure {
     if (fps < 45 && this.pixelScale > 0.8) {
       this.pixelScale = Math.max(0.8, this.pixelScale * 0.9);
       this.resize();
+    } else if (fps < 32 && this.post.enabled) {
+      // appareil vraiment à la peine : on renonce aux effets de lumière
+      this.post.enabled = false; this.post.dispose();
     }
   }
 
@@ -2558,7 +2565,7 @@ class Adventure {
 
     if ((this.mapT = (this.mapT || 0) + 1) % 4 === 0) this.drawMinimap();
     this.showVoices();
-    this.renderer.render(this.scene, this.camera);
+    this.post.render(this.scene, this.camera, this.t);
   }
 
   /** Ainu (avec ou sans Matcha sur le dos) : course, saut, hélice de la queue. */
@@ -2755,6 +2762,7 @@ class Adventure {
     window.removeEventListener('keyup', this.onKeyUp);
     window.removeEventListener('resize', this.onResize);
     clearTimeout(this.bannerTimer);
+    this.post.dispose();
     this.renderer.dispose();
     this.scene.traverse(o => { if (o.geometry) o.geometry.dispose(); });
     this.dom.root.remove();
