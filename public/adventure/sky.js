@@ -503,6 +503,24 @@ export function buildSky(game) {
     void P;
   }
   function respawnAt(P, why) {
+    // Promenade : on revient juste là où on avait pied
+    if (why === 'fall' && game.easy && P.lastSafe && P.lastSafe.y > S.KILL_Y + 2) {
+      P.pos.copy(P.lastSafe); P.pos.y += 0.3; P.vel.set(0, 0, 0); P.invuln = 1.2; P.dashT = 0; P.grounded = false;
+      game.burst(P.pos.x, P.pos.y + 1, P.pos.z, 18, 0xbfe8ff, 3, 0.6);
+      game.sound('poof');
+      return;
+    }
+    // Défi : chaque chute coûte un cœur ; plus de cœurs = drapeau d'avant
+    if (why === 'fall' && game.mode === 'defi') {
+      P.hearts--;
+      if (P.hearts <= 0) {
+        P.hearts = 2;
+        if (st.cp > 0) { st.cp--; sky().cp = st.cp; game.persist(); }
+        game.banner('Plus de cœurs !', 'Retour au drapeau d\'avant', 1800);
+        why = 'ko';
+      }
+      game.updateHud();
+    }
     const c = cpOf(st.cp);
     const i = P.id || 0;
     P.pos.set(c.x + Math.cos(i * 1.3) * 1.4, c.y + 0.3, c.z + Math.sin(i * 1.3) * 1.4);
@@ -606,13 +624,20 @@ export function buildSky(game) {
         } else if (n === 1) {
           const solo = players.length === 1;
           if (st.bridge === 'off') {
-            setBridge('timed', t + (solo ? S.BRIDGE_SOLO_TIME : S.BRIDGE_SOLO_TIME - 2));
+            const dur = (solo ? S.BRIDGE_SOLO_TIME : S.BRIDGE_SOLO_TIME - 2) + (game.easy ? 6 : game.mode === 'defi' ? -2 : 0);
+            setBridge('timed', t + dur);
             if (!solo && t - st.plateHintT > 8) { st.plateHintT = t; game.banner('Il faut être deux !', 'Un ami sur l\'autre dalle, et le pont reste pour de bon', 2400); }
-            else if (solo && !st.soloHint) { st.soloHint = true; game.banner('Vite !', `Le pont ne reste que ${S.BRIDGE_SOLO_TIME} secondes`, 2000); }
+            else if (solo && !st.soloHint) { st.soloHint = true; game.banner('Vite !', `Le pont ne reste que ${Math.round(dur)} secondes`, 2000); }
           } else st.bridgeUntil = Math.max(st.bridgeUntil, t + 1.5);
         }
         if (st.bridge === 'timed' && t > st.bridgeUntil) setBridge('off');
       }
+    },
+    /** Mode Promenade : le chemin d'étincelles mène au prochain drapeau, puis au Trophée. */
+    guideTarget() {
+      if (st.cp >= S.CHECKPOINTS.length - 1) { const g = S.medals.find(m => m.id === S.FINAL_MEDAL); return save().medals.includes(g.id) ? null : g; }
+      const c = S.CHECKPOINTS[st.cp + 1];
+      return { x: c.x, y: c.y, z: c.z };
     },
     reveal() { const o = {}; for (const m of S.medals) o[m.id] = true; return o; },
     applySave() {

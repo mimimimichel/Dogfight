@@ -177,6 +177,12 @@
     const best = s4 && s4.sky && s4.sky.best;
     $('lv4-prog').textContent = started(s4) ? `Étoiles ${(s4.medals || []).filter(m => m !== 'm_goal').length}/5${best ? ` · record ${Math.floor(best / 60)}:${String(best % 60).padStart(2, '0')}` : ''}` : 'Nouveau !';
   }
+  function renderModes() {
+    let m = 'aventure';
+    try { m = localStorage.getItem('dogfight.mode') || 'aventure'; } catch (e) { /* ignore */ }
+    for (const b of document.querySelectorAll('.mpick')) b.classList.toggle('active', b.dataset.action === 'mode-' + m);
+  }
+  renderModes();
   updateAdventureButton();
 
   // Plein écran + paysage sur téléphone (Android ; iOS ignore poliment)
@@ -801,6 +807,10 @@
       case 'level-2': startAdventure(null, null, 2); break;
       case 'level-3': startAdventure(null, null, 3); break;
       case 'level-4': startAdventure(null, null, 4); break;
+      case 'mode-promenade': case 'mode-aventure': case 'mode-defi':
+        try { localStorage.setItem('dogfight.mode', a.slice(5)); } catch (e) { /* ignore */ }
+        renderModes();
+        break;
       case 'coop-lv-1': case 'coop-lv-2': case 'coop-lv-3': case 'coop-lv-4': {
         coopLevel = +a.slice(-1);
         for (const b of document.querySelectorAll('.lvpick')) b.classList.toggle('active', b.dataset.action === a);

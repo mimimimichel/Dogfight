@@ -28,7 +28,15 @@ const PLAYER_R = 0.55;
 const STEP_UP = 0.6;
 const SOLID = new Set(['trunk', 'tree', 'rock']);
 const CAM_BLOCK = new Set(['trunk', 'tree', 'stump']);
-const MAX_HEARTS = 3;
+let MAX_HEARTS = 3;
+/**
+ * Modes de jeu pour tous les âges :
+ *  promenade : pour les petits — on ne perd pas de cœurs, on plane tout seul, un chemin d'étincelles guide ;
+ *  aventure  : le jeu normal ;
+ *  defi      : pour les grands — 2 cœurs, les chutes coûtent un cœur.
+ */
+export const MODES = { promenade: 'Promenade', aventure: 'Aventure', defi: 'Défi' };
+export function getMode() { try { const m = localStorage.getItem('dogfight.mode'); return MODES[m] ? m : 'aventure'; } catch (e) { return 'aventure'; } }
 
 // Monde partagé : couleurs des joueurs, prénoms, profil gardé sur l'appareil
 export const DOG_COLORS = ['#ff7a3c', '#3ca8ff', '#7ad83c', '#ffcc2a', '#c86aff', '#ff6ab0'];
@@ -155,6 +163,7 @@ class Adventure {
     this.disposed = false;
     this.localBanner = (...a) => this.banner(...a);   // bandeau seulement sur cet écran (remplacé à plusieurs)
 
+    this.setMode(getMode(), true);
     this.loadSave();
     this.buildDom();
     this.initThree();
@@ -198,6 +207,17 @@ class Adventure {
   // Sauvegarde
   // -------------------------------------------------------------------------
   emptySave() { return { bones: [], gone: {}, crateT: {}, visitors: [], medals: [], balls: [], crates: [], cats: [], lanterns: [], boss: false, puppy: L.ID === 1 ? 'lost' : 'home', intro: false, done: false, time: 0 }; }
+  setMode(m, init) {
+    this.mode = m;
+    MAX_HEARTS = m === 'defi' ? 2 : 3;
+    this.guide = m === 'promenade';
+    try { localStorage.setItem('dogfight.mode', m); } catch (e) { /* ignore */ }
+    if (init) return;
+    for (const P of this.players) P.hearts = Math.min(P.hearts, MAX_HEARTS) || MAX_HEARTS;
+    this.updateHud();
+  }
+  get easy() { return this.mode === 'promenade'; }
+
   /** Code du monde partagé où l'on joue (ou null en solo). */
   get worldCode() { return this.hostSession ? this.hostSession.code : (this.coop && this.coop.link && this.coop.link.code) || null; }
   /** Sa propre sauvegarde (solo et son monde), ou la copie du monde d'un ami. */
@@ -669,6 +689,37 @@ class Adventure {
       this.scene.add(label);
       return { def: p, y, disc, mat, glow, label, name: NAMES[p.to] };
     });
+  }
+
+  /** Où aller maintenant ? (pour le chemin d'étincelles) */
+  guideTarget() {
+    const s = this.save, me = this.me;
+    if (!s.intro) return { x: L.npcs.mamie.x, y: L.npcs.mamie.y, z: L.npcs.mamie.z };
+    const LG = this.levelLogic;
+    if (LG && LG.guideTarget) { const g = LG.guideTarget(me); if (g) return g; }
+    if (this.puppy && this.puppy.state === 'follow') return { x: L.npcs.mamie.x, y: L.npcs.mamie.y, z: L.npcs.mamie.z };
+    let best = null, bd = Infinity;
+    for (const m of this.medals) {
+      if (!m.mesh.visible) continue;
+      const d = Math.hypot(m.def.x - me.pos.x, m.def.z - me.pos.z);
+      if (d < bd) { bd = d; best = m.def; }
+    }
+    return best;
+  }
+  /** Mode Promenade : des étincelles dorées montrent le chemin. */
+  renderGuide(dt) {
+    this.guideT = (this.guideT || 0) + dt;
+    if (this.guideT < 0.12 || this.dialog) return;
+    this.guideT = 0;
+    const g = this.guideTarget(), me = this.me;
+    if (!g) return;
+    const dx = g.x - me.pos.x, dz = g.z - me.pos.z, d = Math.hypot(dx, dz);
+    if (d < 3) return;
+    const k = (this.guideK = ((this.guideK || 0) + 1) % 6);
+    const along = Math.min(d - 1, 1.6 + k * 1.3);
+    const x = me.pos.x + dx / d * along, z = me.pos.z + dz / d * along;
+    const y = Math.max(me.pos.y, L.heightAt(x, z)) + 0.5 + Math.sin(k) * 0.1;
+    this.spawnParticle(x, y, z, 0, 0.6, 0, 0xffe680, 0.32, 0.9, 0);
   }
 
   usePortal(to) {
@@ -1975,7 +2026,7 @@ class Adventure {
     P.gliding = false;
     if (!P.grounded) {
       P.vel.y -= GRAVITY * dt;
-      if (P.kind !== 'matcha' && input.jumpHeld && P.vel.y < 0 && P.dashT <= 0 && (P.jumps >= 1 || P.coyote < -0.25)) {
+      if (P.kind !== 'matcha' && (input.jumpHeld || (this.easy && P.jumps >= 1)) && P.vel.y < 0 && P.dashT <= 0 && (P.jumps >= 1 || P.coyote < -0.25)) {
         P.vel.y = Math.max(P.vel.y, -GLIDE_FALL);
         P.gliding = true;
       }
@@ -2056,7 +2107,7 @@ class Adventure {
   hurtPlayer(from, P) {
     P = P || this.player;
     if (P.invuln > 0) return;
-    P.hearts--;
+    if (!this.easy) P.hearts--;   // en Promenade, on est juste repoussé
     P.invuln = 1.6;
     const dx = P.pos.x - from.x, dz = P.pos.z - from.z, d = Math.hypot(dx, dz) || 1;
     P.vel.set(dx / d * 9, 7, dz / d * 9);
@@ -2597,6 +2648,7 @@ class Adventure {
     if (this.streamTex) this.streamTex.offset.y = (t * 0.9) % 1;
     if (this.levelLogic) this.levelLogic.render(dt, t);
     if (this.water) this.water.material.uniforms.uTime.value = t;
+    if (this.guide) this.renderGuide(dt);
     for (const p of this.portals || []) {
       p.mat.uniforms.uTime.value = t;
       p.disc.rotation.y = Math.atan2(this.camera.position.x - p.def.x, this.camera.position.z - p.def.z);
@@ -2797,6 +2849,7 @@ class Adventure {
         <button class="btn primary" data-a="resume">Reprendre</button>
         <div class="adv-toggles">
           <button class="btn" data-a="music">🎵 Musique : ${this.sfx && this.sfx.musicOn === false ? 'non' : 'oui'}</button>
+          ${this.guest ? '' : `<button class="btn" data-a="mode">${{ promenade: '🐣', aventure: '🐶', defi: '🏆' }[this.mode]} Mode : ${MODES[this.mode]}</button>`}
           ${this.guest ? '' : `<button class="btn" data-a="style">🎨 Style : ${this.realistic ? 'réaliste' : 'dessin animé'}</button>`}
           <button class="btn" data-a="mic">🎤 Micro : ${this.vc && this.vc.on ? 'allumé' : 'coupé'}</button>
         </div>
@@ -2862,6 +2915,12 @@ class Adventure {
     switch (a) {
       case 'resume': this.hideOverlay(); break;
       case 'music': if (this.sfx && this.sfx.setMusic) this.sfx.setMusic(this.sfx.musicOn === false); this.showOverlay('pause'); break;
+      case 'mode': {
+        const order = ['promenade', 'aventure', 'defi'];
+        this.setMode(order[(order.indexOf(this.mode) + 1) % 3]);
+        this.showOverlay('pause');
+        break;
+      }
       case 'style':
         try { localStorage.setItem('dogfight.style', this.realistic ? 'toon' : 'real'); } catch (e) { /* ignore */ }
         this.hideOverlay(); this.switchLevel(L.ID);
