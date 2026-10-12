@@ -14,6 +14,7 @@ import * as M from './models.js';
 import * as W from './world.js';
 import * as T from './toon.js';
 import { Post } from './post.js';
+import * as RT from './realtex.js';
 
 const STEP = 1 / 60;
 const GRAVITY = 32;
@@ -130,7 +131,12 @@ export async function start(opts) {
   }
   W.applySky(L.SKY);
   if (opts.sfx) opts.sfx.music('adv' + L.ID);     // l'ambiance musicale du niveau
+  let style = null;
+  try { style = localStorage.getItem('dogfight.style'); } catch (e) { /* ignore */ }
+  // rendu réaliste : matières photographiées et ciel (chargés une seule fois)
+  const photos = style !== 'toon' ? RT.preloadPhotos((k) => { if (LD) LD.progress(0.35 + k * 0.3, 'Les décors arrivent…'); }) : null;
   await M.preloadDogs();
+  if (photos) await photos;
   if (LD) {
     LD.progress(0.7, L.WORLD ? 'Construction de la ville…' : 'Construction du monde…');
     await new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)));   // laisse l'écran se dessiner
@@ -496,7 +502,34 @@ class Adventure {
     try { style = localStorage.getItem('dogfight.style'); } catch (e) { /* ignore */ }
     this.realistic = style !== 'toon';
     W.LOOK.real = this.realistic;
-    if (this.realistic) {
+    if (this.realistic && RT.hasPhotos()) {
+      // vrai ciel photographié : il éclaire aussi la scène (reflets, lumière douce)
+      const im = RT.photoImage('sky');
+      const tex = new THREE.Texture(im); tex.colorSpace = THREE.SRGBColorSpace; tex.needsUpdate = true;
+      // on tourne le ciel pour que son soleil soit là où le niveau le veut
+      const want = W.SKY.sunDir, azWant = Math.atan2(want.z, want.x);
+      const SUN_U = 0.596, SUN_EL = 0.84;                 // position du soleil sur la photo
+      const phi = SUN_U * Math.PI * 2, azPhoto = Math.atan2(Math.sin(phi), -Math.cos(phi));
+      const rot = azPhoto - azWant;
+      const dome = new THREE.Mesh(new THREE.SphereGeometry(900, 48, 24), new THREE.MeshBasicMaterial({ map: tex, side: THREE.BackSide, fog: false, depthWrite: false }));
+      dome.rotation.y = rot; dome.renderOrder = -10; dome.frustumCulled = false;
+      this.sky.visible = false;
+      this.scene.add(dome);
+      this.photoSky = dome;
+      W.SKY.sunDir.set(Math.cos(SUN_EL) * Math.cos(azWant), Math.sin(SUN_EL), Math.cos(SUN_EL) * Math.sin(azWant)).normalize();
+      // brume : la couleur de l'horizon de la photo
+      this.scene.fog.color.setRGB(0.70, 0.78, 0.88, THREE.SRGBColorSpace);
+      const envScene = new THREE.Scene();
+      const envDome = dome.clone(); envDome.material = dome.material.clone(); envDome.scale.setScalar(0.1);
+      envScene.add(envDome);
+      const pm = new THREE.PMREMGenerator(r);
+      this.envTex = pm.fromScene(envScene, 0.04, 0.1, 1000).texture;
+      pm.dispose();
+      this.scene.environment = this.envTex;
+      this.scene.environmentIntensity = 0.7;
+      LT.hemi = [LT.hemi[0], LT.hemi[1], LT.hemi[2] * 0.45];
+      LT.sun = [0xfff2dc, LT.sun[1] * 1.1];
+    } else if (this.realistic) {
       // lumière du ciel tout autour (reflets doux sur l'herbe, le pelage, l'or des os)
       const envScene = new THREE.Scene();
       W.buildSky(envScene);
@@ -981,10 +1014,13 @@ class Adventure {
     const kennel = new THREE.Group();
     const kb = new THREE.Mesh(new THREE.BoxGeometry(2.4, 1.6, 2.2), M.mat(0xe0b070, { roughness: 0.8 }));
     if (woodMap) { kb.material = kb.material.clone(); kb.material.map = woodMap; kb.material.color.set(0xffe0b0); }
+    const planks = this.realistic && RT.hasPhotos() ? RT.photo('brown_planks_03', 1) : null;
+    if (planks) { kb.material = new THREE.MeshStandardMaterial({ map: planks.map, normalMap: planks.normalMap, roughness: 0.85, color: 0xd8c0a0 }); kb.material.color.multiplyScalar(1.5); }
     kb.position.y = 0.8; kennel.add(kb);
     const roofShape = new THREE.Shape();
     roofShape.moveTo(-1.55, 0); roofShape.lineTo(0, 1.25); roofShape.lineTo(1.55, 0); roofShape.lineTo(-1.55, 0);
-    const roof = new THREE.Mesh(new THREE.ExtrudeGeometry(roofShape, { depth: 2.7, bevelEnabled: true, bevelSize: 0.08, bevelThickness: 0.08, bevelSegments: 2 }), this.realistic ? new THREE.MeshStandardMaterial({ map: shingleTexture(), roughness: 0.75 }) : M.mat(0xd8443a, { roughness: 0.6 }));
+    const roof = new THREE.Mesh(new THREE.ExtrudeGeometry(roofShape, { depth: 2.7, bevelEnabled: true, bevelSize: 0.08, bevelThickness: 0.08, bevelSegments: 2 }), this.realistic && RT.hasPhotos() ? (() => { const t = RT.photo('clay_roof_tiles', 0.5); return new THREE.MeshStandardMaterial({ map: t.map, normalMap: t.normalMap, roughness: 0.75 }); })()
+      : this.realistic ? new THREE.MeshStandardMaterial({ map: shingleTexture(), roughness: 0.75 }) : M.mat(0xd8443a, { roughness: 0.6 }));
     roof.position.set(0, 1.55, -1.35); kennel.add(roof);
     const door = new THREE.Mesh(new THREE.CircleGeometry(0.55, 24), M.mat(0x2a1608, { roughness: 1 }));
     door.position.set(0, 0.65, 1.11); kennel.add(door);

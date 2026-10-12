@@ -142,7 +142,18 @@ function buildDecor(game) {
     container: new THREE.MeshStandardMaterial({ map: K.metalTex(), vertexColors: true, roughness: 0.55, metalness: 0.2 }),
   };
   // rendu réaliste : textures détaillées avec relief (briques, pavés, fissures…)
-  if (LOOK.real) {
+  if (LOOK.real && RT.hasPhotos()) {
+    const real = (name, tex, extra) => { const m = mats[name] || (mats[name] = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.85 })); m.map = tex.map; m.normalMap = tex.normalMap; Object.assign(m, extra || {}); m.needsUpdate = true; };
+    real('windows', RT.photoFacade('painted_plaster_wall', false));
+    real('windowsBrick', RT.photoFacade('red_brick', true), { roughness: 0.9 });
+    real('shop', RT.photoShop());
+    real('groundCobble', RT.photo('cobblestone_floor_04', 1), { roughness: 0.85 });
+    real('ground', RT.photo('rectangular_paving', 1));
+    real('groundConcrete', RT.photo('rectangular_paving', 1));
+    real('road', RT.photoRoad(), { roughness: 0.9 });
+    real('cross', RT.photo('asphalt_02', 1), { roughness: 0.9 });
+    const rf = RT.photo('clay_roof_tiles', 1); real('roof', rf);
+  } else if (LOOK.real) {
     const real = (name, tex, extra) => { const m = mats[name] || (mats[name] = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.85 })); m.map = tex.map; m.normalMap = tex.normalMap; Object.assign(m, extra || {}); m.needsUpdate = true; };
     real('windows', RT.facadeTex(false));
     real('windowsBrick', RT.facadeTex(true), { roughness: 0.9 });

@@ -183,8 +183,21 @@ export function buildTerrain(scene, quality) {
     colors[i * 3] = c.r; colors[i * 3 + 1] = c.g; colors[i * 3 + 2] = c.b;
   }
   geo.setAttribute('color', new THREE.BufferAttribute(colors, 3));
-  const gtex = LOOK.real ? grassGroundTexture() : detailTexture();
-  const mat = new THREE.MeshStandardMaterial({ vertexColors: true, map: gtex, roughness: 0.95, normalMap: LOOK.real ? RT.normalFor(gtex, 2) : null });
+  const size2 = L.WORLD || 180;
+  // forêt : vrai sol de sous-bois ; ailleurs : le grain de la photo, la couleur verte du terrain
+  const ph = !(LOOK.real && RT.hasPhotos()) ? null : L.ID === 2 ? RT.photo('forest_ground_04', size2 / 3.5) : RT.photoGray('leafy_grass', size2 / 3.5);
+  if (ph && L.ID === 2) {
+    // la photo donne déjà l'herbe : les couleurs du terrain ne font plus que nuancer (sable, roche, terre)
+    const col = geo.attributes.color, base = new THREE.Color(gp[1]);
+    for (let i = 0; i < col.count; i++) {
+      const cc = new THREE.Color(col.getX(i), col.getY(i), col.getZ(i));
+      const greenish = Math.max(0, 1 - Math.abs(cc.getHSL({}).h - base.getHSL({}).h) * 6);
+      cc.lerp(L.ID === 2 ? new THREE.Color(1.05, 1.05, 0.95) : new THREE.Color(0.98, 1.22, 0.78), 0.85 * greenish);   // prairie bien verte
+      col.setXYZ(i, cc.r, cc.g, cc.b);
+    }
+  }
+  const gtex = ph ? ph.map : LOOK.real ? grassGroundTexture() : detailTexture();
+  const mat = new THREE.MeshStandardMaterial({ vertexColors: true, map: gtex, roughness: 0.95, normalMap: ph ? ph.normalMap : LOOK.real ? RT.normalFor(gtex, 2) : null });
   const m = new THREE.Mesh(geo, mat);
   m.receiveShadow = true;
   scene.add(m);
@@ -414,8 +427,10 @@ export function buildTrees(scene, quality) {
   const tp = trunkGeo.attributes.position;
   for (let i = 0; i < tp.count; i++) { const y = tp.getY(i); if (y < -2) { const k = 1 + (-2 - y) * 0.35; tp.setX(i, tp.getX(i) * k); tp.setZ(i, tp.getZ(i) * k); } }
   trunkGeo.computeVertexNormals();
-  const bark = LOOK.real ? barkTexture() : null;
-  const trunks = new THREE.InstancedMesh(trunkGeo, LOOK.real ? new THREE.MeshStandardMaterial({ color: 0xb8a088, map: bark, normalMap: RT.normalFor(bark, 6), roughness: 0.95 }) : M.mat(0x7a4e2c, { roughness: 0.95 }), n);
+  const phb = LOOK.real && RT.hasPhotos() ? RT.photo('bark_willow_02', 1.5, 2) : null;
+  const bark = LOOK.real && !phb ? barkTexture() : null;
+  const trunks = new THREE.InstancedMesh(trunkGeo, phb ? new THREE.MeshStandardMaterial({ map: phb.map, normalMap: phb.normalMap, roughness: 0.95 })
+    : LOOK.real ? new THREE.MeshStandardMaterial({ color: 0xb8a088, map: bark, normalMap: RT.normalFor(bark, 6), roughness: 0.95 }) : M.mat(0x7a4e2c, { roughness: 0.95 }), n);
   const blobGeo = leafClusterGeo(L.WORLD ? 6 : quality && quality.lite ? 10 : 16);
   const blobs = [];
   // style du feuillage selon le niveau (la forêt du niveau 2 a moins de touffes, plus grosses)
@@ -596,7 +611,13 @@ export function stoneTexture() {
   return stoneTex;
 }
 let stoneM = null;
-export const stoneMat = () => stoneM || (stoneM = new THREE.MeshStandardMaterial({ map: stoneTexture(), vertexColors: true, roughness: 0.9, normalMap: LOOK.real ? RT.normalFor(stoneTexture(), 5) : null }));
+export const stoneMat = () => {
+  if (stoneM) return stoneM;
+  const ph = LOOK.real && RT.hasPhotos() ? RT.photo('mossy_stone_wall', 0.6) : null;
+  stoneM = ph ? new THREE.MeshStandardMaterial({ map: ph.map, normalMap: ph.normalMap, vertexColors: true, roughness: 0.9, color: new THREE.Color(1.7, 1.65, 1.55) })
+    : new THREE.MeshStandardMaterial({ map: stoneTexture(), vertexColors: true, roughness: 0.9, normalMap: LOOK.real ? RT.normalFor(stoneTexture(), 5) : null });
+  return stoneM;
+};
 
 /** Mousse sur le dessus + assombrissement en bas (couleurs de sommets). */
 function mossy(g, top, bottom) {
@@ -770,7 +791,30 @@ function realPavingTexture() {
   t.anisotropy = 8;
   return t;
 }
+/** Chemin en vraies pierres (photo), bords irréguliers qui se perdent dans l'herbe. */
+function photoPavingTexture() {
+  const im = RT.photoImage('stone_pathway_d');
+  const c = document.createElement('canvas'); c.width = 256; c.height = 512;
+  const x = c.getContext('2d');
+  x.drawImage(im, 0, 0, 256, 256); x.drawImage(im, 0, 256, 256, 256);
+  // bords : effacés de façon irrégulière
+  const r = rng(13);
+  x.globalCompositeOperation = 'destination-out';
+  for (let i = 0; i < 900; i++) {
+    const side = r() < 0.5, d = Math.pow(r(), 1.8) * 70;
+    const px = side ? d : 256 - d, py = r() * 512;
+    x.fillStyle = `rgba(0,0,0,${0.5 + (1 - d / 70) * 0.5})`;
+    x.beginPath(); x.arc(px, py, 4 + r() * 10, 0, 7); x.fill();
+  }
+  x.globalCompositeOperation = 'source-over';
+  const t = new THREE.CanvasTexture(c);
+  t.wrapS = THREE.ClampToEdgeWrapping; t.wrapT = THREE.RepeatWrapping;
+  t.colorSpace = THREE.SRGBColorSpace;
+  t.anisotropy = 8;
+  return t;
+}
 function pavingTexture() {
+  if (LOOK.real && RT.hasPhotos()) return photoPavingTexture();
   if (LOOK.real) return realPavingTexture();
   const c = document.createElement('canvas'); c.width = 128; c.height = 256;
   const x = c.getContext('2d');
@@ -866,6 +910,7 @@ export function buildCrystals(scene) {
 let leafTex = null;
 export function leafTexture() {
   if (leafTex) return leafTex;
+  if (LOOK.real && RT.hasPhotos()) { leafTex = RT.leafClusterTexture(); if (leafTex) return leafTex; }
   const c = document.createElement('canvas'); c.width = 256; c.height = 128;
   const x = c.getContext('2d');
   const r = rng(55);

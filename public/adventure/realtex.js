@@ -121,8 +121,10 @@ export function facadeTex(brick, seed) {
 
 /** Rez-de-chaussée : vitrine, porte, soubassement en pierre. */
 export function shopFrontTex() {
-  return realTex(512, 512, 23, (x, y, w, h, r) => {
-    plaster(x, y, w, h, r);
+  return realTex(512, 512, 23, (x, y, w, h, r) => { plaster(x, y, w, h, r); shopOn(x, y, w, h, r); }, { strength: 4 });
+}
+function shopOn(x, y, w, h, r) {
+  {
     x.fillStyle = '#b8b0a4'; x.fillRect(0, h - 60, w, 60);  y.fillStyle = '#a0a0a0'; y.fillRect(0, h - 60, w, 60);
     for (let i = 0; i < 8; i++) { x.fillStyle = 'rgba(0,0,0,0.12)'; x.fillRect(i * 64, h - 60, 2, 60); }
     // vitrine
@@ -146,7 +148,7 @@ export function shopFrontTex() {
     x.fillStyle = '#2a3a2a'; x.fillRect(20, 30, w - 40, 44); y.fillStyle = '#b0b0b0'; y.fillRect(20, 30, w - 40, 44);
     x.fillStyle = '#e8d8a8'; x.font = '700 30px Georgia, serif'; x.textAlign = 'center'; x.textBaseline = 'middle';
     x.fillText(['BOULANGERIE', 'ÉPICERIE', 'FLEURS', 'LIBRAIRIE', 'CAFÉ', 'JOUETS'][Math.floor(r() * 6)], w / 2, 53);
-  }, { strength: 4 });
+  }
 }
 
 /** Pavés de granit gris, mousse dans les joints. */
@@ -264,4 +266,137 @@ export function rockTex() {
     }
     grain(x, w, h, r, 8000, 0.08); grain(y, w, h, r, 8000, 0.2);
   }, { strength: 4 });
+}
+
+// ---------------------------------------------------------------------------
+// Matières photographiées (Poly Haven, CC0) : chargées une fois, avant le niveau
+// ---------------------------------------------------------------------------
+const PH = new URL('./assets/ph/', import.meta.url).href;
+export const PHOTO_NAMES = ['leafy_grass', 'forest_ground_04', 'stone_pathway', 'mossy_stone_wall', 'bark_willow_02', 'red_brick',
+  'painted_plaster_wall', 'asphalt_02', 'cobblestone_floor_04', 'rectangular_paving', 'clay_roof_tiles', 'brown_planks_03', 'mossy_rock'];
+const photos = {};
+let photoPromise = null;
+function loadImg(src) {
+  return new Promise((res) => { const im = new Image(); im.onload = () => res(im); im.onerror = () => res(null); im.src = src; });
+}
+/** Charge toutes les photos (une seule fois). onProgress(0..1) pour l'écran de chargement. */
+export function preloadPhotos(onProgress) {
+  if (photoPromise) return photoPromise;
+  const jobs = [];
+  for (const n of PHOTO_NAMES) for (const k of ['d', 'n']) jobs.push([n + '_' + k, PH + n + '_' + k + '.jpg']);
+  jobs.push(['leaves', PH + 'leaves.webp'], ['sky', PH + 'sky.jpg']);
+  let done = 0;
+  photoPromise = Promise.all(jobs.map(([key, src]) => loadImg(src).then(im => { photos[key] = im; done++; if (onProgress) onProgress(done / jobs.length); })));
+  return photoPromise;
+}
+export const hasPhotos = () => !!photos.sky;
+export const photoImage = (key) => photos[key] || null;
+
+/** { map, normalMap } d'une matière photo, répétée rx × ry fois. */
+export function photo(name, rx, ry) {
+  const d = photos[name + '_d'], n = photos[name + '_n'];
+  if (!d) return null;
+  const mk = (im, srgb) => {
+    const t = new THREE.Texture(im);
+    if (srgb) t.colorSpace = THREE.SRGBColorSpace;
+    t.wrapS = t.wrapT = THREE.RepeatWrapping; t.repeat.set(rx || 1, ry || rx || 1); t.anisotropy = 8;
+    t.needsUpdate = true;
+    return t;
+  };
+  return { map: mk(d, true), normalMap: n ? mk(n, false) : null };
+}
+
+/**
+ * Compose une texture : la photo en fond (répétée tile × tile fois sur le canevas), puis draw()
+ * dessine par-dessus (fenêtres…). La carte de relief suit : photo en fond, zones dessinées à plat.
+ */
+export function photoCanvas(name, w, h, tile, draw, flatAreas) {
+  const d = photos[name + '_d'], n = photos[name + '_n'];
+  const c = document.createElement('canvas'); c.width = w; c.height = h;
+  const x = c.getContext('2d');
+  const tw = w / tile, th = h / tile;
+  for (let i = 0; i < tile; i++) for (let j = 0; j < tile; j++) x.drawImage(d, i * tw, j * th, tw, th);
+  const hc = document.createElement('canvas'); hc.width = w; hc.height = h;   // carte de hauteur (pour les zones dessinées)
+  const y = hc.getContext('2d'); y.fillStyle = '#808080'; y.fillRect(0, 0, w, h);
+  let seed = 11; const r = () => (seed = (seed * 16807) % 2147483647) / 2147483647;
+  if (draw) draw(x, y, w, h, r);
+  const map = new THREE.CanvasTexture(c); map.colorSpace = THREE.SRGBColorSpace;
+  // relief : photo en fond, relief dessiné (fenêtres, joints…) par-dessus
+  const nc = document.createElement('canvas'); nc.width = w; nc.height = h;
+  const nx = nc.getContext('2d');
+  if (n) for (let i = 0; i < tile; i++) for (let j = 0; j < tile; j++) nx.drawImage(n, i * tw, j * th, tw, th);
+  if (flatAreas) {
+    const drawn = normalFromHeight(hc, 4);
+    for (const [ax, ay, aw, ah] of flatAreas) nx.drawImage(drawn, ax, ay, aw, ah, ax, ay, aw, ah);
+  }
+  const normalMap = new THREE.CanvasTexture(nc);
+  for (const t of [map, normalMap]) { t.wrapS = t.wrapT = THREE.RepeatWrapping; t.anisotropy = 8; }
+  return { map, normalMap };
+}
+
+/** Bouquet de vraies feuilles (photo) sur fond transparent, pour les cartes de feuillage. */
+export function leafClusterTexture() {
+  const im = photos.leaves;
+  if (!im) return null;
+  const c = document.createElement('canvas'); c.width = 1024; c.height = 512;
+  const x = c.getContext('2d');
+  let seed = 5; const r = () => (seed = (seed * 16807) % 2147483647) / 2147483647;
+  // les 8 feuilles de la planche (colonnes de 205 px, 2 rangées)
+  const cells = [[0, 0], [1, 0], [2, 0], [3, 0], [4, 0], [0, 1], [1, 1], [2, 1]].map(([i, j]) => [i * 205, j * 590, 205, 470]);
+  const leaf = (cx, cy, s, a, k) => {
+    const [sx, sy, sw, sh] = cells[k % cells.length];
+    x.save(); x.translate(cx, cy); x.rotate(a); x.globalAlpha = 1;
+    const l = 0.7 + r() * 0.45;
+    x.filter = `brightness(${l.toFixed(2)}) saturate(${(1 + r() * 0.3).toFixed(2)})`;
+    x.drawImage(im, sx, sy, sw, sh, -s * 0.22, -s, s * 0.44, s);
+    x.restore();
+  };
+  // moitié droite : touffe détourée (les cartes utilisent u entre 0,5 et 1)
+  for (let i = 0; i < 70; i++) {
+    const a = r() * Math.PI * 2, d = Math.sqrt(r()) * 180;
+    leaf(768 + Math.cos(a) * d, 256 + Math.sin(a) * d, 70 + r() * 60, a + Math.PI / 2 + (r() - 0.5) * 0.8, i);
+  }
+  // moitié gauche : feuillage dense (cœur des arbres)
+  x.fillStyle = '#3a5a26'; x.fillRect(0, 0, 512, 512);
+  for (let i = 0; i < 140; i++) leaf(r() * 512, r() * 512, 60 + r() * 50, r() * 7, i);
+  x.filter = 'none';
+  const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace; t.anisotropy = 8;
+  return t;
+}
+
+/** Façade photo (enduit ou briques) avec une fenêtre détaillée dessinée par-dessus. */
+export function photoFacade(name, brick) {
+  return photoCanvas(name, 512, 512, brick ? 2 : 1, (x, y, w, h, r) => windowOn(x, y, w, h, r, brick),
+    [[w4(0.25) - 20, w4(0.16) - 24, w4(0.5) + 40, w4(0.6) + 50], [0, 512 - 16, 512, 16]]);
+}
+const w4 = (k) => Math.round(512 * k);
+/** Rez-de-chaussée photo : vitrine, porte, enseigne. */
+export function photoShop() {
+  return photoCanvas('painted_plaster_wall', 512, 512, 1, (x, y, w, h, r) => shopOn(x, y, w, h, r), [[0, 0, 512, 512]]);
+}
+/** Route : asphalte photo + marquages peints. */
+export function photoRoad() {
+  return photoCanvas('asphalt_02', 256, 512, 1, (x, y, w, h) => {
+    x.fillStyle = 'rgba(236,236,226,0.9)'; x.fillRect(8, 0, 6, h); x.fillRect(w - 14, 0, 6, h);
+    x.fillStyle = 'rgba(240,206,70,0.92)'; x.fillRect(w / 2 - 4, 0, 8, h * 0.55);
+  });
+}
+
+/** Photo en niveaux de gris éclaircie (garde le grain et le relief, la couleur vient d'ailleurs). */
+export function photoGray(name, rx, ry, gain) {
+  const d = photos[name + '_d'], n = photos[name + '_n'];
+  if (!d) return null;
+  const c = document.createElement('canvas'); c.width = d.width; c.height = d.height;
+  const x = c.getContext('2d'); x.drawImage(d, 0, 0);
+  const img = x.getImageData(0, 0, c.width, c.height), p = img.data;
+  let sum = 0;
+  for (let i = 0; i < p.length; i += 4) sum += p[i] * 0.3 + p[i + 1] * 0.55 + p[i + 2] * 0.15;
+  const k = (gain || 205) / (sum / (p.length / 4));
+  for (let i = 0; i < p.length; i += 4) { const l = Math.min(255, (p[i] * 0.3 + p[i + 1] * 0.55 + p[i + 2] * 0.15) * k); p[i] = p[i + 1] = p[i + 2] = l; }
+  x.putImageData(img, 0, 0);
+  const map = new THREE.CanvasTexture(c); map.colorSpace = THREE.SRGBColorSpace;
+  const out = { map, normalMap: null };
+  if (n) { out.normalMap = new THREE.Texture(n); out.normalMap.needsUpdate = true; }
+  for (const t of [out.map, out.normalMap]) if (t) { t.wrapS = t.wrapT = THREE.RepeatWrapping; t.repeat.set(rx || 1, ry || rx || 1); t.anisotropy = 8; }
+  return out;
 }

@@ -223,7 +223,12 @@ export function buildSky(game) {
   const grassMat = std({ roughness: 1 });
   // rendu réaliste : roche en strates et herbe, avec relief
   let islandRock = rockMat, islandGrass = grassMat;
-  if (W.LOOK.real) {
+  if (W.LOOK.real && RT.hasPhotos()) {
+    const rt = RT.photo('mossy_rock', 1);
+    islandRock = std({ roughness: 0.95, map: rt.map, normalMap: rt.normalMap });
+    const gt = RT.photoGray('leafy_grass', 1);
+    islandGrass = std({ roughness: 1, map: gt.map, normalMap: gt.normalMap });
+  } else if (W.LOOK.real) {
     const rt = RT.rockTex();
     islandRock = std({ roughness: 0.95, map: rt.map, normalMap: rt.normalMap });
     const gt = W.grassGroundTexture(); gt.repeat.set(1, 1);
