@@ -56,37 +56,59 @@
    * cb : onCode(code, session), onError(texte).
    * session : { code, role, link, onJoin(link), close() }
    */
-  function host(role, cb, tries) {
+  const MAX_GUESTS = 5;   // 6 joueurs en tout avec l'hôte
+  const CODE_KEY = 'dogfight.world.code';
+  function savedCode() { try { return localStorage.getItem(CODE_KEY); } catch (e) { return null; } }
+  function keepCode(c) { try { localStorage.setItem(CODE_KEY, c); } catch (e) { /* ignore */ } }
+
+  /**
+   * Ouvre le monde de l'hôte : il garde toujours le même code (le monde est
+   * « à lui »), les amis rejoignent ou reviennent quand ils veulent, jusqu'à 5.
+   * cb : onCode(code, session), onError(texte).
+   * session : { code, profile, links:Set, onJoin(link), close() }
+   */
+  function host(profile, cb, tries) {
     cancel();
     if (!window.Peer) { cb.onError('Le jeu en ligne n\'est pas disponible.'); return; }
-    const code = newCode();
+    tries = tries || 0;
+    const code = (tries < 2 && savedCode()) || newCode();
     const peer = new window.Peer(PREFIX + code, PEER_OPTS);
     pending = peer;
     const session = {
-      code, role, link: null, onJoin: null, closed: false,
+      code, profile, links: new Set(), onJoin: null, closed: false, level: 1,
+      get link() { for (const l of this.links) if (!l.closed) return l; return null; },
       close() {
         this.closed = true;
-        if (this.link) this.link.close();
+        for (const l of this.links) l.close();
         try { peer.destroy(); } catch (e) { /* ignore */ }
         if (pending === peer) pending = null;
       },
       detach() { if (pending === peer) pending = null; },
     };
     let opened = false;
-    peer.on('open', () => { if (!opened) { opened = true; cb.onCode(code, session); } });
+    peer.on('open', () => { if (!opened) { opened = true; keepCode(code); cb.onCode(code, session); } });
     // reste joignable si le serveur de mise en relation coupe la connexion
     peer.on('disconnected', () => { if (!session.closed) setTimeout(() => { if (!session.closed && peer.disconnected) peer.reconnect(); }, 1500); });
     peer.on('error', (e) => {
-      if (!opened && e.type === 'unavailable-id' && (tries || 0) < 4) { try { peer.destroy(); } catch (err) { /* ignore */ } host(role, cb, (tries || 0) + 1); return; }
+      // le code est encore pris (onglet précédent pas tout à fait fermé) : on réessaie, puis on change de code
+      if (!opened && e.type === 'unavailable-id' && tries < 5) {
+        try { peer.destroy(); } catch (err) { /* ignore */ }
+        setTimeout(() => host(profile, cb, tries + 1), tries < 1 ? 1500 : 0);
+        return;
+      }
       if (!opened) cb.onError('Connexion impossible (' + e.type + ').');
     });
     peer.on('connection', (conn) => {
-      if (session.link && !session.link.closed) { conn.on('open', () => conn.close()); return; }
       conn.on('open', () => {
-        if (session.closed) { conn.close(); return; }
+        for (const l of [...session.links]) if (l.closed) session.links.delete(l);
+        if (session.closed || session.links.size >= MAX_GUESTS) {
+          try { conn.send(JSON.stringify({ t: 'full' })); } catch (e) { /* ignore */ }
+          setTimeout(() => conn.close(), 300);
+          return;
+        }
         const link = new Link(peer, conn, true, false);
-        session.link = link;
-        link.send({ t: 'hello', role: other(role), level: session.level || 1 });
+        session.links.add(link);
+        link.send({ t: 'hello', level: session.level || 1 });
         if (session.onJoin) session.onJoin(link);
       });
     });
@@ -108,14 +130,16 @@
       conn.on('open', () => {
         const link = new Link(peer, conn, false, true);
         link.onmessage = (m) => {
-          if (m.t !== 'hello' || done) return;
+          if (done) return;
+          if (m.t === 'full') { fail('Ce monde est complet : il y a déjà 6 joueurs !'); link.close(); return; }
+          if (m.t !== 'hello') return;
           done = true; clearTimeout(timer); pending = null;
           link.onmessage = null;
-          cb.onReady(link, m.role, m.level || 1);
+          cb.onReady(link, m.level || 1);
         };
       });
     });
   }
 
-  window.AdvCoop = { host, join, cancel };
+  window.AdvCoop = { host, join, cancel, savedCode, MAX_PLAYERS: MAX_GUESTS + 1 };
 })();

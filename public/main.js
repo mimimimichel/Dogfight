@@ -653,18 +653,51 @@
   // ---------------------------------------------------------------------------
   // Aventure à deux (coop.js)
   // ---------------------------------------------------------------------------
+  // Profil du joueur (gardé sur l'appareil) : prénom, chien, couleur, trésors ramassés
+  const COLORS = ['#ff7a3c', '#3ca8ff', '#7ad83c', '#ffcc2a', '#c86aff', '#ff6ab0'];
+  function loadProfile() {
+    let p = {};
+    try { p = JSON.parse(localStorage.getItem('dogfight.profile') || '{}'); } catch (e) { /* ignore */ }
+    return { name: p.name || '', kind: p.kind === 'matcha' ? 'matcha' : 'ainu', color: (p.color | 0) % COLORS.length, total: p.total || 0 };
+  }
+  function saveProfile(pr) {
+    try {
+      const old = JSON.parse(localStorage.getItem('dogfight.profile') || '{}');
+      localStorage.setItem('dogfight.profile', JSON.stringify(Object.assign(old, { name: pr.name, kind: pr.kind, color: pr.color })));
+    } catch (e) { /* ignore */ }
+  }
+  let profile = loadProfile();
+  function renderProfile() {
+    $('coop-name').value = profile.name;
+    for (const b of document.querySelectorAll('.kpick')) b.classList.toggle('active', b.dataset.action === 'coop-kind-' + profile.kind);
+    $('coop-colors').innerHTML = COLORS.map((c, i) => `<button class="cswatch${i === profile.color ? ' active' : ''}" data-action="coop-color-${i}" style="--c:${c}" aria-label="Couleur ${i + 1}"></button>`).join('');
+    const code = window.AdvCoop && window.AdvCoop.savedCode();
+    $('coop-mycode').textContent = code ? `Ton monde : code ${code}` + (profile.total ? ` · tu as ramassé ${profile.total} trésors` : '') : 'Tes amis le retrouveront toujours avec le même code.';
+  }
+  $('coop-name').addEventListener('input', () => { profile.name = $('coop-name').value.trim().slice(0, 12); saveProfile(profile); });
+  function readyProfile() {
+    profile.name = ($('coop-name').value || '').trim().slice(0, 12);
+    if (!profile.name) { $('coop-status').textContent = 'Écris ton prénom d\'abord !'; $('coop-name').focus(); return null; }
+    saveProfile(profile);
+    return { name: profile.name, kind: profile.kind, color: profile.color };
+  }
+
   function coopReset(status) {
     $('coop-choose').classList.remove('hidden');
     $('coop-wait').classList.add('hidden');
     $('coop-status').textContent = status || '';
+    profile = loadProfile();
+    renderProfile();
   }
-  function coopStart(link, role, isHost, level) {
+  function coopStart(link, level, pr) {
     if (app.screen !== 'coop') { link.close(); return; }
     coopReset();
-    startAdventure({ link, role, isHost }, null, level);
+    startAdventure({ link, isHost: false, profile: pr }, null, level);
   }
   let coopSession = null, coopLevel = 1;
-  function coopHost(role) {
+  function coopHost() {
+    const pr = readyProfile();
+    if (!pr) return;
     $('coop-choose').classList.add('hidden');
     $('coop-wait').classList.remove('hidden');
     $('coop-show-code').textContent = '····';
@@ -672,7 +705,7 @@
     $('coop-status').textContent = '';
     $('coop-go').disabled = true;
     coopSession = null;
-    window.AdvCoop.host(role, {
+    window.AdvCoop.host(pr, {
       onCode: (code, session) => {
         coopSession = session;
         session.level = coopLevel;
@@ -680,7 +713,7 @@
         $('coop-go').disabled = false;
         const q = new URLSearchParams(location.search).get('peer');
         $('coop-link').value = location.origin + location.pathname + '?coop=' + code + (q ? '&peer=' + q : '');
-        // si l'ami arrive avant qu'on ait lancé, on démarre tout de suite
+        // si un ami arrive avant qu'on ait lancé, on démarre tout de suite
         session.onJoin = () => coopGo();
       },
       onError: (msg) => coopReset(msg),
@@ -695,11 +728,13 @@
     startAdventure(null, ses, ses.level || coopLevel);
   }
   function coopJoin() {
+    const pr = readyProfile();
+    if (!pr) return;
     const code = $('coop-code').value.trim().toUpperCase();
     if (code.length !== 4) { $('coop-status').textContent = 'Le code fait 4 lettres.'; return; }
-    $('coop-status').textContent = 'Connexion à la partie ' + code + '…';
+    $('coop-status').textContent = 'Connexion au monde ' + code + '…';
     window.AdvCoop.join(code, {
-      onReady: (link, role, level) => coopStart(link, role, false, level),
+      onReady: (link, level) => coopStart(link, level, pr),
       onError: (msg) => coopReset(msg),
     });
   }
@@ -722,9 +757,11 @@
         break;
       }
       case 'coop': show('coop'); coopReset(); break;
-      case 'coop-host-ainu': coopHost('ainu'); break;
-      case 'coop-host-matcha': coopHost('matcha'); break;
+      case 'coop-host': coopHost(); break;
+      case 'coop-kind-ainu': case 'coop-kind-matcha': profile.kind = a === 'coop-kind-ainu' ? 'ainu' : 'matcha'; saveProfile(profile); renderProfile(); break;
       case 'coop-join': coopJoin(); break;
+      case 'coop-color-0': case 'coop-color-1': case 'coop-color-2': case 'coop-color-3': case 'coop-color-4': case 'coop-color-5':
+        profile.color = +a.slice(-1); saveProfile(profile); renderProfile(); break;
       case 'coop-cancel': window.AdvCoop.cancel(); coopSession = null; coopReset(); break;
       case 'coop-go': coopGo(); break;
       case 'coop-back': window.AdvCoop.cancel(); coopSession = null; show('menu'); break;
@@ -913,7 +950,7 @@
   const coopInvite = (params.get('coop') || '').toUpperCase();
   if (coopInvite) {
     show('coop');
-    coopReset(`Invitation à jouer à deux : clique sur « Rejoindre » !`);
+    coopReset(`Invitation dans le monde ${coopInvite} : écris ton prénom puis clique sur « Rejoindre » !`);
     $('coop-code').value = coopInvite;
     history.replaceState(null, '', location.pathname + (params.get('peer') ? '?peer=' + params.get('peer') : ''));
   }

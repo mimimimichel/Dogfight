@@ -58,8 +58,8 @@
           </button>
           <button class="hbtn duo" data-action="coop">
             <span class="duo-ico" aria-hidden="true"></span>
-            <b>Jouer à deux</b>
-            <small>Un joueur fait Ainu, l'autre fait Matcha !</small>
+            <b>Jouer ensemble</b>
+            <small>Jusqu'à 6 amis dans ton monde !</small>
           </button>
           <div class="home-row">
             <button class="hbtn small" data-action="controls">Commandes</button>
@@ -111,32 +111,42 @@
           <div class="home-cloud c1"></div><div class="home-cloud c2"></div>
         </div>
         <div class="coop-card">
-          <h2 class="coop-title">Jouer à deux</h2>
-          <p class="coop-sub">Chacun sur son téléphone ou sa tablette : l'un joue Ainu, l'autre Matcha !</p>
+          <h2 class="coop-title">Jouer ensemble</h2>
+          <p class="coop-sub">Jusqu'à 6 amis dans le même monde, chacun sur son téléphone ou sa tablette !</p>
           <div class="coop-choose" id="coop-choose">
-            <div class="coop-col">
-              <p class="coop-label">Je crée la partie et je joue&nbsp;:</p>
-              <div class="coop-roles">
-                <button class="hbtn role ainu" data-action="coop-host-ainu"><b>Ainu</b><small>court, saute, fonce</small></button>
-                <button class="hbtn role matcha" data-action="coop-host-matcha"><b>Matcha</b><small>double saut, attaque</small></button>
+            <div class="coop-profile">
+              <label class="coop-field">Mon prénom <input id="coop-name" maxlength="12" placeholder="Prénom" autocomplete="off"></label>
+              <div class="coop-field">Mon chien
+                <span class="coop-kinds">
+                  <button class="hbtn kpick ainu active" data-action="coop-kind-ainu">Ainu</button>
+                  <button class="hbtn kpick matcha" data-action="coop-kind-matcha">Matcha</button>
+                </span>
               </div>
+              <div class="coop-field">Ma couleur <span class="coop-colors" id="coop-colors"></span></div>
             </div>
-            <div class="coop-col">
-              <p class="coop-label">J'ai reçu un code&nbsp;:</p>
-              <div class="coop-join">
-                <input id="coop-code" maxlength="4" placeholder="CODE" autocomplete="off" autocapitalize="characters">
-                <button class="hbtn cbtn" data-action="coop-join">Rejoindre</button>
+            <div class="coop-cols">
+              <div class="coop-col">
+                <p class="coop-label">Mon monde&nbsp;:</p>
+                <button class="hbtn go" data-action="coop-host">Ouvrir mon monde</button>
+                <p class="coop-hint" id="coop-mycode"></p>
+              </div>
+              <div class="coop-col">
+                <p class="coop-label">Le monde d'un ami&nbsp;:</p>
+                <div class="coop-join">
+                  <input id="coop-code" maxlength="4" placeholder="CODE" autocomplete="off" autocapitalize="characters">
+                  <button class="hbtn cbtn" data-action="coop-join">Rejoindre</button>
+                </div>
               </div>
             </div>
           </div>
           <div class="coop-wait hidden" id="coop-wait">
-            <p class="coop-label">Donne ce code à l'autre joueur&nbsp;:</p>
+            <p class="coop-label">Le code de ton monde (il ne change pas)&nbsp;:</p>
             <div class="coop-code" id="coop-show-code">----</div>
             <div class="coop-join">
               <input id="coop-link" readonly>
               <button class="hbtn cbtn" data-action="coop-copy">Copier le lien</button>
             </div>
-            <p class="coop-status pulse" id="coop-wait-status">Ton ami pourra rejoindre quand il veut, même en pleine partie !</p>
+            <p class="coop-status pulse" id="coop-wait-status">Tes amis (jusqu'à 5) peuvent arriver quand ils veulent, même en pleine partie !</p>
             <div class="coop-levels">
               <span>Niveau :</span>
               <button class="hbtn lvpick active" data-action="coop-lv-1">1 · Le Parc</button>

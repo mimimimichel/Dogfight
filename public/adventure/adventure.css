@@ -135,3 +135,9 @@
 #adv.role-ainu .adv-coop span { color: #ffab6a; }
 #adv.role-matcha .adv-coop span { color: #b6ec7a; }
 .adv-code { font-size: 1.4em; letter-spacing: 3px; color: #b05ae8; }
+
+/* Monde partagé : les joueurs présents */
+.adv-roster { position: absolute; left: 50%; top: 0; transform: translateX(-50%); display: flex; gap: 6px; flex-wrap: wrap; justify-content: center; max-width: 46vw; pointer-events: none; }
+.adv-roster span { font-size: 13px; font-weight: 700; color: #fff; text-shadow: 0 1px 2px #000; padding: 3px 10px 3px 22px; border-radius: 999px; background: rgba(28, 22, 18, 0.62); border: 1.5px solid rgba(232, 192, 112, 0.55); position: relative; }
+.adv-roster span::before { content: ''; position: absolute; left: 7px; top: 50%; width: 10px; height: 10px; margin-top: -5px; border-radius: 50%; background: var(--c); }
+.adv-roster span.me { border-color: #fff; }
