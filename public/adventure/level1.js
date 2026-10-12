@@ -12,8 +12,6 @@ export const WATER_Y = 0;
 export const ISLAND_R = 68;
 // Ambiance : soleil doré de fin de matinée, en contre-jour vers le nord (rayons à travers les arbres)
 export const SKY = { top: 0x4a90e2, horizon: 0xf4e4c6, bottom: 0xd6e6dc, sunDir: [-0.34, 0.4, -0.66] };
-// Portails magiques, de part et d'autre de l'arche d'entrée
-export const PORTALS = [{ x: -7.6, z: 36.5, to: 2 }, { x: 7.6, z: 36.5, to: 4 }];
 export const LIGHT = { hemi: [0xe6f0ff, 0x8a7050, 0.75], sun: [0xffe0b0, 3.0], fog: [70, 240] };
 
 const clamp = (v, a, b) => (v < a ? a : v > b ? b : v);
