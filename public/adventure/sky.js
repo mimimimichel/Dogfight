@@ -726,6 +726,9 @@ export function buildSky(game) {
       const tm = Math.round(sky().best || st.runT);
       return [
         { who: 'Mamie Labrador', text: 'Le Trophée du Ciel ! Vous avez traversé toutes les îles !' },
+        { who: 'Capitaine Moustache', text: 'Miaou… Vous m\'avez suivie jusqu\'ici, au-dessus des nuages ? Bon. Je rends tout : les médailles, les trophées…' },
+        { who: 'Mamie Labrador', text: 'Et si, au lieu de voler, tu venais jouer avec nous au Parc des Toutous ?' },
+        { who: 'Capitaine Moustache', text: '…Jouer ? Avec des chiens ? …D\'accord. Mais c\'est moi qui lance la balle !' },
         { who: 'Biscotte', text: `Record : ${Math.floor(tm / 60)} min ${tm % 60} s, avec ${stars} étoile${stars > 1 ? 's' : ''} sur 5 !` },
         { who: 'Matcha', text: stars < 5 ? 'Il reste des étoiles cachées… on y retourne ?' : 'Toutes les étoiles ! On est trop forts !' },
         { who: 'Ainu', text: 'Ouaf ! Quelle aventure !' },

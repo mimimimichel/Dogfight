@@ -15,6 +15,8 @@ import * as W from './world.js';
 import * as T from './toon.js';
 import { Post } from './post.js';
 import * as RT from './realtex.js';
+import { Cinema } from './cinema.js';
+import { storyShots } from './story.js';
 
 const STEP = 1 / 60;
 const GRAVITY = 32;
@@ -1408,6 +1410,7 @@ class Adventure {
     };
     this.onKeyDown = (e) => {
       if (this.disposed) return;
+      if (this.cine) { if (['Escape', 'Enter', 'Space', 'KeyF'].includes(e.code)) { e.preventDefault(); this.cine.skip(); } return; }
       if (e.code === 'Escape') { this.togglePause(); return; }
       if (e.code === 'KeyV' && !e.repeat) { this.toggleMic(); return; }
       const moveKeys = ['KeyW', 'KeyA', 'KeyS', 'KeyD', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'KeyQ', 'KeyE', 'Space'];
@@ -1539,8 +1542,10 @@ class Adventure {
     this.raf = requestAnimationFrame((t) => this.frame(t));
     const dt = Math.max(0, Math.min(0.1, (now - this.lastFrame) / 1000));
     this.lastFrame = now;
+    // cinématique : le jeu attend (un ami qui arrive l'interrompt)
+    if (this.cine) { if (this.party.size > 1 || this.guest) this.cine.skip(); else if (!this.paused) this.cine.update(dt); }
     if (this.guest) this.guestFrame(dt);
-    else if (!this.paused) {
+    else if (!this.paused && !this.cine) {
       this.acc += dt;
       let n = 0;
       while (this.acc >= STEP && n < 5) { this.step(STEP); this.acc -= STEP; n++; }
@@ -2853,6 +2858,7 @@ class Adventure {
 
     if ((this.mapT = (this.mapT || 0) + 1) % 4 === 0) this.drawMinimap();
     this.showVoices();
+    if (this.cine) this.cine.applyCamera();
     this.post.render(this.scene, this.camera, this.t, W.SKY.sunDir);
   }
 
@@ -2947,6 +2953,7 @@ class Adventure {
         ${this.vc && this.party.size > 1 ? `<label class="adv-vol">🔊 Voix des amis <input type="range" min="0.5" max="5" step="0.25" value="${this.vc.volume}" data-vol="1"></label>` : ''}
         <div class="adv-stats adv-mic-note">${!this.vc ? 'Le micro sert à parler avec tes amis : choisis « Jouer ensemble » dans le menu pour ouvrir ton monde.' : this.party.size < 2 ? 'Personne n\'est encore là : tes amis t\'entendront dès qu\'ils arrivent.' : ''}
         </div>
+        ${this.guest || this.party.size > 1 ? '' : '<button class="btn" data-a="story">🎬 Revoir l\'histoire</button>'}
         ${this.coop ? '' : '<button class="btn" data-a="restart">Recommencer le niveau</button>'}
         <button class="btn ghost" data-a="quit">Menu principal</button>`;
     } else if (kind === 'continue') {
@@ -3005,6 +3012,7 @@ class Adventure {
     if (this.sfx) { this.sfx.unlock(); this.sfx.click(); }
     switch (a) {
       case 'resume': this.hideOverlay(); break;
+      case 'story': this.hideOverlay(); this.playStory(); break;
       case 'music': if (this.sfx && this.sfx.setMusic) this.sfx.setMusic(this.sfx.musicOn === false); this.showOverlay('pause'); break;
       case 'mode': {
         const order = ['promenade', 'aventure', 'defi'];
@@ -3045,8 +3053,23 @@ class Adventure {
     start({ sfx: this.sfx, onExit: this.onExit, coopHost: this.hostSession, level: id });
   }
 
+  /** Joue la cinématique du chapitre (intro de l'histoire au niveau 1). */
+  playStory(done) {
+    const shots = this.guest ? null : storyShots(this, L);
+    if (!shots) { if (done) done(); return false; }
+    if (this.cine) this.cine.finish();
+    this.dialog = null; this.dom.dialog.classList.add('hidden');
+    this.cine = new Cinema(this, shots, () => { this.cine = null; if (done) done(); });
+    return true;
+  }
+
   beginLevel(fresh) {
     this.camInit = false;
+    // première visite du chapitre : la cinématique d'abord
+    if (!this.guest && !this.save.story && this.party.size <= 1) {
+      this.save.story = true; this.persist();
+      if (this.playStory(() => this.beginLevel(fresh))) return;
+    }
     if (fresh || !this.save.intro) {
       // Mamie accueille le duo
       this.freeze = 0.6;

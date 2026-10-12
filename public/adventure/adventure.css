@@ -198,3 +198,21 @@
 @keyframes micAskIn { from { transform: translate(-50%, -16px); opacity: 0; } }
 .adv-panel .adv-vol { display: flex; align-items: center; justify-content: center; gap: 10px; font-weight: 600; color: #fff4dc; }
 .adv-panel .adv-vol input { width: 160px; accent-color: #ffd23a; }
+
+/* Cinématiques : bandes noires, sous-titres, titres de chapitre */
+#adv.cine-on > :not(.adv-cine):not(canvas) { visibility: hidden !important; }
+.adv-cine { position: absolute; inset: 0; z-index: 40; pointer-events: none; overflow: hidden; }
+.adv-cine .cine-night { position: absolute; inset: 0; background: #1a2a6a; mix-blend-mode: multiply; opacity: 0; }
+.adv-cine .cine-bar { position: absolute; left: 0; right: 0; height: 11vh; background: #000; }
+.adv-cine .cine-bar.top { top: 0; } .adv-cine .cine-bar.bot { bottom: 0; }
+.adv-cine .cine-fade { position: absolute; inset: 0; background: #000; opacity: 1; }
+.adv-cine .cine-title { position: absolute; left: 0; right: 0; top: 18vh; text-align: center; color: #fff; opacity: 0; transform: translateY(8px); transition: opacity 0.9s, transform 0.9s; text-shadow: 0 3px 18px rgba(0,0,0,0.6); }
+.adv-cine .cine-title.on { opacity: 1; transform: none; }
+.adv-cine .cine-title b { display: block; font-size: clamp(30px, 8vh, 66px); letter-spacing: 0.02em; color: #ffe6a8; }
+.adv-cine .cine-title small { display: block; font-size: clamp(15px, 3.4vh, 26px); margin-top: 6px; font-style: italic; }
+.adv-cine .cine-cap { position: absolute; left: 50%; bottom: 13.5vh; transform: translateX(-50%); width: min(820px, 88vw); text-align: center; color: #fff; font-size: clamp(16px, 3.6vh, 26px); line-height: 1.35; opacity: 0; transition: opacity 0.4s; text-shadow: 0 2px 8px #000, 0 0 2px #000; }
+.adv-cine .cine-cap.on { opacity: 1; }
+.adv-cine .cine-cap.narr .txt { font-style: italic; color: #f4ecdc; }
+.adv-cine .cine-cap .who { display: block; font-weight: 800; color: #ffc860; font-size: 0.8em; margin-bottom: 2px; }
+.adv-cine .cine-cap .who:empty { display: none; }
+.adv-cine .cine-skip { position: absolute; right: max(14px, env(safe-area-inset-right)); bottom: calc(11vh + 10px); pointer-events: auto; background: rgba(0,0,0,0.45); color: #fff; border: 1px solid rgba(255,255,255,0.35); border-radius: 999px; padding: 8px 16px; font: inherit; font-size: 15px; cursor: pointer; }

@@ -1166,10 +1166,11 @@ export function buildPlay(game, decor) {
     },
     endLines() {
       return [
-        { who: 'Mamie Labrador', text: 'La Capitaine Moustache a quitté Port-Croquette pour de bon !' },
+        { who: 'Mamie Labrador', text: 'La Capitaine Moustache a quitté Port-Croquette… en montgolfière !' },
+        { who: 'Biscotte', text: 'Elle s\'envole vers les Îles du Ciel ! Là-haut, au-dessus des nuages !' },
         { who: 'Matcha', text: 'Et la prochaine fois, c\'est moi qui conduis.' },
         { who: 'Ainu', text: 'Ouaf ! On verra ça !' },
-        { who: 'Mamie Labrador', text: 'La ville est à vous : courses, toits, trophées, chapeaux… Amusez-vous bien !' },
+        { who: 'Mamie Labrador', text: 'La ville est à vous : courses, toits, trophées, chapeaux… Et quand vous serez prêts : les Îles du Ciel !' },
       ];
     },
     render(dt, t) {
