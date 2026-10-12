@@ -4,7 +4,8 @@
  */
 import * as L1 from './level1.js';
 import * as L2 from './level2.js';
+import * as L3 from './level3.js';
 
-export const LEVELS = { 1: L1, 2: L2 };
+export const LEVELS = { 1: L1, 2: L2, 3: L3 };
 export let L = L1;
 export function setLevel(id) { L = LEVELS[id] || L1; return L; }

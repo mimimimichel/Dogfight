@@ -7,6 +7,7 @@
 import * as THREE from '../vendor/three.module.min.js';
 import { L, setLevel } from './current.js';
 import * as F from './forest.js';
+import * as C from './city.js';
 import * as M from './models.js';
 import * as W from './world.js';
 import * as T from './toon.js';
@@ -56,6 +57,7 @@ const ICONS = {
   medal: svg('<path d="M20 4h10l4 16H24zM34 4h10l-4 16H30z" fill="#3a8ae0" stroke="#1a4a90" stroke-width="2"/><circle cx="32" cy="40" r="20" fill="url(#g)" stroke="#8a5200" stroke-width="3"/><g fill="#c07a08"><ellipse cx="32" cy="45" rx="7" ry="6"/><circle cx="23" cy="36" r="3.4"/><circle cx="29" cy="31" r="3.4"/><circle cx="35" cy="31" r="3.4"/><circle cx="41" cy="36" r="3.4"/></g>'),
   heart: svg('<path d="M32 56 9 33a13 13 0 0 1 23-17 13 13 0 0 1 23 17z" fill="url(#r)" stroke="#7a0a18" stroke-width="3" stroke-linejoin="round"/><ellipse cx="20" cy="24" rx="5" ry="3.5" fill="#fff" opacity=".6" transform="rotate(-35 20 24)"/>'),
   heartEmpty: svg('<path d="M32 56 9 33a13 13 0 0 1 23-17 13 13 0 0 1 23 17z" fill="rgba(0,0,0,.28)" stroke="rgba(255,255,255,.75)" stroke-width="3" stroke-linejoin="round"/>'),
+  coin: svg('<circle cx="32" cy="32" r="23" fill="#9a6a00"/><circle cx="32" cy="32" r="19" fill="url(#g)"/><circle cx="32" cy="32" r="13" fill="none" stroke="#c88a08" stroke-width="3"/><path d="M32 22v20M27 26h8a3 3 0 0 1 0 6h-6a3 3 0 0 0 0 6h8" fill="none" stroke="#a06a00" stroke-width="3" stroke-linecap="round"/><ellipse cx="24" cy="21" rx="5" ry="3" fill="#fff" opacity=".55"/>'),
   kibble: svg('<g fill="#8a5200"><circle cx="32" cy="32" r="22"/></g><circle cx="32" cy="32" r="18" fill="url(#g)"/><g fill="#c07a08"><circle cx="25" cy="27" r="3"/><circle cx="38" cy="25" r="2.6"/><circle cx="36" cy="38" r="3.2"/><circle cx="24" cy="39" r="2.4"/></g><ellipse cx="25" cy="22" rx="5" ry="3" fill="#fff" opacity=".55"/>'),
   ball: svg('<circle cx="32" cy="32" r="24" fill="url(#t)" stroke="#5a7000" stroke-width="3"/><path d="M12 20c10 6 10 18 0 24M52 20c-10 6-10 18 0 24" fill="none" stroke="#fff" stroke-width="3.5"/>'),
 };
@@ -165,7 +167,7 @@ class Adventure {
         </div>
         <div class="adv-right">
           <div class="adv-counts">
-            <div class="adv-count"><img src="${L.ID === 2 ? ICONS.kibble : ICONS.bone}" alt=""><span id="adv-bones">0</span><small>/100</small></div>
+            <div class="adv-count"><img src="${L.ID === 2 ? ICONS.kibble : L.ID === 3 ? ICONS.coin : ICONS.bone}" alt=""><span id="adv-bones">0</span><small>/100</small></div>
             <div class="adv-count"><img src="${ICONS.medal}" alt=""><span id="adv-medals">0</span><small>/5</small></div>
             <div class="adv-count adv-balls hidden"><img src="${ICONS.ball}" alt=""><span id="adv-balls">0</span><small>/5</small></div>
           </div>
@@ -232,6 +234,7 @@ class Adventure {
     else if (this.puppy && this.puppy.state === 'follow') q = 'Ramène Biscotte à Mamie';
     else if (s.medals.length < 5) q = `Trouve les Médailles Patounes (${s.medals.length}/5)`;
     else q = 'Tu as tout trouvé, bravo !';
+    if (this.levelLogic && this.levelLogic.questText) q = this.levelLogic.questText() || q;
     this.dom.quest.textContent = q;
   }
 
@@ -297,11 +300,18 @@ class Adventure {
       if (h < -1.5) c = [38, 120, 190]; else if (h < 0) c = [70, 170, 210]; else if (h < 1) c = [236, 214, 160];
       else if (h > 9) c = [150, 190, 110]; else c = [96 + h * 4, 170 + h * 3, 70];
       if (W.onPath(wx, wz) && h > 0) c = [214, 196, 150];
+      if (L.mapColor) { const mc = L.mapColor(wx, wz); if (mc) c = mc; }
       const k = (j * N + i) * 4; img.data[k] = c[0]; img.data[k + 1] = c[1]; img.data[k + 2] = c[2]; img.data[k + 3] = 255;
     }
     x.putImageData(img, 0, 0);
     x.fillStyle = 'rgba(40,90,40,0.55)';
     for (const t of L.trees) { x.beginPath(); x.arc((t.x + R) / (2 * R) * N, (t.z + R) / (2 * R) * N, 2.4, 0, 7); x.fill(); }
+    x.fillStyle = '#ece6da';
+    for (const co of L.colliders) {
+      if (!co.map || co.type !== 'box') continue;
+      x.fillStyle = co.map;
+      x.fillRect((co.x - co.w / 2 + R) / (2 * R) * N, (co.z - co.d / 2 + R) / (2 * R) * N, co.w / (2 * R) * N, co.d / (2 * R) * N);
+    }
     x.fillStyle = '#ece6da';
     for (const ru of L.ruins) if (ru.type !== 'arch') x.fillRect((ru.x + R) / (2 * R) * N - 1.5, (ru.z + R) / (2 * R) * N - 1.5, 3, 3);
     this.mapBase = base; this.mapR = R; this.mapT = 0;
@@ -313,6 +323,7 @@ class Adventure {
     x.drawImage(this.mapBase, 0, 0);
     const dot = (wx, wz, col, rad) => { const [px, py] = P(wx, wz); x.fillStyle = '#3a2410'; x.beginPath(); x.arc(px, py, rad + 1.5, 0, 7); x.fill(); x.fillStyle = col; x.beginPath(); x.arc(px, py, rad, 0, 7); x.fill(); };
     for (const m of this.medals) if (m.mesh.visible) dot(m.def.x, m.def.z, '#ffd23a', 4);
+    if (this.levelLogic && this.levelLogic.minimapMarks) for (const [mx, mz, col, rad] of this.levelLogic.minimapMarks()) dot(mx, mz, col, rad);
     dot(L.npcs.mamie.x, L.npcs.mamie.z, '#ff8a5a', 3.5);
     if (this.puppy.state !== 'home') dot(this.puppy.pos.x, this.puppy.pos.z, '#8ad0ff', 3.5);
     for (const Q of this.players) {
@@ -448,6 +459,7 @@ class Adventure {
     this.fallTex = this.makeWaterfallTexture();
     this.pedestalBalls = [];
     if (L.ID === 1) this.buildParc();
+    else if (L.ID === 3) this.levelLogic = C.buildCity(this);
     else this.levelLogic = F.buildForest(this, { THREE, M, W, T });
 
     // Nuages et papillons
@@ -784,7 +796,7 @@ class Adventure {
     this.party = new Map([[0, this.player]]);
 
     // Os dorés (instanciés)
-    this.bonesI = new THREE.InstancedMesh(L.ID === 2 ? F.kibbleGeometry() : M.boneGeometry(), M.mat(0xffd34d, { metalness: 0.7, roughness: 0.3, emissive: 0x6a4800, emissiveIntensity: 0.6 }), L.bones.length);
+    this.bonesI = new THREE.InstancedMesh(L.ID === 2 ? F.kibbleGeometry() : L.ID === 3 ? C.coinGeometry() : M.boneGeometry(), M.mat(0xffd34d, { metalness: 0.7, roughness: 0.3, emissive: 0x6a4800, emissiveIntensity: 0.6 }), L.bones.length);
     this.boneTaken = new Set(Object.keys(s.gone || {}));
     sc.add(this.bonesI);
 
@@ -832,7 +844,7 @@ class Adventure {
       const m = M.buildCat();
       m.position.set(c.x, c.y, c.z);
       sc.add(m);
-      const dead = c.group === 'clearing' && s.cats.includes(c.id);
+      const dead = (c.group === 'clearing' && s.cats.includes(c.id)) || c.group === 'gang';   // le gang n'arrive qu'avec sa mission
       m.visible = !dead;
       return { def: c, mesh: m, pos: new THREE.Vector3(c.x, c.y, c.z), home: new THREE.Vector3(c.x, c.y, c.z), yaw: Math.random() * 6, dead, target: null, t: Math.random() * 3, phase: 0, shadow: this.makeShadow(0.6), stun: 0 };
     });
@@ -959,7 +971,7 @@ class Adventure {
   stepWorld() {
     if (this.guest) return;
     for (const c of this.cats) {
-      if (!c.dead || c.def.group === 'clearing' || this.t - (c.deadAt || 0) < CAT_RESPAWN) continue;
+      if (!c.dead || c.def.group !== 'roam' || this.t - (c.deadAt || 0) < CAT_RESPAWN) continue;
       c.dead = false; c.mesh.visible = true; c.pos.copy(c.home); c.stun = 1;
       this.burst(c.pos.x, c.pos.y + 0.6, c.pos.z, 8, 0xd8d8e8, 2.5, 0.4);
     }
@@ -1386,7 +1398,7 @@ class Adventure {
     const sv = JSON.stringify(Object.assign({}, this.save, { time: 0 }));
     for (const l of links) {
       const P = this.party.get(l.pid);
-      const msg = Object.assign({}, base, { n: P && P.nearby ? (P.nearby.kind === 'sign' ? 'LIRE' : 'PARLER') : '' });
+      const msg = Object.assign({}, base, { n: P && P.nearby ? (P.nearby.label || (P.nearby.kind === 'sign' ? 'LIRE' : 'PARLER')) : '' });
       if (sv !== l.lastSave) { msg.sv = this.save; l.lastSave = sv; }
       l.send(msg);
     }
@@ -1565,8 +1577,8 @@ class Adventure {
   }
 
   /** Repousse un cercle hors des obstacles solides (troncs, rochers, caisses). */
-  pushOut(p, y) {
-    const r = PLAYER_R;
+  pushOut(p, y, rad) {
+    const r = rad || PLAYER_R;
     const solids = [];
     for (const c of L.colliders) if ((SOLID.has(c.kind) || c.solid) && !c.off) solids.push(c);
     for (const c of this.crates) if (!c.broken) solids.push({ type: 'box', x: c.def.x, z: c.def.z, w: 1.2, d: 1.2, y0: c.def.y, y1: c.def.y + 1.2 });
@@ -1597,6 +1609,8 @@ class Adventure {
     // Direction souhaitée, relative à la caméra (ou déjà dans le monde, à deux)
     const [wx, wz] = input.wx !== undefined ? [input.wx, input.wz] : this.worldMove(input.x, input.y);
     const wlen = Math.hypot(wx, wz);
+    // en kart (niveau 3) : c'est la ville qui gère la conduite
+    if (this.levelLogic && this.levelLogic.playerStep && this.levelLogic.playerStep(P, wx, wz, input.jumpHeld, pr, dt)) return;
 
     P.invuln = Math.max(0, P.invuln - dt);
     P.dashCd = Math.max(0, P.dashCd - dt);
@@ -1606,7 +1620,7 @@ class Adventure {
 
     // Actions
     if (!this.dialog && this.freeze <= 0) {
-      if (pr.has('talk') && P.nearby) { this.interact(P.nearby); pr.delete('talk'); }
+      if (pr.has('talk') && P.nearby) { this.interact(P.nearby, P); pr.delete('talk'); }
       const onGround = P.coyote > 0 && P.jumps === 0;
       if (ap.has('jump') && onGround) {
         P.vel.y = JUMP_V; P.jumps = 1; P.grounded = false; P.coyote = 0;
@@ -1769,7 +1783,10 @@ class Adventure {
     }
     // Suit doucement le duo quand il court (sauf si on vient de tourner la caméra)
     const speed = Math.hypot(P.vel.x, P.vel.z);
-    if (this.t - this.lastCamManual > 1.5 && speed > 2 && !this.dialog) {
+    if (P.kart) {
+      // en kart : la caméra se replace vite derrière le volant
+      if (this.t - this.lastCamManual > 0.8 && Math.abs(P.kart.speed) > 1) this.camYaw = lerpAngle(this.camYaw, P.kart.yaw + Math.PI, Math.min(1, dt * 3.2));
+    } else if (this.t - this.lastCamManual > 1.5 && speed > 2 && !this.dialog) {
       this.camYaw = lerpAngle(this.camYaw, P.yaw + Math.PI, Math.min(1, dt * 0.9 * (speed / RUN_SPEED)));
     }
   }
@@ -1805,13 +1822,16 @@ class Adventure {
       if (dir) {
         const nx = c.pos.x + dir.x * speed * dt, nz = c.pos.z + dir.z * speed * dt;
         const h = L.heightAt(nx, nz);
-        if (h > 0.5 && Math.abs(h - c.pos.y) < 0.8) { c.pos.x = nx; c.pos.z = nz; c.pos.y = h; }
+        if (h > 0.5 && Math.abs(h - c.pos.y) < 0.8 && !(L.blockedAt && L.blockedAt(nx, nz))) { c.pos.x = nx; c.pos.z = nz; c.pos.y = h; }
         c.yaw = lerpAngle(c.yaw, Math.atan2(dir.x, dir.z), Math.min(1, dt * 8));
         c.phase += dt * speed * 3;
       }
       // Contact avec le duo
       const dy = P.pos.y - c.pos.y;
-      if (dist < 1.25 && dy > -1 && dy < 1.6) {
+      if (P.kart && dist < 1.9 && dy > -1 && dy < 2) {
+        // en kart : on bouscule les chats si on roule, sinon ils ne peuvent rien
+        if (Math.abs(P.kart.speed) > 3) this.defeatCat(c);
+      } else if (dist < 1.25 && dy > -1 && dy < 1.6) {
         if (P.attackT > 0 || P.dashT > 0) this.defeatCat(c);
         else if (P.vel.y < -1 && dy > 0.5) { this.defeatCat(c); P.vel.y = 11; P.jumps = 1; }
         else this.hurtPlayer(c.pos, P);
@@ -1896,9 +1916,12 @@ class Adventure {
     const cand = [{ kind: 'mamie', x: L.npcs.mamie.x, z: L.npcs.mamie.z, y: L.npcs.mamie.y }];
     if (pp.state === 'lost') cand.push({ kind: 'puppy', x: pp.pos.x, z: pp.pos.z, y: pp.pos.y });
     L.signs.forEach((s, i) => cand.push({ kind: 'sign', i, x: s.x, z: s.z, y: L.heightAt(s.x, s.z) }));
+    const LG = this.levelLogic;
     for (const Q of this.players) {
+      const own = LG && LG.nearFor ? LG.nearFor(Q) : undefined;
+      if (own !== undefined) { Q.nearby = this.dialog ? null : own; continue; }
       let n = null, best = 3.4;
-      for (const c of cand) {
+      for (const c of (LG && LG.extraCandidates ? cand.concat(LG.extraCandidates(Q)) : cand)) {
         const d = Math.hypot(c.x - Q.pos.x, c.z - Q.pos.z);
         if (d < best && Math.abs(c.y - Q.pos.y) < 3) { best = d; n = c; }
       }
@@ -1906,7 +1929,7 @@ class Adventure {
     }
     const near = this.me.nearby;
     this.nearby = near;
-    const label = near ? (near.kind === 'sign' ? 'LIRE' : 'PARLER') : '';
+    const label = near ? (near.label || (near.kind === 'sign' ? 'LIRE' : 'PARLER')) : '';
     this.dom.talkBtn.classList.toggle('hidden', !this.nearby);
     this.dom.talkBtn.textContent = label;
     const prompt = this.dom.prompt;
@@ -1914,8 +1937,9 @@ class Adventure {
     else prompt.classList.add('hidden');
   }
 
-  interact(n) {
-    if (n.kind === 'mamie') this.talkMamie();
+  interact(n, P) {
+    if (n.kind === 'lv') this.levelLogic.interact(n, P || this.player);
+    else if (n.kind === 'mamie') this.talkMamie();
     else if (n.kind === 'puppy') this.talkPuppy();
     else if (n.kind === 'sign') this.say(L.signs[n.i].text.map(t => ({ who: 'Panneau', text: t })));
   }
@@ -2101,7 +2125,7 @@ class Adventure {
     for (const Q of this.players) Q.cheerT = 1.4;
     this.freeze = 1.4;
     this.sound('win');
-    this.banner('MÉDAILLE PATOUNE !', `${m.def.label} — ${s.medals.length}/5`, 2800);
+    this.banner(L.MEDAL_TITLE || 'MÉDAILLE PATOUNE !', `${m.def.label} — ${s.medals.length}/5`, 2800);
     if (s.medals.length >= 5 && !s.done) this.endTimer = 1.7;
   }
 
@@ -2167,6 +2191,11 @@ class Adventure {
       case 'crate': s.noise(0.2, { freq: 700, vol: 0.4 }); s.tone(160, 0.15, { type: 'square', to: 80, vol: 0.12 }); break;
       case 'hurt': s.hit(true); break;
       case 'splash': s.noise(0.45, { filter: 'bandpass', freq: 1200, freqTo: 300, vol: 0.35 }); break;
+      case 'horn': s.tone(392, 0.22, { type: 'square', vol: 0.09 }); s.tone(494, 0.22, { type: 'square', vol: 0.07 }); break;
+      case 'boost': s.noise(0.45, { filter: 'bandpass', freq: 500, freqTo: 2600, vol: 0.25 }); s.tone(180, 0.35, { type: 'sawtooth', to: 520, vol: 0.06 }); break;
+      case 'engine': s.tone(90, 0.35, { type: 'sawtooth', to: 160, vol: 0.08 }); s.tone(120, 0.3, { type: 'square', to: 220, vol: 0.04, delay: 0.12 }); break;
+      case 'bump': s.noise(0.18, { freq: 500, vol: 0.35 }); s.tone(110, 0.15, { type: 'square', to: 60, vol: 0.12 }); break;
+      case 'cp': s.tone(880, 0.1, { type: 'triangle', vol: 0.13 }); s.tone(1320, 0.14, { type: 'triangle', vol: 0.11, delay: 0.07 }); break;
       case 'reveal': [523, 659, 784, 1047].forEach((f, i) => s.tone(f, 0.18, { type: 'triangle', vol: 0.12, delay: i * 0.09 })); break;
     }
   }
@@ -2281,6 +2310,7 @@ class Adventure {
     // Caméra
     const ME = this.me;
     const target = v.set(ME.pos.x, ME.pos.y + (ME.kind === 'matcha' ? 1.2 : 1.6), ME.pos.z);
+    this.camDist += ((ME.kart ? 11.5 : 9) - this.camDist) * Math.min(1, dt * 3);
     this.camTarget.lerp(target, 1 - Math.exp(-dt * 10));
     const cp = Math.cos(this.camPitch), sp = Math.sin(this.camPitch);
     const desired = new THREE.Vector3(
@@ -2293,7 +2323,24 @@ class Adventure {
       const len2 = dx * dx + dz * dz;
       let f = 1;
       for (const c of L.colliders) {
-        if (c.type !== 'cyl' || !CAM_BLOCK.has(c.kind)) continue;
+        if (c.type === 'box' && c.cam) {
+          // immeuble : intersection segment / rectangle (plan horizontal)
+          const hx = c.w / 2 + 0.3, hz = c.d / 2 + 0.3;
+          if (Math.abs(tx - c.x) < hx && Math.abs(tz - c.z) < hz) continue;
+          let t0 = 0, t1 = 1;
+          for (const [o, d, lo, hi] of [[tx, dx, c.x - hx, c.x + hx], [tz, dz, c.z - hz, c.z + hz]]) {
+            if (Math.abs(d) < 1e-9) { if (o < lo || o > hi) { t0 = 2; } continue; }
+            let a = (lo - o) / d, b2 = (hi - o) / d;
+            if (a > b2) [a, b2] = [b2, a];
+            t0 = Math.max(t0, a); t1 = Math.min(t1, b2);
+          }
+          if (t0 > t1 || t0 <= 0 || t0 >= f) continue;
+          const y = this.camTarget.y + (desired.y - this.camTarget.y) * t0;
+          if (y > c.y1 + 0.5 || y < c.y0) continue;
+          f = t0;
+          continue;
+        }
+        if (c.type !== 'cyl' || !(CAM_BLOCK.has(c.kind) || c.cam)) continue;
         const r = c.r + 0.35;
         // intersection segment / cercle (plan horizontal)
         const ox = tx - c.x, oz = tz - c.z;
@@ -2400,7 +2447,7 @@ class Adventure {
     let html = '';
     if (kind === 'pause') {
       html = `<h2>Pause</h2>
-        <div class="adv-stats">Médailles ${s.medals.length}/5 · Os ${s.bones.length}/100</div>
+        <div class="adv-stats">${L.ID === 3 ? 'Trophées' : 'Médailles'} ${s.medals.length}/5 · ${L.ID === 2 ? 'Croquettes' : L.ID === 3 ? 'Pièces' : 'Os'} ${s.bones.length}/100</div>
         ${this.hostSession ? `<div class="adv-stats">Code de ton monde : <b class="adv-code">${this.hostSession.code}</b> (jusqu'à 6 joueurs)</div>` : ''}
         ${this.visitorsLine()}
         <button class="btn primary" data-a="resume">Reprendre</button>
@@ -2408,7 +2455,7 @@ class Adventure {
         <button class="btn ghost" data-a="quit">Menu principal</button>`;
     } else if (kind === 'continue') {
       html = `<h2>${L.NAME}</h2>
-        <div class="adv-stats">Médailles ${s.medals.length}/5 · ${L.ID === 2 ? 'Croquettes' : 'Os'} ${s.bones.length}/100</div>
+        <div class="adv-stats">${L.ID === 3 ? 'Trophées' : 'Médailles'} ${s.medals.length}/5 · ${L.ID === 2 ? 'Croquettes' : L.ID === 3 ? 'Pièces' : 'Os'} ${s.bones.length}/100</div>
         ${this.hostSession ? `<div class="adv-stats">Ton monde : code <b class="adv-code">${this.hostSession.code}</b></div>` : ''}
         ${this.visitorsLine()}
         <button class="btn primary" data-a="resume-save">Continuer l'aventure</button>
@@ -2430,9 +2477,9 @@ class Adventure {
     } else if (kind === 'complete') {
       html = `<h2>Niveau ${L.ID} terminé !</h2>
         <div class="adv-medals">${('<img src="' + ICONS.medal + '" alt="">').repeat(5)}</div>
-        <div class="adv-stats">Os dorés ${s.bones.length}/100 · Temps ${fmt}</div>
-        ${L.ID === 1 && !this.guest ? '<button class="btn primary" data-a="next">Niveau 2 : la Forêt des Moustaches →</button>' : ''}
-        <button class="btn ${L.ID === 1 && !this.guest ? '' : 'primary'}" data-a="resume">Continuer à explorer</button>
+        <div class="adv-stats">${L.ID === 3 ? 'Pièces d\'or' : L.ID === 2 ? 'Croquettes' : 'Os dorés'} ${s.bones.length}/100 · Temps ${fmt}</div>
+        ${L.ID < 3 && !this.guest ? `<button class="btn primary" data-a="next">${L.ID === 1 ? 'Niveau 2 : la Forêt des Moustaches' : 'Niveau 3 : Port-Croquette'} →</button>` : ''}
+        <button class="btn ${L.ID < 3 && !this.guest ? '' : 'primary'}" data-a="resume">Continuer à explorer</button>
         <button class="btn ghost" data-a="quit">Menu principal</button>`;
     }
     o.innerHTML = `<div class="adv-panel">${html}</div>`;
@@ -2470,7 +2517,7 @@ class Adventure {
         this.dispose(true);
         start({ sfx: this.sfx, onExit: this.onExit, coopHost: this.hostSession, level: L.ID });
         break;
-      case 'next': this.switchLevel(2); break;
+      case 'next': this.switchLevel(L.ID + 1); break;
       case 'quit': this.dispose(); this.onExit(); break;
       case 'lost': this.dispose(); this.onExit(); break;
     }

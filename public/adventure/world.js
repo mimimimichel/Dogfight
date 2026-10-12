@@ -630,6 +630,7 @@ function pavingTexture() {
 }
 
 export function buildPaths(scene) {
+  if (!L.PATHS.length) return null;
   const tex = pavingTexture();
   const geos = [];
   for (const [[ax, az], [bx, bz]] of L.PATHS) {

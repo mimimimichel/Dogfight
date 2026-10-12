@@ -230,9 +230,9 @@
 .hbtn.go { font-size: 22px; padding: 12px 22px 14px; background: radial-gradient(circle at 30% 20%, #fff3a0, #ffd02a 45%, #f59a10); }
 .hbtn.go:disabled { filter: grayscale(0.7) brightness(0.9); cursor: default; }
 /* Choix du niveau */
-.level-cards { display: flex; gap: 22px; width: 100%; justify-content: center; }
+.level-cards { display: flex; gap: 16px; width: 100%; justify-content: center; }
 .level-card {
-  position: relative; flex: 1; max-width: 330px; height: 230px; display: flex; flex-direction: column; justify-content: flex-end; align-items: flex-start;
+  position: relative; flex: 1; min-width: 0; max-width: 330px; height: 220px; display: flex; flex-direction: column; justify-content: flex-end; align-items: flex-start;
   padding: 18px 20px; border: 4px solid #2a1408; border-radius: 26px; box-shadow: 0 8px 0 #2a1408; cursor: pointer; text-align: left;
   font-family: var(--hf); color: #fff; overflow: hidden; transition: transform 0.1s;
 }
@@ -244,6 +244,9 @@
 .level-card.l1::before { right: 40px; top: 70px; width: 70px; height: 90px; background: #4caf3a; border: 3px solid #2a1408; }
 .level-card.l2::before { right: 30px; top: 60px; width: 60px; height: 70px; background: #e0453a; border: 3px solid #2a1408; border-radius: 50% 50% 20% 20%; box-shadow: inset 12px 10px 0 -6px #fff4e8; }
 .level-card.l2::after { left: 130px; top: 55px; width: 70px; height: 80px; background: #3a8a34; border: 3px solid #2a1408; }
+.level-card.l3 { background: radial-gradient(circle at 80% 18%, #fff6b0 0 9%, transparent 10%), linear-gradient(180deg, #5ab4ff 0 50%, #2a8ae0 50% 100%); }
+.level-card.l3::before { right: 18px; top: 52px; width: 46px; height: 64px; border-radius: 4px; background: #f6e0a0; border: 3px solid #2a1408; box-shadow: -52px 18px 0 -3px #f0b8c0, -52px 18px 0 0 #2a1408; }
+.level-card.l3::after { right: 92px; top: 98px; width: 34px; height: 34px; border-radius: 6px; background: #e03a3a; border: 3px solid #2a1408; }
 .level-card .lv-num { position: absolute; left: 16px; top: 10px; font-size: 54px; font-weight: 700; line-height: 1; -webkit-text-stroke: 8px #2a1408; paint-order: stroke fill; color: #ffd23a; }
 .level-card b { position: relative; z-index: 1; font-size: 25px; line-height: 1.05; -webkit-text-stroke: 6px #2a1408; paint-order: stroke fill; }
 .level-card small { position: relative; z-index: 1; margin-top: 6px; font-size: 14px; font-weight: 600; padding: 3px 10px; border-radius: 10px; background: rgba(42, 20, 8, 0.75); }

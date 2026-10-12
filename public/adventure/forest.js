@@ -87,7 +87,7 @@ const shadowy = (o) => { o.traverse(k => { if (k.isMesh) { k.castShadow = true; 
 // ---------------------------------------------------------------------------
 // La Capitaine Moustache : grand chat gris, bicorne, cache-œil et grosse moustache
 // ---------------------------------------------------------------------------
-function buildCaptain() {
+export function buildCaptain() {
   const cat = M.buildCat();
   const u = cat.userData;
   const hatMat = M.mat(0x23202c, { roughness: 0.6 });

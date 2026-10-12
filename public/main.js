@@ -162,16 +162,18 @@
   }
   /** Le gros bouton d'aventure indique la progression sauvegardée. */
   function updateAdventureButton() {
-    const s1 = levelSave(1), s2 = levelSave(2);
+    const s1 = levelSave(1), s2 = levelSave(2), s3 = levelSave(3);
     const started = (s) => s && s.intro && ((s.bones || []).length || (s.medals || []).length);
     const medals = (s) => (s && s.medals ? s.medals.length : 0);
-    $('adv-play-label').textContent = started(s1) || started(s2) ? 'Continuer' : 'Jouer';
-    $('adv-play-sub').textContent = started(s1) || started(s2)
-      ? `2 niveaux · Médailles ${medals(s1) + medals(s2)}/10`
+    const any = started(s1) || started(s2) || started(s3);
+    $('adv-play-label').textContent = any ? 'Continuer' : 'Jouer';
+    $('adv-play-sub').textContent = any
+      ? `3 niveaux · Médailles ${medals(s1) + medals(s2) + medals(s3)}/15`
       : "Explore l'île avec tes chiens !";
     const prog = (s, what) => (started(s) ? `Médailles ${medals(s)}/5 · ${what} ${(s.bones || []).length}/100` : 'Nouveau !');
     $('lv1-prog').textContent = prog(s1, 'Os');
     $('lv2-prog').textContent = prog(s2, 'Croquettes');
+    $('lv3-prog').textContent = started(s3) ? `Trophées ${medals(s3)}/5 · Pièces ${(s3.bones || []).length}/100` : 'Nouveau !';
   }
   updateAdventureButton();
 
@@ -753,8 +755,9 @@
       case 'adventure': show('levels'); break;
       case 'level-1': startAdventure(null, null, 1); break;
       case 'level-2': startAdventure(null, null, 2); break;
-      case 'coop-lv-1': case 'coop-lv-2': {
-        coopLevel = a === 'coop-lv-1' ? 1 : 2;
+      case 'level-3': startAdventure(null, null, 3); break;
+      case 'coop-lv-1': case 'coop-lv-2': case 'coop-lv-3': {
+        coopLevel = +a.slice(-1);
         for (const b of document.querySelectorAll('.lvpick')) b.classList.toggle('active', b.dataset.action === a);
         if (coopSession) coopSession.level = coopLevel;
         break;
