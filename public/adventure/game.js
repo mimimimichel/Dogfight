@@ -1326,7 +1326,7 @@ class Adventure {
     this.micHinted = true;
     setTimeout(() => {
       if (this.disposed || this.vc.on) return;
-      this.localBanner('Pour vous parler', 'Appuie sur « Micro », en haut à gauche, à côté de la pause', 3600);
+      this.localBanner('Pour vous parler', 'Le petit micro à côté de la pause (ou dans le menu pause)', 3600);
       this.dom.mic.classList.add('hint'); setTimeout(() => this.dom.mic.classList.remove('hint'), 4000);
     }, 4200);
   }

@@ -164,17 +164,17 @@
 .adv-shop .row button.on { background: #9ae05a; }
 .adv-shop .row .ok { color: #9ae05a; }
 
-/* Chat vocal : bouton « Micro » à côté du bouton pause (au-dessus de la zone du joystick) */
+/* Chat vocal : petite icône discrète à côté du bouton pause (aussi dans le menu pause) */
 .adv-mic {
-  position: absolute; top: calc(max(8px, env(safe-area-inset-top)) + clamp(52px, 15vh, 74px) + clamp(36px, 10vh, 50px) + 14px); left: calc(max(10px, env(safe-area-inset-left)) + 54px);
-  height: 44px; padding: 0 14px 0 10px; gap: 6px; border: 2px solid rgba(232, 192, 112, 0.9); border-radius: 22px;
-  background: rgba(28, 22, 18, 0.7); color: #fff; font: 700 15px 'Fredoka', system-ui, sans-serif; cursor: pointer;
+  position: absolute; top: calc(max(8px, env(safe-area-inset-top)) + clamp(52px, 15vh, 74px) + clamp(36px, 10vh, 50px) + 18px); left: calc(max(10px, env(safe-area-inset-left)) + 52px);
+  width: 36px; height: 36px; padding: 0; border: 2px solid rgba(255, 255, 255, 0.35); border-radius: 50%;
+  background: rgba(28, 22, 18, 0.45); cursor: pointer; opacity: 0.8;
   display: flex; align-items: center; justify-content: center; pointer-events: auto; touch-action: manipulation; z-index: 9;
 }
-.adv-mic .lbl::after { content: 'Micro coupé'; }
-.adv-mic.on .lbl::after { content: 'Micro allumé'; }
+.adv-mic svg { width: 18px; height: 18px; }
+.adv-mic .lbl { display: none; }
 .adv-mic.hidden { display: none; }
-.adv-mic.on { background: #2f9e44; border-color: #b6f0a0; }
+.adv-mic.on { background: rgba(47, 158, 68, 0.85); border-color: #b6f0a0; opacity: 1; }
 .adv-mic.on .slash { display: none; }
 .adv-mic.speak { box-shadow: 0 0 0 4px rgba(120, 230, 110, 0.55); }
 .adv-roster span.talk { border-color: #7ae06a; box-shadow: 0 0 0 2px rgba(120, 230, 110, 0.6); }

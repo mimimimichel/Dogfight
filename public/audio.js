@@ -4,6 +4,8 @@
 (function () {
   'use strict';
 
+  const MASTER = 0.9;
+
   class Sfx {
     constructor() {
       this.ctx = null;
@@ -17,12 +19,10 @@
         const AC = window.AudioContext || window.webkitAudioContext;
         if (!AC) return;
         this.ctx = new AC();
-        this.master = this.ctx.createGain();
-        this.master.gain.value = this.muted ? 0 : 0.5;
-        // limiteur doux en sortie : évite la saturation (crépitements) quand tout joue en même temps
-        const lim = this.ctx.createDynamicsCompressor();
-        lim.threshold.value = -6; lim.knee.value = 6; lim.ratio.value = 12; lim.attack.value = 0.003; lim.release.value = 0.2;
-        this.master.connect(lim); lim.connect(this.ctx.destination);
+        // iPhone : le son du jeu suit le volume « média » (et pas le bouton silencieux)
+        try { if (navigator.audioSession) navigator.audioSession.type = 'playback'; } catch (e) { /* ignore */ }
+        this.master = this.output(this.ctx);
+        this.master.gain.value = this.muted ? 0 : MASTER;
         // iOS/Android peuvent « interrompre » le son (appel, mise en veille, surcharge) : on le relance
         this.ctx.onstatechange = () => {
           if (this.ctx.state !== 'running' && !document.hidden) this.ctx.resume().catch(() => {});
@@ -37,10 +37,23 @@
       if (this.ctx.state !== 'running' && !document.hidden) this.ctx.resume().catch(() => {});
     }
 
+    /**
+     * Sortie : compresseur + gain de rattrapage. Les sons sont synthétisés très
+     * doucement ; on les remonte ici pour que le jeu s'entende bien sur un
+     * téléphone, sans saturer (crépitements) quand tout joue en même temps.
+     */
+    output(c) {
+      const master = c.createGain(), comp = c.createDynamicsCompressor(), makeup = c.createGain();
+      comp.threshold.value = -20; comp.knee.value = 10; comp.ratio.value = 6; comp.attack.value = 0.004; comp.release.value = 0.25;
+      makeup.gain.value = 1.15;
+      master.connect(comp); comp.connect(makeup); makeup.connect(c.destination);
+      return master;
+    }
+
     toggleMute() {
       this.muted = !this.muted;
       try { localStorage.setItem('dogfight.muted', this.muted ? '1' : '0'); } catch (e) { /* ignore */ }
-      if (this.master) this.master.gain.value = this.muted ? 0 : 0.5;
+      if (this.master) this.master.gain.value = this.muted ? 0 : MASTER;
       return this.muted;
     }
 
@@ -304,15 +317,15 @@
    * 1 min 30 à 2 min 30 puis un nouveau est composé (autre tonalité, autres thèmes).
    */
   const STYLES = {
-    menu: { bpm: 84, keys: [65, 62, 67], mode: 'major', vol: 0.55, wet: 0.38, lead: 'piano', comp: 'piano', bassInst: 'bass', swing: 0.12, drums: 'soft', sevenths: true,
+    menu: { bpm: 84, keys: [65, 62, 67], mode: 'major', vol: 0.44, wet: 0.38, lead: 'piano', comp: 'piano', bassInst: 'bass', swing: 0.12, drums: 'soft', sevenths: true,
       progs: [[0, 5, 3, 4], [0, 2, 5, 3], [3, 4, 2, 5], [0, 4, 5, 3]] },
-    adv1: { bpm: 100, keys: [60, 62, 65], mode: 'major', vol: 0.52, wet: 0.3, lead: 'mallet', comp: 'pluck', bassInst: 'bass', swing: 0.1, drums: 'light', sevenths: false, sparkle: true,
+    adv1: { bpm: 100, keys: [60, 62, 65], mode: 'major', vol: 0.42, wet: 0.3, lead: 'mallet', comp: 'pluck', bassInst: 'bass', swing: 0.1, drums: 'light', sevenths: false, sparkle: true,
       progs: [[0, 4, 5, 3], [0, 3, 4, 4], [5, 3, 0, 4], [0, 5, 1, 4]] },
-    adv2: { bpm: 86, keys: [62, 57, 64], mode: 'dorian', vol: 0.55, wet: 0.45, lead: 'flute', comp: 'pluck', bassInst: 'bass', swing: 0, drums: 'brush', sevenths: true, sparkle: true,
+    adv2: { bpm: 86, keys: [62, 57, 64], mode: 'dorian', vol: 0.44, wet: 0.45, lead: 'flute', comp: 'pluck', bassInst: 'bass', swing: 0, drums: 'brush', sevenths: true, sparkle: true,
       progs: [[0, 3, 0, 6], [0, 6, 3, 4], [3, 0, 6, 0], [0, 2, 3, 6]] },
-    adv3: { bpm: 96, keys: [58, 63, 60], mode: 'major', vol: 0.52, wet: 0.3, lead: 'piano', comp: 'piano', bassInst: 'bass', swing: 0.18, drums: 'groove', sevenths: true,
+    adv3: { bpm: 96, keys: [58, 63, 60], mode: 'major', vol: 0.42, wet: 0.3, lead: 'piano', comp: 'piano', bassInst: 'bass', swing: 0.18, drums: 'groove', sevenths: true,
       progs: [[1, 4, 0, 5], [0, 5, 1, 4], [3, 2, 1, 4], [0, 3, 2, 5]] },
-    fight: { bpm: 138, keys: [57, 64, 62], mode: 'minor', vol: 0.47, wet: 0.2, lead: 'mallet', comp: 'pluck', bassInst: 'bass', swing: 0, drums: 'drive', sevenths: false,
+    fight: { bpm: 138, keys: [57, 64, 62], mode: 'minor', vol: 0.38, wet: 0.2, lead: 'mallet', comp: 'pluck', bassInst: 'bass', swing: 0, drums: 'drive', sevenths: false,
       progs: [[0, 5, 2, 6], [0, 3, 6, 4], [5, 6, 0, 0], [0, 6, 5, 6]] },
   };
   function rng(seed) { let x = seed >>> 0 || 1; return () => ((x = (x * 1664525 + 1013904223) >>> 0) / 4294967296); }
