@@ -123,7 +123,7 @@
     pending = peer;
     let done = false;
     const fail = (msg) => { if (done) return; done = true; cancel(); cb.onError(msg); };
-    const timer = setTimeout(() => fail('Partie introuvable. Vérifie le code !'), 15000);
+    const timer = setTimeout(() => fail('Pas de réponse de ce monde. Vérifie le code, ou demande à ton ami d\'ouvrir son monde, puis réessaie !'), 30000);
     peer.on('error', (e) => fail(e.type === 'peer-unavailable' ? 'Partie introuvable. Vérifie le code !' : 'Connexion impossible (' + e.type + ').'));
     peer.on('open', () => {
       const conn = peer.connect(PREFIX + code, { reliable: true, serialization: 'raw' });
