@@ -285,6 +285,9 @@ export const PATHS = [[[0, 108], [0, 84]], [[0, 56], [0, 44]], [[0, 9], [0, -5]]
 export const CRYSTALS = [[-9, 92, 0x7ad8ff], [9.5, 99, 0xff8ad8], [-5.5, 2, 0xb08aff], [6.5, -30, 0x7ad8ff], [-7, -104, 0xffd060], [7, -106, 0xff8ad8]];
 export const ruins = [];
 
+// Portail de retour vers le Parc, sur l'île du départ
+export const PORTALS = [{ x: 8.5, z: 103, to: 1 }];
+
 // Arbres en fleurs sur les grandes îles
 export const trees = [];
 {
@@ -303,6 +306,7 @@ export const trees = [];
       if (trees.some(t => Math.hypot(t.x - x, t.z - z) < 3.6)) continue;
       if (PLATES.some(p => Math.hypot(p.x - x, p.z - z) < 2.5)) continue;
       if (crates.some(c => Math.hypot(c.x - x, c.z - z) < 2)) continue;
+      if (PORTALS.some(p => Math.hypot(p.x - x, p.z - z) < 3.5)) continue;
       const s = 0.75 + rnd() * 0.35;
       trees.push({ x, z, y: heightAt(x, z), s, h: 5.5 + rnd() * 2 });
       made++;

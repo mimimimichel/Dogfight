@@ -89,7 +89,9 @@ function shingleTexture() {
   return t;
 }
 
-let micAsked = false;   // on ne propose le micro qu'une fois par partie
+let micAsked = false;
+/** Secondes à attendre dans un portail avant de partir (seul : presque tout de suite). */
+const PORTAL_WAIT = (n) => (n > 1 ? 3 : 0.8);   // on ne propose le micro qu'une fois par partie
 
 const medalWord = () => (L.ID === 3 ? 'Trophées' : L.ID === 4 ? 'Étoiles' : 'Médailles');
 const collectWord = (long) => ({ 2: 'Croquettes', 3: long ? 'Pièces d\'or' : 'Pièces', 4: 'Pièces du ciel' })[L.ID] || (long ? 'Os dorés' : 'Os');
@@ -621,6 +623,8 @@ class Adventure {
     this.crystals = W.buildCrystals(sc);
     this.butterflies = W.buildButterflies(sc);
 
+    this.buildPortals();
+
     // Panneaux
     for (const s of L.signs) {
       const m = M.buildSign(s.text);
@@ -628,6 +632,63 @@ class Adventure {
       m.rotation.y = Math.atan2(L.START.x - s.x, L.START.z - s.z) * 0.3;
       sc.add(m);
     }
+  }
+
+  /**
+   * Portails magiques vers les autres niveaux : un tourbillon de lumière ;
+   * on s'en approche et on appuie sur « ENTRER ».
+   */
+  buildPortals() {
+    const list = (L.PORTALS || []).slice();
+    if (!L.PORTALS && L.ID !== 1 && L.ID !== 3) {
+      // portail de retour vers le Parc, à côté du départ, sur un sol libre
+      for (const [dx, dz] of [[5, -2], [-5, -2], [5, 3], [-5, 3], [7, 0]]) {
+        const x = L.START.x + dx, z = L.START.z + dz, h = L.heightAt(x, z);
+        if (Math.abs(h - L.START.y) > 0.8 || L.colliders.some(c => !c.off && L.inside(c, x, z, 1.3))) continue;
+        list.push({ x, z, to: 1 }); break;
+      }
+    }
+    const NAMES = { 1: 'Le Parc des Toutous', 2: 'La Forêt des Moustaches', 3: 'Port-Croquette', 4: 'Les Îles du Ciel' };
+    const COLS = { 1: [0x3affa0, 0x0a4a3a], 2: [0x4ab0ff, 0x10206a], 3: [0xffb04a, 0x5a2008], 4: [0xc070ff, 0x2a0a5a] };
+    this.portals = list.map(p => {
+      const [c1, c2] = COLS[p.to] || COLS[1];
+      const y = L.heightAt(p.x, p.z);
+      const mat = new THREE.ShaderMaterial({
+        uniforms: { uTime: { value: 0 }, uC1: { value: new THREE.Color(c1) }, uC2: { value: new THREE.Color(c2) } },
+        vertexShader: 'varying vec2 vUv; void main(){ vUv = uv; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }',
+        fragmentShader: `uniform float uTime; uniform vec3 uC1, uC2; varying vec2 vUv;
+          void main() {
+            vec2 p = vUv * 2.0 - 1.0; p.y *= 0.92;
+            float r = length(p), a = atan(p.y, p.x);
+            float sw = sin(a * 3.0 + r * 11.0 - uTime * 5.0) * 0.5 + 0.5;
+            float sw2 = sin(a * 5.0 - r * 7.0 + uTime * 3.0) * 0.5 + 0.5;
+            float rim = smoothstep(0.62, 0.9, r) * smoothstep(1.0, 0.9, r);
+            vec3 col = mix(uC2 * 0.12, uC1 * 1.5, smoothstep(0.3, 0.9, r) * (0.45 + 0.55 * sw));
+            col += uC1 * sw2 * smoothstep(0.35, 0.85, r) * 0.7 + vec3(0.9, 0.95, 1.0) * rim * (1.6 + sw * 1.4);
+            float alpha = smoothstep(1.0, 0.92, r) * (0.75 + 0.25 * sw);
+            gl_FragColor = vec4(col, alpha);
+          }`,
+        transparent: true, depthWrite: false, side: THREE.DoubleSide,
+      });
+      const disc = new THREE.Mesh(new THREE.PlaneGeometry(2.6, 3.0), mat);
+      disc.position.set(p.x, y + 1.7, p.z);
+      disc.userData.noOutline = true; disc.renderOrder = 4;
+      this.scene.add(disc);
+      // lueur au sol
+      const glow = new THREE.Mesh(new THREE.CircleGeometry(1.6, 24), new THREE.MeshBasicMaterial({ color: c1, transparent: true, opacity: 0.25, depthWrite: false, blending: THREE.AdditiveBlending }));
+      glow.rotation.x = -Math.PI / 2; glow.position.set(p.x, y + 0.05, p.z); glow.userData.noOutline = true;
+      this.scene.add(glow);
+      // nom du niveau au-dessus
+      const cv = document.createElement('canvas'); cv.width = 512; cv.height = 160;
+      const tex = new THREE.CanvasTexture(cv); tex.colorSpace = THREE.SRGBColorSpace;
+      const label = new THREE.Sprite(new THREE.SpriteMaterial({ map: tex, transparent: true, depthWrite: false }));
+      label.scale.set(3.4, 1.06, 1); label.position.set(p.x, y + 4.0, p.z);
+      label.userData.noOutline = true;
+      this.scene.add(label);
+      const portal = { def: p, y, disc, mat, glow, label, cv, tex, name: NAMES[p.to], n: 0, t: 0, text: null };
+      this.portalLabel(portal);
+      return portal;
+    });
   }
 
   /** Où aller maintenant ? (pour le chemin d'étincelles) */
@@ -659,6 +720,52 @@ class Adventure {
     const x = me.pos.x + dx / d * along, z = me.pos.z + dz / d * along;
     const y = Math.max(me.pos.y, L.heightAt(x, z)) + 0.5 + Math.sin(k) * 0.1;
     this.spawnParticle(x, y, z, 0, 0.6, 0, 0xffe680, 0.32, 0.9, 0);
+  }
+
+  /** Nom du niveau, et à plusieurs : combien de joueurs sont dans le portail. */
+  portalLabel(p) {
+    const total = this.party ? this.party.size : 1;
+    const need = PORTAL_WAIT(total);
+    const sub = p.n > 0 && p.n < total ? `${p.n}/${total} dans le portail : on attend tout le monde !`
+      : p.n > 0 && total > 1 ? `Tout le monde est là ! Départ dans ${Math.max(1, Math.ceil(need - p.t))}…`
+        : total > 1 ? 'Entrez tous dedans pour y aller' : '';
+    const text = p.name + '|' + sub;
+    if (text === p.text) return;
+    p.text = text;
+    const cx = p.cv.getContext('2d');
+    cx.clearRect(0, 0, 512, 160);
+    cx.textAlign = 'center'; cx.textBaseline = 'middle'; cx.lineJoin = 'round';
+    cx.font = '700 46px Fredoka, system-ui, sans-serif';
+    cx.lineWidth = 10; cx.strokeStyle = 'rgba(30,16,8,0.85)'; cx.strokeText(p.name, 256, 46);
+    cx.fillStyle = '#fff4d0'; cx.fillText(p.name, 256, 46);
+    if (sub) {
+      cx.font = '600 28px Fredoka, system-ui, sans-serif';
+      cx.lineWidth = 8; cx.strokeText(sub, 256, 112);
+      cx.fillStyle = p.n > 0 && p.n === total ? '#a8ff8a' : '#ffe08a'; cx.fillText(sub, 256, 112);
+    }
+    p.tex.needsUpdate = true;
+  }
+
+  /** Hôte : on part quand tous les joueurs sont dans le même portail (seul : tout de suite). */
+  stepPortals(dt) {
+    if (!this.portals || !this.portals.length || this.portalBusy) return;
+    const players = this.players, total = players.length;
+    for (const p of this.portals) {
+      p.n = players.filter(P => Math.hypot(P.pos.x - p.def.x, P.pos.z - p.def.z) < 1.7 && Math.abs(P.pos.y - p.y) < 2.5).length;
+      const prev = p.t;
+      p.t = p.n === total ? p.t + dt : 0;
+      if (p.n === total && prev === 0 && total > 1) this.sound('switch');
+      if (p.t >= PORTAL_WAIT(total)) { this.usePortal(p.def.to); return; }
+    }
+  }
+
+  usePortal(to) {
+    if (this.guest || this.portalBusy) return;
+    this.portalBusy = true;
+    this.sound('reveal');
+    for (const P of this.players) this.burst(P.pos.x, P.pos.y + 1, P.pos.z, 30, 0xd8c0ff, 5, 0.8);
+    this.fade(true);
+    setTimeout(() => { if (!this.disposed) this.switchLevel(to); }, 650);
   }
 
   /** Décor propre au niveau 1 : Grand Chêne, îlot, ascenseur, cascade, niche, clôture, piédestal. */
@@ -1415,6 +1522,7 @@ class Adventure {
     this.stepCats(dt);
     this.stepNpcs(dt);
     this.stepCollect(dt);
+    this.stepPortals(dt);
     if (this.levelLogic) this.levelLogic.step(dt);
     this.stepParticles(dt);
     this.stepEnd(dt);
@@ -1657,6 +1765,7 @@ class Adventure {
       hp: this.hearts.filter(h => !h.taken).map(h => [r(h.x), r(h.y), r(h.z)]),
       d: d ? [d.lines[d.i].who, d.lines[d.i].text, Math.floor(d.chars)] : 0,
       ev: this.coopEvents.splice(0),
+      pt: (this.portals || []).map(p => [p.n, Math.round(p.t * 10) / 10]),
     };
     if (this.levelLogic) base.x = this.levelLogic.snapshot();
     const sv = JSON.stringify(Object.assign({}, this.save, { time: 0 }));
@@ -1830,6 +1939,7 @@ class Adventure {
     if (s.n && !this.isTouch) { prompt.textContent = `F : ${s.n.toLowerCase()}`; prompt.classList.remove('hidden'); }
     else prompt.classList.add('hidden');
     if (s.x && this.levelLogic) this.levelLogic.apply(s.x);
+    if (s.pt && this.portals) s.pt.forEach(([n, t], i) => { const p = this.portals[i]; if (p) { p.n = n; p.t = t; } });
     // effets
     for (const [n, ...a] of s.ev) {
       if (n === 'overlay') this.showOverlay(a[0]);
@@ -2576,6 +2686,13 @@ class Adventure {
     if (this.levelLogic) this.levelLogic.render(dt, t);
     if (this.water) this.water.material.uniforms.uTime.value = t;
     if (this.guide) this.renderGuide(dt);
+    for (const p of this.portals || []) {
+      p.mat.uniforms.uTime.value = t;
+      p.disc.rotation.y = Math.atan2(this.camera.position.x - p.def.x, this.camera.position.z - p.def.z);
+      p.glow.material.opacity = p.n > 0 ? 0.45 + Math.sin(t * 8) * 0.12 : 0.22 + Math.sin(t * 3) * 0.06;
+      this.portalLabel(p);
+      if (Math.random() < dt * 14) { const a = Math.random() * 6.28; this.spawnParticle(p.def.x + Math.cos(a) * 1.2, p.y + 1.7 + Math.sin(a) * 1.35, p.def.z, Math.cos(a) * 0.8, 1 + Math.random(), 0, p.mat.uniforms.uC1.value.getHex(), 0.16, 0.8); }
+    }
     this.wind.value = t;
     for (const c of this.clouds) { const u = c.userData, a = u.a + t * 0.004; c.position.set(Math.cos(a) * u.r, u.y, Math.sin(a) * u.r); }
     this.vista.isles.forEach((isl, i) => { isl.position.y = isl.userData.y0 + Math.sin(t * 0.35 + i * 1.7) * 1.6; });
