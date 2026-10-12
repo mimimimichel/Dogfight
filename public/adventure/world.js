@@ -8,6 +8,9 @@ import * as M from './models.js';
 
 const smooth = (a, b, x) => { const t = Math.min(1, Math.max(0, (x - a) / (b - a))); return t * t * (3 - 2 * t); };
 
+/** Style de rendu : réaliste (par défaut) ou dessin animé. */
+export const LOOK = { real: true };
+
 export const SKY = {
   top: new THREE.Color(0x1f74dc),
   horizon: new THREE.Color(0xbcdcf6),
@@ -77,6 +80,62 @@ export function buildSky(scene) {
 // ---------------------------------------------------------------------------
 // Terrain : géométrie lisse, couleurs fondues (herbe, sable, roche, chemins)
 // ---------------------------------------------------------------------------
+/** Sol vu de près : mille petits brins (gris, teinté par les couleurs du terrain). */
+function grassGroundTexture() {
+  const c = document.createElement('canvas'); c.width = c.height = 512;
+  const x = c.getContext('2d');
+  x.fillStyle = '#d0d0d0'; x.fillRect(0, 0, 512, 512);
+  const r = rng(91);
+  for (let i = 0; i < 9000; i++) {
+    const px = r() * 512, py = r() * 512, len = 4 + r() * 10, a = -Math.PI / 2 + (r() - 0.5) * 0.9, v = 150 + Math.floor(r() * 105);
+    x.strokeStyle = `rgb(${v},${v},${Math.floor(v * 0.92)})`; x.lineWidth = 1 + r() * 1.4;
+    x.beginPath(); x.moveTo(px, py); x.lineTo(px + Math.cos(a) * len, py + Math.sin(a) * len); x.stroke();
+  }
+  for (let i = 0; i < 260; i++) { const v = 90 + Math.floor(r() * 50); x.fillStyle = `rgba(${v},${v},${v},0.35)`; x.beginPath(); x.arc(r() * 512, r() * 512, 3 + r() * 9, 0, 7); x.fill(); }
+  const t = new THREE.CanvasTexture(c);
+  t.wrapS = t.wrapT = THREE.RepeatWrapping;
+  t.repeat.set(60, 60);
+  t.colorSpace = THREE.SRGBColorSpace;
+  t.anisotropy = 8;
+  return t;
+}
+function barkTexture() {
+  const c = document.createElement('canvas'); c.width = 128; c.height = 256;
+  const x = c.getContext('2d');
+  x.fillStyle = '#8a6a50'; x.fillRect(0, 0, 128, 256);
+  const r = rng(31);
+  for (let i = 0; i < 160; i++) {
+    const px = r() * 128, w = 1 + r() * 4, v = 70 + Math.floor(r() * 90);
+    x.fillStyle = `rgb(${v},${Math.floor(v * 0.8)},${Math.floor(v * 0.62)})`;
+    x.fillRect(px, r() * 256, w, 20 + r() * 90);
+  }
+  for (let i = 0; i < 40; i++) { x.fillStyle = 'rgba(80,110,50,0.35)'; x.beginPath(); x.ellipse(r() * 128, 200 + r() * 56, 6 + r() * 10, 4 + r() * 8, 0, 0, 7); x.fill(); }
+  const t = new THREE.CanvasTexture(c);
+  t.wrapS = t.wrapT = THREE.RepeatWrapping; t.repeat.set(2, 1.5);
+  t.colorSpace = THREE.SRGBColorSpace;
+  return t;
+}
+/** Petites cartes de feuilles croisées, posées autour des touffes (silhouettes feuillues). */
+function leafCardGeo() {
+  const parts = [];
+  for (let k = 0; k < 3; k++) {
+    const g = new THREE.PlaneGeometry(1, 1);
+    const uv = g.attributes.uv;
+    for (let i = 0; i < uv.count; i++) uv.setX(i, 0.5 + uv.getX(i) * 0.5);
+    g.rotateY((k / 3) * Math.PI); g.rotateX(k === 2 ? -0.9 : 0.25);
+    parts.push(g);
+  }
+  const out = new THREE.BufferGeometry();
+  const pos = [], nor = [], uvs = [];
+  for (const g of parts) { const n = g.toNonIndexed(); pos.push(...n.attributes.position.array); nor.push(...n.attributes.normal.array); uvs.push(...n.attributes.uv.array); }
+  out.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+  out.setAttribute('normal', new THREE.Float32BufferAttribute(nor, 3));
+  out.setAttribute('uv', new THREE.Float32BufferAttribute(uvs, 2));
+  // normales vers le haut et vers l'extérieur : un feuillage éclairé doucement
+  const nn = out.attributes.normal;
+  for (let i = 0; i < nn.count; i++) nn.setXYZ(i, nn.getX(i) * 0.3, 0.9, nn.getZ(i) * 0.3);
+  return out;
+}
 function detailTexture() {
   const c = document.createElement('canvas'); c.width = c.height = 256;
   const x = c.getContext('2d');
@@ -105,7 +164,9 @@ export function buildTerrain(scene, quality) {
   const nrm = geo.attributes.normal;
   const colors = new Float32Array(pos.count * 3);
   const c = new THREE.Color(), tmp = new THREE.Color();
-  const gp = (L.PALETTE && L.PALETTE.ground) || [0x5cb83c, 0x86cf4a, 0x3f9a36];
+  let gp = (L.PALETTE && L.PALETTE.ground) || [0x5cb83c, 0x86cf4a, 0x3f9a36];
+  // rendu réaliste : verts plus profonds et plus variés (prairie, terre, mousse)
+  if (LOOK.real) gp = gp.map((h, i) => new THREE.Color(h).lerp(new THREE.Color([0x3e6e22, 0x7a9a38, 0x2e5a1c][i]), 0.55).getHex());
   const G1 = new THREE.Color(gp[0]), G2 = new THREE.Color(gp[1]), G3 = new THREE.Color(gp[2]);
   const SAND = new THREE.Color(0xf2dca6), WET = new THREE.Color(0xc8b07a), ROCK = new THREE.Color(0x9c8a78), ROCK2 = new THREE.Color(0x7c6c5e), DIRT = new THREE.Color(0xc89a62), DEEP = new THREE.Color(0x8aa890);
   for (let i = 0; i < pos.count; i++) {
@@ -120,7 +181,7 @@ export function buildTerrain(scene, quality) {
     colors[i * 3] = c.r; colors[i * 3 + 1] = c.g; colors[i * 3 + 2] = c.b;
   }
   geo.setAttribute('color', new THREE.BufferAttribute(colors, 3));
-  const mat = new THREE.MeshStandardMaterial({ vertexColors: true, map: detailTexture(), roughness: 0.95 });
+  const mat = new THREE.MeshStandardMaterial({ vertexColors: true, map: LOOK.real ? grassGroundTexture() : detailTexture(), roughness: 0.95 });
   const m = new THREE.Mesh(geo, mat);
   m.receiveShadow = true;
   scene.add(m);
@@ -221,10 +282,10 @@ export function buildWater(scene, fog) {
 function bladeClump(r, blades) {
   const parts = [];
   const pos = [], col = [];
-  const base = new THREE.Color(0x5cae38), tip = new THREE.Color(0xe0f490);
+  const base = new THREE.Color(0x2c6a1c), tip = new THREE.Color(0xd8f088);
   for (let b = 0; b < blades; b++) {
-    const a = r() * Math.PI * 2, d = r() * 0.35, h = 0.2 + r() * 0.22, w = 0.06 + r() * 0.03;
-    const lean = (r() - 0.5) * 0.5;
+    const a = r() * Math.PI * 2, d = Math.sqrt(r()) * 0.75, h = 0.22 + r() * 0.38, w = 0.035 + r() * 0.025;
+    const lean = (r() - 0.5) * 0.7;
     const ox = Math.cos(a) * d, oz = Math.sin(a) * d;
     const dirx = Math.cos(a + Math.PI / 2), dirz = Math.sin(a + Math.PI / 2);
     const rows = [0, 0.4, 0.75, 1];
@@ -255,7 +316,8 @@ function bladeClump(r, blades) {
 
 export function buildGrass(scene, quality, windUniform) {
   const r = rng(9);
-  const count = (quality.high ? 5200 : 1300) * (L.GRASS_K || 1);
+  // herbe haute et dense (le « tapis » de prairie)
+  const count = (quality.high ? 9000 : 2200) * (L.GRASS_K || 1);
   const spots = [];
   for (let i = 0; i < count * 6 && spots.length < count; i++) {
     const x = (r() - 0.5) * (L.WORLD ? L.WORLD - 20 : 140), z = (r() - 0.5) * (L.WORLD ? L.WORLD - 20 : 140);
@@ -279,7 +341,7 @@ export function buildGrass(scene, quality, windUniform) {
       transformed.x += w * k;
       transformed.z += w * 0.6 * k;`);
   };
-  const geo = bladeClump(rng(3), quality.lite ? 6 : 9);
+  const geo = bladeClump(rng(3), quality.lite ? 9 : 14);
   const inst = new THREE.InstancedMesh(geo, mat, spots.length);
   const m4 = new THREE.Matrix4(), q = new THREE.Quaternion(), v = new THREE.Vector3(), s = new THREE.Vector3(), e = new THREE.Euler();
   const tint = new THREE.Color();
@@ -288,7 +350,7 @@ export function buildGrass(scene, quality, windUniform) {
     m4.compose(v.set(x, h - 0.03, z), q.setFromEuler(e.set(0, r() * 6.28, 0)), s.set(sc, sc * (0.8 + r() * 0.5), sc));
     inst.setMatrixAt(i, m4);
     const n = noise2(x, z);
-    inst.setColorAt(i, tint.setHSL(0.24 + n * 0.03, 0.6, 0.7 + n * 0.05));
+    inst.setColorAt(i, tint.setHSL(0.22 + n * 0.05 + (r() - 0.5) * 0.03, 0.55 + r() * 0.15, 0.62 + n * 0.08 + r() * 0.08));
   });
   inst.receiveShadow = quality.high;
   inst.userData.noOutline = true;
@@ -296,15 +358,24 @@ export function buildGrass(scene, quality, windUniform) {
   return inst;
 }
 
+function tint(geo, color) {
+  const g = geo.index ? geo.toNonIndexed() : geo, n = g.attributes.position.count, c = new THREE.Color(color), a = new Float32Array(n * 3);
+  for (let i = 0; i < n; i++) { a[i * 3] = c.r; a[i * 3 + 1] = c.g; a[i * 3 + 2] = c.b; }
+  g.setAttribute('color', new THREE.BufferAttribute(a, 3));
+  return g;
+}
 // Fleurs : petites corolles colorées
 export function buildFlowers(scene, quality) {
   const r = rng(21);
+  const petals = [];
+  for (let k = 0; k < 5; k++) { const a = (k / 5) * Math.PI * 2; petals.push({ geo: tint(new THREE.SphereGeometry(0.06, 6, 3), 0xffffff), x: Math.cos(a) * 0.065, y: 0.34, z: Math.sin(a) * 0.065, sy: 0.25, ry: -a }); }
   const geo = M.mergeGeos([
-    { geo: new THREE.CylinderGeometry(0.015, 0.02, 0.35, 4, 1, true), y: 0.17 },
-    { geo: new THREE.SphereGeometry(0.13, 10, 4), y: 0.36, sy: 0.3 },
+    { geo: tint(new THREE.CylinderGeometry(0.008, 0.012, 0.34, 4, 1, true), 0x5a9a3a), y: 0.17 },
+    ...petals,
+    { geo: tint(new THREE.SphereGeometry(0.035, 6, 4), 0xffd040), y: 0.355, sy: 0.6 },
   ]);
   const spots = [];
-  const maxF = (quality && quality.lite ? 220 : 420) * (L.GRASS_K || 1);
+  const maxF = (quality && quality.lite ? 600 : 1500) * (L.GRASS_K || 1);
   for (let i = 0; i < 3000 && spots.length < maxF; i++) {
     const x = (r() - 0.5) * (L.WORLD ? L.WORLD - 20 : 130), z = (r() - 0.5) * (L.WORLD ? L.WORLD - 20 : 130);
     const h = L.heightAt(x, z);
@@ -316,8 +387,8 @@ export function buildFlowers(scene, quality) {
       if (!L.inWater(fx, fz, 0.8)) spots.push([fx, fz]);
     }
   }
-  const inst = new THREE.InstancedMesh(geo, new THREE.MeshStandardMaterial({ roughness: 0.6 }), spots.length);
-  const cols = [0xffffff, 0xffe04a, 0xff7aa8, 0xb48aff, 0xff9a4a];
+  const inst = new THREE.InstancedMesh(geo, new THREE.MeshStandardMaterial({ roughness: 0.6, vertexColors: true }), spots.length);
+  const cols = [0xffffff, 0xffe04a, 0xff7aa8, 0xff7aa8, 0xffb0d0, 0xb48aff, 0xff9a4a, 0xfff4f8];
   const m4 = new THREE.Matrix4(), q = new THREE.Quaternion(), v = new THREE.Vector3(), s = new THREE.Vector3(1, 1, 1);
   const c = new THREE.Color();
   spots.forEach(([x, z], i) => {
@@ -340,7 +411,7 @@ export function buildTrees(scene, quality) {
   const tp = trunkGeo.attributes.position;
   for (let i = 0; i < tp.count; i++) { const y = tp.getY(i); if (y < -2) { const k = 1 + (-2 - y) * 0.35; tp.setX(i, tp.getX(i) * k); tp.setZ(i, tp.getZ(i) * k); } }
   trunkGeo.computeVertexNormals();
-  const trunks = new THREE.InstancedMesh(trunkGeo, M.mat(0x7a4e2c, { roughness: 0.95 }), n);
+  const trunks = new THREE.InstancedMesh(trunkGeo, LOOK.real ? new THREE.MeshStandardMaterial({ color: 0xb8a088, map: barkTexture(), roughness: 0.95 }) : M.mat(0x7a4e2c, { roughness: 0.95 }), n);
   const blobGeo = leafClusterGeo(L.WORLD ? 6 : quality && quality.lite ? 10 : 16);
   const blobs = [];
   // style du feuillage selon le niveau (la forêt du niveau 2 a moins de touffes, plus grosses)
@@ -376,6 +447,26 @@ export function buildTrees(scene, quality) {
     leaves.setColorAt(i, c.set(greens[i % greens.length]).offsetHSL(0, 0, b.bush ? -0.04 : (r() - 0.5) * 0.06));
   });
   trunks.castShadow = leaves.castShadow = true;
+  if (LOOK.real) {
+    // feuilles détaillées autour de chaque touffe
+    const per = quality && quality.lite ? 5 : L.WORLD ? 6 : 12;
+    const cards = new THREE.InstancedMesh(leafCardGeo(), new THREE.MeshStandardMaterial({ map: leafTexture(), alphaTest: 0.45, side: THREE.DoubleSide, roughness: 0.8 }), blobs.length * per);
+    cards.customDepthMaterial = new THREE.MeshDepthMaterial({ depthPacking: THREE.RGBADepthPacking, map: leafTexture(), alphaTest: 0.45 });
+    let j = 0;
+    blobs.forEach((b, i) => {
+      for (let k = 0; k < per; k++) {
+        const u = r() * 2 - 1, a = r() * Math.PI * 2, up = Math.max(-0.3, u * 0.8 + 0.25), rr = Math.sqrt(1 - up * up);
+        const d = b.s * (0.9 + r() * 0.35), sz = b.s * (1.1 + r() * 0.6);
+        m4.compose(v.set(b.x + Math.cos(a) * rr * d, b.y + up * d * 0.9, b.z + Math.sin(a) * rr * d), q.setFromEuler(e.set((r() - 0.5) * 0.6, r() * 6.28, (r() - 0.5) * 0.6)), s.set(sz, sz, sz));
+        cards.setMatrixAt(j, m4);
+        cards.setColorAt(j, c.set(greens[i % greens.length]).offsetHSL((r() - 0.5) * 0.02, -0.05, 0.02 + (r() - 0.5) * 0.08));
+        j++;
+      }
+    });
+    cards.castShadow = true; cards.receiveShadow = true;
+    cards.userData.noOutline = true;
+    scene.add(cards);
+  }
   if (L.WORLD) leaves.userData.noOutline = true;   // grande ville : beaucoup d'arbres, pas de contour
   trunks.receiveShadow = leaves.receiveShadow = true;
   scene.add(trunks, leaves);
@@ -553,6 +644,41 @@ function vine(x0, y0, z0, len, seed) {
   return g;
 }
 
+/** Lierre touffu sur l'arche et les colonnes (rendu réaliste). */
+function buildIvy(scene) {
+  const r = rng(808), spots = [];
+  for (const ru of L.ruins) {
+    if (ru.type === 'arch') {
+      const half = ru.span / 2 + 0.8;
+      for (let i = 0; i < 150; i++) {
+        const x = (r() * 2 - 1) * half, side = r();
+        const yTop = 0.35 + 0.45 + Math.cos((x / half) * Math.PI / 2) * 0.6;
+        let px = ru.x + x, py, pz;
+        if (side < 0.45) { py = ru.y + yTop - r() * 0.2; pz = ru.z + (r() - 0.5) * 1.2; }
+        else { py = ru.y + yTop - 0.2 - r() * 1.1; pz = ru.z + (side < 0.72 ? -0.7 : 0.7); }
+        if (Math.abs(x) > half - 0.9 && r() < 0.6) py -= r() * 3.2;          // descend le long des piliers
+        spots.push([px, py, pz, 0.32 + r() * 0.2]);
+      }
+    } else if (ru.type === 'pillar' && !ru.broken) {
+      for (let i = 0; i < 26; i++) {
+        const a = r() * Math.PI * 2, k = Math.pow(r(), 0.6);
+        spots.push([ru.x + Math.cos(a) * 0.66, ru.y + ru.h - k * ru.h * 0.9, ru.z + Math.sin(a) * 0.66, 0.26 + r() * 0.16]);
+      }
+    }
+  }
+  if (!spots.length) return;
+  const g = leafCardGeo();
+  const inst = new THREE.InstancedMesh(g, new THREE.MeshStandardMaterial({ map: leafTexture(), alphaTest: 0.45, side: THREE.DoubleSide, roughness: 0.75 }), spots.length);
+  const m4 = new THREE.Matrix4(), q = new THREE.Quaternion(), v = new THREE.Vector3(), sv = new THREE.Vector3(), e = new THREE.Euler(), c = new THREE.Color();
+  spots.forEach(([x, y, z, sz], i) => {
+    m4.compose(v.set(x, y, z), q.setFromEuler(e.set(r() * 6, r() * 6, r() * 6)), sv.set(sz, sz, sz));
+    inst.setMatrixAt(i, m4);
+    inst.setColorAt(i, c.setHSL(0.27 + r() * 0.05, 0.5, 0.32 + r() * 0.12));
+  });
+  inst.castShadow = true; inst.userData.noOutline = true;
+  scene.add(inst);
+}
+
 export function buildRuins(scene) {
   const out = [];
   const mat = stoneMat();
@@ -600,6 +726,7 @@ export function buildRuins(scene) {
       scene.add(m); out.push(m);
     }
   }
+  if (LOOK.real) buildIvy(scene);
   return out;
 }
 

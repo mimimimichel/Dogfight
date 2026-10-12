@@ -8,6 +8,7 @@ import * as THREE from '../vendor/three.module.min.js';
 import { L, setLevel } from './current.js';
 import * as F from './forest.js';
 import * as C from './city.js';
+import * as SK from './sky.js';
 import { voiceFor } from './voice.js';
 import * as M from './models.js';
 import * as W from './world.js';
@@ -62,7 +63,29 @@ function mergeSave(a, b) {
   return a;
 }
 
+/** Tuiles de bois rouges (toit de la niche, rendu réaliste). */
+function shingleTexture() {
+  const c = document.createElement('canvas'); c.width = c.height = 256;
+  const x = c.getContext('2d');
+  x.fillStyle = '#7a2a1e'; x.fillRect(0, 0, 256, 256);
+  for (let row = 0; row < 12; row++) for (let i = -1; i < 9; i++) {
+    const w = 32, px = i * w + (row % 2) * 16, py = row * 22;
+    const v = 0.75 + ((row * 7 + i * 13) % 10) / 30;
+    x.fillStyle = `rgb(${Math.round(196 * v)},${Math.round(70 * v)},${Math.round(56 * v)})`;
+    x.fillRect(px + 1, py, w - 2, 21);
+    x.fillStyle = 'rgba(40,10,6,0.45)'; x.fillRect(px + 1, py + 18, w - 2, 3);
+  }
+  const t = new THREE.CanvasTexture(c);
+  t.wrapS = t.wrapT = THREE.RepeatWrapping; t.repeat.set(0.45, 0.45);
+  t.colorSpace = THREE.SRGBColorSpace;
+  return t;
+}
+
 let micAsked = false;   // on ne propose le micro qu'une fois par partie
+
+const medalWord = () => (L.ID === 3 ? 'Trophées' : L.ID === 4 ? 'Étoiles' : 'Médailles');
+const collectWord = (long) => ({ 2: 'Croquettes', 3: long ? 'Pièces d\'or' : 'Pièces', 4: 'Pièces du ciel' })[L.ID] || (long ? 'Os dorés' : 'Os');
+const NEXT_LEVEL = { 1: 'Niveau 2 : la Forêt des Moustaches', 2: 'Niveau 3 : Port-Croquette', 3: 'Niveau 4 : les Îles du Ciel' };
 
 const isChild = (o, root) => { for (let p = o.parent; p; p = p.parent) if (p === root) return true; return false; };
 const clamp = (v, a, b) => (v < a ? a : v > b ? b : v);
@@ -143,13 +166,14 @@ class Adventure {
         ...this.cats.map(c => c.mesh), ...this.medals.map(m => m.mesh), ...this.balls.map(b => b.mesh), ...this.crates.map(c => c.mesh)];
       for (const o of moving) if (o) o.traverse(k => { k.castShadow = false; });
     }
-    // Cel shading : aplats de lumière + contours sombres
-    T.toonify(this.scene);
+    // Style « dessin animé » (au choix dans la pause) : aplats de lumière + contours sombres.
+    // Par défaut : rendu réaliste (lumière douce du ciel, reflets, pas de contours).
     const chars = [this.player.mesh, this.mamie, this.puppy.mesh, ...this.cats.map(c => c.mesh), ...(this.levelLogic ? this.levelLogic.chars : [])];
-    for (const c of chars) T.outlineTree(c, 0.018, 0x1e120c);
     const vista = this.vista.group;
+    if (!this.realistic) T.toonify(this.scene);
+    if (!this.realistic) for (const c of chars) T.outlineTree(c, 0.018, 0x1e120c);
     // grande ville sur téléphone : contours seulement sur les personnages (trop d'objets sinon)
-    if (!(this.lite && L.WORLD)) T.outlineTree(this.scene, 0.035, 0x2a1c14, (o) => {
+    if (!this.realistic && !(this.lite && L.WORLD)) T.outlineTree(this.scene, 0.035, 0x2a1c14, (o) => {
       if (chars.some(c => c === o || isChild(o, c)) || isChild(o, vista)) return false;
       if (!o.geometry.boundingSphere) o.geometry.computeBoundingSphere();
       return o.geometry.boundingSphere.radius < 14;
@@ -215,7 +239,7 @@ class Adventure {
         </div>
         <div class="adv-right">
           <div class="adv-counts">
-            <div class="adv-count"><img src="${L.ID === 2 ? ICONS.kibble : L.ID === 3 ? ICONS.coin : ICONS.bone}" alt=""><span id="adv-bones">0</span><small>/100</small></div>
+            <div class="adv-count"><img src="${L.ID === 2 ? ICONS.kibble : L.ID >= 3 ? ICONS.coin : ICONS.bone}" alt=""><span id="adv-bones">0</span><small>/100</small></div>
             <div class="adv-count"><img src="${ICONS.medal}" alt=""><span id="adv-medals">0</span><small>/${L.medals.length}</small></div>
             <div class="adv-count adv-balls hidden"><img src="${ICONS.ball}" alt=""><span id="adv-balls">0</span><small>/5</small></div>
           </div>
@@ -446,6 +470,22 @@ class Adventure {
     const LT = Object.assign({ hemi: [0xd8ecff, 0xa87a4a, 0.7], sun: [0xfff1d6, 2.6], fog: [80, 230] }, L.LIGHT || {});
     this.scene.fog = new THREE.Fog(W.SKY.horizon.getHex(), LT.fog[0], LT.fog[1]);
     this.sky = W.buildSky(this.scene);
+    let style = null;
+    try { style = localStorage.getItem('dogfight.style'); } catch (e) { /* ignore */ }
+    this.realistic = style !== 'toon';
+    W.LOOK.real = this.realistic;
+    if (this.realistic) {
+      // lumière du ciel tout autour (reflets doux sur l'herbe, le pelage, l'or des os)
+      const envScene = new THREE.Scene();
+      W.buildSky(envScene);
+      const pm = new THREE.PMREMGenerator(r);
+      this.envTex = pm.fromScene(envScene, 0.04, 0.1, 1000).texture;
+      pm.dispose();
+      this.scene.environment = this.envTex;
+      this.scene.environmentIntensity = 0.55;
+      LT.hemi = [LT.hemi[0], LT.hemi[1], LT.hemi[2] * 0.55];
+      LT.sun = [LT.sun[0], LT.sun[1] * 1.15];
+    }
     this.camera = new THREE.PerspectiveCamera(55, 16 / 9, 0.1, 1200);
     this.scene.add(new THREE.HemisphereLight(...LT.hemi));
     const sun = new THREE.DirectionalLight(...LT.sun);
@@ -541,8 +581,8 @@ class Adventure {
     const q0 = this.quality;
     const m4 = new THREE.Matrix4(), q = new THREE.Quaternion(), v = new THREE.Vector3(), sv = new THREE.Vector3(), e = new THREE.Euler();
 
-    W.buildTerrain(sc, q0);
-    this.water = W.buildWater(sc, sc.fog);
+    if (!L.NO_TERRAIN) W.buildTerrain(sc, q0);
+    this.water = L.NO_TERRAIN ? null : W.buildWater(sc, sc.fog);
     this.grass = W.buildGrass(sc, q0, this.wind);
     W.buildFlowers(sc, q0);
     W.buildTrees(sc, q0);
@@ -550,6 +590,7 @@ class Adventure {
     this.pedestalBalls = [];
     if (L.ID === 1) this.buildParc();
     else if (L.ID === 3) this.levelLogic = C.buildCity(this);
+    else if (L.ID === 4) this.levelLogic = SK.buildSky(this);
     else this.levelLogic = F.buildForest(this, { THREE, M, W, T });
 
     // Nuages et papillons
@@ -560,6 +601,8 @@ class Adventure {
     this.crystals = W.buildCrystals(sc);
     this.butterflies = W.buildButterflies(sc);
 
+    this.buildPortals();
+
     // Panneaux
     for (const s of L.signs) {
       const m = M.buildSign(s.text);
@@ -567,6 +610,75 @@ class Adventure {
       m.rotation.y = Math.atan2(L.START.x - s.x, L.START.z - s.z) * 0.3;
       sc.add(m);
     }
+  }
+
+  /**
+   * Portails magiques vers les autres niveaux : un tourbillon de lumière ;
+   * on s'en approche et on appuie sur « ENTRER ».
+   */
+  buildPortals() {
+    const list = (L.PORTALS || []).slice();
+    if (!L.PORTALS && L.ID !== 1 && L.ID !== 3) {
+      // portail de retour vers le Parc, à côté du départ, sur un sol libre
+      for (const [dx, dz] of [[5, -2], [-5, -2], [5, 3], [-5, 3], [7, 0]]) {
+        const x = L.START.x + dx, z = L.START.z + dz, h = L.heightAt(x, z);
+        if (Math.abs(h - L.START.y) > 0.8 || L.colliders.some(c => !c.off && L.inside(c, x, z, 1.3))) continue;
+        list.push({ x, z, to: 1 }); break;
+      }
+    }
+    const NAMES = { 1: 'Le Parc des Toutous', 2: 'La Forêt des Moustaches', 3: 'Port-Croquette', 4: 'Les Îles du Ciel' };
+    const COLS = { 1: [0x3affa0, 0x0a4a3a], 2: [0x4ab0ff, 0x10206a], 3: [0xffb04a, 0x5a2008], 4: [0xc070ff, 0x2a0a5a] };
+    this.portals = list.map(p => {
+      const [c1, c2] = COLS[p.to] || COLS[1];
+      const y = L.heightAt(p.x, p.z);
+      const mat = new THREE.ShaderMaterial({
+        uniforms: { uTime: { value: 0 }, uC1: { value: new THREE.Color(c1) }, uC2: { value: new THREE.Color(c2) } },
+        vertexShader: 'varying vec2 vUv; void main(){ vUv = uv; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }',
+        fragmentShader: `uniform float uTime; uniform vec3 uC1, uC2; varying vec2 vUv;
+          void main() {
+            vec2 p = vUv * 2.0 - 1.0; p.y *= 0.92;
+            float r = length(p), a = atan(p.y, p.x);
+            float sw = sin(a * 3.0 + r * 11.0 - uTime * 5.0) * 0.5 + 0.5;
+            float sw2 = sin(a * 5.0 - r * 7.0 + uTime * 3.0) * 0.5 + 0.5;
+            float rim = smoothstep(0.62, 0.9, r) * smoothstep(1.0, 0.9, r);
+            vec3 col = mix(uC2 * 0.12, uC1 * 1.5, smoothstep(0.3, 0.9, r) * (0.45 + 0.55 * sw));
+            col += uC1 * sw2 * smoothstep(0.35, 0.85, r) * 0.7 + vec3(0.9, 0.95, 1.0) * rim * (1.6 + sw * 1.4);
+            float alpha = smoothstep(1.0, 0.92, r) * (0.75 + 0.25 * sw);
+            gl_FragColor = vec4(col, alpha);
+          }`,
+        transparent: true, depthWrite: false, side: THREE.DoubleSide,
+      });
+      const disc = new THREE.Mesh(new THREE.PlaneGeometry(2.6, 3.0), mat);
+      disc.position.set(p.x, y + 1.7, p.z);
+      disc.userData.noOutline = true; disc.renderOrder = 4;
+      this.scene.add(disc);
+      // lueur au sol
+      const glow = new THREE.Mesh(new THREE.CircleGeometry(1.6, 24), new THREE.MeshBasicMaterial({ color: c1, transparent: true, opacity: 0.25, depthWrite: false, blending: THREE.AdditiveBlending }));
+      glow.rotation.x = -Math.PI / 2; glow.position.set(p.x, y + 0.05, p.z); glow.userData.noOutline = true;
+      this.scene.add(glow);
+      // nom du niveau au-dessus
+      const cv = document.createElement('canvas'); cv.width = 512; cv.height = 96;
+      const cx = cv.getContext('2d');
+      cx.font = '700 46px Fredoka, system-ui, sans-serif'; cx.textAlign = 'center'; cx.textBaseline = 'middle';
+      cx.lineWidth = 10; cx.strokeStyle = 'rgba(30,16,8,0.85)'; cx.strokeText(NAMES[p.to], 256, 50);
+      cx.fillStyle = '#fff4d0'; cx.fillText(NAMES[p.to], 256, 50);
+      const tex = new THREE.CanvasTexture(cv); tex.colorSpace = THREE.SRGBColorSpace;
+      const label = new THREE.Sprite(new THREE.SpriteMaterial({ map: tex, transparent: true, depthWrite: false }));
+      label.scale.set(3.4, 0.64, 1); label.position.set(p.x, y + 3.75, p.z);
+      label.userData.noOutline = true;
+      this.scene.add(label);
+      return { def: p, y, disc, mat, glow, label, name: NAMES[p.to] };
+    });
+  }
+
+  usePortal(to) {
+    if (this.guest) { this.localBanner('Portail', 'C\'est l\'hôte du monde qui choisit le niveau.', 2200); return; }
+    if (this.portalBusy) return;
+    this.portalBusy = true;
+    this.sound('reveal');
+    for (const P of this.players) this.burst(P.pos.x, P.pos.y + 1, P.pos.z, 30, 0xd8c0ff, 5, 0.8);
+    this.fade(true);
+    setTimeout(() => { if (!this.disposed) this.switchLevel(to); }, 650);
   }
 
   /** Décor propre au niveau 1 : Grand Chêne, îlot, ascenseur, cascade, niche, clôture, piédestal. */
@@ -784,7 +896,7 @@ class Adventure {
     kb.position.y = 0.8; kennel.add(kb);
     const roofShape = new THREE.Shape();
     roofShape.moveTo(-1.55, 0); roofShape.lineTo(0, 1.25); roofShape.lineTo(1.55, 0); roofShape.lineTo(-1.55, 0);
-    const roof = new THREE.Mesh(new THREE.ExtrudeGeometry(roofShape, { depth: 2.7, bevelEnabled: true, bevelSize: 0.08, bevelThickness: 0.08, bevelSegments: 2 }), M.mat(0xd8443a, { roughness: 0.6 }));
+    const roof = new THREE.Mesh(new THREE.ExtrudeGeometry(roofShape, { depth: 2.7, bevelEnabled: true, bevelSize: 0.08, bevelThickness: 0.08, bevelSegments: 2 }), this.realistic ? new THREE.MeshStandardMaterial({ map: shingleTexture(), roughness: 0.75 }) : M.mat(0xd8443a, { roughness: 0.6 }));
     roof.position.set(0, 1.55, -1.35); kennel.add(roof);
     const door = new THREE.Mesh(new THREE.CircleGeometry(0.55, 24), M.mat(0x2a1608, { roughness: 1 }));
     door.position.set(0, 0.65, 1.11); kennel.add(door);
@@ -886,9 +998,25 @@ class Adventure {
     this.party = new Map([[0, this.player]]);
 
     // Os dorés (instanciés)
-    this.bonesI = new THREE.InstancedMesh(L.ID === 2 ? F.kibbleGeometry() : L.ID === 3 ? C.coinGeometry() : M.boneGeometry(), M.mat(0xffd34d, { metalness: 0.7, roughness: 0.3, emissive: 0x6a4800, emissiveIntensity: 0.6 }), L.bones.length);
+    this.bonesI = new THREE.InstancedMesh(L.ID === 2 ? F.kibbleGeometry() : L.ID === 3 ? C.coinGeometry() : L.ID === 4 ? SK.starCoinGeometry() : M.boneGeometry(), M.mat(0xffd34d, { metalness: 0.7, roughness: 0.3, emissive: 0x6a4800, emissiveIntensity: 0.6 }), L.bones.length);
     this.boneTaken = new Set(Object.keys(s.gone || {}));
     sc.add(this.bonesI);
+    if (L.ID === 1 && this.realistic) this.bonesI.material = M.mat(0xf2dcb4, { metalness: 0.05, roughness: 0.5, emissive: 0x5a3c10, emissiveIntensity: 0.3 });
+    // halo doré autour de chaque trésor (on les repère de loin)
+    {
+      const n = L.bones.length, gp = new THREE.BufferGeometry();
+      gp.setAttribute('position', new THREE.BufferAttribute(new Float32Array(n * 3), 3));
+      gp.setAttribute('size', new THREE.BufferAttribute(new Float32Array(n), 1));
+      const gm = new THREE.ShaderMaterial({
+        uniforms: { uMap: { value: M.glowTexture() }, uScale: { value: 400 }, uColor: { value: new THREE.Color(1.0, 0.82, 0.45) } },
+        vertexShader: `attribute float size; uniform float uScale; void main() { vec4 mv = modelViewMatrix * vec4(position, 1.0); gl_PointSize = size * uScale / -mv.z; gl_Position = projectionMatrix * mv; }`,
+        fragmentShader: `uniform sampler2D uMap; uniform vec3 uColor; void main() { float a = texture2D(uMap, gl_PointCoord).a; gl_FragColor = vec4(uColor * a * 0.45, 1.0); }`,
+        transparent: true, depthWrite: false, blending: THREE.AdditiveBlending,
+      });
+      this.boneGlow = new THREE.Points(gp, gm);
+      this.boneGlow.frustumCulled = false; this.boneGlow.renderOrder = 4;
+      sc.add(this.boneGlow);
+    }
 
     // Médailles
     this.medals = L.medals.map(md => {
@@ -2102,6 +2230,7 @@ class Adventure {
     const cand = [{ kind: 'mamie', x: L.npcs.mamie.x, z: L.npcs.mamie.z, y: L.npcs.mamie.y }];
     if (pp.state === 'lost') cand.push({ kind: 'puppy', x: pp.pos.x, z: pp.pos.z, y: pp.pos.y });
     L.signs.forEach((s, i) => cand.push({ kind: 'sign', i, x: s.x, z: s.z, y: L.heightAt(s.x, s.z) }));
+    for (const p of this.portals || []) cand.push({ kind: 'portal', to: p.def.to, x: p.def.x, z: p.def.z, y: p.y, label: 'ENTRER' });
     const LG = this.levelLogic;
     for (const Q of this.players) {
       const own = LG && LG.nearFor ? LG.nearFor(Q) : undefined;
@@ -2127,6 +2256,7 @@ class Adventure {
     if (n.kind === 'lv') this.levelLogic.interact(n, P || this.player);
     else if (n.kind === 'mamie') this.talkMamie();
     else if (n.kind === 'puppy') this.talkPuppy();
+    else if (n.kind === 'portal') this.usePortal(n.to);
     else if (n.kind === 'sign') this.say(L.signs[n.i].text.map(t => ({ who: 'Panneau', text: t })));
   }
 
@@ -2415,6 +2545,15 @@ class Adventure {
       this.bonesI.setMatrixAt(i, m4);
     }
     this.bonesI.instanceMatrix.needsUpdate = true;
+    if (this.boneGlow) {
+      const gp = this.boneGlow.geometry, pa = gp.attributes.position.array, sa = gp.attributes.size.array;
+      for (let i = 0; i < L.bones.length; i++) {
+        const b = L.bones[i];
+        pa[i * 3] = b.x; pa[i * 3 + 1] = b.y + Math.sin(t * 3 + i) * 0.12; pa[i * 3 + 2] = b.z;
+        sa[i] = this.boneTaken.has(b.id) ? 0 : 1.15 + Math.sin(t * 2.4 + i * 1.3) * 0.15;
+      }
+      gp.attributes.position.needsUpdate = true; gp.attributes.size.needsUpdate = true;
+    }
 
     for (const m of this.medals) if (m.mesh.visible) { m.mesh.rotation.y = t * 2; m.mesh.position.y = m.def.y + Math.sin(t * 2.5) * 0.2; }
     if (this._beamMat) this._beamMat.opacity = 0.35 + Math.sin(t * 3) * 0.12;
@@ -2457,7 +2596,13 @@ class Adventure {
     this.fallTex.offset.y = (t * 1.4) % 1;
     if (this.streamTex) this.streamTex.offset.y = (t * 0.9) % 1;
     if (this.levelLogic) this.levelLogic.render(dt, t);
-    this.water.material.uniforms.uTime.value = t;
+    if (this.water) this.water.material.uniforms.uTime.value = t;
+    for (const p of this.portals || []) {
+      p.mat.uniforms.uTime.value = t;
+      p.disc.rotation.y = Math.atan2(this.camera.position.x - p.def.x, this.camera.position.z - p.def.z);
+      p.glow.material.opacity = 0.22 + Math.sin(t * 3) * 0.06;
+      if (Math.random() < dt * 14) { const a = Math.random() * 6.28; this.spawnParticle(p.def.x + Math.cos(a) * 1.2, p.y + 1.7 + Math.sin(a) * 1.35, p.def.z, Math.cos(a) * 0.8, 1 + Math.random(), 0, p.mat.uniforms.uC1.value.getHex(), 0.16, 0.8); }
+    }
     this.wind.value = t;
     for (const c of this.clouds) { const u = c.userData, a = u.a + t * 0.004; c.position.set(Math.cos(a) * u.r, u.y, Math.sin(a) * u.r); }
     this.vista.isles.forEach((isl, i) => { isl.position.y = isl.userData.y0 + Math.sin(t * 0.35 + i * 1.7) * 1.6; });
@@ -2503,6 +2648,7 @@ class Adventure {
     pg.setDrawRange(0, this.particles.length);
     pg.attributes.position.needsUpdate = pg.attributes.color.needsUpdate = pg.attributes.size.needsUpdate = true;
     this.partPts.material.uniforms.uScale.value = this.renderer.domElement.height / 2 / Math.tan(this.camera.fov * Math.PI / 360);
+    if (this.boneGlow) this.boneGlow.material.uniforms.uScale.value = this.partPts.material.uniforms.uScale.value;
 
     // Caméra
     const ME = this.me;
@@ -2565,7 +2711,7 @@ class Adventure {
 
     if ((this.mapT = (this.mapT || 0) + 1) % 4 === 0) this.drawMinimap();
     this.showVoices();
-    this.post.render(this.scene, this.camera, this.t);
+    this.post.render(this.scene, this.camera, this.t, W.SKY.sunDir);
   }
 
   /** Ainu (avec ou sans Matcha sur le dos) : course, saut, hélice de la queue. */
@@ -2645,12 +2791,13 @@ class Adventure {
     let html = '';
     if (kind === 'pause') {
       html = `<h2>Pause</h2>
-        <div class="adv-stats">${L.ID === 3 ? 'Trophées' : 'Médailles'} ${s.medals.length}/${L.medals.length} · ${L.ID === 2 ? 'Croquettes' : L.ID === 3 ? 'Pièces' : 'Os'} ${s.bones.length}/100</div>
+        <div class="adv-stats">${medalWord()} ${s.medals.length}/${L.medals.length} · ${collectWord()} ${s.bones.length}/100</div>
         ${this.hostSession ? `<div class="adv-stats">${this.hostSession.own === false ? 'Code du monde' : 'Code de ton monde'} : <b class="adv-code">${this.hostSession.code}</b> (jusqu'à 6 joueurs)</div>` : ''}
         ${this.visitorsLine()}
         <button class="btn primary" data-a="resume">Reprendre</button>
         <div class="adv-toggles">
           <button class="btn" data-a="music">🎵 Musique : ${this.sfx && this.sfx.musicOn === false ? 'non' : 'oui'}</button>
+          ${this.guest ? '' : `<button class="btn" data-a="style">🎨 Style : ${this.realistic ? 'réaliste' : 'dessin animé'}</button>`}
           <button class="btn" data-a="mic">🎤 Micro : ${this.vc && this.vc.on ? 'allumé' : 'coupé'}</button>
         </div>
         ${this.vc && this.party.size > 1 ? `<label class="adv-vol">🔊 Voix des amis <input type="range" min="0.5" max="5" step="0.25" value="${this.vc.volume}" data-vol="1"></label>` : ''}
@@ -2660,7 +2807,7 @@ class Adventure {
         <button class="btn ghost" data-a="quit">Menu principal</button>`;
     } else if (kind === 'continue') {
       html = `<h2>${L.NAME}</h2>
-        <div class="adv-stats">${L.ID === 3 ? 'Trophées' : 'Médailles'} ${s.medals.length}/${L.medals.length} · ${L.ID === 2 ? 'Croquettes' : L.ID === 3 ? 'Pièces' : 'Os'} ${s.bones.length}/100</div>
+        <div class="adv-stats">${medalWord()} ${s.medals.length}/${L.medals.length} · ${collectWord()} ${s.bones.length}/100</div>
         ${this.hostSession ? `<div class="adv-stats">Ton monde : code <b class="adv-code">${this.hostSession.code}</b></div>` : ''}
         ${this.visitorsLine()}
         <button class="btn primary" data-a="resume-save">Continuer l'aventure</button>
@@ -2682,9 +2829,9 @@ class Adventure {
     } else if (kind === 'complete') {
       html = `<h2>Niveau ${L.ID} terminé !</h2>
         <div class="adv-medals">${('<img src="' + ICONS.medal + '" alt="">').repeat(Math.min(5, L.medals.length))}</div>
-        <div class="adv-stats">${L.ID === 3 ? 'Pièces d\'or' : L.ID === 2 ? 'Croquettes' : 'Os dorés'} ${s.bones.length}/100 · Temps ${fmt}</div>
-        ${L.ID < 3 && !this.guest ? `<button class="btn primary" data-a="next">${L.ID === 1 ? 'Niveau 2 : la Forêt des Moustaches' : 'Niveau 3 : Port-Croquette'} →</button>` : ''}
-        <button class="btn ${L.ID < 3 && !this.guest ? '' : 'primary'}" data-a="resume">Continuer à explorer</button>
+        <div class="adv-stats">${collectWord(true)} ${s.bones.length}/100 · Temps ${fmt}</div>
+        ${NEXT_LEVEL[L.ID] && !this.guest ? `<button class="btn primary" data-a="next">${NEXT_LEVEL[L.ID]} →</button>` : ''}
+        <button class="btn ${NEXT_LEVEL[L.ID] && !this.guest ? '' : 'primary'}" data-a="resume">Continuer à explorer</button>
         <button class="btn ghost" data-a="quit">Menu principal</button>`;
     }
     o.innerHTML = `<div class="adv-panel">${html}</div>`;
@@ -2715,6 +2862,10 @@ class Adventure {
     switch (a) {
       case 'resume': this.hideOverlay(); break;
       case 'music': if (this.sfx && this.sfx.setMusic) this.sfx.setMusic(this.sfx.musicOn === false); this.showOverlay('pause'); break;
+      case 'style':
+        try { localStorage.setItem('dogfight.style', this.realistic ? 'toon' : 'real'); } catch (e) { /* ignore */ }
+        this.hideOverlay(); this.switchLevel(L.ID);
+        break;
       case 'mic': this.toggleMic().then(() => { if (this.dom.overlay.dataset.kind === 'pause') this.showOverlay('pause'); }); break;
       case 'resume-save': this.hideOverlay(); this.beginLevel(false); break;
       case 'restart': this.showOverlay('confirm'); break;
@@ -2747,7 +2898,7 @@ class Adventure {
       this.freeze = 0.6;
       setTimeout(() => { if (!this.disposed && !this.dialog) this.talkMamie(true); }, 700);
     } else {
-      this.banner(L.NAME, `${L.ID === 3 ? 'Trophées' : 'Médailles'} ${this.save.medals.length}/${L.medals.length}`, 2200);
+      this.banner(L.NAME, `${medalWord()} ${this.save.medals.length}/${L.medals.length}`, 2200);
     }
   }
 

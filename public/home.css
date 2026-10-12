@@ -299,3 +299,9 @@ html.ios-text .hbtn.small, html.ios-text .hbtn.lvpick:not(.active), html.ios-tex
 .coop-join-col .coop-join { width: 100%; }
 .coop-join-col .hbtn.go { font-size: 20px; padding: 8px 16px 10px; }
 .hbtn.coop-big { font-size: 28px; padding: 16px 34px 18px; }
+
+/* Niveau 4 : les Îles du Ciel */
+.level-card.l4 { background: radial-gradient(circle at 78% 20%, #fff6c0 0 9%, transparent 10%), linear-gradient(180deg, #4a90f0 0%, #9ac8ff 55%, #ffd8e0 100%); }
+.level-card.l4::before { right: 22px; top: 70px; width: 64px; height: 26px; border-radius: 50% 50% 40% 40%; background: #7ad058; border: 3px solid #2a1408; box-shadow: inset 0 -8px 0 #b08a70; }
+.level-card.l4::after { right: 104px; top: 46px; width: 40px; height: 18px; border-radius: 50% 50% 40% 40%; background: #7ad058; border: 3px solid #2a1408; }
+.level-cards { flex-wrap: wrap; }

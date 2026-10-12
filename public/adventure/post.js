@@ -45,8 +45,25 @@ void main() {
   gl_FragColor = vec4(s / 12.0 + texture2D(tAdd, vUv).rgb * mixAdd, 1.0);
 }`;
 
+// rayons de soleil : on « traîne » les zones très claires (soleil, ciel entre les feuilles) vers le soleil
+const SHAFTS = `precision highp float; varying vec2 vUv; uniform sampler2D tMap; uniform vec2 sun; uniform float thr, aspect;
+const int N = 36;
+void main() {
+  vec2 d = (vUv - sun) / float(N) * 0.9;
+  vec2 uv = vUv; float illum = 1.0; vec3 acc = vec3(0.0);
+  for (int i = 0; i < N; i++) {
+    uv -= d;
+    vec3 c = texture2D(tMap, clamp(uv, 0.0, 1.0)).rgb;
+    float l = max(c.r, max(c.g, c.b));
+    vec2 q = uv - sun; q.x *= aspect;
+    acc += c * smoothstep(thr, thr + 0.5, l) * illum * (1.0 - smoothstep(0.0, 0.55, length(q)));
+    illum *= 0.955;
+  }
+  gl_FragColor = vec4(acc / float(N), 1.0);
+}`;
+
 const FINAL = `precision highp float; varying vec2 vUv;
-uniform sampler2D tScene, tBloom; uniform float bloom, exposure, contrast, saturation, vignette, time, grain;
+uniform sampler2D tScene, tBloom, tShafts; uniform float shafts; uniform vec3 shaftTint; uniform float bloom, exposure, contrast, saturation, vignette, time, grain;
 uniform vec3 shadowTint, highTint; uniform vec2 res;
 // courbe de tons Khronos PBR Neutral (comme le rendu d'origine du jeu)
 vec3 neutral(vec3 c) {
@@ -61,6 +78,7 @@ float hash(vec2 p) { return fract(sin(dot(p, vec2(12.9898, 78.233))) * 43758.545
 void main() {
   vec3 c = texture2D(tScene, vUv).rgb;
   c += texture2D(tBloom, vUv).rgb * bloom;
+  c += texture2D(tShafts, vUv).rgb * shaftTint * shafts;
   c = neutral(c * exposure);
   // étalonnage (dans un espace perceptif)
   vec3 s = toSRGB(clamp(c, 0.0, 1.0));
@@ -97,8 +115,9 @@ export class Post {
     this.mBright = mk(BRIGHT, { tMap: { value: null }, texel: { value: new THREE.Vector2() }, threshold: { value: g.threshold }, knee: { value: g.knee } });
     this.mDown = mk(DOWN, { tMap: { value: null }, texel: { value: new THREE.Vector2() } });
     this.mUp = mk(UP, { tMap: { value: null }, tAdd: { value: null }, texel: { value: new THREE.Vector2() }, mixAdd: { value: 1 } });
+    this.mShafts = mk(SHAFTS, { tMap: { value: null }, sun: { value: new THREE.Vector2(0.5, 0.8) }, thr: { value: 0.95 }, aspect: { value: 1.6 } });
     this.mFinal = mk(FINAL, {
-      tScene: { value: null }, tBloom: { value: null }, bloom: { value: g.bloom }, exposure: { value: g.exposure },
+      tScene: { value: null }, tBloom: { value: null }, tShafts: { value: null }, shafts: { value: 0 }, shaftTint: { value: new THREE.Color(1.0, 0.86, 0.62) }, bloom: { value: g.bloom }, exposure: { value: g.exposure },
       contrast: { value: g.contrast }, saturation: { value: g.saturation }, vignette: { value: g.vignette },
       shadowTint: { value: new THREE.Vector3(...g.shadowTint) }, highTint: { value: new THREE.Vector3(...g.highTint) },
       res: { value: new THREE.Vector2(1, 1) }, time: { value: 0 }, grain: { value: half ? 0.012 : 0.02 },
@@ -128,6 +147,7 @@ export class Post {
       this.up.push(this.rt(bw, bh));
       bw = Math.max(1, bw >> 1); bh = Math.max(1, bh >> 1);
     }
+    this.shaftRT = this.rt(w >> 2, h >> 2);
     this.mFinal.uniforms.res.value.set(w, h);
   }
 
@@ -137,7 +157,20 @@ export class Post {
     this.r.render(this.scene, this.cam);
   }
 
-  render(scene, camera, time) {
+  /** Où est le soleil à l'écran ? (et à quel point il est visible) */
+  sunOnScreen(camera, sunDir) {
+    if (!sunDir) return 0;
+    const v = this._s || (this._s = new THREE.Vector3()), f = this._f || (this._f = new THREE.Vector3());
+    camera.getWorldDirection(f);
+    const facing = f.dot(sunDir);
+    if (facing <= 0.05) return 0;
+    v.copy(sunDir).multiplyScalar(400).add(camera.position).project(camera);
+    this.mShafts.uniforms.sun.value.set(v.x * 0.5 + 0.5, v.y * 0.5 + 0.5);
+    const off = Math.max(Math.abs(v.x), Math.abs(v.y));
+    return Math.min(1, facing * 1.6) * (1 - Math.min(1, Math.max(0, off - 1) / 1.6));
+  }
+
+  render(scene, camera, time, sunDir) {
     const r = this.r;
     if (!this.enabled) { r.setRenderTarget(null); r.render(scene, camera); return; }
     const size = r.getDrawingBufferSize(this._v || (this._v = new THREE.Vector2()));
@@ -163,6 +196,14 @@ export class Post {
       src = this.up[i];
     }
     const f = this.mFinal.uniforms;
+    const vis = this.grade.shafts === 0 ? 0 : this.sunOnScreen(camera, sunDir);
+    f.shafts.value = vis * (this.grade.shafts === undefined ? 0.85 : this.grade.shafts);
+    if (vis > 0) {
+      this.mShafts.uniforms.tMap.value = this.sceneRT.texture;
+      this.mShafts.uniforms.aspect.value = this.w / this.h;
+      this.pass(this.mShafts, this.shaftRT);
+    }
+    f.tShafts.value = this.shaftRT.texture;
     f.tScene.value = this.sceneRT.texture; f.tBloom.value = src.texture; f.time.value = (time || 0) % 100;
     f.bloom.value = this.grade.bloom / this.levels * 1.6;
     this.pass(this.mFinal, null);
@@ -171,6 +212,7 @@ export class Post {
 
   dispose() {
     if (this.sceneRT) this.sceneRT.dispose();
+    if (this.shaftRT) this.shaftRT.dispose();
     for (const t of [...(this.down || []), ...(this.up || [])]) t.dispose();
     this.sceneRT = null; this.down = []; this.up = [];
     this.w = this.h = 0;

@@ -162,18 +162,20 @@
   }
   /** Le gros bouton d'aventure indique la progression sauvegardée. */
   function updateAdventureButton() {
-    const s1 = levelSave(1), s2 = levelSave(2), s3 = levelSave(3);
+    const s1 = levelSave(1), s2 = levelSave(2), s3 = levelSave(3), s4 = levelSave(4);
     const started = (s) => s && s.intro && ((s.bones || []).length || (s.medals || []).length);
     const medals = (s) => (s && s.medals ? s.medals.length : 0);
-    const any = started(s1) || started(s2) || started(s3);
+    const any = started(s1) || started(s2) || started(s3) || started(s4);
     $('adv-play-label').textContent = any ? 'Continuer' : 'Jouer';
     $('adv-play-sub').textContent = any
-      ? `3 niveaux · Médailles ${medals(s1) + medals(s2) + medals(s3)}/15`
+      ? `4 niveaux · Médailles ${medals(s1) + medals(s2) + medals(s3) + medals(s4)}/21`
       : "Explore l'île avec tes chiens !";
     const prog = (s, what) => (started(s) ? `Médailles ${medals(s)}/5 · ${what} ${(s.bones || []).length}/100` : 'Nouveau !');
     $('lv1-prog').textContent = prog(s1, 'Os');
     $('lv2-prog').textContent = prog(s2, 'Croquettes');
     $('lv3-prog').textContent = started(s3) ? `Trophées ${medals(s3)}/5 · Pièces ${(s3.bones || []).length}/100` : 'Nouveau !';
+    const best = s4 && s4.sky && s4.sky.best;
+    $('lv4-prog').textContent = started(s4) ? `Étoiles ${(s4.medals || []).filter(m => m !== 'm_goal').length}/5${best ? ` · record ${Math.floor(best / 60)}:${String(best % 60).padStart(2, '0')}` : ''}` : 'Nouveau !';
   }
   updateAdventureButton();
 
@@ -631,7 +633,7 @@
     if (document.activeElement && document.activeElement.blur) document.activeElement.blur();
     app.mode = 'adventure';
     show('adventure');
-    const LV = { 1: ['Le Parc des Toutous', 'Niveau 1'], 2: ['La Forêt des Moustaches', 'Niveau 2'], 3: ['Port-Croquette', 'Niveau 3 · la grande ville'] }[level || 1] || ['Aventure', ''];
+    const LV = { 1: ['Le Parc des Toutous', 'Niveau 1'], 2: ['La Forêt des Moustaches', 'Niveau 2'], 3: ['Port-Croquette', 'Niveau 3 · la grande ville'], 4: ['Les Îles du Ciel', 'Niveau 4 · parcours à plusieurs'] }[level || 1] || ['Aventure', ''];
     if (window.AppLoader) { window.AppLoader.show(LV[0], coop ? 'On rejoint le monde de ton ami…' : LV[1]); window.AppLoader.progress(0.12, 'Chargement de l\'aventure…'); }
     import('./adventure/game.js').then((mod) => {
       adventureLoading = false;
@@ -798,7 +800,8 @@
       case 'level-1': startAdventure(null, null, 1); break;
       case 'level-2': startAdventure(null, null, 2); break;
       case 'level-3': startAdventure(null, null, 3); break;
-      case 'coop-lv-1': case 'coop-lv-2': case 'coop-lv-3': {
+      case 'level-4': startAdventure(null, null, 4); break;
+      case 'coop-lv-1': case 'coop-lv-2': case 'coop-lv-3': case 'coop-lv-4': {
         coopLevel = +a.slice(-1);
         for (const b of document.querySelectorAll('.lvpick')) b.classList.toggle('active', b.dataset.action === a);
         if (coopSession) coopSession.level = coopLevel;

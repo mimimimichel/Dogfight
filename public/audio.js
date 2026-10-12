@@ -325,6 +325,8 @@
       progs: [[0, 3, 0, 6], [0, 6, 3, 4], [3, 0, 6, 0], [0, 2, 3, 6]] },
     adv3: { bpm: 96, keys: [58, 63, 60], mode: 'major', vol: 0.42, wet: 0.3, lead: 'piano', comp: 'piano', bassInst: 'bass', swing: 0.18, drums: 'groove', sevenths: true,
       progs: [[1, 4, 0, 5], [0, 5, 1, 4], [3, 2, 1, 4], [0, 3, 2, 5]] },
+    adv4: { bpm: 92, keys: [64, 62, 67], mode: 'lydian', vol: 0.42, wet: 0.5, lead: 'flute', comp: 'pluck', bassInst: 'bass', swing: 0.08, drums: 'light', sevenths: true, sparkle: true,
+      progs: [[0, 1, 4, 0], [0, 3, 1, 4], [5, 1, 0, 4], [0, 1, 5, 3]] },
     fight: { bpm: 138, keys: [57, 64, 62], mode: 'minor', vol: 0.38, wet: 0.2, lead: 'mallet', comp: 'pluck', bassInst: 'bass', swing: 0, drums: 'drive', sevenths: false,
       progs: [[0, 5, 2, 6], [0, 3, 6, 4], [5, 6, 0, 0], [0, 6, 5, 6]] },
   };
