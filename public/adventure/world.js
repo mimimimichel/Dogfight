@@ -468,7 +468,7 @@ export function buildTrees(scene, quality) {
   trunks.castShadow = leaves.castShadow = true;
   if (LOOK.real) buildFerns(scene, quality, r);
   if (LOOK.real && RT.isUltra() && RT.scanTree()) buildScanTrees(scene, trunks, leaves, blobs);
-  if (LOOK.real) buildLeafFringe(scene, leaves, blobs, quality, L.WORLD ? (quality && quality.lite ? 0 : 10) : quality && quality.lite ? 4 : 14);
+  if (LOOK.real) buildLeafFringe(scene, leaves, blobs, quality, L.WORLD ? (quality && quality.lite ? 0 : 12) : quality && quality.lite ? 4 : 22);
   if (false) {
     // (feuilles détaillées autour de chaque touffe : retiré, ça faisait des taches sombres sur téléphone)
     const per = quality && quality.lite ? 5 : L.WORLD ? 6 : 12;
@@ -751,7 +751,7 @@ export function buildLeafFringe(scene, leaves, blobs, quality, per) {
     for (let j = 0; j < k; j++) {
       // posé sur la surface de la couronne, à peu près face à l'extérieur
       const up = -0.55 + r() * 1.5, a = r() * Math.PI * 2, uy = Math.max(-1, Math.min(1, up)), rr = Math.sqrt(1 - uy * uy);
-      const d = b.s * (0.86 + r() * 0.3), size = b.s * (0.75 + r() * 0.45);
+      const d = b.s * (0.88 + r() * 0.3), size = b.s * (0.85 + r() * 0.5);
       const nx = Math.cos(a) * rr, nz = Math.sin(a) * rr;
       const cx = b.x + nx * d, cy = b.y + uy * d * 0.85, cz = b.z + nz * d;
       w.set(nx, uy, nz);

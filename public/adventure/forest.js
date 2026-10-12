@@ -7,6 +7,7 @@ import * as THREE from '../vendor/three.module.min.js';
 import { L } from './current.js';
 import * as M from './models.js';
 import * as W from './world.js';
+import * as RT from './realtex.js';
 
 const clamp = (v, a, b) => (v < a ? a : v > b ? b : v);
 const lerpAngle = (a, b, t) => { const d = ((b - a + Math.PI) % (Math.PI * 2) + Math.PI * 2) % (Math.PI * 2) - Math.PI; return a + d * t; };
@@ -47,6 +48,11 @@ function capGeometry(r) {
   return g;
 }
 
+/** Écorce : photo en rendu réaliste, sinon couleur unie. */
+function barkMat(col, rx, ry) {
+  const ph = W.LOOK.real && RT.hasPhotos() ? RT.photo('bark_willow_02', rx, ry) : null;
+  return ph ? new THREE.MeshStandardMaterial({ map: ph.map, normalMap: ph.normalMap, color: 0xd8c8b8, roughness: 0.95 }) : M.mat(col, { roughness: 0.95 });
+}
 function stalkGeometry(rTop, rBot, h) {
   const g = new THREE.CylinderGeometry(rTop, rBot, h, 18, 6);
   const p = g.attributes.position;
@@ -202,7 +208,7 @@ export function buildForest(game) {
   // --- Souche-tremplin -------------------------------------------------------
   {
     const ST = S.STUMP, h = ST.top - ST.base + 1;
-    const bark = M.mat(0x7a5030, { roughness: 0.95 });
+    const bark = barkMat(0x7a5030, 4, 2);
     const trunk = new THREE.Mesh(stalkGeometry(ST.r, ST.r * 1.2, h), bark);
     trunk.position.set(ST.x, ST.base - 1 + h / 2, ST.z);
     sc.add(shadowy(trunk));
@@ -228,7 +234,7 @@ export function buildForest(game) {
     const O = S.OWL;
     const stone = W.stoneMat();
     const owl = new THREE.Group();
-    const body = new THREE.Mesh(new THREE.SphereGeometry(0.9, 20, 16), M.mat(0xb8ae9e, { roughness: 0.9 }));
+    const body = new THREE.Mesh(new THREE.SphereGeometry(0.9, 20, 16), W.LOOK.real ? stone : M.mat(0xb8ae9e, { roughness: 0.9 }));
     body.scale.set(1, 1.25, 0.9); body.position.y = 1.1;
     const head = new THREE.Mesh(new THREE.SphereGeometry(0.7, 20, 16), body.material);
     head.position.y = 2.3;
@@ -311,7 +317,7 @@ export function buildForest(game) {
   }
   const CF = S.CAMPFIRE;
   const fire = new THREE.Group();
-  const logMat = M.mat(0x6a4024, { roughness: 0.95 });
+  const logMat = barkMat(0x6a4024, 0.5, 1);
   for (let i = 0; i < 4; i++) {
     const log = new THREE.Mesh(new THREE.CylinderGeometry(0.16, 0.18, 1.6, 8), logMat);
     log.rotation.set(Math.PI / 2 - 0.35, i * Math.PI / 2, 0); log.position.y = 0.3;
@@ -355,7 +361,7 @@ export function buildForest(game) {
 
   // --- Arbres géants -----------------------------------------------------------
   {
-    const bark = M.mat(0x6a4428, { roughness: 0.95 });
+    const bark = barkMat(0x6a4428, 3, 5);
     const blobGeo = W.leafClusterGeo(lite ? 10 : 16);
     const blobs = [];
     for (const g of S.giants) {
