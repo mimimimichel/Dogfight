@@ -47,7 +47,7 @@ void main() {
 
 // rayons de soleil : on « traîne » les zones très claires (soleil, ciel entre les feuilles) vers le soleil
 const SHAFTS = `precision highp float; varying vec2 vUv; uniform sampler2D tMap, tPrev; uniform vec2 sun; uniform float thr, aspect, keep;
-const int N = 36;
+const int N = SHAFT_N;
 void main() {
   vec2 d = (vUv - sun) / float(N) * 0.9;
   vec2 uv = vUv; float illum = 1.0; vec3 acc = vec3(0.0);
@@ -107,7 +107,8 @@ export class Post {
       shadowTint: [0.012, 0.004, 0.02], highTint: [0.02, 0.012, -0.01] }, grade || {});
     if (!half) { g.threshold = Math.min(g.threshold, 0.82); g.knee = 0.25; }   // image sans HDR : seuil plus bas
     this.grade = g;
-    this.levels = quality === 'high' ? 5 : 4;
+    this.levels = quality === 'high' ? 5 : 3;
+    this.bloomOn = true; this.shaftsOn = true;
     this.cam = new THREE.OrthographicCamera(-1, 1, 1, -1, 0, 1);
     this.quad = new THREE.Mesh(new THREE.PlaneGeometry(2, 2));
     this.quad.frustumCulled = false;
@@ -116,7 +117,7 @@ export class Post {
     this.mBright = mk(BRIGHT, { tMap: { value: null }, texel: { value: new THREE.Vector2() }, threshold: { value: g.threshold }, knee: { value: g.knee } });
     this.mDown = mk(DOWN, { tMap: { value: null }, texel: { value: new THREE.Vector2() } });
     this.mUp = mk(UP, { tMap: { value: null }, tAdd: { value: null }, texel: { value: new THREE.Vector2() }, mixAdd: { value: 1 } });
-    this.mShafts = mk(SHAFTS, { tMap: { value: null }, tPrev: { value: null }, keep: { value: 0 }, sun: { value: new THREE.Vector2(0.5, 0.8) }, thr: { value: 0.95 }, aspect: { value: 1.6 } });
+    this.mShafts = mk(SHAFTS.replace('SHAFT_N', quality === 'high' ? '36' : '16'), { tMap: { value: null }, tPrev: { value: null }, keep: { value: 0 }, sun: { value: new THREE.Vector2(0.5, 0.8) }, thr: { value: 0.95 }, aspect: { value: 1.6 } });
     this.vis = 0;
     this.mFinal = mk(FINAL, {
       tScene: { value: null }, tBloom: { value: null }, tShafts: { value: null }, shafts: { value: 0 }, shaftTint: { value: new THREE.Color(1.0, 0.86, 0.62) }, bloom: { value: g.bloom }, exposure: { value: g.exposure },
@@ -140,7 +141,9 @@ export class Post {
     this.dispose();
     this.w = w; this.h = h;
     // l'image de la scène garde l'anticrénelage (MSAA) du rendu d'origine
-    this.sceneRT = this.rt(w, h, this.r.capabilities.isWebGL2 ? (this.quality === 'high' ? 4 : 2) : 0, true);
+    // téléphone : pas d'anticrénelage multi-échantillons (le plus coûteux sur ces puces)
+    this.sceneRT = this.rt(w, h, this.r.capabilities.isWebGL2 && this.quality === 'high' ? 4 : 0, true);
+    if (!this.black) { this.black = this.rt(1, 1); this.blackFresh = true; }
     this.down = []; this.up = [];
     let bw = w >> 1, bh = h >> 1;
     if (this.quality !== 'high') { bw = w >> 2; bh = h >> 2; }
@@ -183,6 +186,16 @@ export class Post {
     r.autoClear = true;
     r.setRenderTarget(this.sceneRT);
     r.render(scene, camera);
+    if (!this.bloomOn) {
+      // version économique : pas de halo ni de rayons, juste l'étalonnage
+      const f = this.mFinal.uniforms;
+      if (this.blackFresh) { r.setRenderTarget(this.black); r.setClearColor(0x000000, 1); r.clear(); this.blackFresh = false; }
+      f.tShafts.value = this.black.texture; f.shafts.value = 0; f.tBloom.value = this.black.texture; f.bloom.value = 0;
+      f.tScene.value = this.sceneRT.texture; f.time.value = (time || 0) % 100;
+      this.pass(this.mFinal, null);
+      r.autoClear = ac;
+      return;
+    }
     // halo : seuil, puis chaîne de flous
     const b = this.mBright.uniforms;
     b.tMap.value = this.sceneRT.texture; b.texel.value.set(1 / this.w, 1 / this.h);
@@ -200,7 +213,7 @@ export class Post {
       src = this.up[i];
     }
     const f = this.mFinal.uniforms;
-    const target = this.grade.shafts === 0 ? 0 : this.sunOnScreen(camera, sunDir);
+    const target = this.grade.shafts === 0 || !this.shaftsOn ? 0 : this.sunOnScreen(camera, sunDir);
     this.vis += (target - this.vis) * 0.06;            // apparition / disparition en douceur
     if (this.vis < 0.003) this.vis = 0;
     const vis = this.vis;
@@ -223,6 +236,7 @@ export class Post {
   dispose() {
     if (this.sceneRT) this.sceneRT.dispose();
     if (this.shaftRT) this.shaftRT.dispose();
+    if (this.black) { this.black.dispose(); this.black = null; }
     if (this.shaftPrev) this.shaftPrev.dispose();
     for (const t of [...(this.down || []), ...(this.up || [])]) t.dispose();
     this.sceneRT = null; this.down = []; this.up = [];

@@ -135,8 +135,10 @@ export async function start(opts) {
   try { style = localStorage.getItem('dogfight.style'); } catch (e) { /* ignore */ }
   // rendu réaliste : matières photographiées et ciel (chargés une seule fois)
   const photos = style !== 'toon' ? RT.preloadPhotos((k) => { if (LD) LD.progress(0.35 + k * 0.3, 'Les décors arrivent…'); }) : null;
+  const ultra = photos && RT.isUltra() ? RT.preloadUltra() : null;
   await M.preloadDogs();
   if (photos) await photos;
+  if (ultra) { if (LD) LD.progress(0.68, 'Les grands arbres arrivent…'); await ultra; }
   if (LD) {
     LD.progress(0.7, L.ID === 3 ? 'Construction de la ville…' : 'Construction du monde…');
     await new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)));   // laisse l'écran se dessiner
@@ -581,6 +583,7 @@ class Adventure {
     // Qualité adaptative : on baisse la résolution si l'appareil peine
     this.pixelScale = 1;
     this.perf = { t: 0, n: 0, checks: 0 };
+    this.qualityStep = 0;
   }
 
   /** Remplace les matériaux mats par des matériaux plus simples (téléphones). */
@@ -604,29 +607,37 @@ class Adventure {
 
   resize() {
     const w = window.innerWidth, h = window.innerHeight;
-    const maxRatio = this.isTouch ? 1.25 : 2;
+    const maxRatio = this.isTouch ? 1.1 : 2;
     this.renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, maxRatio) * this.pixelScale);
     this.renderer.setSize(w, h, false);
     this.camera.aspect = w / h;
     this.camera.updateProjectionMatrix();
   }
 
-  /** Mesure la fluidité et baisse la résolution si besoin (téléphones modestes). */
+  /**
+   * Vise 60 images/s : on mesure par tranches de 2 s et, tant que ça ne suit
+   * pas, on renonce à un effet de plus (du moins visible au plus visible).
+   */
   adaptQuality(dt) {
     const p = this.perf;
     // (les premières secondes ne comptent pas : le téléphone prépare encore les effets)
-    if (p.checks >= 8 || this.paused || this.dialog || (p.skip = (p.skip || 0) + dt) < 3) { p.t = 0; p.n = 0; return; }
+    if (this.paused || this.dialog || (p.skip = (p.skip || 0) + dt) < 3) { p.t = 0; p.n = 0; return; }
     p.t += dt; p.n++;
     if (p.t < 2) return;
     const fps = p.n / p.t;
-    p.t = 0; p.n = 0; p.checks++;
-    if (fps < 45 && this.pixelScale > 0.8) {
-      this.pixelScale = Math.max(0.8, this.pixelScale * 0.9);
-      this.needResize = true;   // au début de l'image suivante (sinon l'écran, vidé, clignote)
-    } else if (fps < 32 && this.post.enabled) {
-      // appareil vraiment à la peine : on renonce aux effets de lumière
-      this.post.enabled = false; this.post.dispose();
-    }
+    p.t = 0; p.n = 0;
+    if (fps >= 55) return;
+    const steps = [
+      () => { this.post.shaftsOn = false; },                                    // rayons de soleil
+      () => { if (this.pixelScale > 0.9) { this.pixelScale = 0.9; this.needResize = true; } else return false; },
+      () => { this.post.bloomOn = false; },                                     // halo lumineux
+      () => { if (this.grass) this.grass.count = Math.floor(this.grass.count * 0.6); },
+      () => { if (this.pixelScale > 0.8) { this.pixelScale = 0.8; this.needResize = true; } else return false; },
+      () => { this.post.enabled = false; this.post.dispose(); },               // plus de post-traitement
+      () => { if (this.pixelScale > 0.7) { this.pixelScale = 0.7; this.needResize = true; } else return false; },
+      () => { this.sun.castShadow = false; },
+    ];
+    while (this.qualityStep < steps.length) { const r = steps[this.qualityStep++](); if (r !== false) break; }
   }
 
   // -------------------------------------------------------------------------
@@ -1102,7 +1113,8 @@ class Adventure {
   // -------------------------------------------------------------------------
   buildEntities() {
     M.FUR.layers = this.lite ? 8 : 14; // couches de fourrure
-    M.FUR.mode = this.realistic ? 'shells' : 'smooth';   // rendu réaliste : vrai pelage en couches pour tout le monde
+    // rendu réaliste : vrai pelage en couches pour tout le monde (sur ordinateur ; le téléphone garde des pelages simples)
+    M.FUR.mode = this.realistic && !this.lite ? 'shells' : 'smooth';
     const sc = this.scene;
     const s = this.save;
     // Joueur
@@ -2927,6 +2939,7 @@ class Adventure {
         <div class="adv-toggles">
           <button class="btn" data-a="music">🎵 Musique : ${this.sfx && this.sfx.musicOn === false ? 'non' : 'oui'}</button>
           ${this.guest ? '' : `<button class="btn" data-a="mode">${{ promenade: '🐣', aventure: '🐶', defi: '🏆' }[this.mode]} Mode : ${MODES[this.mode]}</button>`}
+          ${this.isTouch ? '' : `<button class="btn" data-a="quality">✨ Qualité : ${RT.isUltra() ? 'ultra' : 'normale'}</button>`}
           ${this.guest ? '' : `<button class="btn" data-a="style">🎨 Style : ${this.realistic ? 'réaliste' : 'dessin animé'}</button>`}
           <button class="btn" data-a="mic">🎤 Micro : ${this.vc && this.vc.on ? 'allumé' : 'coupé'}</button>
         </div>
@@ -2998,6 +3011,10 @@ class Adventure {
         this.showOverlay('pause');
         break;
       }
+      case 'quality':
+        try { localStorage.setItem('dogfight.quality', RT.isUltra() ? 'normal' : 'ultra'); } catch (e) { /* ignore */ }
+        this.hideOverlay(); this.switchLevel(L.ID);
+        break;
       case 'style':
         try { localStorage.setItem('dogfight.style', this.realistic ? 'toon' : 'real'); } catch (e) { /* ignore */ }
         this.hideOverlay(); this.switchLevel(L.ID);

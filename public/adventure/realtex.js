@@ -431,3 +431,29 @@ async function loadPlant(name) {
   } catch (e) { /* pas de plante : tant pis */ }
 }
 export const plant = (name) => plants[name] || null;
+
+// ---------------------------------------------------------------------------
+// Mode « ultra » (ordinateur) : vrais arbres scannés, chargés à part
+// ---------------------------------------------------------------------------
+export function isUltra() {
+  try { return localStorage.getItem('dogfight.quality') === 'ultra' && !document.documentElement.classList.contains('touch'); } catch (e) { return false; }
+}
+const scanTrees = {};
+let ultraPromise = null;
+async function loadPart(base) {
+  const [meta, bin, img] = await Promise.all([fetch(PH + base + '.json').then(r => r.json()), fetch(PH + base + '.bin').then(r => r.arrayBuffer()), loadImg(PH + base + '.webp')]);
+  const [oP, oN, oU, oI] = meta.offsets, n = meta.vertices;
+  const g = new THREE.BufferGeometry();
+  g.setAttribute('position', new THREE.BufferAttribute(new Float32Array(bin, oP, n * 3), 3));
+  g.setAttribute('normal', new THREE.BufferAttribute(new Int8Array(bin, oN, n * 3), 3, true));
+  g.setAttribute('uv', new THREE.BufferAttribute(new Float32Array(bin, oU, n * 2), 2));
+  g.setIndex(new THREE.BufferAttribute(meta.big ? new Uint32Array(bin, oI, meta.indices) : new Uint16Array(bin, oI, meta.indices), 1));
+  const tex = new THREE.Texture(img); tex.colorSpace = THREE.SRGBColorSpace; tex.flipY = false; tex.anisotropy = 8; tex.needsUpdate = true;
+  return { geo: g, tex, meta };
+}
+export function preloadUltra() {
+  if (ultraPromise) return ultraPromise;
+  ultraPromise = Promise.all(['trunk', 'branches', 'leaves'].map(p => loadPart('jacaranda_tree_' + p).then(r => { scanTrees[p] = r; }).catch(() => {})));
+  return ultraPromise;
+}
+export const scanTree = () => (scanTrees.leaves && scanTrees.trunk && scanTrees.branches ? scanTrees : null);

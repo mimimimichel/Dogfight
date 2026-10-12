@@ -333,7 +333,7 @@ function bladeClump(r, blades) {
 export function buildGrass(scene, quality, windUniform) {
   const r = rng(9);
   // herbe haute et dense (le « tapis » de prairie)
-  const count = (quality.high ? 9000 : 2200) * (L.GRASS_K || 1);
+  const count = (quality.high ? (RT.isUltra() ? 15000 : 9000) : 1500) * (L.GRASS_K || 1);
   const spots = [];
   for (let i = 0; i < count * 6 && spots.length < count; i++) {
     const x = (r() - 0.5) * (L.WORLD ? L.WORLD - 20 : 140), z = (r() - 0.5) * (L.WORLD ? L.WORLD - 20 : 140);
@@ -357,7 +357,7 @@ export function buildGrass(scene, quality, windUniform) {
       transformed.x += w * k;
       transformed.z += w * 0.6 * k;`);
   };
-  const geo = bladeClump(rng(3), quality.lite ? 9 : 14);
+  const geo = bladeClump(rng(3), quality.lite ? 7 : 14);
   const inst = new THREE.InstancedMesh(geo, mat, spots.length);
   const m4 = new THREE.Matrix4(), q = new THREE.Quaternion(), v = new THREE.Vector3(), s = new THREE.Vector3(), e = new THREE.Euler();
   const tint = new THREE.Color();
@@ -391,7 +391,7 @@ export function buildFlowers(scene, quality) {
     { geo: tint(new THREE.SphereGeometry(0.035, 6, 4), 0xffd040), y: 0.355, sy: 0.6 },
   ]);
   const spots = [];
-  const maxF = (quality && quality.lite ? 600 : 1500) * (L.GRASS_K || 1);
+  const maxF = (quality && quality.lite ? 350 : 1500) * (L.GRASS_K || 1);
   for (let i = 0; i < 3000 && spots.length < maxF; i++) {
     const x = (r() - 0.5) * (L.WORLD ? L.WORLD - 20 : 130), z = (r() - 0.5) * (L.WORLD ? L.WORLD - 20 : 130);
     const h = L.heightAt(x, z);
@@ -467,6 +467,7 @@ export function buildTrees(scene, quality) {
   });
   trunks.castShadow = leaves.castShadow = true;
   if (LOOK.real) buildFerns(scene, quality, r);
+  if (LOOK.real && RT.isUltra() && RT.scanTree()) buildScanTrees(scene, trunks, leaves, blobs);
   if (false) {
     // (feuilles détaillées autour de chaque touffe : retiré, ça faisait des taches sombres sur téléphone)
     const per = quality && quality.lite ? 5 : L.WORLD ? 6 : 12;
@@ -670,12 +671,45 @@ function vine(x0, y0, z0, len, seed) {
   return g;
 }
 
+/**
+ * Mode ultra : les plus grands arbres deviennent de vrais jacarandas scannés
+ * (les autres gardent leur forme simple, plus légère).
+ */
+function buildScanTrees(scene, trunks, leaves, blobs) {
+  const T = RT.scanTree();
+  const want = L.ID === 3 ? 0 : 8;
+  if (!want) return;
+  // les arbres les plus proches du départ (on les voit le plus)
+  const order = L.trees.map((t, i) => [Math.hypot(t.x - L.START.x, t.z - L.START.z), i]).sort((a, b) => a[0] - b[0]).slice(0, want).map(e => e[1]);
+  const m4 = new THREE.Matrix4(), q = new THREE.Quaternion(), v = new THREE.Vector3(), sv = new THREE.Vector3(), e = new THREE.Euler(), zero = new THREE.Matrix4().makeScale(0, 0, 0);
+  const parts = { trunk: [], branches: [], leaves: [] };
+  for (const i of order) {
+    const t = L.trees[i];
+    // l'ancien arbre disparaît (tronc et touffes autour)
+    trunks.setMatrixAt(i, zero);
+    blobs.forEach((b, k) => { if (Math.hypot(b.x - t.x, b.z - t.z) < 4 && !b.bush) leaves.setMatrixAt(k, zero); });
+    const k = (t.h || 6) / 19 * 1.15;
+    m4.compose(v.set(t.x, t.y - 0.1, t.z), q.setFromEuler(e.set(0, (t.x * 13 + t.z * 7) % 6.28, 0)), sv.set(k, k, k));
+    for (const p in parts) parts[p].push(m4.clone());
+  }
+  trunks.instanceMatrix.needsUpdate = true; leaves.instanceMatrix.needsUpdate = true;
+  for (const p of ['trunk', 'branches', 'leaves']) {
+    const leaf = p === 'leaves';
+    const mat = new THREE.MeshStandardMaterial({ map: T[p].tex, roughness: leaf ? 0.75 : 0.9, side: THREE.DoubleSide, alphaTest: leaf ? 0.5 : 0 });
+    const inst = new THREE.InstancedMesh(T[p].geo, mat, parts[p].length);
+    parts[p].forEach((m, j) => inst.setMatrixAt(j, m));
+    if (leaf) inst.customDepthMaterial = new THREE.MeshDepthMaterial({ depthPacking: THREE.RGBADepthPacking, map: T[p].tex, alphaTest: 0.5 });
+    inst.castShadow = true; inst.receiveShadow = true; inst.userData.noOutline = true;
+    scene.add(inst);
+  }
+}
+
 /** Fougères scannées au pied des arbres et des ruines (rendu réaliste). */
 function buildFerns(scene, quality, r) {
   const F = RT.plant('fern_02');
   if (!F || L.ID === 3) return;
   const spots = [];
-  const max = quality && quality.lite ? 16 : 60;
+  const max = quality && quality.lite ? 10 : 60;
   for (const t of L.trees) {
     if (spots.length >= max) break;
     if (r() < 0.45) continue;
