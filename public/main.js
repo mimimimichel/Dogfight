@@ -689,15 +689,23 @@
     return { name: profile.name, kind: profile.kind, extra: profile.extra, color: profile.color };
   }
 
+  // Deux étapes : 1. qui es-tu ? (prénom, chien) 2. rejoindre un ami ou ouvrir son monde
+  let coopInviteCode = '', coopEditing = false;
+  function coopStep(id) { for (const k of ['coop-step1', 'coop-step2', 'coop-invite']) $(k).classList.toggle('hidden', k !== id); }
   function coopReset(status) {
     $('coop-choose').classList.remove('hidden');
     $('coop-wait').classList.add('hidden');
     $('coop-status').textContent = status || '';
     profile = loadProfile();
     renderProfile();
+    const me = `Tu es <b>${escapeHtml(profile.name)}</b> avec ${profile.kind === 'matcha' ? 'Matcha' : 'Ainu'}`;
+    $('coop-me').innerHTML = me; $('coop-me2').innerHTML = me;
+    if (coopInviteCode) { $('coop-code').value = coopInviteCode; $('coop-invite-btn').textContent = `Rejoindre le monde ${coopInviteCode} ▶`; }
+    coopStep(!profile.name || coopEditing ? 'coop-step1' : coopInviteCode ? 'coop-invite' : 'coop-step2');
   }
   function coopStart(link, level, pr) {
     if (app.screen !== 'coop') { link.close(); return; }
+    coopInviteCode = '';
     coopReset();
     startAdventure({ link, isHost: false, profile: pr }, null, level);
   }
@@ -800,13 +808,15 @@
       case 'coop-host': coopHost(); break;
       case 'coop-kind-ainu': case 'coop-kind-matcha': profile.kind = a === 'coop-kind-ainu' ? 'ainu' : 'matcha'; saveProfile(profile); renderProfile(); break;
       case 'coop-join': coopJoin(); break;
+      case 'coop-next': if (readyProfile()) { coopEditing = false; coopReset(); } break;
+      case 'coop-edit': coopEditing = true; coopReset(); break;
       case 'coop-extra-giorgio': case 'coop-extra-django': case 'coop-extra-cayla': case 'coop-extra-neo': case 'coop-extra-ashton':
         profile.extra = a.slice('coop-extra-'.length); saveProfile(profile); renderProfile(); break;
       case 'coop-color-0': case 'coop-color-1': case 'coop-color-2': case 'coop-color-3': case 'coop-color-4': case 'coop-color-5':
         profile.color = +a.slice(-1); saveProfile(profile); renderProfile(); break;
       case 'coop-cancel': window.AdvCoop.cancel(); coopSession = null; coopReset(); break;
       case 'coop-go': coopGo(); break;
-      case 'coop-back': window.AdvCoop.cancel(); coopSession = null; show('menu'); break;
+      case 'coop-back': window.AdvCoop.cancel(); coopSession = null; coopInviteCode = ''; coopEditing = false; show('menu'); break;
       case 'coop-copy': {
         const inp = $('coop-link');
         inp.select();
@@ -992,8 +1002,8 @@
   const coopInvite = (params.get('coop') || '').toUpperCase();
   if (coopInvite) {
     show('coop');
-    coopReset(`Invitation dans le monde ${coopInvite} : écris ton prénom puis clique sur « Rejoindre » !`);
-    $('coop-code').value = coopInvite;
+    coopInviteCode = coopInvite;
+    coopReset(profile.name ? '' : `Tu es invité dans le monde ${coopInvite} ! Dis-nous qui tu es :`);
     history.replaceState(null, '', location.pathname + (params.get('peer') ? '?peer=' + params.get('peer') : ''));
   }
   if (invite) {

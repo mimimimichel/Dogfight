@@ -61,6 +61,8 @@ function mergeSave(a, b) {
   return a;
 }
 
+let micAsked = false;   // on ne propose le micro qu'une fois par partie
+
 const isChild = (o, root) => { for (let p = o.parent; p; p = p.parent) if (p === root) return true; return false; };
 const clamp = (v, a, b) => (v < a ? a : v > b ? b : v);
 const lerpAngle = (a, b, t) => { let d = ((b - a + Math.PI) % (Math.PI * 2) + Math.PI * 2) % (Math.PI * 2) - Math.PI; return a + d * t; };
@@ -226,6 +228,7 @@ class Adventure {
       <div class="adv-prompt hidden"></div>
       <div class="adv-dialog hidden"><div class="adv-dname"></div><div class="adv-dtext"></div><div class="adv-dnext">▼</div></div>
       <button class="adv-mic hidden" aria-label="Micro"><svg viewBox="0 0 24 24" width="20" height="20"><rect x="9" y="3" width="6" height="11" rx="3" fill="#fff"/><path d="M6 11a6 6 0 0 0 12 0M12 17v4M8 21h8" stroke="#fff" stroke-width="2" fill="none" stroke-linecap="round"/><path class="slash" d="M4 4 20 20" stroke="#ff6a5a" stroke-width="2.6" stroke-linecap="round"/></svg><span class="lbl"></span></button>
+      <div class="adv-micask hidden"><b>🎤 Parler avec tes amis&nbsp;?</b><button data-m="yes">Activer le micro</button><button data-m="no" class="no">Plus tard</button></div>
       <button class="adv-pause" aria-label="Pause"><svg viewBox="0 0 20 20" width="18" height="18"><rect x="4" y="3" width="4" height="14" rx="1.5" fill="#fff"/><rect x="12" y="3" width="4" height="14" rx="1.5" fill="#fff"/></svg></button>
       <div class="adv-touch ${this.isTouch ? '' : 'hidden'}">
         <div class="adv-stick-zone"></div>
@@ -266,6 +269,13 @@ class Adventure {
     root.querySelector('.adv-pause').addEventListener('click', () => this.togglePause());
     this.dom.mic = root.querySelector('.adv-mic');
     this.dom.mic.addEventListener('click', () => this.toggleMic());
+    this.dom.micAsk = root.querySelector('.adv-micask');
+    this.dom.micAsk.addEventListener('click', (e) => {
+      const b = e.target.closest('button');
+      if (!b) return;
+      this.dom.micAsk.classList.add('hidden');
+      if (b.dataset.m === 'yes') this.toggleMic();
+    });
   }
 
   updateHud() {
@@ -1320,28 +1330,37 @@ class Adventure {
     link.send({ t: 'ready' }); // l'hôte renvoie alors tout l'état du monde
   }
 
-  /** Une fois : on montre où est le bouton du micro. */
+  /**
+   * Dès qu'on est à plusieurs : le micro s'allume tout seul si on l'avait déjà
+   * activé une fois, sinon on propose de l'activer (une fois par partie).
+   */
   micHint() {
     if (this.micHinted || !this.vc) return;
     this.micHinted = true;
+    if (this.vc.on) { this.dom.mic.classList.add('on'); return; }
+    let pref = null;
+    try { pref = localStorage.getItem('dogfight.mic'); } catch (e) { /* ignore */ }
     setTimeout(() => {
       if (this.disposed || this.vc.on) return;
-      this.localBanner('Pour vous parler', 'Le petit micro à côté de la pause (ou dans le menu pause)', 3600);
-      this.dom.mic.classList.add('hint'); setTimeout(() => this.dom.mic.classList.remove('hint'), 4000);
-    }, 4200);
+      if (pref === '1') this.toggleMic(true);
+      else if (!micAsked) { micAsked = true; this.dom.micAsk.classList.remove('hidden'); }
+    }, 1200);
   }
 
   /** Chat vocal : allume ou coupe mon micro. */
-  async toggleMic() {
+  async toggleMic(auto) {
     if (this.micBusy) return;
+    this.dom.micAsk.classList.add('hidden');
     if (!this.vc) { this.localBanner('Micro', 'Pour parler avec tes amis, choisis « Jouer ensemble » dans le menu', 3600); return; }
     this.micBusy = true;
     const r = await this.vc.toggle();
     this.micBusy = false;
     if (this.disposed) return;
     this.dom.mic.classList.toggle('on', r === 'on');
-    if (r === 'on') this.localBanner('Micro allumé', 'Tout le monde t\'entend ! (re-clique pour le couper)', 2000);
+    if (r === 'on' || r === 'off') { try { localStorage.setItem('dogfight.mic', r === 'on' ? '1' : '0'); } catch (e) { /* ignore */ } }
+    if (r === 'on') this.localBanner('Micro allumé', 'Tout le monde t\'entend ! (le petit micro à côté de la pause le coupe)', 2600);
     else if (r === 'off') this.localBanner('Micro coupé', '', 1200);
+    else if (auto) this.dom.micAsk.classList.remove('hidden');   // (le navigateur veut un appui pour l'allumer)
     else this.localBanner('Micro', r, 3000);
   }
 
@@ -2627,6 +2646,7 @@ class Adventure {
           <button class="btn" data-a="music">🎵 Musique : ${this.sfx && this.sfx.musicOn === false ? 'non' : 'oui'}</button>
           <button class="btn" data-a="mic">🎤 Micro : ${this.vc && this.vc.on ? 'allumé' : 'coupé'}</button>
         </div>
+        ${this.vc && this.party.size > 1 ? `<label class="adv-vol">🔊 Voix des amis <input type="range" min="0.5" max="5" step="0.25" value="${this.vc.volume}" data-vol="1"></label>` : ''}
         <div class="adv-stats adv-mic-note">${!this.vc ? 'Le micro sert à parler avec tes amis : choisis « Jouer ensemble » dans le menu pour ouvrir ton monde.' : this.party.size < 2 ? 'Personne n\'est encore là : tes amis t\'entendront dès qu\'ils arrivent.' : ''}
         </div>
         ${this.coop ? '' : '<button class="btn" data-a="restart">Recommencer le niveau</button>'}
@@ -2666,6 +2686,8 @@ class Adventure {
     this.dom.banner.classList.add('hidden');
     this.paused = !this.coop;
     o.querySelectorAll('[data-a]').forEach(b => b.addEventListener('click', () => this.overlayAction(b.dataset.a)));
+    const vol = o.querySelector('[data-vol]');
+    if (vol) vol.addEventListener('input', () => { if (this.vc) this.vc.setVolume(+vol.value); });
   }
 
   /** Les amis passés dans ce monde (il s'en souvient d'une fois sur l'autre). */

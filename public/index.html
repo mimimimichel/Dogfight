@@ -135,32 +135,46 @@
           <h2 class="coop-title">Jouer ensemble</h2>
           <p class="coop-sub">Jusqu'à 6 amis dans le même monde, chacun sur son téléphone ou sa tablette !</p>
           <div class="coop-choose" id="coop-choose">
-            <div class="coop-profile">
-              <label class="coop-field">Mon prénom <input id="coop-name" maxlength="12" placeholder="Prénom" autocomplete="off"></label>
-              <div class="coop-field">Mon chien
-                <span class="coop-kinds">
-                  <button class="hbtn kpick ainu active" data-action="coop-kind-ainu">Ainu</button>
-                  <button class="hbtn kpick matcha" data-action="coop-kind-matcha">Matcha</button>
-                </span>
+            <!-- Étape 1 : qui es-tu ? -->
+            <div class="coop-step" id="coop-step1">
+              <p class="coop-step-t">1. Qui es-tu&nbsp;?</p>
+              <div class="coop-profile">
+                <label class="coop-field">Mon prénom <input id="coop-name" maxlength="12" placeholder="Prénom" autocomplete="off"></label>
+                <div class="coop-field">Mon chien
+                  <span class="coop-kinds">
+                    <button class="hbtn kpick ainu active" data-action="coop-kind-ainu">Ainu</button>
+                    <button class="hbtn kpick matcha" data-action="coop-kind-matcha">Matcha</button>
+                  </span>
+                </div>
+                <div class="coop-field">Ma couleur <span class="coop-colors" id="coop-colors"></span></div>
+                <details class="coop-more"><summary>Si on est plus de 2…</summary>
+                  <div class="coop-field coop-extra">je joue <span class="coop-kinds" id="coop-extras"></span></div>
+                </details>
               </div>
-              <div class="coop-field">Ma couleur <span class="coop-colors" id="coop-colors"></span></div>
-              <div class="coop-field coop-extra">Si on est plus de 2, je joue
-                <span class="coop-kinds" id="coop-extras"></span>
-              </div>
+              <button class="hbtn go" data-action="coop-next">Suivant ▶</button>
             </div>
-            <div class="coop-cols">
-              <div class="coop-col">
-                <p class="coop-label">Mon monde&nbsp;:</p>
-                <button class="hbtn go" data-action="coop-host">Ouvrir mon monde</button>
-                <p class="coop-hint" id="coop-mycode"></p>
-              </div>
-              <div class="coop-col">
-                <p class="coop-label">Le monde d'un ami&nbsp;:</p>
-                <div class="coop-join">
-                  <input id="coop-code" maxlength="4" placeholder="CODE" autocomplete="off" autocapitalize="characters">
-                  <button class="hbtn cbtn" data-action="coop-join">Rejoindre</button>
+            <!-- Étape 2 : rejoindre un ami, ou ouvrir son monde -->
+            <div class="coop-step hidden" id="coop-step2">
+              <p class="coop-step-t"><span id="coop-me"></span> <button class="hbtn small coop-edit" data-action="coop-edit">✎ changer</button></p>
+              <div class="coop-cols">
+                <div class="coop-col coop-join-col">
+                  <p class="coop-label">Un ami t'a donné un code&nbsp;?</p>
+                  <div class="coop-join">
+                    <input id="coop-code" maxlength="4" placeholder="CODE" autocomplete="off" autocapitalize="characters">
+                    <button class="hbtn go" data-action="coop-join">Rejoindre ▶</button>
+                  </div>
+                </div>
+                <div class="coop-col">
+                  <p class="coop-label">Ou invite tes amis&nbsp;:</p>
+                  <button class="hbtn cbtn" data-action="coop-host">Ouvrir mon monde</button>
+                  <p class="coop-hint" id="coop-mycode"></p>
                 </div>
               </div>
+            </div>
+            <!-- Invitation reçue par lien -->
+            <div class="coop-step hidden" id="coop-invite">
+              <p class="coop-step-t"><span id="coop-me2"></span> <button class="hbtn small coop-edit" data-action="coop-edit">✎ changer</button></p>
+              <button class="hbtn go coop-big" data-action="coop-join" id="coop-invite-btn">Rejoindre</button>
             </div>
           </div>
           <div class="coop-wait hidden" id="coop-wait">

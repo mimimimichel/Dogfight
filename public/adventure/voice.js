@@ -27,12 +27,48 @@ class Voice {
     this.blocked = new Set();  // sons bloqués par le navigateur : relancés au prochain geste
     this.onCall = (call) => this.incoming(call);
     peer.on('call', this.onCall);
-    this.retry = () => { for (const a of this.blocked) a.play().then(() => this.blocked.delete(a)).catch(() => {}); if (this.ctx && this.ctx.state === 'suspended') this.ctx.resume(); };
+    this.retry = () => {
+      for (const a of this.blocked) a.play().then(() => this.blocked.delete(a)).catch(() => {});
+      if (this.ctx && this.ctx.state !== 'running') this.ctx.resume().then(() => this.boostAll()).catch(() => {});
+    };
     window.addEventListener('pointerdown', this.retry);
     window.addEventListener('keydown', this.retry);
   }
 
   get myId() { return this.peer.id; }
+
+  /** Volume des voix des amis (1 = normal ; on peut monter jusqu'à 4). */
+  get volume() { try { const v = parseFloat(localStorage.getItem('dogfight.voicevol')); return v > 0 ? v : 2.5; } catch (e) { return 2.5; } }
+  setVolume(v) {
+    try { localStorage.setItem('dogfight.voicevol', String(v)); } catch (e) { /* ignore */ }
+    if (this.gain) this.gain.gain.value = v;
+    for (const e of this.in.values()) if (!e.boost) e.audio.volume = Math.min(1, v);
+  }
+  /** Sortie des voix : amplifiée (un élément <audio> plafonne au volume normal). */
+  voiceOut() {
+    const ctx = this.audioCtx();
+    if (!ctx || ctx.state !== 'running') return null;
+    if (!this.gain) {
+      const comp = ctx.createDynamicsCompressor();
+      comp.threshold.value = -24; comp.knee.value = 12; comp.ratio.value = 4;
+      this.gain = ctx.createGain(); this.gain.gain.value = this.volume;
+      this.gain.connect(comp); comp.connect(ctx.destination);
+    }
+    return this.gain;
+  }
+  /** Fait passer la voix d'un ami par l'amplificateur (si l'audio est débloqué). */
+  boost(e) {
+    if (e.boost) return;
+    const out = this.voiceOut();
+    if (!out) return;
+    try {
+      const src = this.ctx.createMediaStreamSource(e.audio.srcObject);
+      src.connect(out);
+      e.boost = src;
+      e.audio.muted = true;   // (l'élément continue de tourner : Chrome en a besoin pour recevoir le son)
+    } catch (err) { /* on garde l'élément <audio> */ }
+  }
+  boostAll() { for (const e of this.in.values()) this.boost(e); }
 
   audioCtx() {
     if (!this.ctx) { const C = window.AudioContext || window.webkitAudioContext; if (C) this.ctx = new C(); }
@@ -60,9 +96,12 @@ class Voice {
   async toggle() {
     if (!this.stream) {
       if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) return 'Ce navigateur ne permet pas d\'utiliser le micro.';
+      // iPhone : le micro a besoin d'une session « lecture et enregistrement »
+      try { if (navigator.audioSession) navigator.audioSession.type = 'play-and-record'; } catch (e) { /* ignore */ }
       try {
         this.stream = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true }, video: false });
       } catch (e) {
+        try { if (navigator.audioSession) navigator.audioSession.type = 'playback'; } catch (err) { /* ignore */ }
         return e && e.name === 'NotAllowedError' ? 'Le micro a été refusé. Autorise-le dans le navigateur pour parler.' : 'Pas de micro trouvé.';
       }
       this.mine = this.analyser(this.stream);
@@ -106,8 +145,11 @@ class Voice {
       audio.autoplay = true; audio.playsInline = true; audio.srcObject = stream;
       audio.style.display = 'none';
       document.body.appendChild(audio);
+      audio.volume = Math.min(1, this.volume);
       audio.play().catch(() => this.blocked.add(audio));
-      this.in.set(call.peer, Object.assign({ call, audio }, this.analyser(stream) || {}));
+      const e = Object.assign({ call, audio }, this.analyser(stream) || {});
+      this.in.set(call.peer, e);
+      this.boost(e);
     });
     const end = () => { const e = this.in.get(call.peer); if (e && e.call === call) this.drop(call.peer); };
     call.on('close', end);
@@ -118,6 +160,7 @@ class Voice {
     const e = this.in.get(pid);
     if (!e) return;
     this.in.delete(pid);
+    try { if (e.boost) e.boost.disconnect(); } catch (err) { /* ignore */ }
     try { e.audio.srcObject = null; e.audio.remove(); } catch (err) { /* ignore */ }
     try { e.call.close(); } catch (err) { /* ignore */ }
   }
@@ -148,6 +191,8 @@ class Voice {
     for (const pid of [...this.in.keys()]) this.drop(pid);
     if (this.stream) for (const t of this.stream.getTracks()) t.stop();
     if (this.ctx) { try { this.ctx.close(); } catch (e) { /* ignore */ } }
+    this.ctx = null; this.gain = null;
+    try { if (navigator.audioSession) navigator.audioSession.type = 'playback'; } catch (e) { /* ignore */ }
     this.out.clear(); this.stream = null; this.on = false;
     voices.delete(this.peer);
   }

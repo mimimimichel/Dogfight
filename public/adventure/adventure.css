@@ -184,3 +184,17 @@
 .adv-panel .adv-mic-note:empty { display: none; }
 .adv-mic.hint { animation: micHint 0.6s ease-in-out infinite alternate; }
 @keyframes micHint { from { transform: scale(1); box-shadow: 0 0 0 0 rgba(255, 210, 60, 0.9); } to { transform: scale(1.12); box-shadow: 0 0 0 8px rgba(255, 210, 60, 0.5); } }
+
+/* Proposition d'allumer le micro (quand on est à plusieurs) */
+.adv-micask {
+  position: absolute; left: 50%; top: calc(max(8px, env(safe-area-inset-top)) + 58px); transform: translateX(-50%); z-index: 12;
+  display: flex; align-items: center; gap: 10px; padding: 10px 14px; border-radius: 18px; pointer-events: auto;
+  background: rgba(28, 22, 18, 0.88); border: 2px solid #ffd23a; color: #fff; font: 600 16px 'Fredoka', system-ui, sans-serif; white-space: nowrap;
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.35); animation: micAskIn 0.35s ease-out;
+}
+.adv-micask.hidden { display: none; }
+.adv-micask button { font: 700 16px 'Fredoka', system-ui, sans-serif; padding: 8px 14px; border-radius: 12px; border: 2px solid #2a1408; background: #9ae05a; color: #1e2a08; cursor: pointer; touch-action: manipulation; }
+.adv-micask button.no { background: rgba(255, 255, 255, 0.18); color: #fff; border-color: rgba(255, 255, 255, 0.4); font-weight: 600; }
+@keyframes micAskIn { from { transform: translate(-50%, -16px); opacity: 0; } }
+.adv-panel .adv-vol { display: flex; align-items: center; justify-content: center; gap: 10px; font-weight: 600; color: #fff4dc; }
+.adv-panel .adv-vol input { width: 160px; accent-color: #ffd23a; }

@@ -287,3 +287,15 @@ html.ios-text .hbtn, html.ios-text .hbtn small, html.ios-text .level-card b, htm
   text-shadow: 2px 0 #2a1408, -2px 0 #2a1408, 0 2px #2a1408, 0 -2px #2a1408, 1.5px 1.5px #2a1408, -1.5px 1.5px #2a1408, 1.5px -1.5px #2a1408, -1.5px -1.5px #2a1408 !important;
 }
 html.ios-text .hbtn.small, html.ios-text .hbtn.lvpick:not(.active), html.ios-text .hbtn.kpick:not(.active) { text-shadow: none !important; }
+
+/* Jouer ensemble en deux étapes */
+.coop-step { display: flex; flex-direction: column; align-items: center; gap: 12px; width: 100%; }
+.coop-step-t { margin: 0; font-family: var(--hf); font-weight: 700; font-size: 20px; color: #3a2010; display: flex; align-items: center; gap: 10px; }
+.coop-more { width: 100%; text-align: center; font-family: var(--hf); font-weight: 600; font-size: 14px; color: #6a4a2a; }
+.coop-more summary { cursor: pointer; }
+.coop-more .coop-extra { margin-top: 6px; }
+.hbtn.coop-edit { font-size: 13px; padding: 4px 10px 6px; min-width: 0; }
+.coop-join-col { flex: 1.4; border-color: #2a1408; background: rgba(255, 246, 200, 0.85); }
+.coop-join-col .coop-join { width: 100%; }
+.coop-join-col .hbtn.go { font-size: 20px; padding: 8px 16px 10px; }
+.hbtn.coop-big { font-size: 28px; padding: 16px 34px 18px; }
