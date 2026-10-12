@@ -1302,7 +1302,8 @@ class Adventure {
 
   /** Chat vocal : allume ou coupe mon micro. */
   async toggleMic() {
-    if (!this.vc || this.party.size < 2 || this.micBusy) return;
+    if (this.micBusy) return;
+    if (!this.vc) { this.localBanner('Micro', 'Pour parler avec tes amis, choisis « Jouer ensemble » dans le menu', 3600); return; }
     this.micBusy = true;
     const r = await this.vc.toggle();
     this.micBusy = false;
@@ -1350,7 +1351,7 @@ class Adventure {
     el.classList.toggle('hidden', list.length < 2);
     el.innerHTML = list.map(P => `<span data-id="${P.id}" style="--c:${DOG_COLORS[P.color % DOG_COLORS.length]}" class="${P === this.me ? 'me' : ''}">${escapeHtml(P.name)} <small>${dogName(P.kind)}</small></span>`).join('');
     if (this.vc) this.vc.setRoster(list.map(P => ({ pid: P.peerId, id: P.id })));
-    this.dom.mic.classList.toggle('hidden', !this.vc || list.length < 2);
+    this.dom.mic.classList.toggle('hidden', !this.vc);
     const n = list.length;
     if (this.guest) this.coopBadge(`<b>Monde de ${escapeHtml(this.player.name)}</b> · ${n} joueur${n > 1 ? 's' : ''}`);
     else if (this.hostSession) this.coopBadge(`<b>Monde ${this.hostSession.code}</b> · ${n > 1 ? n + ' joueurs' : 'en attente d\'amis…'}`);
@@ -2566,7 +2567,9 @@ class Adventure {
         <button class="btn primary" data-a="resume">Reprendre</button>
         <div class="adv-toggles">
           <button class="btn" data-a="music">🎵 Musique : ${this.sfx && this.sfx.musicOn === false ? 'non' : 'oui'}</button>
-          ${this.vc && this.party.size > 1 ? `<button class="btn" data-a="mic">🎤 Micro : ${this.vc.on ? 'allumé' : 'coupé'}</button>` : ''}
+          <button class="btn" data-a="mic">🎤 Micro : ${this.vc && this.vc.on ? 'allumé' : 'coupé'}</button>
+        </div>
+        <div class="adv-stats adv-mic-note">${!this.vc ? 'Le micro sert à parler avec tes amis : choisis « Jouer ensemble » dans le menu pour ouvrir ton monde.' : this.party.size < 2 ? 'Personne n\'est encore là : tes amis t\'entendront dès qu\'ils arrivent.' : ''}
         </div>
         ${this.coop ? '' : '<button class="btn" data-a="restart">Recommencer le niveau</button>'}
         <button class="btn ghost" data-a="quit">Menu principal</button>`;

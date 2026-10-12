@@ -180,5 +180,7 @@
 .adv-roster span.talk { border-color: #7ae06a; box-shadow: 0 0 0 2px rgba(120, 230, 110, 0.6); }
 .adv-roster span.talk::after { content: ' 🔊'; }
 .adv-panel .adv-toggles { display: flex; gap: 10px; justify-content: center; flex-wrap: wrap; }
+.adv-panel .adv-mic-note { font-size: 13px; opacity: .85; max-width: 320px; margin: 2px auto 0; }
+.adv-panel .adv-mic-note:empty { display: none; }
 .adv-mic.hint { animation: micHint 0.6s ease-in-out infinite alternate; }
 @keyframes micHint { from { transform: scale(1); box-shadow: 0 0 0 0 rgba(255, 210, 60, 0.9); } to { transform: scale(1.12); box-shadow: 0 0 0 8px rgba(255, 210, 60, 0.5); } }

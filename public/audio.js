@@ -19,10 +19,22 @@
         this.ctx = new AC();
         this.master = this.ctx.createGain();
         this.master.gain.value = this.muted ? 0 : 0.5;
-        this.master.connect(this.ctx.destination);
+        // limiteur doux en sortie : évite la saturation (crépitements) quand tout joue en même temps
+        const lim = this.ctx.createDynamicsCompressor();
+        lim.threshold.value = -6; lim.knee.value = 6; lim.ratio.value = 12; lim.attack.value = 0.003; lim.release.value = 0.2;
+        this.master.connect(lim); lim.connect(this.ctx.destination);
+        // iOS/Android peuvent « interrompre » le son (appel, mise en veille, surcharge) : on le relance
+        this.ctx.onstatechange = () => {
+          if (this.ctx.state !== 'running' && !document.hidden) this.ctx.resume().catch(() => {});
+        };
+        document.addEventListener('visibilitychange', () => {
+          if (!this.ctx) return;
+          if (document.hidden) { this.ctx.suspend().catch(() => {}); }
+          else { this.ctx.resume().catch(() => {}); this.musicResync = true; }
+        });
         if (this.wantTheme) { const w = this.wantTheme; this.theme = undefined; this.music(w); }
       }
-      if (this.ctx.state === 'suspended') this.ctx.resume();
+      if (this.ctx.state !== 'running' && !document.hidden) this.ctx.resume().catch(() => {});
     }
 
     toggleMute() {
@@ -180,73 +192,84 @@
       const bus = c.createGain();
       this.musicVol = style.vol;
       bus.gain.value = 0.0001; bus.gain.setTargetAtTime(this.musicOn ? style.vol : 0.0001, c.currentTime, 0.8);
-      // réverbération (salle douce) : réponse impulsionnelle fabriquée une fois
-      if (!this.reverbIR) {
-        const len = Math.floor(c.sampleRate * 2.4), ir = c.createBuffer(2, len, c.sampleRate);
-        for (let ch = 0; ch < 2; ch++) { const d = ir.getChannelData(ch); for (let n = 0; n < len; n++) d[n] = (Math.random() * 2 - 1) * Math.pow(1 - n / len, 3.2); }
-        this.reverbIR = ir;
+      // réverbération légère : un écho filtré (deux lignes de retard), construit une seule fois
+      if (!this.musicFx) {
+        const fx = c.createGain(), lp = c.createBiquadFilter(), d1 = c.createDelay(1), d2 = c.createDelay(1), fb1 = c.createGain(), fb2 = c.createGain(), wet = c.createGain();
+        lp.type = 'lowpass'; lp.frequency.value = 2400;
+        d1.delayTime.value = 0.137; d2.delayTime.value = 0.211; fb1.gain.value = 0.42; fb2.gain.value = 0.36; wet.gain.value = 0.5;
+        fx.connect(lp); lp.connect(d1); lp.connect(d2);
+        d1.connect(fb1); fb1.connect(d2); d2.connect(fb2); fb2.connect(d1);
+        d1.connect(wet); d2.connect(wet);
+        this.musicFx = { in: fx, out: wet };
       }
-      const rev = c.createConvolver(); rev.buffer = this.reverbIR;
-      const wet = c.createGain(); wet.gain.value = style.wet || 0.32;
-      const comp = c.createDynamicsCompressor(); comp.threshold.value = -18; comp.ratio.value = 3;
-      rev.connect(wet); wet.connect(comp); comp.connect(bus);
+      if (this.musicFxOut) { try { this.musicFx.out.disconnect(this.musicFxOut); } catch (e) { /* ignore */ } }
+      const dry = c.createGain(), rev = c.createGain();
+      rev.gain.value = (style.wet || 0.3) * 1.2;
+      dry.connect(bus); rev.connect(this.musicFx.in); this.musicFx.out.connect(bus); this.musicFxOut = bus;
       bus.connect(this.master);
       this.musicBus = bus;
-      const out = { dry: comp, wet: rev };
+      const out = { dry, wet: rev };
       const comp0 = new Composer(this, out, style);
       let next = c.currentTime + 0.15;
       const tick = () => {
-        if (!this.ctx || this.musicBus !== bus) return;
-        while (next < this.ctx.currentTime + 0.6) next = comp0.bar(next);
+        if (!this.ctx || this.musicBus !== bus || this.ctx.state !== 'running') return;
+        const now = this.ctx.currentTime;
+        // si le jeu a été bloqué (chargement d'un niveau, onglet en arrière-plan) on saute les mesures
+        // manquées au lieu de toutes les jouer d'un coup
+        if (this.musicResync || next < now) { next = now + 0.1; this.musicResync = false; }
+        let n = 0;
+        while (next < now + 0.5 && n++ < 2) next = comp0.bar(next);
       };
       tick();
-      this.musicTimer = setInterval(tick, 150);
+      this.musicTimer = setInterval(tick, 200);
     }
 
-    /** Une note d'instrument. inst : 'piano', 'mallet', 'flute', 'bass', 'pad', 'pluck', 'bell'. */
+    /** Une note d'instrument (1 à 2 oscillateurs). inst : 'piano', 'mallet', 'flute', 'bass', 'pad', 'pluck', 'bell'. */
     inst(out, inst, midi, t, dur, vol, rev) {
       const c = this.ctx, f = 440 * Math.pow(2, (midi - 69) / 12);
-      const g = c.createGain(), dest = c.createGain();
-      dest.gain.value = 1;
-      g.connect(dest); dest.connect(out.dry);
-      if (rev) { const r = c.createGain(); r.gain.value = rev; dest.connect(r); r.connect(out.wet); }
-      const osc = (type, freq, v, detune) => { const o = c.createOscillator(), og = c.createGain(); o.type = type; o.frequency.value = freq; if (detune) o.detune.value = detune; og.gain.value = v; o.connect(og); og.connect(g); o.start(t); o.stop(t + dur + 1.6); return o; };
+      const g = c.createGain();
+      g.connect(out.dry);
+      if (rev) { const r = c.createGain(); r.gain.value = rev; g.connect(r); r.connect(out.wet); }
+      let end = t + dur;
       const env = (a, peak, dec, sus, rel) => {
+        const hold = t + Math.max(a + dec, dur);
         g.gain.setValueAtTime(0.0001, t);
         g.gain.exponentialRampToValueAtTime(peak, t + a);
         g.gain.exponentialRampToValueAtTime(Math.max(0.0001, peak * sus), t + a + dec);
-        g.gain.setValueAtTime(Math.max(0.0001, peak * sus), t + Math.max(a + dec, dur));
-        g.gain.exponentialRampToValueAtTime(0.0001, t + Math.max(a + dec, dur) + rel);
+        g.gain.setValueAtTime(Math.max(0.0001, peak * sus), hold);
+        g.gain.exponentialRampToValueAtTime(0.0001, hold + rel);
+        end = hold + rel + 0.02;
+      };
+      const oscs = [];
+      const osc = (type, freq, v, to) => {
+        const o = c.createOscillator(); o.type = type; o.frequency.value = freq;
+        if (v === 1) o.connect(to || g); else { const og = c.createGain(); og.gain.value = v; o.connect(og); og.connect(to || g); }
+        oscs.push(o); return o;
       };
       if (inst === 'piano') {        // piano électrique doux
-        osc('sine', f, 1); osc('sine', f * 2, 0.22); osc('triangle', f, 0.18, 4);
-        env(0.006, vol, 0.9, 0.25, 0.5);
+        osc('sine', f, 1); osc('sine', f * 2, 0.2);
+        env(0.006, vol, 0.8, 0.22, 0.35);
       } else if (inst === 'mallet') { // marimba
-        osc('sine', f, 1); osc('sine', f * 4, 0.12);
-        env(0.004, vol, 0.45, 0.05, 0.25);
+        osc('sine', f, 1);
+        env(0.004, vol, 0.4, 0.05, 0.2);
       } else if (inst === 'bell') {   // petites cloches (scintillement)
         osc('sine', f, 1); osc('sine', f * 2.76, 0.25);
-        env(0.003, vol, 1.2, 0.05, 0.6);
+        env(0.003, vol, 1.0, 0.05, 0.4);
       } else if (inst === 'flute') {
-        const o = osc('triangle', f, 1); osc('sine', f * 2, 0.08);
-        const lfo = c.createOscillator(), lg = c.createGain(); lfo.frequency.value = 5; lg.gain.value = f * 0.006; lfo.connect(lg); lg.connect(o.frequency); lfo.start(t); lfo.stop(t + dur + 1);
-        env(0.06, vol, 0.2, 0.75, 0.25);
+        osc('triangle', f, 1);
+        env(0.06, vol, 0.2, 0.75, 0.2);
       } else if (inst === 'bass') {
-        const lp = c.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.value = 520;
-        g.disconnect(); g.connect(lp); lp.connect(dest);
-        osc('triangle', f, 1); osc('sine', f, 0.6);
-        env(0.01, vol, 0.5, 0.45, 0.18);
+        osc('triangle', f, 1);
+        env(0.01, vol, 0.45, 0.45, 0.12);
       } else if (inst === 'pluck') {  // guitare / pizzicato
-        const lp = c.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.setValueAtTime(3200, t); lp.frequency.exponentialRampToValueAtTime(500, t + 0.4);
-        g.disconnect(); g.connect(lp); lp.connect(dest);
-        osc('sawtooth', f, 0.35); osc('triangle', f, 0.6);
-        env(0.004, vol, 0.35, 0.08, 0.2);
+        osc('triangle', f, 1); osc('square', f, 0.12);
+        env(0.004, vol, 0.3, 0.08, 0.15);
       } else {                        // 'pad' : nappe chaude
-        const lp = c.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.value = 1100;
-        g.disconnect(); g.connect(lp); lp.connect(dest);
-        osc('sawtooth', f, 0.35, -7); osc('sawtooth', f, 0.35, 7); osc('sine', f / 2, 0.3);
-        env(Math.min(0.8, dur * 0.4), vol, 0.5, 0.8, 1.2);
+        osc('triangle', f, 1); osc('sine', f * 1.003, 0.7);
+        env(Math.min(0.6, dur * 0.35), vol, 0.5, 0.8, 0.6);
       }
+      for (const o of oscs) { o.start(t); o.stop(end); }
+      oscs[0].onended = () => { try { g.disconnect(); } catch (e) { /* ignore */ } };
     }
     perc(out, kind, t, vol) {
       const c = this.ctx;
@@ -268,8 +291,7 @@
       f.type = kind === 'shaker' ? 'highpass' : 'bandpass'; f.frequency.value = kind === 'shaker' ? 6500 : kind === 'brush' ? 2600 : 1900; f.Q.value = 0.8;
       g.gain.setValueAtTime(vol, t); g.gain.exponentialRampToValueAtTime(0.0001, t + len);
       src.connect(f); f.connect(g); g.connect(out.dry);
-      if (kind === 'snare') { const r = c.createGain(); r.gain.value = 0.4; g.connect(r); r.connect(out.wet); }
-      src.start(t); src.stop(t + len + 0.02);
+            src.start(t); src.stop(t + len + 0.02);
     }
   }
 
@@ -355,11 +377,12 @@
       const sw = (i) => t + i * s16 + (i % 2 ? st.swing * s16 : 0);
       const fade = sec.name === 'fin' ? 1 - this.bi / sec.bars : sec.name === 'intro' ? 0.6 + 0.4 * this.bi / sec.bars : 1;
       // nappe
-      if (L.pad) for (const n of ch) sfx.inst(out, 'pad', n - 12 + (n - 12 < this.key - 7 ? 12 : 0), t, barLen * 0.98, 0.05 * fade * (L.soft ? 1.3 : 1), 0.6);
+      if (L.pad) for (const n of ch.slice(0, 3)) sfx.inst(out, 'pad', n - 12 + (n - 12 < this.key - 7 ? 12 : 0), t, barLen * 0.98, 0.05 * fade * (L.soft ? 1.3 : 1), 0.6);
       // accompagnement (accords piqués, sur les contretemps)
       if (L.comp) {
         const pat = st.drums === 'drive' ? [0, 3, 6, 8, 11, 14] : [2, 6, 10, 14];
-        for (const i of pat) for (const n of ch.slice(0, 3)) sfx.inst(out, st.comp, n, sw(i), s16 * 1.6, 0.045 * fade, 0.35);
+        const top = ch.length > 3 ? [ch[1], ch[3]] : [ch[1], ch[2]];
+        for (const i of pat) for (const n of top) sfx.inst(out, st.comp, n, sw(i), s16 * 1.6, 0.055 * fade, 0.3);
       }
       // basse : fondamentale, quinte, note de passage vers l'accord suivant
       if (L.bass) {
@@ -375,10 +398,10 @@
         const D = st.drums;
         for (let i = 0; i < 16; i++) {
           const tt = sw(i);
-          if (D === 'drive') { if (i % 4 === 0) sfx.perc(out, 'kick', tt, 0.45); if (i === 4 || i === 12) sfx.perc(out, 'snare', tt, 0.22); if (i % 2 === 0) sfx.perc(out, 'shaker', tt, 0.06); }
-          else if (D === 'groove') { if (i === 0 || i === 10) sfx.perc(out, 'kick', tt, 0.4); if (i === 4 || i === 12) sfx.perc(out, 'snare', tt, 0.16); if (i % 2 === 0) sfx.perc(out, 'shaker', tt, 0.05); }
+          if (D === 'drive') { if (i % 4 === 0) sfx.perc(out, 'kick', tt, 0.45); if (i === 4 || i === 12) sfx.perc(out, 'snare', tt, 0.22); if (i % 4 === 2) sfx.perc(out, 'shaker', tt, 0.07); }
+          else if (D === 'groove') { if (i === 0 || i === 10) sfx.perc(out, 'kick', tt, 0.4); if (i === 4 || i === 12) sfx.perc(out, 'snare', tt, 0.16); if (i % 4 === 2) sfx.perc(out, 'shaker', tt, 0.06); }
           else if (D === 'brush') { if (i === 0 || i === 8) sfx.perc(out, 'kick', tt, 0.22); if (i % 4 === 2) sfx.perc(out, 'brush', tt, 0.05); }
-          else if (D === 'light') { if (i === 0 || i === 8) sfx.perc(out, 'kick', tt, 0.32); if (i === 4 || i === 12) sfx.perc(out, 'snare', tt, 0.1); if (i % 2 === 0) sfx.perc(out, 'shaker', tt, 0.035); }
+          else if (D === 'light') { if (i === 0 || i === 8) sfx.perc(out, 'kick', tt, 0.32); if (i === 4 || i === 12) sfx.perc(out, 'snare', tt, 0.1); if (i % 4 === 2) sfx.perc(out, 'shaker', tt, 0.045); }
           else { if (i === 0 || i === 8) sfx.perc(out, 'kick', tt, 0.25); if (i % 4 === 2) sfx.perc(out, 'shaker', tt, 0.03); }
         }
       }
