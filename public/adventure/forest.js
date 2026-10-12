@@ -390,7 +390,7 @@ export function buildForest(game) {
     blobs.forEach(([x, y, z, s], i) => {
       m4.compose(v.set(x, y, z), q.setFromEuler(e.set(i, i * 1.7, 0)), sv.set(s, s * 0.8, s));
       inst.setMatrixAt(i, m4);
-      inst.setColorAt(i, c.set(cols[(i * 3) % cols.length]));
+      inst.setColorAt(i, c.set(cols[(i * 3) % cols.length]).offsetHSL(0, W.LOOK.real ? -0.14 : 0, 0));
     });
     inst.castShadow = inst.receiveShadow = true;
     sc.add(inst);

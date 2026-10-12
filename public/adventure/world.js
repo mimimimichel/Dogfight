@@ -193,6 +193,10 @@ export function buildTerrain(scene, quality) {
       const cc = new THREE.Color(col.getX(i), col.getY(i), col.getZ(i));
       const greenish = Math.max(0, 1 - Math.abs(cc.getHSL({}).h - base.getHSL({}).h) * 6);
       cc.lerp(L.ID === 2 ? new THREE.Color(1.05, 1.05, 0.95) : new THREE.Color(0.98, 1.22, 0.78), 0.85 * greenish);   // prairie bien verte
+      // taches de mousse et de lumière sur le sous-bois (moins terne)
+      const px = geo.attributes.position.getX(i), pz = geo.attributes.position.getZ(i);
+      const moss = smooth(0.52, 0.72, noise2(px * 0.6 + 3, pz * 0.6 - 7)) * greenish;
+      cc.lerp(new THREE.Color(0.86, 1.12, 0.62), moss * 0.7).multiplyScalar(1.08);
       col.setXYZ(i, cc.r, cc.g, cc.b);
     }
   }
@@ -463,7 +467,7 @@ export function buildTrees(scene, quality) {
   blobs.forEach((b, i) => {
     m4.compose(v.set(b.x, b.y, b.z), q.setFromEuler(e.set(r(), r(), r())), s.set(b.s, b.s * 0.9, b.s));
     leaves.setMatrixAt(i, m4);
-    leaves.setColorAt(i, c.set(greens[i % greens.length]).offsetHSL(0, 0, b.bush ? -0.04 : (r() - 0.5) * 0.06));
+    leaves.setColorAt(i, c.set(greens[i % greens.length]).offsetHSL(0, LOOK.real ? -0.14 : 0, b.bush ? -0.04 : (r() - 0.5) * 0.06));   // (réaliste : verts moins criards)
   });
   trunks.castShadow = leaves.castShadow = true;
   if (LOOK.real) buildFerns(scene, quality, r);
