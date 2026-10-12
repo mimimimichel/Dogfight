@@ -341,6 +341,7 @@ export function buildGrass(scene, quality, windUniform) {
     const slope = Math.abs(L.heightAt(x + 0.5, z) - h) + Math.abs(L.heightAt(x, z + 0.5) - h);
     if (slope > 0.45) continue;
     if (onPath(x, z) && r() < 0.85) continue;
+    if (L.noGrass && L.noGrass(x, z)) continue;
     if (L.inWater(x, z)) continue;
     if ((L.near ? L.near(x, z, 1) : L.colliders).some(c => c.kind !== 'trunk' && c.kind !== 'tree' && L.inside(c, x, z, 0.3) && c.y1 > h)) continue;
     spots.push([x, h, z]);
@@ -394,7 +395,7 @@ export function buildFlowers(scene, quality) {
   for (let i = 0; i < 3000 && spots.length < maxF; i++) {
     const x = (r() - 0.5) * (L.WORLD ? L.WORLD - 20 : 130), z = (r() - 0.5) * (L.WORLD ? L.WORLD - 20 : 130);
     const h = L.heightAt(x, z);
-    if (h < 1.6 || onPath(x, z)) continue;
+    if (h < 1.6 || onPath(x, z) || (L.noGrass && L.noGrass(x, z))) continue;
     // en petits bouquets
     const n = 1 + Math.floor(r() * 4);
     for (let k = 0; k < n; k++) {

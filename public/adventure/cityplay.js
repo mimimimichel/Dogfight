@@ -102,6 +102,49 @@ export function buildPlay(game, decor) {
     sc.add(m); moving.push(m);
     return { i, def: d, m, x: d.x, y: d.y, z: d.z, yaw: d.yaw, speed: 0, vy: 0, grounded: true, driver: -1, boost: 0, boostCd: 0, drift: 0, driftT: 0, hopped: false, climb: 0, spin: 0, wheelA: 0, bumpT: 0, shadow: game.makeShadow(1.3) };
   });
+  // Aérodrome (au nord-est) : piste, manche à air, et biplans à piloter
+  const RUNWAY = S.RUNWAY;
+  let sockCone = null;
+  {
+    const len = RUNWAY.x1 - RUNWAY.x0;
+    const tex = K.canvasTex(1024, 96, (x, w, h) => {
+      x.fillStyle = '#4a4c50'; x.fillRect(0, 0, w, h);
+      K.speckle(x, w, h, 3000, ['rgba(255,255,255,0.06)', 'rgba(0,0,0,0.12)']);
+      x.fillStyle = '#f2f2ee';
+      for (let i = 40; i < w - 40; i += 36) x.fillRect(i, h / 2 - 1.5, 20, 3);       // axe
+      for (const e of [6, w - 30]) for (let j = 0; j < 8; j++) x.fillRect(e, 10 + j * 10, 24, 5);   // seuils
+      x.fillRect(0, 3, w, 2); x.fillRect(0, h - 5, w, 2);
+      x.font = 'bold 26px sans-serif'; x.textAlign = 'center';
+      x.save(); x.translate(56, h / 2); x.rotate(Math.PI / 2); x.fillText('09', 0, 9); x.restore();
+      x.save(); x.translate(w - 56, h / 2); x.rotate(-Math.PI / 2); x.fillText('27', 0, 9); x.restore();
+    });
+    const strip = new THREE.Mesh(new THREE.PlaneGeometry(len, RUNWAY.w), new THREE.MeshStandardMaterial({ map: tex, roughness: 0.9, polygonOffset: true, polygonOffsetFactor: -2 }));
+    strip.rotation.x = -Math.PI / 2; strip.position.set((RUNWAY.x0 + RUNWAY.x1) / 2, G + 0.03, RUNWAY.z); strip.receiveShadow = true;
+    sc.add(strip);
+    // balises lumineuses le long de la piste
+    const n = Math.floor(len / 8) + 1;
+    const lamps = new THREE.InstancedMesh(new THREE.SphereGeometry(0.16, 8, 6), new THREE.MeshStandardMaterial({ color: 0xfff2c0, emissive: 0xffd070, emissiveIntensity: 1.4 }), n * 2);
+    const m4 = new THREE.Matrix4();
+    for (let i = 0; i < n; i++) for (const sd of [-1, 1]) lamps.setMatrixAt(i * 2 + (sd > 0 ? 1 : 0), m4.makeTranslation(RUNWAY.x0 + i * 8, G + 0.18, RUNWAY.z + sd * (RUNWAY.w / 2 + 0.4)));
+    sc.add(lamps);
+    // manche à air
+    const sock = new THREE.Group();
+    const pole = new THREE.Mesh(new THREE.CylinderGeometry(0.06, 0.08, 6, 8), M.mat(0xdedede, { metalness: 0.6, roughness: 0.3 })); pole.position.y = 3; sock.add(pole);
+    const cone = new THREE.Mesh(new THREE.CylinderGeometry(0.45, 0.2, 2.2, 14, 4, true), new THREE.MeshStandardMaterial({ color: 0xff7a1a, roughness: 0.7, side: THREE.DoubleSide }));
+    cone.rotation.z = Math.PI / 2 - 0.2; cone.position.set(1.1, 5.7, 0); sock.add(cone);
+    sock.position.set(RUNWAY.x0 + 12, G, RUNWAY.z + RUNWAY.w / 2 + 5); sock.rotation.y = 0.6;
+    sc.add(sock); sockCone = cone;
+  }
+  const PL = { TAXI: 9, FLY: 25, MINAIR: 16, BOOST: 38, LIFT: 13, CLIMB: 9, SINK: 3.2, CEIL: 115, R: 2.4 };
+  const planes = [[0xd83a3a, -2], [0x3a7ad8, 3.5], [0xf0b020, -7.5]].map(([color, dz], i) => {
+    const def = { x: RUNWAY.x0 + 8 + i * 4, y: G, z: RUNWAY.z + dz, yaw: Math.PI / 2, color };
+    const m = K.buildPlane(color);
+    sc.add(m); moving.push(m);
+    return { i, def, m, plane: true, x: def.x, y: G, z: def.z, yaw: def.yaw, speed: 0, vy: 0, grounded: true, driver: -1, boost: 0, boostCd: 0, drift: 0, driftT: 0, spin: 0, roll: 0, pitch: 0, propA: 0, bumpT: 0, shadow: game.makeShadow(2.5) };
+  });
+  // un autre avion fait le tour de la ville, très haut (le même chez tout le monde)
+  const flyby = K.buildPlane(0xf4f4f4); flyby.scale.setScalar(1.4); sc.add(flyby);
+
   // Karts rivaux (courses)
   const rivalCols = [0x2a2a3a, 0xf08a2a, 0x8ad040, 0x40a0e0, 0xe0e0e0];
   const rivalNames = ['Rocco', 'Fifi', 'Bandit', 'Gaston', 'Lulu'];
@@ -202,6 +245,94 @@ export function buildPlay(game, decor) {
     game.pushOut(p, k.y);
     P.pos.set(p.x, game.support(p.x, p.z, k.y + 0.6).y, p.z);
     P.vel.set(0, 4, 0); P.grounded = false; P.jumps = 1;
+  }
+  function resetPlane(k) { Object.assign(k, { x: k.def.x, y: k.def.y, z: k.def.z, yaw: k.def.yaw, speed: 0, vy: 0, grounded: true, boost: 0, roll: 0, pitch: 0 }); }
+  function enterPlane(P, k) {
+    if (k.driver >= 0 || P.kart) return;
+    k.driver = P.id; P.kart = k;
+    P.attackT = 0; P.dashT = 0; P.vel.set(0, 0, 0);
+    P.pos.set(k.x, k.y, k.z); P.yaw = k.yaw;
+    game.sound('engine');
+    if (!city().planeTip) {
+      city().planeTip = 1;
+      const c = game.controlsHelp();
+      game.banner('Aux commandes !', `${c.jump} maintenu : plein gaz et monter · lâcher : on redescend doucement · ${c.dash} : turbo`, 5200);
+    }
+  }
+  function exitPlane(P) {
+    const k = P.kart;
+    if (!k) return;
+    if (!k.grounded) { game.banner('Pose-toi d\'abord !', 'Lâche le bouton pour redescendre doucement.', 1600); return; }
+    k.driver = -1; P.kart = null; k.speed = 0; k.boost = 0; k.roll = 0; k.pitch = 0;
+    const sx = Math.cos(k.yaw), sz = -Math.sin(k.yaw);
+    const p = { x: k.x + sx * 5.6, z: k.z + sz * 5.6 };
+    game.pushOut(p, k.y);
+    P.pos.set(p.x, game.support(p.x, p.z, k.y + 0.6).y, p.z);
+    P.vel.set(0, 4, 0); P.grounded = false; P.jumps = 1;
+    if (P.mesh) { P.mesh.rotation.x = 0; P.mesh.rotation.z = 0; }
+  }
+  /** Vol arcade : le joystick tourne, le saut maintenu fait monter (et décoller), lâché on redescend doucement. */
+  function flyPlane(drv, k, wx, wz, jumpHeld, pr, dt) {
+    const frozen = game.dialog || game.freeze > 0;
+    if (frozen) { wx = 0; wz = 0; jumpHeld = false; }
+    k.boost = Math.max(0, k.boost - dt); k.boostCd = Math.max(0, k.boostCd - dt); k.bumpT = Math.max(0, k.bumpT - dt);
+    if (!frozen) {
+      if (pr.has('attack')) honk(k);
+      if (pr.has('dash') && k.boostCd <= 0 && (!k.grounded || k.speed > 4)) { k.boost = 1.6; k.boostCd = 2.2; game.sound('boost'); }
+    }
+    const wl = Math.hypot(wx, wz);
+    let turn = 0, d = 0;
+    if (wl > 0.15) { d = angDiff(Math.atan2(wx, wz), k.yaw); turn = clamp(d * 1.6, -1, 1); }
+    let target;
+    if (k.grounded) target = jumpHeld ? PL.FLY : wl > 0.15 ? PL.TAXI * wl * (Math.abs(d) > 1.6 ? 0.4 : 1) : 0;
+    else target = wl > 0.15 ? PL.FLY : PL.MINAIR + 3;
+    if (k.boost > 0) target = PL.BOOST;
+    const acc = k.boost > 0 ? 22 : k.grounded ? (target > k.speed ? 9 : 12) : 6;
+    k.speed += clamp(target - k.speed, -acc * dt, acc * dt);
+    k.yaw += turn * (k.grounded ? 1.5 * clamp(k.speed / 5, 0.25, 1) : 1.05) * dt;
+    // ne pas sortir du monde : on fait demi-tour tout seul
+    const lim = S.WORLD / 2 - 18;
+    if (Math.abs(k.x) > lim || Math.abs(k.z) > lim) k.yaw = lerpAngle(k.yaw, Math.atan2(-k.x, -k.z), Math.min(1, dt * 1.6));
+    const fx = Math.sin(k.yaw), fz = Math.cos(k.yaw);
+    const next = { x: clamp(k.x + fx * k.speed * dt, -lim - 6, lim + 6), z: clamp(k.z + fz * k.speed * dt, -lim - 6, lim + 6) };
+    const nx0 = next.x, nz0 = next.z;
+    game.pushOut(next, k.y + 0.4, PL.R);
+    const corr = Math.hypot(next.x - nx0, next.z - nz0);
+    if (corr > 0.05 && k.speed > 6) {
+      if (k.bumpT <= 0) { if (drv) game.sound('bump'); game.burst(next.x + fx * 2, k.y + 1.5, next.z + fz * 2, 10, 0xffffff, 3, 0.4); k.bumpT = 0.5; }
+      k.speed *= 0.55;
+      if (!k.grounded) k.vy = Math.max(k.vy, 5);
+    }
+    k.x = next.x; k.z = next.z;
+    if (k.grounded) {
+      const sup = game.support(k.x, k.z, k.y + 0.6);
+      if (sup.y < k.y - 0.6) { k.grounded = false; k.vy = 0; }
+      else k.y = sup.y;
+      if (jumpHeld && k.speed >= PL.LIFT && !frozen) { k.grounded = false; k.vy = 3.5; if (drv) game.sound('jump'); }
+    } else {
+      const vyT = jumpHeld ? PL.CLIMB : -PL.SINK;
+      k.vy += (vyT - k.vy) * Math.min(1, dt * 2.5);
+      k.y = Math.min(PL.CEIL, k.y + k.vy * dt);
+      const sup = game.support(k.x, k.z, k.y + 0.3);
+      if (k.y <= sup.y) {
+        if (k.vy < -6 || k.speed > 30) { if (drv) game.sound('bump'); game.burst(k.x, sup.y + 0.2, k.z, 12, 0xf0e0c0, 3, 0.5); }
+        k.y = sup.y; k.vy = 0; k.grounded = true; k.speed = Math.min(k.speed, 14);
+      }
+    }
+    if (k.y < S.WATER_Y + 0.3 && S.inWater(k.x, k.z)) {
+      game.burst(k.x, S.WATER_Y + 0.2, k.z, 24, 0x9ae0ff, 5, 0.7); game.sound('splash');
+      resetPlane(k); game.banner('Plouf !', 'L\'avion revient à l\'aérodrome.', 1800);
+    }
+    k.roll += ((k.grounded ? 0 : -turn * 0.6) - k.roll) * Math.min(1, dt * 3);
+    k.pitch += ((k.grounded ? 0 : clamp(-k.vy * 0.045, -0.35, 0.35)) - k.pitch) * Math.min(1, dt * 3);
+    if (k.boost > 0 && game.t % 0.04 < dt) game.spawnParticle(k.x - fx * 4.2, k.y + 1.75, k.z - fz * 4.2, -fx * 3, 0.5, -fz * 3, 0xffb050, 0.3, 0.3, 0);
+    if (drv) {
+      drv.pos.set(k.x, k.y, k.z);
+      drv.vel.set(fx * k.speed, k.vy, fz * k.speed);
+      drv.yaw = k.yaw; drv.grounded = k.grounded; drv.gliding = false;
+      drv.attackT = 0; drv.dashT = 0;
+      if (k.grounded && k.y > 0.4 && game.t - drv.lastSafeT > 0.4) { drv.lastSafe.set(k.x, k.y, k.z); drv.lastSafeT = game.t; }
+    }
   }
   function honk(k) {
     if (game.t - (k.hornT || -9) < 0.5) return;
@@ -872,14 +1003,17 @@ export function buildPlay(game, decor) {
         pr.delete('talk');
         // en kart près de Fernand : on prend un client ; sinon on descend
         const n = P.nearby;
-        if (n && n.act === 'giver') talkGiver(n.id, P); else exitKart(P);
+        if (k.plane) exitPlane(P);
+        else if (n && n.act === 'giver') talkGiver(n.id, P); else exitKart(P);
         return true;
       }
-      driveKart(P, k, wx, wz, jumpHeld, pr, dt);
+      if (k.plane) flyPlane(P, k, wx, wz, jumpHeld, pr, dt);
+      else driveKart(P, k, wx, wz, jumpHeld, pr, dt);
       return true;
     },
     nearFor(Q) {
       if (!Q.kart) return undefined;
+      if (Q.kart.plane) return Q.kart.grounded ? { kind: 'lv', act: 'exit', label: 'DESCENDRE', x: Q.pos.x, z: Q.pos.z, y: Q.pos.y } : null;
       const tx = S.GIVERS.taxi;
       if (distXZ(Q.pos, tx.x, tx.z) < 6 && !(st.m && st.m.id === 'taxi')) return { kind: 'lv', act: 'giver', id: 'taxi', label: 'TAXI', x: tx.x, z: tx.z, y: tx.y };
       return { kind: 'lv', act: 'exit', label: 'DESCENDRE', x: Q.pos.x, z: Q.pos.z, y: Q.pos.y };
@@ -887,12 +1021,14 @@ export function buildPlay(game, decor) {
     extraCandidates() {
       const out = [];
       for (const k of karts) if (k.driver < 0) out.push({ kind: 'lv', act: 'kart', k: k.i, label: 'MONTER', x: k.x, z: k.z, y: k.y });
+      for (const k of planes) if (k.driver < 0) out.push({ kind: 'lv', act: 'plane', k: k.i, label: 'PILOTER', x: k.x, z: k.z, y: k.y });
       for (const id in citizens) { const g = S.GIVERS[id]; out.push({ kind: 'lv', act: 'giver', id, label: id === 'shop' ? 'BOUTIQUE' : 'PARLER', x: g.x, z: g.z, y: g.y }); }
       return out;
     },
     interact(n, P) {
       if (n.act === 'kart') enterKart(P, karts[n.k]);
-      else if (n.act === 'exit') exitKart(P);
+      else if (n.act === 'plane') enterPlane(P, planes[n.k]);
+      else if (n.act === 'exit') { if (P.kart && P.kart.plane) exitPlane(P); else exitKart(P); }
       else if (n.act === 'giver') talkGiver(n.id, P);
     },
     /** Message d'un invité (boutique). */
@@ -913,6 +1049,12 @@ export function buildPlay(game, decor) {
           if (k.y < -0.9) resetKart(k);
         }
       }
+      for (const k of planes) {
+        if (k.driver >= 0 && !game.party.has(k.driver)) { k.driver = -1; if (!k.grounded) resetPlane(k); }
+        if (k.driver >= 0) continue;
+        if (!k.grounded) resetPlane(k);
+        else if (k.speed > 0.01) { k.speed = Math.max(0, k.speed - 12 * dt); k.x += Math.sin(k.yaw) * k.speed * dt; k.z += Math.cos(k.yaw) * k.speed * dt; }
+      }
       stepCars(dt);
       stepMission(dt);
       stepPosters();
@@ -932,18 +1074,20 @@ export function buildPlay(game, decor) {
       for (const k of karts) if (k.driver < 0) out.push([k.x, k.z, hex(k.def.color), 2.4]);
       for (const c of cars) out.push([c.x, c.z, '#5a5e68', 1.6]);
       for (const r of rivals) if (r.on) out.push([r.x, r.z, '#ffffff', 2.6]);
+      for (const k of planes) out.push([k.x, k.z, hex(k.def.color), 3.2]);
       for (const [x, z, col] of targets()) out.push([x, z, col, 4.2, true]);
       return out;
     },
     reveal() { const o = {}; for (const m of S.medals) o[m.id] = false; return o; },
     applySave() { refreshPosters(); renderShop(); },
-    respawn(P) { if (P.kart) exitKart(P); return null; },
+    respawn(P) { if (P.kart && P.kart.plane) { const k = P.kart; k.grounded = true; exitPlane(P); resetPlane(k); } else if (P.kart) exitKart(P); return null; },
     snapshot() {
       const r = (x) => Math.round(x * 100) / 100, r1 = (x) => Math.round(x * 10) / 10;
       const m = st.m;
       return {
         k: karts.map(k => [r(k.x), r(k.y), r(k.z), r(k.yaw), k.driver, r(k.speed), k.boost > 0 ? 1 : 0, k.drift ? (k.driftT > 1.5 ? 3 : k.driftT > 0.7 ? 2 : 1) * k.drift : 0]),
         c: cars.map(c => [r1(c.x), r1(c.y), r1(c.z), r(c.yaw)]),
+        pl: planes.map(k => [r(k.x), r(k.y), r(k.z), r(k.yaw), k.driver, r(k.speed), k.boost > 0 ? 1 : 0, r(k.roll), r(k.pitch), k.grounded ? 1 : 0]),
         rv: rivals.filter(q => q.on).map(q => [q.i, r1(q.x), r1(q.y), r1(q.z), r(q.yaw), r1(q.speed), q.prog, q.done ? 1 : 0]),
         m: m ? {
           id: m.id, ph: m.ph, t: r(m.t), done: m.done, prog: m.prog, found: m.found, cd: m.cd, dest: m.dest, driver: m.driver, t0: m.t0 !== undefined ? r(game.t - m.t0) : undefined,
@@ -961,8 +1105,13 @@ export function buildPlay(game, decor) {
         k.x = d[0]; k.y = d[1]; k.z = d[2]; k.yaw = d[3]; k.driver = d[4]; k.speed = d[5]; k.boost = d[6] ? 1 : 0;
         k.drift = Math.sign(d[7]); k.driftT = Math.abs(d[7]) === 3 ? 2 : Math.abs(d[7]) === 2 ? 1 : 0;
       });
+      (x.pl || []).forEach((d, i) => {
+        const k = planes[i];
+        if (!k) return;
+        k.x = d[0]; k.y = d[1]; k.z = d[2]; k.yaw = d[3]; k.driver = d[4]; k.speed = d[5]; k.boost = d[6] ? 1 : 0; k.roll = d[7]; k.pitch = d[8]; k.grounded = !!d[9];
+      });
       for (const P of game.players) P.kart = null;
-      for (const k of karts) if (k.driver >= 0 && game.party.has(k.driver)) game.party.get(k.driver).kart = k;
+      for (const k of karts.concat(planes)) if (k.driver >= 0 && game.party.has(k.driver)) game.party.get(k.driver).kart = k;
       (x.c || []).forEach((d, i) => { const c = cars[i]; if (!c) return; c.tx = d[0]; c.ty = d[1]; c.tz = d[2]; c.tyaw = d[3]; });
       for (const r of rivals) r.on = false;
       for (const d of x.rv || []) { const r = rivals[d[0]]; r.on = true; r.tx = d[1]; r.ty = d[2]; r.tz = d[3]; r.tyaw = d[4]; r.speed = d[5]; r.prog = d[6]; r.done = !!d[7]; if (!r.seen) { r.x = d[1]; r.y = d[2]; r.z = d[3]; r.yaw = d[4]; } r.seen = true; }
@@ -990,6 +1139,7 @@ export function buildPlay(game, decor) {
           { who: 'Mamie Labrador', text: 'Les habitants qui ont besoin d\'aide ont un « ! » au-dessus de la tête. Ils sont aussi sur la carte, en orange.' },
           { who: 'Mamie Labrador', text: 'Des karts sont garés un peu partout : approchez-vous et montez dedans !' },
           { who: 'Mamie Labrador', text: `En kart : ${k.dash} turbo, ${k.jump} saut, ${k.jump} maintenu en virage pour déraper, ${k.attack} klaxon.` },
+          { who: 'Mamie Labrador', text: 'Et tout au nord-est, sur le plateau, il y a l\'aérodrome : trois biplans vous attendent pour survoler la ville !' },
           { who: 'Mamie Labrador', text: 'Les pièces d\'or remplissent le porte-monnaie de la ville. Chez Mimi, on peut s\'acheter des chapeaux, des peintures… et un super turbo !' },
           { who: 'Matcha', text: 'Des chapeaux ? Je veux la couronne !' },
           { who: 'Ainu', text: 'Ouaf ! On commence par où ?' },
@@ -1029,10 +1179,11 @@ export function buildPlay(game, decor) {
       for (const c of cullList) c.obj.visible = Math.hypot(c.x - cam.x, c.z - cam.z) < far + c.r;
       const seeIt = (x, z, r) => Math.hypot(x - cam.x, z - cam.z) < (r || SEE);
       // boutons tactiles en kart
-      if (!!me.kart !== st.btnKart) {
-        st.btnKart = !!me.kart;
+      const vk = me.kart ? (me.kart.plane ? 'plane' : 'kart') : '';
+      if (vk !== st.btnKart) {
+        st.btnKart = vk;
         const lab = (b, tx) => { const e = game.dom.root.querySelector(`.adv-btn.${b} span`); if (e) e.textContent = tx; };
-        lab('dash', me.kart ? 'Turbo' : 'Charge'); lab('attack', me.kart ? 'Klaxon' : 'Attaque');
+        lab('dash', me.kart ? 'Turbo' : 'Charge'); lab('attack', me.kart ? 'Klaxon' : 'Attaque'); lab('jump', vk === 'plane' ? 'Monter' : 'Saut');
       }
       // porte-monnaie
       const coins = city().coins | 0;
@@ -1068,6 +1219,50 @@ export function buildPlay(game, decor) {
           if (P.shadow) P.shadow.visible = false;
         }
         // passager du taxi
+      }
+      // avions
+      for (const k of planes) {
+        const P = k.driver >= 0 ? game.party.get(k.driver) : null;
+        if (P && P.kart !== k) P.kart = k;
+        const x = P ? P.pos.x : k.x, y = P ? P.pos.y : k.y, z = P ? P.pos.z : k.z, yaw = P ? P.yaw : k.yaw;
+        const vis = seeIt(x, z, 260);
+        k.m.visible = vis; k.shadow.visible = vis;
+        if (!vis) continue;
+        const u = k.m.userData;
+        k.m.position.set(x, y, z); k.m.rotation.y = yaw;
+        u.body.rotation.set(k.pitch, 0, k.roll);
+        const rpm = k.driver >= 0 ? 8 + k.speed * 1.6 : k.speed * 1.6;
+        k.propA += rpm * dt; u.prop.rotation.z = k.propA;
+        u.disc.material.opacity = clamp((rpm - 10) / 40, 0, 0.35);
+        k.wheelA += (k.grounded ? k.speed : 0) * dt / 0.42; u.wheels.forEach(w => { w.rotation.x = k.wheelA; });
+        u.flame.material.opacity = k.boost > 0 ? 0.9 : 0;
+        game.placeShadow(k.shadow, k.m.position, 2.5);
+        if (P && P.mesh) {
+          // le chien est assis dans le cockpit et suit l'inclinaison de l'avion
+          const o = new THREE.Vector3(0, u.seatY, u.seatZ).applyEuler(new THREE.Euler(k.pitch, yaw, k.roll, 'YXZ'));
+          P.mesh.position.set(x + o.x, y + o.y, z + o.z);
+          P.mesh.rotation.order = 'YXZ'; P.mesh.rotation.set(k.pitch, yaw, k.roll);
+          const pu = P.mesh.userData;
+          if (pu.legs) pu.legs.forEach((l) => { l.rotation.x = 0; });
+          if (pu.ainu) { pu.ainu.position.y = 0; pu.ainu.rotation.x = 0; }
+          if (pu.matcha && !pu.ainu) { pu.matcha.position.y = pu.matchaY0; pu.matcha.rotation.x = 0; }
+          if (P.shadow) P.shadow.visible = false;
+          st.tilted = st.tilted || new Set(); st.tilted.add(P);
+        }
+      }
+      if (st.tilted) for (const P of st.tilted) if (!P.kart || !P.kart.plane) { if (P.mesh) { P.mesh.rotation.x = 0; P.mesh.rotation.z = 0; } st.tilted.delete(P); }
+      // caméra plus loin en avion
+      const inPlane = !!(me.kart && me.kart.plane);
+      if (inPlane) { game.camDistOverride = 17; st.camSet = true; } else if (st.camSet) { game.camDistOverride = null; st.camSet = false; }
+      sockCone.rotation.x = Math.sin(t * 2.3) * 0.12;
+      // l'avion qui fait le tour de la ville
+      {
+        const a = t * 0.07, R = 165;
+        flyby.position.set(Math.cos(a) * R, 78 + Math.sin(t * 0.3) * 6, Math.sin(a) * R);
+        flyby.rotation.set(0, -a, 0);
+        flyby.userData.body.rotation.z = 0.32;
+        flyby.userData.prop.rotation.z = t * 60;
+        flyby.userData.disc.material.opacity = 0.3;
       }
       // karts rivaux
       const k0 = 1 - Math.exp(-dt * 12);

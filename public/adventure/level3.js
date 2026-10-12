@@ -593,6 +593,10 @@ export const crates = [
 ];
 for (const c of crates) c.y = heightAt(c.x, c.z);
 
+// Aérodrome (au nord-est, sur le plateau) : ni arbre ni herbe sur la piste
+export const RUNWAY = { x0: 30, x1: 182, z: -158, w: 12 };
+export function noGrass(x, z) { return x > RUNWAY.x0 - 3 && x < RUNWAY.x1 + 3 && Math.abs(z - RUNWAY.z) < RUNWAY.w / 2 + 1.5; }
+
 // Arbres
 export const trees = [];
 {
@@ -621,6 +625,8 @@ export const trees = [];
   const P = PLAZA;
   for (const [x, z] of [[P.x0 + 2.4, P.z0 + 2.4], [P.x1 - 2.4, P.z0 + 2.4], [P.x1 - 2.4, P.z1 - 2.4]]) add(x, z, 0.9, 5.5);
   for (const t of trees) cyl(t.x, t.z, 0.5 * t.s, t.y - 1, t.y + t.h, { kind: 'tree' });
+  // la piste de l'aérodrome reste dégagée (arbres plantés au hasard : on retire ceux qui la gênent)
+  for (let k = trees.length - 1; k >= 0; k--) if (trees[k].x > RUNWAY.x0 - 8 && trees[k].x < RUNWAY.x1 + 8 && Math.abs(trees[k].z - RUNWAY.z) < RUNWAY.w / 2 + 6) trees.splice(k, 1);
 }
 
 // ---------------------------------------------------------------------------
