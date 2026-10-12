@@ -466,8 +466,8 @@ export function buildTrees(scene, quality) {
     leaves.setColorAt(i, c.set(greens[i % greens.length]).offsetHSL(0, 0, b.bush ? -0.04 : (r() - 0.5) * 0.06));
   });
   trunks.castShadow = leaves.castShadow = true;
-  if (LOOK.real) {
-    // feuilles détaillées autour de chaque touffe
+  if (false) {
+    // (feuilles détaillées autour de chaque touffe : retiré, ça faisait des taches sombres sur téléphone)
     const per = quality && quality.lite ? 5 : L.WORLD ? 6 : 12;
     const cards = new THREE.InstancedMesh(leafCardGeo(), new THREE.MeshStandardMaterial({ map: leafTexture(), alphaTest: 0.45, side: THREE.DoubleSide, roughness: 0.8 }), blobs.length * per);
     cards.customDepthMaterial = new THREE.MeshDepthMaterial({ depthPacking: THREE.RGBADepthPacking, map: leafTexture(), alphaTest: 0.45 });
@@ -910,7 +910,7 @@ export function buildCrystals(scene) {
 let leafTex = null;
 export function leafTexture() {
   if (leafTex) return leafTex;
-  if (LOOK.real && RT.hasPhotos()) { leafTex = RT.leafClusterTexture(); if (leafTex) return leafTex; }
+
   const c = document.createElement('canvas'); c.width = 256; c.height = 128;
   const x = c.getContext('2d');
   const r = rng(55);
