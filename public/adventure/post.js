@@ -103,7 +103,7 @@ export class Post {
     const caps = renderer.capabilities, ext = renderer.extensions;
     const half = caps.isWebGL2 && (ext.has('EXT_color_buffer_half_float') || ext.has('EXT_color_buffer_float'));
     this.type = half ? THREE.HalfFloatType : THREE.UnsignedByteType;
-    const g = Object.assign({ bloom: 0.55, threshold: 1.0, knee: 0.5, exposure: 1.0, contrast: 1.06, saturation: 1.06, vignette: 0.3,
+    const g = Object.assign({ bloom: 0.55, threshold: 1.0, knee: 0.5, exposure: 1.0, contrast: 1.12, saturation: 1.04, vignette: 0.3,
       shadowTint: [0.012, 0.004, 0.02], highTint: [0.02, 0.012, -0.01] }, grade || {});
     if (!half) { g.threshold = Math.min(g.threshold, 0.82); g.knee = 0.25; }   // image sans HDR : seuil plus bas
     this.grade = g;
