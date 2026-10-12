@@ -74,6 +74,7 @@ export async function start(opts) {
     LD.progress(0.35, 'Les chiens se préparent…');
   }
   W.applySky(L.SKY);
+  if (opts.sfx) opts.sfx.music('adv' + L.ID);     // l'ambiance musicale du niveau
   await M.preloadDogs();
   if (LD) {
     LD.progress(0.7, L.WORLD ? 'Construction de la ville…' : 'Construction du monde…');
@@ -107,6 +108,7 @@ class Adventure {
     this.camInput = { dx: 0, dy: 0 };
     this.lastCamManual = -10;
     this.disposed = false;
+    this.localBanner = (...a) => this.banner(...a);   // bandeau seulement sur cet écran (remplacé à plusieurs)
 
     this.loadSave();
     this.buildDom();
@@ -194,7 +196,7 @@ class Adventure {
       <div class="adv-banner hidden"></div>
       <div class="adv-prompt hidden"></div>
       <div class="adv-dialog hidden"><div class="adv-dname"></div><div class="adv-dtext"></div><div class="adv-dnext">▼</div></div>
-      <button class="adv-mic hidden" aria-label="Micro"><svg viewBox="0 0 24 24" width="20" height="20"><rect x="9" y="3" width="6" height="11" rx="3" fill="#fff"/><path d="M6 11a6 6 0 0 0 12 0M12 17v4M8 21h8" stroke="#fff" stroke-width="2" fill="none" stroke-linecap="round"/><path class="slash" d="M4 4 20 20" stroke="#ff6a5a" stroke-width="2.6" stroke-linecap="round"/></svg></button>
+      <button class="adv-mic hidden" aria-label="Micro"><svg viewBox="0 0 24 24" width="20" height="20"><rect x="9" y="3" width="6" height="11" rx="3" fill="#fff"/><path d="M6 11a6 6 0 0 0 12 0M12 17v4M8 21h8" stroke="#fff" stroke-width="2" fill="none" stroke-linecap="round"/><path class="slash" d="M4 4 20 20" stroke="#ff6a5a" stroke-width="2.6" stroke-linecap="round"/></svg><span class="lbl"></span></button>
       <button class="adv-pause" aria-label="Pause"><svg viewBox="0 0 20 20" width="18" height="18"><rect x="4" y="3" width="4" height="14" rx="1.5" fill="#fff"/><rect x="12" y="3" width="4" height="14" rx="1.5" fill="#fff"/></svg></button>
       <div class="adv-touch ${this.isTouch ? '' : 'hidden'}">
         <div class="adv-stick-zone"></div>
@@ -1287,6 +1289,17 @@ class Adventure {
     link.send({ t: 'ready' }); // l'hôte renvoie alors tout l'état du monde
   }
 
+  /** Une fois : on montre où est le bouton du micro. */
+  micHint() {
+    if (this.micHinted || !this.vc) return;
+    this.micHinted = true;
+    setTimeout(() => {
+      if (this.disposed || this.vc.on) return;
+      this.localBanner('Pour vous parler', 'Appuie sur « Micro », en haut à gauche, à côté de la pause', 3600);
+      this.dom.mic.classList.add('hint'); setTimeout(() => this.dom.mic.classList.remove('hint'), 4000);
+    }, 4200);
+  }
+
   /** Chat vocal : allume ou coupe mon micro. */
   async toggleMic() {
     if (!this.vc || this.party.size < 2 || this.micBusy) return;
@@ -1433,6 +1446,7 @@ class Adventure {
     this.broadcastRoster();
     this.burst(P.pos.x, P.pos.y + 1, P.pos.z, 14, 0xfff0a0, 3, 0.6);
     this.banner(`${P.name} arrive avec ${dogName(kind)} !`, `${this.party.size} joueurs dans le monde`, 2400);
+    this.micHint();
     this.sound('reveal');
   }
 
@@ -1499,6 +1513,7 @@ class Adventure {
     setTimeout(() => {
       if (this.disposed) return;
       this.localBanner(`Bienvenue, ${P.name} !`, `Tu joues ${dogName(P.kind)} dans le monde de ${this.player.name}.`, 3600);
+      this.micHint();
     }, 600);
   }
 
@@ -2549,6 +2564,10 @@ class Adventure {
         ${this.hostSession ? `<div class="adv-stats">Code de ton monde : <b class="adv-code">${this.hostSession.code}</b> (jusqu'à 6 joueurs)</div>` : ''}
         ${this.visitorsLine()}
         <button class="btn primary" data-a="resume">Reprendre</button>
+        <div class="adv-toggles">
+          <button class="btn" data-a="music">🎵 Musique : ${this.sfx && this.sfx.musicOn === false ? 'non' : 'oui'}</button>
+          ${this.vc && this.party.size > 1 ? `<button class="btn" data-a="mic">🎤 Micro : ${this.vc.on ? 'allumé' : 'coupé'}</button>` : ''}
+        </div>
         ${this.coop ? '' : '<button class="btn" data-a="restart">Recommencer le niveau</button>'}
         <button class="btn ghost" data-a="quit">Menu principal</button>`;
     } else if (kind === 'continue') {
@@ -2605,6 +2624,8 @@ class Adventure {
     if (this.sfx) { this.sfx.unlock(); this.sfx.click(); }
     switch (a) {
       case 'resume': this.hideOverlay(); break;
+      case 'music': if (this.sfx && this.sfx.setMusic) this.sfx.setMusic(this.sfx.musicOn === false); this.showOverlay('pause'); break;
+      case 'mic': this.toggleMic().then(() => { if (this.dom.overlay.dataset.kind === 'pause') this.showOverlay('pause'); }); break;
       case 'resume-save': this.hideOverlay(); this.beginLevel(false); break;
       case 'restart': this.showOverlay('confirm'); break;
       case 'back-pause': this.showOverlay('pause'); break;
