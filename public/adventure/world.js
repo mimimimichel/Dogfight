@@ -431,7 +431,7 @@ export function buildTrees(scene, quality) {
   const bark = LOOK.real && !phb ? barkTexture() : null;
   const trunks = new THREE.InstancedMesh(trunkGeo, phb ? new THREE.MeshStandardMaterial({ map: phb.map, normalMap: phb.normalMap, roughness: 0.95 })
     : LOOK.real ? new THREE.MeshStandardMaterial({ color: 0xb8a088, map: bark, normalMap: RT.normalFor(bark, 6), roughness: 0.95 }) : M.mat(0x7a4e2c, { roughness: 0.95 }), n);
-  const blobGeo = leafClusterGeo(L.WORLD ? 6 : quality && quality.lite ? 10 : 16);
+  const blobGeo = leafClusterGeo(L.ID === 3 ? 6 : quality && quality.lite ? 10 : 16);   // (la ville a des centaines d'arbres : version simple)
   const blobs = [];
   // style du feuillage selon le niveau (la forêt du niveau 2 a moins de touffes, plus grosses)
   const ST = Object.assign({ min: 5, extra: 3, rad: 1.1, big: 1.9, small: 1.3, bushes: 2 }, L.TREE_STYLE || {});

@@ -138,7 +138,7 @@ export async function start(opts) {
   await M.preloadDogs();
   if (photos) await photos;
   if (LD) {
-    LD.progress(0.7, L.WORLD ? 'Construction de la ville…' : 'Construction du monde…');
+    LD.progress(0.7, L.ID === 3 ? 'Construction de la ville…' : 'Construction du monde…');
     await new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)));   // laisse l'écran se dessiner
   }
   const adv = new Adventure(opts);
