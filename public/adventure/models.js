@@ -729,7 +729,36 @@ function skinnedDuoPart(name) {
   mesh.castShadow = mesh.receiveShadow = true;
   mesh.frustumCulled = false;
   mesh.userData.outlineThick = 0.008;
+  if (FUR.mode === 'shells') duoFur(mesh, mat, DUO_FUR[name]);
   return { mesh, bones };
+}
+// Rendu réaliste (ordinateur) : poils en coques par-dessus la peau texturée,
+// déformées par le même squelette (Ainu, eurasier à poil long ; Matcha, pinscher, garde son poil ras).
+const DUO_FUR = { ainu: { length: 0.045, density: 140, layers: 12 }, };
+function duoFur(mesh, base, o) {
+  if (!o) return;
+  base.emissiveIntensity = 0.24;
+  for (let i = 1; i <= o.layers; i++) {
+    const k = i / o.layers;
+    const m = base.clone();
+    m.transparent = false; m.userData.keepPBR = true;
+    m.onBeforeCompile = (sh) => {
+      sh.uniforms.uDen = { value: o.density };
+      sh.vertexShader = 'varying float vLayer;\nvarying vec3 vBase;\n' + sh.vertexShader.replace('#include <begin_vertex>',
+        `#include <begin_vertex>
+      vLayer = ${k.toFixed(4)}; vBase = position;
+      transformed += normalize(normal) * ${(k * o.length).toFixed(5)} + vec3(0.0, -1.0, -0.6) * ${(k * k * o.length * 0.5).toFixed(5)};`);
+      sh.fragmentShader = FUR_FRAG_HEAD + sh.fragmentShader.replace('#include <color_fragment>', FUR_FRAG +
+        // pas de poils sur le harnais, la truffe, les yeux et la bouche (zones sombres de la texture)
+        '\n      if (dot(diffuseColor.rgb, vec3(0.299, 0.587, 0.114)) < 0.16) discard;');
+    };
+    m.customProgramCacheKey = () => 'duofur' + i + '_' + o.layers + '_' + o.density;
+    const shell = new THREE.SkinnedMesh(mesh.geometry, m);
+    shell.bind(mesh.skeleton, mesh.bindMatrix);
+    shell.frustumCulled = false; shell.castShadow = false; shell.receiveShadow = true;
+    shell.userData.noOutline = true;
+    mesh.add(shell);
+  }
 }
 export function buildDuo() {
   const root = new THREE.Group();
