@@ -631,7 +631,8 @@
     if (document.activeElement && document.activeElement.blur) document.activeElement.blur();
     app.mode = 'adventure';
     show('adventure');
-    toast('Chargement de l\'aventure…', 1500);
+    const LV = { 1: ['Le Parc des Toutous', 'Niveau 1'], 2: ['La Forêt des Moustaches', 'Niveau 2'], 3: ['Port-Croquette', 'Niveau 3 · la grande ville'] }[level || 1] || ['Aventure', ''];
+    if (window.AppLoader) { window.AppLoader.show(LV[0], coop ? 'On rejoint le monde de ton ami…' : LV[1]); window.AppLoader.progress(0.12, 'Chargement de l\'aventure…'); }
     import('./adventure/game.js').then((mod) => {
       adventureLoading = false;
       return mod.start({
@@ -646,6 +647,7 @@
       if (coop) coop.link.close();
       if (coopHost) coopHost.close();
       console.error(err);
+      if (window.AppLoader) window.AppLoader.hide();
       toast('Impossible de charger l\'aventure : ' + err.message, 5000);
       app.mode = null;
       show('menu');
@@ -753,6 +755,10 @@
       case 'cpu': app.mode = 'cpu'; enterSelect(); break;
       case 'local': app.mode = 'local'; enterSelect(); break;
       case 'adventure': show('levels'); break;
+      case 'ctl-adv': case 'ctl-fight':
+        for (const id of ['ctl-adv', 'ctl-fight']) $(id).classList.toggle('hidden', id !== a);
+        for (const b of document.querySelectorAll('.ctl-tabs .btn')) b.classList.toggle('on', b.dataset.action === a);
+        break;
       case 'level-1': startAdventure(null, null, 1); break;
       case 'level-2': startAdventure(null, null, 2); break;
       case 'level-3': startAdventure(null, null, 3); break;
@@ -972,5 +978,16 @@
 
   function escapeHtml(s) {
     return String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+  }
+
+  // L'écran de chargement du démarrage s'efface quand l'accueil est prêt
+  {
+    const img = new Image(); img.src = 'img/duo.png';
+    const ready = Promise.all([new Promise(r => { img.onload = img.onerror = r; }), document.fonts ? document.fonts.ready : null]);
+    let gone = false;
+    const done = () => { if (gone || app.mode === 'adventure') return; gone = true; if (window.AppLoader) window.AppLoader.hide(); };
+    if (window.AppLoader) window.AppLoader.progress(0.6, '');
+    ready.then(() => setTimeout(done, 350));
+    setTimeout(done, 4000);
   }
 })();

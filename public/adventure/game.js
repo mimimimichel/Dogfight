@@ -67,9 +67,21 @@ const ICONS = {
 export async function start(opts) {
   opts = opts || {};
   setLevel(opts.level || 1);
+  // écran de chargement (déjà affiché par le menu, ou quand on change de niveau en jeu)
+  const LD = window.AppLoader;
+  if (LD) {
+    if (!LD.visible) LD.show(L.NAME, `Niveau ${L.ID}`);
+    LD.progress(0.35, 'Les chiens se préparent…');
+  }
   W.applySky(L.SKY);
   await M.preloadDogs();
-  return new Adventure(opts);
+  if (LD) {
+    LD.progress(0.7, L.WORLD ? 'Construction de la ville…' : 'Construction du monde…');
+    await new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)));   // laisse l'écran se dessiner
+  }
+  const adv = new Adventure(opts);
+  if (LD) { LD.progress(1, 'C\'est parti !'); setTimeout(() => LD.hide(), 300); }
+  return adv;
 }
 
 class Adventure {

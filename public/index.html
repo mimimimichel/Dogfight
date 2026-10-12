@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
-  <meta name="theme-color" content="#0e0816">
+  <meta name="theme-color" content="#3fa0f0">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
@@ -19,12 +19,28 @@
   <link rel="stylesheet" href="style.css">
   <link rel="stylesheet" href="adventure/adventure.css">
   <link rel="stylesheet" href="home.css">
+  <link rel="stylesheet" href="brand.css">
 </head>
 <body>
   <div id="rotate">
+    <div class="brand-cloud c1"></div><div class="brand-cloud c2"></div>
+    <h1 class="brand-logo" aria-label="Matcha et Ainu"><span class="w matcha"><span style="--i:0">M</span><span style="--i:1">a</span><span style="--i:2">t</span><span style="--i:3">c</span><span style="--i:4">h</span><span style="--i:5">a</span></span><span class="amp">&amp;</span><span class="w ainu"><span style="--i:7">A</span><span style="--i:8">i</span><span style="--i:9">n</span><span style="--i:10">u</span></span></h1>
+    <img class="rot-duo" src="img/duo.png" alt="">
     <div class="rotate-phone"></div>
     <p>Tourne ton téléphone<br>pour jouer !</p>
   </div>
+  <!-- Écran de chargement (démarrage et entrée dans un niveau) -->
+  <div id="loader">
+    <div class="brand-cloud c1"></div><div class="brand-cloud c2"></div><div class="brand-cloud c3"></div>
+    <svg class="ld-hills" viewBox="0 0 960 220" preserveAspectRatio="none" aria-hidden="true"><path d="M0 120 C120 60 220 70 330 110 S560 170 700 100 S900 70 960 110 L960 220 L0 220Z" fill="#8fd16a"/><path d="M0 160 C150 110 300 130 420 165 S700 200 820 150 S930 140 960 150 L960 220 L0 220Z" fill="#5cb340"/><path d="M0 196 C200 176 380 186 520 200 S820 214 960 196 L960 220 L0 220Z" fill="#3f9a34"/></svg>
+    <h1 class="brand-logo" aria-label="Matcha et Ainu"><span class="w matcha"><span style="--i:0">M</span><span style="--i:1">a</span><span style="--i:2">t</span><span style="--i:3">c</span><span style="--i:4">h</span><span style="--i:5">a</span></span><span class="amp">&amp;</span><span class="w ainu"><span style="--i:7">A</span><span style="--i:8">i</span><span style="--i:9">n</span><span style="--i:10">u</span></span></h1>
+    <p class="ld-title">Chargement…</p>
+    <p class="ld-sub hidden"></p>
+    <img class="ld-duo" src="img/duo.png" alt="">
+    <div class="ld-barbox"><div class="ld-bar"><i></i></div><p class="ld-step"></p></div>
+    <p class="ld-tip"></p>
+  </div>
+  <script src="loader.js"></script>
   <div id="stage">
     <canvas id="game" width="480" height="270"></canvas>
 
@@ -219,6 +235,64 @@
       <!-- Commandes -->
       <section class="screen hidden" id="screen-controls">
         <h2>Commandes</h2>
+        <div class="ctl-tabs">
+          <button class="btn on" data-action="ctl-adv">Aventure</button>
+          <button class="btn" data-action="ctl-fight">Mode combat</button>
+        </div>
+        <div class="ctl-pane" id="ctl-adv">
+          <div class="controls-grid touch-only">
+            <div>
+              <h3>À pied</h3>
+              <table>
+                <tr><td>Se déplacer</td><td>joystick à gauche</td></tr>
+                <tr><td>Tourner la caméra</td><td>glisse le doigt à droite</td></tr>
+                <tr><td>SAUT</td><td>2 fois : double saut</td></tr>
+                <tr><td>SAUT maintenu</td><td>en tombant : on plane !</td></tr>
+                <tr><td>ATTAQUE</td><td>coup de queue tournoyant</td></tr>
+                <tr><td>CHARGE</td><td>fonce et casse les caisses</td></tr>
+                <tr><td>PARLER</td><td>habitants, panneaux, karts</td></tr>
+              </table>
+            </div>
+            <div>
+              <h3>En kart</h3>
+              <table>
+                <tr><td>Conduire</td><td>joystick : le kart va où tu pousses</td></tr>
+                <tr><td>TURBO</td><td>accélération</td></tr>
+                <tr><td>SAUT</td><td>petit bond</td></tr>
+                <tr><td>SAUT maintenu</td><td>dans un virage : dérapage + turbo</td></tr>
+                <tr><td>KLAXON</td><td>pouet pouet !</td></tr>
+                <tr><td>DESCENDRE</td><td>sortir du kart</td></tr>
+                <tr><td>Micro</td><td>bouton à gauche (à plusieurs)</td></tr>
+              </table>
+            </div>
+          </div>
+          <div class="controls-grid kb-only">
+            <div>
+              <h3>À pied</h3>
+              <table>
+                <tr><td>Se déplacer</td><td><kbd>Z</kbd><kbd>Q</kbd><kbd>S</kbd><kbd>D</kbd> ou flèches</td></tr>
+                <tr><td>Caméra</td><td>souris (glisser) ou <kbd>A</kbd><kbd>E</kbd></td></tr>
+                <tr><td>Sauter / planer</td><td><kbd>Espace</kbd> (2 fois, maintenu)</td></tr>
+                <tr><td>Coup de queue</td><td><kbd>J</kbd></td></tr>
+                <tr><td>Charge</td><td><kbd>K</kbd> ou <kbd>Maj</kbd></td></tr>
+                <tr><td>Parler, monter</td><td><kbd>F</kbd> ou <kbd>Entrée</kbd></td></tr>
+              </table>
+            </div>
+            <div>
+              <h3>En kart</h3>
+              <table>
+                <tr><td>Conduire</td><td><kbd>Z</kbd><kbd>Q</kbd><kbd>S</kbd><kbd>D</kbd></td></tr>
+                <tr><td>Turbo</td><td><kbd>K</kbd></td></tr>
+                <tr><td>Saut / dérapage</td><td><kbd>Espace</kbd> (maintenu en virage)</td></tr>
+                <tr><td>Klaxon</td><td><kbd>J</kbd></td></tr>
+                <tr><td>Descendre</td><td><kbd>F</kbd></td></tr>
+                <tr><td>Micro (à plusieurs)</td><td><kbd>V</kbd></td></tr>
+                <tr><td>Pause</td><td><kbd>Échap</kbd></td></tr>
+              </table>
+            </div>
+          </div>
+        </div>
+        <div class="ctl-pane hidden" id="ctl-fight">
         <div class="controls-grid touch-only">
           <div>
             <h3>Pouce gauche : le joystick</h3>
@@ -270,6 +344,7 @@
           <li><b>Manette</b> supportée : X/Y/B = légère/lourde/spéciale, RB = super, A = saut.</li>
           <li>Touches indiquées pour un clavier AZERTY (WASD en QWERTY). <kbd>M</kbd> coupe le son, <kbd>Échap</kbd> met en pause.</li>
         </ul>
+        </div>
         <button class="btn ghost" data-action="back">Retour</button>
       </section>
 
