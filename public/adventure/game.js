@@ -5,7 +5,21 @@
  * l'île, ramasse 100 os dorés et récupère 5 Médailles Patounes.
  */
 import * as THREE from '../vendor/three.module.min.js';
-import { L, setLevel } from './current.js';
+import { L, setLevel, LEVELS } from './current.js';
+
+// Mondes déjà visités : les portails ne mènent qu'à eux
+const VISITED_KEY = 'dogfight.visited';
+function visitedLevels() {
+  const out = new Set();
+  try {
+    for (const id of JSON.parse(localStorage.getItem(VISITED_KEY) || '[]')) out.add(+id);
+    for (const id in LEVELS) if (localStorage.getItem(LEVELS[id].SAVE_KEY)) out.add(+id);   // parties d'avant
+  } catch (e) { /* ignore */ }
+  return out;
+}
+function markVisited(id) {
+  try { const v = visitedLevels(); v.add(id); localStorage.setItem(VISITED_KEY, JSON.stringify([...v])); } catch (e) { /* ignore */ }
+}
 import * as F from './forest.js';
 import * as C from './city.js';
 import * as SK from './sky.js';
@@ -698,6 +712,8 @@ class Adventure {
     }
     const NAMES = { 1: 'Le Parc des Toutous', 2: 'La Forêt des Moustaches', 3: 'Port-Croquette', 4: 'Les Îles du Ciel' };
     const COLS = { 1: [0x3affa0, 0x0a4a3a], 2: [0x4ab0ff, 0x10206a], 3: [0xffb04a, 0x5a2008], 4: [0xc070ff, 0x2a0a5a] };
+    markVisited(L.ID);
+    const visited = visitedLevels();
     this.portals = list.map(p => {
       const [c1, c2] = COLS[p.to] || COLS[1];
       const y = L.heightAt(p.x, p.z);
@@ -733,7 +749,8 @@ class Adventure {
       label.scale.set(3.4, 1.06, 1); label.position.set(p.x, y + 4.0, p.z);
       label.userData.noOutline = true;
       this.scene.add(label);
-      const portal = { def: p, y, disc, mat, glow, label, cv, tex, name: NAMES[p.to], n: 0, t: 0, text: null };
+      const portal = { def: p, y, disc, mat, glow, label, cv, tex, name: NAMES[p.to], n: 0, t: 0, text: null, cols: [c1, c2], locked: false };
+      this.setPortalLock(portal, !this.guest && !visited.has(p.to));
       this.portalLabel(portal);
       return portal;
     });
@@ -771,25 +788,35 @@ class Adventure {
   }
 
   /** Nom du niveau, et à plusieurs : combien de joueurs sont dans le portail. */
+  /** Portail fermé (monde jamais visité) : gris, cadenas, on ne passe pas. */
+  setPortalLock(p, locked) {
+    p.locked = locked;
+    const [c1, c2] = locked ? [0x9aa0ac, 0x22242a] : p.cols;
+    p.mat.uniforms.uC1.value.set(c1); p.mat.uniforms.uC2.value.set(c2);
+    p.glow.material.color.set(c1);
+    p.text = null;
+  }
+
   portalLabel(p) {
     const total = this.party ? this.party.size : 1;
     const need = PORTAL_WAIT(total);
-    const sub = p.n > 0 && p.n < total ? `${p.n}/${total} dans le portail : on attend tout le monde !`
+    const sub = p.locked ? 'Monde pas encore découvert' : p.n > 0 && p.n < total ? `${p.n}/${total} dans le portail : on attend tout le monde !`
       : p.n > 0 && total > 1 ? `Tout le monde est là ! Départ dans ${Math.max(1, Math.ceil(need - p.t))}…`
         : total > 1 ? 'Entrez tous dedans pour y aller' : '';
-    const text = p.name + '|' + sub;
+    const name = (p.locked ? '🔒 ' : '') + p.name;
+    const text = name + '|' + sub;
     if (text === p.text) return;
     p.text = text;
     const cx = p.cv.getContext('2d');
     cx.clearRect(0, 0, 512, 160);
     cx.textAlign = 'center'; cx.textBaseline = 'middle'; cx.lineJoin = 'round';
     cx.font = '700 46px Fredoka, system-ui, sans-serif';
-    cx.lineWidth = 10; cx.strokeStyle = 'rgba(30,16,8,0.85)'; cx.strokeText(p.name, 256, 46);
-    cx.fillStyle = '#fff4d0'; cx.fillText(p.name, 256, 46);
+    cx.lineWidth = 10; cx.strokeStyle = 'rgba(30,16,8,0.85)'; cx.strokeText(name, 256, 46);
+    cx.fillStyle = p.locked ? '#d8dce4' : '#fff4d0'; cx.fillText(name, 256, 46);
     if (sub) {
       cx.font = '600 28px Fredoka, system-ui, sans-serif';
       cx.lineWidth = 8; cx.strokeText(sub, 256, 112);
-      cx.fillStyle = p.n > 0 && p.n === total ? '#a8ff8a' : '#ffe08a'; cx.fillText(sub, 256, 112);
+      cx.fillStyle = p.locked ? '#c8ccd4' : p.n > 0 && p.n === total ? '#a8ff8a' : '#ffe08a'; cx.fillText(sub, 256, 112);
     }
     p.tex.needsUpdate = true;
   }
@@ -800,6 +827,10 @@ class Adventure {
     const players = this.players, total = players.length;
     for (const p of this.portals) {
       p.n = players.filter(P => Math.hypot(P.pos.x - p.def.x, P.pos.z - p.def.z) < 1.7 && Math.abs(P.pos.y - p.y) < 2.5).length;
+      if (p.locked) {
+        if (p.n > 0 && this.t - (this.lockMsgT || -9) > 4) { this.lockMsgT = this.t; this.banner('🔒 Monde pas encore découvert', `Commence « ${p.name} » depuis le menu principal : ensuite, ce portail t'y ramènera.`, 3000); }
+        p.n = 0; p.t = 0; continue;
+      }
       const prev = p.t;
       p.t = p.n === total ? p.t + dt : 0;
       if (p.n === total && prev === 0 && total > 1) this.sound('switch');
@@ -1821,7 +1852,7 @@ class Adventure {
       hp: this.hearts.filter(h => !h.taken).map(h => [r(h.x), r(h.y), r(h.z)]),
       d: d ? [d.lines[d.i].who, d.lines[d.i].text, Math.floor(d.chars)] : 0,
       ev: this.coopEvents.splice(0),
-      pt: (this.portals || []).map(p => [p.n, Math.round(p.t * 10) / 10]),
+      pt: (this.portals || []).map(p => [p.n, Math.round(p.t * 10) / 10, p.locked ? 1 : 0]),
     };
     if (this.levelLogic) base.x = this.levelLogic.snapshot();
     const sv = JSON.stringify(Object.assign({}, this.save, { time: 0 }));
@@ -1995,7 +2026,7 @@ class Adventure {
     if (s.n && !this.isTouch) { prompt.textContent = `F : ${s.n.toLowerCase()}`; prompt.classList.remove('hidden'); }
     else prompt.classList.add('hidden');
     if (s.x && this.levelLogic) this.levelLogic.apply(s.x);
-    if (s.pt && this.portals) s.pt.forEach(([n, t], i) => { const p = this.portals[i]; if (p) { p.n = n; p.t = t; } });
+    if (s.pt && this.portals) s.pt.forEach(([n, t, lk], i) => { const p = this.portals[i]; if (p) { p.n = n; p.t = t; if (!!lk !== p.locked) this.setPortalLock(p, !!lk); } });
     // effets
     for (const [n, ...a] of s.ev) {
       if (n === 'overlay') this.showOverlay(a[0]);
@@ -3065,6 +3096,7 @@ class Adventure {
 
   beginLevel(fresh) {
     this.camInit = false;
+    if (!this.guest) markVisited(L.ID);
     // première visite du chapitre : la cinématique d'abord
     if (!this.guest && !this.save.story && this.party.size <= 1) {
       this.save.story = true; this.persist();
