@@ -25,6 +25,52 @@ function tinted(geo, color) {
 }
 const part = (geo, color, x, y, z, rx, ry, rz) => ({ geo: tinted(geo, color), x, y, z, rx, ry, rz });
 
+/**
+ * Relief des façades (rendu réaliste) : appuis de fenêtre en saillie, linteaux,
+ * bandeaux d'étage, balcons en fer forgé, cheminées. Calé sur les fenêtres de la
+ * texture (une travée de 3 m, fenêtre entre 25 % et 75 % de la largeur).
+ */
+function facadeRelief(T, b, sides, cx, cz, y0, y1, lite) {
+  const g = T.geo('plain', cx, cz), stone = 0xe6dccb, iron = 0x2a2e30;
+  const floors = Math.floor((y1 - y0) / 3 + 0.01);
+  const big = b.h >= 10 && !b.house && !b.villa;
+  let k = 0;
+  for (const [ax, az, bx, bz] of sides) {
+    const len = Math.hypot(bx - ax, bz - az), dx = (bx - ax) / len, dz = (bz - az) / len, nx = -dz, nz = dx;
+    const cells = Math.floor(len / 3);
+    const at = (u, out) => [ax + dx * u + nx * out, az + dz * u + nz * out];
+    const slab = (u0, u1, ya, yb, o0, o1, col) => {
+      const [x0, z0] = at(u0, o0), [x1, z1] = at(u1, o1);
+      g.box(Math.min(x0, x1), Math.max(x0, x1), ya, yb, Math.min(z0, z1), Math.max(z0, z1), col, 1);
+    };
+    for (let f = 0; f < floors; f++) {
+      const fy = y0 + f * 3;
+      // bandeau d'étage
+      if (f > 0 && !lite) slab(0, len, fy - 0.08, fy + 0.06, 0, 0.12, stone);
+      for (let c = 0; c < cells; c++) {
+        const u = c * 3;
+        slab(u + 0.62, u + 2.38, fy + 0.58, fy + 0.7, 0, 0.2, stone);                       // appui
+        if (!lite) slab(u + 0.66, u + 2.34, fy + 2.56, fy + 2.68, 0, 0.1, stone);           // linteau
+        // balcon : un sur deux, au milieu de la façade, à partir du 2e étage
+        if (big && !lite && f >= 1 && f % 2 === 1 && c === Math.floor(cells / 2) && (k++ % 2 === 0)) {
+          slab(u + 0.3, u + 2.7, fy + 0.25, fy + 0.4, 0, 0.9, 0xd8d0c4);
+          slab(u + 0.3, u + 2.7, fy + 1.3, fy + 1.36, 0.84, 0.9, iron);                     // main courante
+          for (let i = 0; i <= 8; i++) slab(u + 0.3 + i * 0.3 - 0.02, u + 0.3 + i * 0.3 + 0.02, fy + 0.4, fy + 1.3, 0.85, 0.89, iron);
+          for (const e of [0.3, 2.66]) slab(u + e, u + e + 0.04, fy + 0.4, fy + 1.3, 0, 0.9, iron);
+        }
+      }
+    }
+  }
+  // cheminées sur les maisons
+  if ((b.house || b.villa) && !lite) {
+    const top = b.top + 0.05;
+    for (const [px, pz] of [[b.x0 + 1.2, b.z0 + 1.2], [b.x1 - 1.4, b.z1 - 1.6]]) {
+      g.box(px - 0.35, px + 0.35, top, top + 1.4, pz - 0.35, pz + 0.35, 0xa8603e, 1);
+      g.box(px - 0.42, px + 0.42, top + 1.4, top + 1.55, pz - 0.42, pz + 0.42, 0x8a8a8a, 1);
+    }
+  }
+}
+
 /** Mobilier urbain détaillé, instancié : on l'ajoute au fil de l'eau puis done() le pose. */
 function streetProps(sc, S, G, spots, lite) {
   const mat = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.55, metalness: 0.15 });
@@ -266,6 +312,7 @@ function buildDecor(game) {
         T.geo(brick ? 'windowsBrick' : upper, cx, cz).wall(ax, az, bx, bz, g0 + GF, top - 0.4, b.tower ? 0xffffff : brick ? new THREE.Color(0xffffff).lerp(new THREE.Color(b.color), 0.15).getHex() : b.color, 3, 3);
       }
     }
+    if (LOOK.real && !b.tower && !b.warehouse) facadeRelief(T, b, sides, cx, cz, b.house || b.villa ? g0 : g0 + GF, top - 0.4, lite);
     const o = 0.25, tg = T.geo('plain', cx, cz);
     tg.box(x0 - o, x1 + o, top - 0.4, top + 0.05, z0 - o, z1 + o, b.tower ? 0xd8dce4 : tc, 2);
     T.geo('roof', cx, cz).top(x0 - o, x1 + o, z0 - o, z1 + o, top + 0.05, b.roof, 4);
