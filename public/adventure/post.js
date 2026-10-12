@@ -46,20 +46,21 @@ void main() {
 }`;
 
 // rayons de soleil : on « traîne » les zones très claires (soleil, ciel entre les feuilles) vers le soleil
-const SHAFTS = `precision highp float; varying vec2 vUv; uniform sampler2D tMap; uniform vec2 sun; uniform float thr, aspect;
+const SHAFTS = `precision highp float; varying vec2 vUv; uniform sampler2D tMap, tPrev; uniform vec2 sun; uniform float thr, aspect, keep;
 const int N = 36;
 void main() {
   vec2 d = (vUv - sun) / float(N) * 0.9;
   vec2 uv = vUv; float illum = 1.0; vec3 acc = vec3(0.0);
   for (int i = 0; i < N; i++) {
     uv -= d;
-    vec3 c = texture2D(tMap, clamp(uv, 0.0, 1.0)).rgb;
+    vec3 c = min(texture2D(tMap, clamp(uv, 0.0, 1.0)).rgb, vec3(1.6));
     float l = max(c.r, max(c.g, c.b));
     vec2 q = uv - sun; q.x *= aspect;
     acc += c * smoothstep(thr, thr + 0.5, l) * illum * (1.0 - smoothstep(0.0, 0.55, length(q)));
     illum *= 0.955;
   }
-  gl_FragColor = vec4(acc / float(N), 1.0);
+  // lissé dans le temps : les feuilles qui passent devant le soleil ne font pas clignoter l'image
+  gl_FragColor = vec4(mix(acc / float(N), texture2D(tPrev, vUv).rgb, keep), 1.0);
 }`;
 
 const FINAL = `precision highp float; varying vec2 vUv;
@@ -115,7 +116,8 @@ export class Post {
     this.mBright = mk(BRIGHT, { tMap: { value: null }, texel: { value: new THREE.Vector2() }, threshold: { value: g.threshold }, knee: { value: g.knee } });
     this.mDown = mk(DOWN, { tMap: { value: null }, texel: { value: new THREE.Vector2() } });
     this.mUp = mk(UP, { tMap: { value: null }, tAdd: { value: null }, texel: { value: new THREE.Vector2() }, mixAdd: { value: 1 } });
-    this.mShafts = mk(SHAFTS, { tMap: { value: null }, sun: { value: new THREE.Vector2(0.5, 0.8) }, thr: { value: 0.95 }, aspect: { value: 1.6 } });
+    this.mShafts = mk(SHAFTS, { tMap: { value: null }, tPrev: { value: null }, keep: { value: 0 }, sun: { value: new THREE.Vector2(0.5, 0.8) }, thr: { value: 0.95 }, aspect: { value: 1.6 } });
+    this.vis = 0;
     this.mFinal = mk(FINAL, {
       tScene: { value: null }, tBloom: { value: null }, tShafts: { value: null }, shafts: { value: 0 }, shaftTint: { value: new THREE.Color(1.0, 0.86, 0.62) }, bloom: { value: g.bloom }, exposure: { value: g.exposure },
       contrast: { value: g.contrast }, saturation: { value: g.saturation }, vignette: { value: g.vignette },
@@ -148,6 +150,8 @@ export class Post {
       bw = Math.max(1, bw >> 1); bh = Math.max(1, bh >> 1);
     }
     this.shaftRT = this.rt(w >> 2, h >> 2);
+    this.shaftPrev = this.rt(w >> 2, h >> 2);
+    this.shaftFresh = true;
     this.mFinal.uniforms.res.value.set(w, h);
   }
 
@@ -196,13 +200,19 @@ export class Post {
       src = this.up[i];
     }
     const f = this.mFinal.uniforms;
-    const vis = this.grade.shafts === 0 ? 0 : this.sunOnScreen(camera, sunDir);
-    f.shafts.value = vis * (this.grade.shafts === undefined ? 0.85 : this.grade.shafts);
+    const target = this.grade.shafts === 0 ? 0 : this.sunOnScreen(camera, sunDir);
+    this.vis += (target - this.vis) * 0.06;            // apparition / disparition en douceur
+    if (this.vis < 0.003) this.vis = 0;
+    const vis = this.vis;
+    f.shafts.value = vis * (this.grade.shafts === undefined ? 0.6 : this.grade.shafts);
     if (vis > 0) {
-      this.mShafts.uniforms.tMap.value = this.sceneRT.texture;
-      this.mShafts.uniforms.aspect.value = this.w / this.h;
+      const u = this.mShafts.uniforms;
+      [this.shaftRT, this.shaftPrev] = [this.shaftPrev, this.shaftRT];
+      u.tMap.value = this.sceneRT.texture; u.tPrev.value = this.shaftPrev.texture;
+      u.keep.value = this.shaftFresh ? 0 : 0.85; this.shaftFresh = false;
+      u.aspect.value = this.w / this.h;
       this.pass(this.mShafts, this.shaftRT);
-    }
+    } else this.shaftFresh = true;
     f.tShafts.value = this.shaftRT.texture;
     f.tScene.value = this.sceneRT.texture; f.tBloom.value = src.texture; f.time.value = (time || 0) % 100;
     f.bloom.value = this.grade.bloom / this.levels * 1.6;
@@ -213,6 +223,7 @@ export class Post {
   dispose() {
     if (this.sceneRT) this.sceneRT.dispose();
     if (this.shaftRT) this.shaftRT.dispose();
+    if (this.shaftPrev) this.shaftPrev.dispose();
     for (const t of [...(this.down || []), ...(this.up || [])]) t.dispose();
     this.sceneRT = null; this.down = []; this.up = [];
     this.w = this.h = 0;

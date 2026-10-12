@@ -581,14 +581,15 @@ class Adventure {
   /** Mesure la fluidité et baisse la résolution si besoin (téléphones modestes). */
   adaptQuality(dt) {
     const p = this.perf;
-    if (p.checks >= 8 || this.paused || this.dialog) { p.t = 0; p.n = 0; return; }
+    // (les premières secondes ne comptent pas : le téléphone prépare encore les effets)
+    if (p.checks >= 8 || this.paused || this.dialog || (p.skip = (p.skip || 0) + dt) < 3) { p.t = 0; p.n = 0; return; }
     p.t += dt; p.n++;
     if (p.t < 2) return;
     const fps = p.n / p.t;
     p.t = 0; p.n = 0; p.checks++;
     if (fps < 45 && this.pixelScale > 0.8) {
       this.pixelScale = Math.max(0.8, this.pixelScale * 0.9);
-      this.resize();
+      this.needResize = true;   // au début de l'image suivante (sinon l'écran, vidé, clignote)
     } else if (fps < 32 && this.post.enabled) {
       // appareil vraiment à la peine : on renonce aux effets de lumière
       this.post.enabled = false; this.post.dispose();
@@ -1368,7 +1369,7 @@ class Adventure {
     this.onKeyUp = (e) => { this.keys.delete(e.code); };
     window.addEventListener('keydown', this.onKeyDown);
     window.addEventListener('keyup', this.onKeyUp);
-    this.onResize = () => this.resize();
+    this.onResize = () => { this.needResize = true; };
     window.addEventListener('resize', this.onResize);
 
     // Souris : glisser pour tourner la caméra
@@ -2610,6 +2611,7 @@ class Adventure {
   // Rendu
   // -------------------------------------------------------------------------
   render(dt) {
+    if (this.needResize) { this.needResize = false; this.resize(); }
     const P = this.player;
     const t = this.t;
     // Chiens (et leur prénom à plusieurs)
