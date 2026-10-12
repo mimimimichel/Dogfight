@@ -43,6 +43,15 @@ function facadeRelief(T, b, sides, cx, cz, y0, y1, lite) {
       const [x0, z0] = at(u0, o0), [x1, z1] = at(u1, o1);
       g.box(Math.min(x0, x1), Math.max(x0, x1), ya, yb, Math.min(z0, z1), Math.max(z0, z1), col, 1);
     };
+    // soubassement et chaînes d'angle en pierre de taille
+    if (!lite) {
+      slab(0, len, y0 - 0.22, y0 + 0.12, 0, 0.16, stone);
+      if (big) for (let yq = y0 + 0.12, i = 0; yq < y1 - 0.5; yq += 0.55, i++) {
+        const w = i % 2 ? 0.45 : 0.75;
+        slab(0, w, yq, yq + 0.5, 0, 0.07, 0xd8ccb6);
+        slab(len - w, len, yq, yq + 0.5, 0, 0.07, 0xd8ccb6);
+      }
+    }
     for (let f = 0; f < floors; f++) {
       const fy = y0 + f * 3;
       // bandeau d'étage
@@ -51,6 +60,11 @@ function facadeRelief(T, b, sides, cx, cz, y0, y1, lite) {
         const u = c * 3;
         slab(u + 0.62, u + 2.38, fy + 0.58, fy + 0.7, 0, 0.2, stone);                       // appui
         if (!lite) slab(u + 0.66, u + 2.34, fy + 2.56, fy + 2.68, 0, 0.1, stone);           // linteau
+        if (!lite && big) {                                                                  // encadrement mouluré
+          slab(u + 0.56, u + 0.68, fy + 0.7, fy + 2.56, 0, 0.09, stone);
+          slab(u + 2.32, u + 2.44, fy + 0.7, fy + 2.56, 0, 0.09, stone);
+          slab(u + 0.56, u + 2.44, fy + 2.68, fy + 2.86, 0, 0.16, stone);                     // fronton plat
+        }
         // balcon : un sur deux, au milieu de la façade, à partir du 2e étage
         if (big && !lite && f >= 1 && f % 2 === 1 && c === Math.floor(cells / 2) && (k++ % 2 === 0)) {
           slab(u + 0.3, u + 2.7, fy + 0.25, fy + 0.4, 0, 0.9, 0xd8d0c4);
@@ -211,7 +225,7 @@ function buildDecor(game) {
     real('cross', RT.asphaltTex(false), { roughness: 0.9 });
     mats.cobbleGrey = mats.groundCobble;
   }
-  const brickish = (b) => LOOK.real && !b.tower && !b.warehouse && ((Math.round(b.x0 * 7 + b.z0 * 13) % 5 + 5) % 5 < 2);
+  const brickish = (b) => LOOK.real && !b.tower && !b.warehouse && ((Math.round(b.x0 * 7 + b.z0 * 13) % 5 + 5) % 5 < 3);
   const slab = (mat, x0, x1, z0, z1, col, y) => {
     const g = T.geo(mat, (x0 + x1) / 2, (z0 + z1) / 2), top = y === undefined ? G + 0.06 : y;
     g.top(x0, x1, z0, z1, top, col, 4);
@@ -300,21 +314,28 @@ function buildDecor(game) {
   for (const b of S.buildings) {
     const { x0, x1, z0, z1 } = b, top = b.top, g0 = b.ground, cx = (x0 + x1) / 2, cz = (z0 + z1) / 2;
     const sides = [[x0, z1, x1, z1], [x1, z1, x1, z0], [x1, z0, x0, z0], [x0, z0, x0, z1]];
-    const tc = new THREE.Color(b.color).multiplyScalar(0.82).getHex();
+    // rendu réaliste : couleurs de pierre calcaire et d'enduit plutôt que pastel
+    const fcol = LOOK.real && !b.tower ? new THREE.Color(b.color).lerp(new THREE.Color(0xdccfb8), 0.62).getHex() : b.color;
+    const tc = new THREE.Color(LOOK.real ? 0xd6cab4 : b.color).multiplyScalar(0.82).getHex();
     const upper = b.tower ? 'glass' : 'windows';
     for (const [ax, az, bx, bz] of sides) {
       if (b.base < g0 - 0.05) T.geo('plain', cx, cz).wall(ax, az, bx, bz, b.base - 0.5, g0, 0xb8ae9e, 2, 2);   // soubassement (pente)
       if (b.warehouse) T.geo('metal', cx, cz).wall(ax, az, bx, bz, g0, top - 0.4, b.color, 2, 4);
-      else if (b.house || b.villa) T.geo(brickish(b) ? 'windowsBrick' : 'windows', cx, cz).wall(ax, az, bx, bz, g0, top - 0.4, brickish(b) ? 0xf4ece4 : b.color, 3, 3);
+      else if (b.house || b.villa) T.geo(brickish(b) ? 'windowsBrick' : 'windows', cx, cz).wall(ax, az, bx, bz, g0, top - 0.4, brickish(b) ? 0xf4ece4 : fcol, 3, 3);
       else {
-        T.geo('shop', cx, cz).wall(ax, az, bx, bz, g0, g0 + GF, b.color, 3.4, GF);
+        T.geo('shop', cx, cz).wall(ax, az, bx, bz, g0, g0 + GF, fcol, 3.4, GF);
         const brick = brickish(b);
-        T.geo(brick ? 'windowsBrick' : upper, cx, cz).wall(ax, az, bx, bz, g0 + GF, top - 0.4, b.tower ? 0xffffff : brick ? new THREE.Color(0xffffff).lerp(new THREE.Color(b.color), 0.15).getHex() : b.color, 3, 3);
+        T.geo(brick ? 'windowsBrick' : upper, cx, cz).wall(ax, az, bx, bz, g0 + GF, top - 0.4, b.tower ? 0xffffff : brick ? new THREE.Color(0xffffff).lerp(new THREE.Color(b.color), 0.15).getHex() : fcol, 3, 3);
       }
     }
     if (LOOK.real && !b.tower && !b.warehouse) facadeRelief(T, b, sides, cx, cz, b.house || b.villa ? g0 : g0 + GF, top - 0.4, lite);
     const o = 0.25, tg = T.geo('plain', cx, cz);
     tg.box(x0 - o, x1 + o, top - 0.4, top + 0.05, z0 - o, z1 + o, b.tower ? 0xd8dce4 : tc, 2);
+    if (LOOK.real && !b.tower && !b.warehouse && !lite) {
+      // corniche moulurée : deux ressauts sous l'avancée du toit
+      tg.box(x0 - 0.16, x1 + 0.16, top - 0.62, top - 0.4, z0 - 0.16, z1 + 0.16, 0xe2d8c6, 2);
+      tg.box(x0 - 0.08, x1 + 0.08, top - 0.82, top - 0.62, z0 - 0.08, z1 + 0.08, 0xd6cab6, 2);
+    }
     T.geo('roof', cx, cz).top(x0 - o, x1 + o, z0 - o, z1 + o, top + 0.05, b.roof, 4);
     if (!b.house && !b.villa && !b.warehouse) tg.box(x0 - 0.12, x1 + 0.12, g0 + GF - 0.15, g0 + GF + 0.1, z0 - 0.12, z1 + 0.12, tc, 2);
     if (b.h >= 13 && !b.tower) tg.box(cx + 1, cx + 2.6, top, top + 1.1, cz - 1, cz + 0.6, 0xb8bcc4, 1);   // climatiseur
@@ -430,6 +451,41 @@ function buildDecor(game) {
     const col = new THREE.Mesh(new THREE.CylinderGeometry(FO.col * 0.8, FO.col, FO.colTop - G, 16), stone); col.position.set(FO.x, (FO.colTop + G) / 2, FO.z);
     const bowl = new THREE.Mesh(new THREE.CylinderGeometry(1.6, 0.5, 0.5, 24), stone); bowl.position.set(FO.x, FO.colTop - 1.4, FO.z);
     for (const o of [shadowy(basin), shadowy(rim), anim.fountainWater, shadowy(col), shadowy(bowl)]) place(o, FO.x, FO.z, 6);
+    if (LOOK.real) {
+      // vasque sculptée (profil tourné) et vraie eau : bassin à vaguelettes, rideau qui déborde, jet
+      bowl.geometry = new THREE.LatheGeometry([[0.45, -0.35], [0.7, -0.3], [1.2, -0.12], [1.55, 0.08], [1.72, 0.22], [1.74, 0.3], [1.6, 0.3], [1.5, 0.12], [0.5, 0.02]].map(([r, y]) => new THREE.Vector2(r, y)), 40);
+      const nc = document.createElement('canvas'); nc.width = nc.height = 128;
+      const nx = nc.getContext('2d'); nx.fillStyle = '#808080'; nx.fillRect(0, 0, 128, 128);
+      for (let i = 0; i < 260; i++) { const v = 90 + Math.floor(Math.random() * 90); nx.fillStyle = `rgba(${v},${v},${v},0.5)`; nx.beginPath(); nx.arc(Math.random() * 128, Math.random() * 128, 3 + Math.random() * 9, 0, 7); nx.fill(); }
+      const ht = new THREE.CanvasTexture(nc); ht.wrapS = ht.wrapT = THREE.RepeatWrapping;
+      const wn = RT.normalFor(ht, 2.5); wn.wrapS = wn.wrapT = THREE.RepeatWrapping; wn.repeat.set(3, 3);
+      anim.fountainWater.material = new THREE.MeshStandardMaterial({ color: 0x3a7a88, roughness: 0.04, metalness: 0.05, normalMap: wn, normalScale: new THREE.Vector2(0.6, 0.6), transparent: true, opacity: 0.86 });
+      const curtainMat = new THREE.ShaderMaterial({
+        uniforms: { uTime: { value: 0 } }, transparent: true, depthWrite: false, side: THREE.DoubleSide,
+        vertexShader: 'varying vec2 vUv; void main(){ vUv = uv; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }',
+        fragmentShader: `uniform float uTime; varying vec2 vUv;
+          float h(vec2 p){ return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); }
+          float n(vec2 p){ vec2 i = floor(p), f = fract(p); f = f * f * (3.0 - 2.0 * f);
+            return mix(mix(h(i), h(i + vec2(1, 0)), f.x), mix(h(i + vec2(0, 1)), h(i + vec2(1, 1)), f.x), f.y); }
+          void main(){
+            vec2 q = vec2(vUv.x * 90.0, vUv.y * 5.0 + uTime * 3.2);
+            float st = n(q) * 0.6 + n(q * vec2(2.3, 1.7) + 4.0) * 0.4;
+            float a = smoothstep(0.5, 0.85, st) * (0.12 + 0.38 * (1.0 - vUv.y)) + 0.05;
+            float foam = smoothstep(0.14, 0.0, vUv.y) * (0.5 + 0.5 * st);
+            vec3 col = mix(vec3(0.62, 0.78, 0.86), vec3(1.0), st * 0.5 + foam);
+            gl_FragColor = vec4(col * 1.15, clamp(a + foam * 0.45, 0.0, 0.7));
+          }`,
+      });
+      const lipY = FO.colTop - 1.4 + 0.3, waterY = FO.top - 0.2;
+      const curtain = new THREE.Mesh(new THREE.CylinderGeometry(1.76, 2.15, lipY - waterY, 48, 1, true), curtainMat);
+      curtain.position.set(FO.x, (lipY + waterY) / 2, FO.z); curtain.userData.noOutline = true; curtain.renderOrder = 2;
+      const jet = new THREE.Mesh(new THREE.CylinderGeometry(0.06, 0.14, FO.colTop + 0.4 - lipY, 12, 1, true), curtainMat);
+      jet.position.set(FO.x, (FO.colTop + 0.4 + lipY) / 2, FO.z); jet.userData.noOutline = true;
+      const upper = new THREE.Mesh(new THREE.CircleGeometry(1.52, 32), anim.fountainWater.material);
+      upper.rotation.x = -Math.PI / 2; upper.position.set(FO.x, lipY - 0.04, FO.z);
+      for (const o of [curtain, jet, upper]) place(o, FO.x, FO.z, 6);
+      anim.fountainCurtain = curtainMat;
+    }
     anim.statue = new THREE.Mesh(M.boneGeometry(), M.GOLD());
     anim.statue.scale.setScalar(2.6); anim.statue.position.set(FO.x, FO.colTop + 0.5, FO.z);
     place(anim.statue, FO.x, FO.z, 4); moving.push(anim.statue);

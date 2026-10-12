@@ -1369,6 +1369,7 @@ export function buildPlay(game, decor) {
       const A = anim;
       A.statue.rotation.y = t * 0.8;
       A.fountainWater.position.y = S.FOUNTAIN.top - 0.2 + Math.sin(t * 2) * 0.02;
+      if (A.fountainCurtain) { A.fountainCurtain.uniforms.uTime.value = t; const nm = A.fountainWater.material.normalMap; if (nm) nm.offset.set(t * 0.03, t * 0.021); }
       if (seeIt(S.FOUNTAIN.x, S.FOUNTAIN.z, 60) && Math.random() < dt * 25) {
         const a = Math.random() * Math.PI * 2;
         game.spawnParticle(S.FOUNTAIN.x + Math.cos(a) * 0.4, S.FOUNTAIN.colTop - 1.2, S.FOUNTAIN.z + Math.sin(a) * 0.4, Math.cos(a) * 1.8, 2.5, Math.sin(a) * 1.8, 0xd8f4ff, 0.2, 0.7, 8);
