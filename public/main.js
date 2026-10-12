@@ -655,21 +655,24 @@
   // ---------------------------------------------------------------------------
   // Profil du joueur (gardé sur l'appareil) : prénom, chien, couleur, trésors ramassés
   const COLORS = ['#ff7a3c', '#3ca8ff', '#7ad83c', '#ffcc2a', '#c86aff', '#ff6ab0'];
+  // les copains (à partir du 3e joueur ; les 2 premiers sont Ainu et Matcha)
+  const EXTRAS = [['giorgio', 'Giorgio', 'carlin beige'], ['django', 'Django', 'carlin noir'], ['cayla', 'Cayla', 'petite yorkshire'], ['neo', 'Neo', 'petit yorkshire'], ['ashton', 'Ashton', 'yorkshire moyen']];
   function loadProfile() {
     let p = {};
     try { p = JSON.parse(localStorage.getItem('dogfight.profile') || '{}'); } catch (e) { /* ignore */ }
-    return { name: p.name || '', kind: p.kind === 'matcha' ? 'matcha' : 'ainu', color: (p.color | 0) % COLORS.length, total: p.total || 0 };
+    return { name: p.name || '', kind: p.kind === 'matcha' ? 'matcha' : 'ainu', extra: EXTRAS.some(e => e[0] === p.extra) ? p.extra : 'giorgio', color: (p.color | 0) % COLORS.length, total: p.total || 0 };
   }
   function saveProfile(pr) {
     try {
       const old = JSON.parse(localStorage.getItem('dogfight.profile') || '{}');
-      localStorage.setItem('dogfight.profile', JSON.stringify(Object.assign(old, { name: pr.name, kind: pr.kind, color: pr.color })));
+      localStorage.setItem('dogfight.profile', JSON.stringify(Object.assign(old, { name: pr.name, kind: pr.kind, extra: pr.extra, color: pr.color })));
     } catch (e) { /* ignore */ }
   }
   let profile = loadProfile();
   function renderProfile() {
     $('coop-name').value = profile.name;
     for (const b of document.querySelectorAll('.kpick')) b.classList.toggle('active', b.dataset.action === 'coop-kind-' + profile.kind);
+    $('coop-extras').innerHTML = EXTRAS.map(([k, n, d]) => `<button class="hbtn kpick extra${k === profile.extra ? ' active' : ''}" data-action="coop-extra-${k}" title="${n}, ${d}">${n}</button>`).join('');
     $('coop-colors').innerHTML = COLORS.map((c, i) => `<button class="cswatch${i === profile.color ? ' active' : ''}" data-action="coop-color-${i}" style="--c:${c}" aria-label="Couleur ${i + 1}"></button>`).join('');
     const code = window.AdvCoop && window.AdvCoop.savedCode();
     $('coop-mycode').textContent = code ? `Ton monde : code ${code}` + (profile.total ? ` · tu as ramassé ${profile.total} trésors` : '') : 'Tes amis le retrouveront toujours avec le même code.';
@@ -679,7 +682,7 @@
     profile.name = ($('coop-name').value || '').trim().slice(0, 12);
     if (!profile.name) { $('coop-status').textContent = 'Écris ton prénom d\'abord !'; $('coop-name').focus(); return null; }
     saveProfile(profile);
-    return { name: profile.name, kind: profile.kind, color: profile.color };
+    return { name: profile.name, kind: profile.kind, extra: profile.extra, color: profile.color };
   }
 
   function coopReset(status) {
@@ -760,6 +763,8 @@
       case 'coop-host': coopHost(); break;
       case 'coop-kind-ainu': case 'coop-kind-matcha': profile.kind = a === 'coop-kind-ainu' ? 'ainu' : 'matcha'; saveProfile(profile); renderProfile(); break;
       case 'coop-join': coopJoin(); break;
+      case 'coop-extra-giorgio': case 'coop-extra-django': case 'coop-extra-cayla': case 'coop-extra-neo': case 'coop-extra-ashton':
+        profile.extra = a.slice('coop-extra-'.length); saveProfile(profile); renderProfile(); break;
       case 'coop-color-0': case 'coop-color-1': case 'coop-color-2': case 'coop-color-3': case 'coop-color-4': case 'coop-color-5':
         profile.color = +a.slice(-1); saveProfile(profile); renderProfile(); break;
       case 'coop-cancel': window.AdvCoop.cancel(); coopSession = null; coopReset(); break;

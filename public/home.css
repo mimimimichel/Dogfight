@@ -270,3 +270,7 @@
 .coop-hint { margin: 6px 0 0; font-family: var(--hf); font-size: 13px; font-weight: 600; color: #6a4a2a; text-align: center; }
 #screen-coop .coop-title { font-size: 40px; }
 #screen-coop .coop-card { gap: 9px; padding: 16px 24px 16px; }
+
+.hbtn.kpick.extra.active { background: radial-gradient(circle at 30% 20%, #e8c8ff, #b05ae8 55%, #7a2ec0); color: #fff; -webkit-text-stroke: 3px #2a1408; }
+.coop-extra { width: 100%; justify-content: center; }
+.hbtn.kpick.extra { font-size: 14px; padding: 5px 9px 7px; }

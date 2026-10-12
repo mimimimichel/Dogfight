@@ -28,6 +28,7 @@ const MAX_HEARTS = 3;
 
 // Monde partagé : couleurs des joueurs, prénoms, profil gardé sur l'appareil
 export const DOG_COLORS = ['#ff7a3c', '#3ca8ff', '#7ad83c', '#ffcc2a', '#c86aff', '#ff6ab0'];
+const dogName = (k) => (k === 'duo' ? 'Ainu & Matcha' : k === 'matcha' ? 'Matcha' : k === 'ainu' ? 'Ainu' : (M.FRIENDS[k] ? M.FRIENDS[k].name : k));
 const cleanName = (n) => String(n || '').replace(/[<>&"]/g, '').trim().slice(0, 14);
 const escapeHtml = (s) => String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 const PROFILE_KEY = 'dogfight.profile';
@@ -921,10 +922,11 @@ class Adventure {
   }
   /** Change l'apparence d'un joueur : 'duo' (Ainu + Matcha sur le dos), 'ainu' ou 'matcha'. */
   dogMesh(P, kind) {
-    const want = kind === 'matcha' ? 'matcha' : 'duo';
+    const want = kind === 'matcha' ? 'matcha' : M.FRIENDS[kind] ? kind : 'duo';
     if (!P.meshes[want]) {
-      const m = want === 'matcha' ? M.buildMatchaSolo() : M.buildDuo();
+      const m = want === 'matcha' ? M.buildMatchaSolo() : M.FRIENDS[want] ? M.FRIENDS[want].build() : M.buildDuo();
       this.scene.add(m);
+      if (M.FRIENDS[want]) T.toonify(m);
       T.outlineTree(m, 0.018, 0x1e120c);
       if (this.lite) m.traverse(k => { k.castShadow = false; });
       P.meshes[want] = m;
@@ -980,6 +982,19 @@ class Adventure {
       P.tagKey = key;
     }
     P.tag.visible = this.party.size > 1;
+  }
+
+  beamMaterial() {
+    if (!this._beamMat) {
+      const c = document.createElement('canvas'); c.width = 4; c.height = 128;
+      const x = c.getContext('2d');
+      const g = x.createLinearGradient(0, 0, 0, 128);
+      g.addColorStop(0, 'rgba(255,255,255,0)'); g.addColorStop(0.55, 'rgba(255,255,255,0.55)'); g.addColorStop(1, 'rgba(255,255,255,1)');
+      x.fillStyle = g; x.fillRect(0, 0, 4, 128);
+      const t = new THREE.CanvasTexture(c);
+      this._beamMat = new THREE.MeshBasicMaterial({ color: 0xffd860, map: t, transparent: true, opacity: 0.45, depthWrite: false, side: THREE.DoubleSide, blending: THREE.AdditiveBlending, fog: false });
+    }
+    return this._beamMat;
   }
 
   updateMedalVisibility() {
@@ -1194,7 +1209,7 @@ class Adventure {
     link.onclose = () => this.onCoopClose();
     this.lastSent = { mx: 0, mz: 0, h: false, at: 0 };
     this.hpKey = '';
-    link.send({ t: 'join', name: profile.name, kind: profile.kind, color: profile.color });
+    link.send({ t: 'join', name: profile.name, kind: profile.kind, extra: profile.extra, color: profile.color });
     link.send({ t: 'ready' }); // l'hôte renvoie alors tout l'état du monde
   }
 
@@ -1216,7 +1231,7 @@ class Adventure {
     if (!el) { el = this.dom.roster = document.createElement('div'); el.className = 'adv-roster'; this.dom.root.querySelector('.adv-hud').appendChild(el); }
     const list = this.players;
     el.classList.toggle('hidden', list.length < 2);
-    el.innerHTML = list.map(P => `<span style="--c:${DOG_COLORS[P.color % DOG_COLORS.length]}" class="${P === this.me ? 'me' : ''}">${escapeHtml(P.name)}</span>`).join('');
+    el.innerHTML = list.map(P => `<span style="--c:${DOG_COLORS[P.color % DOG_COLORS.length]}" class="${P === this.me ? 'me' : ''}">${escapeHtml(P.name)} <small>${dogName(P.kind)}</small></span>`).join('');
     const n = list.length;
     if (this.guest) this.coopBadge(`<b>Monde de ${escapeHtml(this.player.name)}</b> · ${n} joueur${n > 1 ? 's' : ''}`);
     else if (this.hostSession) this.coopBadge(`<b>Monde ${this.hostSession.code}</b> · ${n > 1 ? n + ' joueurs' : 'en attente d\'amis…'}`);
@@ -1274,6 +1289,16 @@ class Adventure {
     let id = 1;
     while (this.party.has(id)) id++;
     if (id > 5) { link.send({ t: 'full' }); link.close(); return; }
+    // les 2 premiers joueurs sont Ainu et Matcha, les suivants ont un des copains
+    const others = this.players.filter(Q => Q !== this.player);
+    const mainOther = this.hostKind === 'ainu' ? 'matcha' : 'ainu';
+    let kind;
+    if (!others.some(Q => Q.kind === mainOther)) kind = mainOther;
+    else {
+      const taken = new Set(others.map(Q => Q.kind));
+      const keys = Object.keys(M.FRIENDS);
+      kind = (M.FRIENDS[m.extra] && !taken.has(m.extra)) ? m.extra : keys.find(k => !taken.has(k)) || keys[id % keys.length];
+    }
     const P = this.mkPlayer(null, 'ainu');
     P.id = id; P.meshes = {};
     P.name = cleanName(m.name) || 'Ami ' + id;
@@ -1282,7 +1307,7 @@ class Adventure {
     const a = (id / 6) * Math.PI * 2;
     P.pos.set(H.pos.x + Math.cos(a) * 2, H.pos.y + 0.5, H.pos.z + Math.sin(a) * 2);
     P.lastSafe.copy(H.pos); P.vel.set(0, 6, 0); P.grounded = false; P.jumps = 1; P.invuln = 1.5; P.yaw = H.yaw;
-    this.dogMesh(P, m.kind === 'matcha' ? 'matcha' : 'ainu');
+    this.dogMesh(P, kind);
     this.party.set(id, P);
     this.remoteIn.set(id, { mx: 0, mz: 0, h: false, pressed: new Set() });
     link.pid = id;
@@ -1297,7 +1322,7 @@ class Adventure {
     link.send({ t: 'welcome', id });
     this.broadcastRoster();
     this.burst(P.pos.x, P.pos.y + 1, P.pos.z, 14, 0xfff0a0, 3, 0.6);
-    this.banner(`${P.name} arrive !`, `${this.party.size} joueurs dans le monde`, 2400);
+    this.banner(`${P.name} arrive avec ${dogName(kind)} !`, `${this.party.size} joueurs dans le monde`, 2400);
     this.sound('reveal');
   }
 
@@ -1362,7 +1387,7 @@ class Adventure {
     const P = this.me;
     setTimeout(() => {
       if (this.disposed) return;
-      this.localBanner(`Bienvenue, ${P.name} !`, `Tu joues ${P.kind === 'matcha' ? 'Matcha' : 'Ainu'} dans le monde de ${this.player.name}.`, 3600);
+      this.localBanner(`Bienvenue, ${P.name} !`, `Tu joues ${dogName(P.kind)} dans le monde de ${this.player.name}.`, 3600);
     }, 600);
   }
 
@@ -2138,7 +2163,7 @@ class Adventure {
     for (const Q of this.players) {
       if (!Q.mesh) continue;
       if (Q.mesh.userData.ainu) this.renderDuo(Q, dt, t); else this.renderMatcha(Q, dt, t);
-      if (Q.tag) { Q.tag.visible = this.party.size > 1 && Q.mesh.visible !== false; Q.tag.position.set(Q.pos.x, Q.pos.y + (Q.kind === 'matcha' ? 1.75 : 2.55), Q.pos.z); }
+      if (Q.tag) { Q.tag.visible = this.party.size > 1 && Q.mesh.visible !== false; Q.tag.position.set(Q.pos.x, Q.pos.y + (Q.mesh.userData.ainu ? 2.55 : (Q.mesh.userData.height || 1.1) + 0.65), Q.pos.z); }
     }
 
     // Os (rotation)

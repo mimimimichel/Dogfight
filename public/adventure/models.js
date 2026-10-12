@@ -774,3 +774,111 @@ export function buildMatchaSolo() {
   root.userData = { matcha: body, mhead: Mt.bones.head, mtail: Mt.bones.tail || null, legs, mheadFace, matchaY0: body.position.y, height: (d.max[1] - d.min[1]) * S };
   return root;
 }
+
+// ---------------------------------------------------------------------------
+// Les copains (monde partagé, à partir du 3e joueur) : carlins et yorkshires.
+// Même organisation que Matcha seul : un corps pivotant (saltos), une tête,
+// une queue et quatre pattes animées par le jeu.
+// ---------------------------------------------------------------------------
+function friendRig(inner, height, head, tail, legs, scale) {
+  const root = new THREE.Group();
+  const body = new THREE.Group();
+  const cy = height * 0.45;
+  body.position.y = cy * scale; body.scale.setScalar(scale);
+  inner.position.y = -cy;
+  body.add(inner); root.add(body);
+  const face = new THREE.Object3D(); face.position.set(0, 0.02, 0.2); head.add(face);
+  root.userData = { matcha: body, mhead: head, mtail: tail, legs, mheadFace: face, matchaY0: body.position.y, height: height * scale };
+  return root;
+}
+
+/** Carlin : trapu, gros yeux ronds, masque noir, oreilles repliées, queue en tire-bouchon. */
+export function buildPug(o) {
+  o = Object.assign({ fur: 0xe2c79a, mask: 0x2a2420, belly: 0xf0dcb8, collar: 0xd83a3a, scale: 1 }, o || {});
+  const g = new THREE.Group();
+  const bk = new FurKit();
+  bk.add(new THREE.CapsuleGeometry(0.27, 0.26, 8, 20), (x, y, z, c) => mix(c, o.fur, o.belly, sstep(0.0, -0.18, y) * 0.8), { y: 0.47, rx: Math.PI / 2, sx: 1.08 });
+  bk.add(new THREE.TorusGeometry(0.2, 0.04, 8, 26), o.collar, { y: 0.6, z: 0.22, rx: Math.PI / 2 - 0.5 });
+  bk.add(S(0.05, 10, 8), 0xffd040, { y: 0.48, z: 0.38 });
+  g.add(bk.build(NPC_FUR));
+  const head = new THREE.Group(); at(head, 0, 0.78, 0.3); g.add(head);
+  const hk = new FurKit();
+  hk.add(S(0.3, 30, 22), (x, y, z, c) => {
+    // masque noir sur le museau et autour des yeux, rides sur le front
+    const muzzle = sstep(0.12, 0.24, z) * sstep(0.12, -0.02, y);
+    const eyes = sstep(0.09, 0.05, Math.hypot(Math.abs(x) - 0.12, y - 0.04)) * sstep(0.1, 0.2, z);
+    mix(c, o.fur, o.mask, Math.max(muzzle, eyes));
+    if (y > 0.1 && z > 0.12 && Math.sin(y * 70) > 0.75) c.lerp(_c2.set(o.mask), 0.35);
+  }, { sx: 1.12, sy: 0.98, sz: 0.95 });
+  hk.add(S(0.16, 18, 14), o.mask, { y: -0.08, z: 0.22, sx: 1.25, sy: 0.75, sz: 0.55 });
+  for (const sx of [-1, 1]) hk.add(earGeo(0.1, 0.13, 0.05, 0), o.mask, { x: sx * 0.24, y: 0.22, z: 0.02, rz: Math.PI - sx * 0.9, rx: 0.4 });
+  head.add(hk.build(NPC_FUR_HEAD));
+  const fk = new Kit();
+  addEyes(fk, { x: 0.13, y: 0.05, z: 0.26, r: 0.08, ry: 0.5, iris: 0x1a120e, white: true });
+  fk.add(S(0.05, 12, 10), 0x111111, { y: -0.03, z: 0.34, sx: 1.4, sy: 0.8 });
+  fk.add(S(0.045, 10, 8), 0xf07a8a, { y: -0.17, z: 0.28, sx: 1.2, sy: 0.5, sz: 0.8 });
+  head.add(fk.build(gloss()));
+  const tail = new THREE.Group(); at(tail, 0, 0.66, -0.36); g.add(tail);
+  const tk = new FurKit();
+  tk.add(new THREE.TorusGeometry(0.08, 0.035, 8, 20, Math.PI * 1.6), o.fur, { y: 0.06, rx: 0.3 });
+  tail.add(tk.build(NPC_FUR));
+  const legs = [];
+  for (const [lx, lz] of [[-0.15, 0.2], [0.15, 0.2], [-0.15, -0.2], [0.15, -0.2]]) {
+    const l = at(new THREE.Group(), lx, 0.3, lz);
+    const lk = new Kit();
+    lk.add(new THREE.CapsuleGeometry(0.075, 0.13, 4, 10), (x, y, z, c) => mix(c, o.fur, o.belly, sstep(-0.05, -0.15, y)), { y: -0.15 });
+    l.add(lk.build());
+    g.add(l); legs.push(l);
+  }
+  return friendRig(g, 1.08, head, tail, legs, o.scale);
+}
+
+/** Yorkshire : petit, poil long bleu acier et feu, oreilles pointues, nœud sur la tête. */
+export function buildYorkie(o) {
+  o = Object.assign({ steel: 0x56607a, tan: 0xc8925a, bow: 0xff6ab0, scale: 1 }, o || {});
+  const g = new THREE.Group();
+  const bk = new FurKit();
+  bk.add(new THREE.CapsuleGeometry(0.2, 0.24, 8, 18), (x, y, z, c) => mix(c, o.steel, o.tan, sstep(0.12, 0.26, z) * 0.9), { y: 0.46, rx: Math.PI / 2 });
+  // la « robe » de poils longs qui tombe de chaque côté
+  bk.add(E(0.25, 0.2, 0.36, 28), (x, y, z, c) => mix(c, o.steel, o.tan, sstep(-0.02, -0.16, y) * 0.75 + sstep(0.22, 0.34, z) * 0.6), { y: 0.4 });
+  g.add(bk.build(NPC_FUR));
+  const head = new THREE.Group(); at(head, 0, 0.78, 0.24); g.add(head);
+  const hk = new FurKit();
+  hk.add(S(0.24, 28, 20), (x, y, z, c) => mix(c, o.tan, o.steel, sstep(0.05, 0.2, y) * sstep(0.1, -0.05, z) * 0.7), { sx: 1.05, sy: 1.0 });
+  hk.add(S(0.13, 16, 12), o.tan, { y: -0.08, z: 0.17, sx: 1.1, sy: 0.85 });
+  // moustaches de poils longs
+  for (const sx of [-1, 1]) hk.add(S(0.09, 12, 10), o.tan, { x: sx * 0.09, y: -0.16, z: 0.14, sx: 0.8, sy: 1.5, sz: 0.8 });
+  for (const sx of [-1, 1]) hk.add(earGeo(0.08, 0.17, 0.04, 1), (x, y, z, c) => mix(c, o.tan, 0x7a5030, sstep(0.0, 0.15, y)), { x: sx * 0.15, y: 0.2, z: -0.02, rz: -sx * 0.35 });
+  head.add(hk.build(NPC_FUR_HEAD));
+  const fk = new Kit();
+  addEyes(fk, { x: 0.09, y: 0.04, z: 0.21, r: 0.06, ry: 0.42, iris: 0x1a120e });
+  fk.add(S(0.04, 10, 8), 0x111111, { y: -0.04, z: 0.3, sx: 1.3, sy: 0.85 });
+  if (o.bow) {
+    // nœud : deux boucles et un centre
+    for (const sx of [-1, 1]) fk.add(new THREE.ConeGeometry(0.06, 0.12, 10), o.bow, { x: sx * 0.06, y: 0.27, z: 0.02, rz: sx * Math.PI / 2 });
+    fk.add(S(0.035, 10, 8), o.bow, { y: 0.27, z: 0.02 });
+  }
+  head.add(fk.build(gloss()));
+  const tail = new THREE.Group(); at(tail, 0, 0.58, -0.28); g.add(tail);
+  const tk = new FurKit();
+  tk.add(new THREE.CapsuleGeometry(0.04, 0.16, 4, 10), o.steel, { y: 0.1, rx: -0.4 });
+  tail.add(tk.build(NPC_FUR));
+  const legs = [];
+  for (const [lx, lz] of [[-0.11, 0.16], [0.11, 0.16], [-0.11, -0.16], [0.11, -0.16]]) {
+    const l = at(new THREE.Group(), lx, 0.27, lz);
+    const lk = new Kit();
+    lk.add(new THREE.CapsuleGeometry(0.055, 0.14, 4, 10), o.tan, { y: -0.14 });
+    l.add(lk.build());
+    g.add(l); legs.push(l);
+  }
+  return friendRig(g, 1.0, head, tail, legs, o.scale);
+}
+
+/** Les cinq copains sélectionnables (à partir du 3e joueur). */
+export const FRIENDS = {
+  giorgio: { name: 'Giorgio', desc: 'carlin beige', build: () => buildPug({ scale: 1.15 }) },
+  django: { name: 'Django', desc: 'carlin noir', build: () => buildPug({ fur: 0x45424c, mask: 0x18161c, belly: 0x5a5662, collar: 0x3ca8ff, scale: 1.15 }) },
+  cayla: { name: 'Cayla', desc: 'petite yorkshire', build: () => buildYorkie({ bow: 0xff6ab0, scale: 1.0 }) },
+  neo: { name: 'Neo', desc: 'petit yorkshire', build: () => buildYorkie({ bow: 0x3ca8ff, scale: 1.05 }) },
+  ashton: { name: 'Ashton', desc: 'yorkshire moyen', build: () => buildYorkie({ bow: null, steel: 0x4a5266, scale: 1.35 }) },
+};
