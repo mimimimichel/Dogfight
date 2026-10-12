@@ -388,6 +388,7 @@ export function buildForest(game) {
     });
     inst.castShadow = inst.receiveShadow = true;
     sc.add(inst);
+    if (W.LOOK.real) W.buildLeafFringe(sc, inst, blobs.map(([x, y, z, s]) => ({ x, y, z, s })), { lite }, lite ? 6 : 26);
   }
 
   // --- Rochers à grimper (lanterne de la plage, croquette de l'ouest) ---------------

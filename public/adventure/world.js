@@ -468,6 +468,7 @@ export function buildTrees(scene, quality) {
   trunks.castShadow = leaves.castShadow = true;
   if (LOOK.real) buildFerns(scene, quality, r);
   if (LOOK.real && RT.isUltra() && RT.scanTree()) buildScanTrees(scene, trunks, leaves, blobs);
+  if (LOOK.real) buildLeafFringe(scene, leaves, blobs, quality, L.WORLD ? (quality && quality.lite ? 0 : 10) : quality && quality.lite ? 4 : 14);
   if (false) {
     // (feuilles détaillées autour de chaque touffe : retiré, ça faisait des taches sombres sur téléphone)
     const per = quality && quality.lite ? 5 : L.WORLD ? 6 : 12;
@@ -702,6 +703,94 @@ function buildScanTrees(scene, trunks, leaves, blobs) {
     inst.castShadow = true; inst.receiveShadow = true; inst.userData.noOutline = true;
     scene.add(inst);
   }
+}
+
+/** Brin feuillu (gris clair : la couleur vient de la couronne), pour la frange des feuillages. */
+let sprigTex = null;
+function sprigTexture() {
+  if (sprigTex) return sprigTex;
+  const c = document.createElement('canvas'); c.width = c.height = 256;
+  const x = c.getContext('2d');
+  const r = rng(321);
+  const leaf = (px, py, a, len) => {
+    const v = 0.72 + r() * 0.28, h = r();
+    x.save(); x.translate(px, py); x.rotate(a);
+    x.fillStyle = `rgb(${Math.round(255 * v * (0.86 + h * 0.1))},${Math.round(255 * v)},${Math.round(255 * v * (0.72 + h * 0.12))})`;
+    x.beginPath(); x.moveTo(0, 0);
+    x.quadraticCurveTo(len * 0.36, -len * 0.42, 0, -len);
+    x.quadraticCurveTo(-len * 0.36, -len * 0.42, 0, 0); x.fill();
+    x.strokeStyle = `rgba(60,70,40,0.35)`; x.lineWidth = 1; x.beginPath(); x.moveTo(0, -1); x.lineTo(0, -len * 0.85); x.stroke();
+    x.restore();
+  };
+  // une touffe de feuilles serrées, plus claire au centre, découpée sur les bords
+  for (let i = 0; i < 230; i++) {
+    const a = r() * Math.PI * 2, d = Math.pow(r(), 0.6) * 108;
+    const px = 128 + Math.cos(a) * d, py = 132 + Math.sin(a) * d * 0.9;
+    leaf(px, py, a + Math.PI / 2 + (r() - 0.5) * 1.2, 20 + r() * 18 - d * 0.06);
+  }
+  sprigTex = new THREE.CanvasTexture(c);
+  sprigTex.colorSpace = THREE.SRGBColorSpace; sprigTex.anisotropy = 4;
+  return sprigTex;
+}
+/**
+ * Frange de petits rameaux autour de chaque couronne : silhouette découpée en
+ * feuilles. Les rameaux sont éclairés comme la couronne (normales rondes depuis
+ * son centre, des deux côtés) : pas de taches sombres.
+ */
+export function buildLeafFringe(scene, leaves, blobs, quality, per) {
+  if (!per) return;
+  const r = rng(909);
+  const m4 = new THREE.Matrix4(), c = new THREE.Color(), q = new THREE.Quaternion(), e = new THREE.Euler(), v = new THREE.Vector3(), sc = new THREE.Vector3(), w = new THREE.Vector3(), n = new THREE.Vector3();
+  const quad = [[-0.5, 0, 0, 0], [0.5, 0, 1, 0], [0.5, 1, 1, 1], [-0.5, 1, 0, 1]];
+  const pos = [], nor = [], col = [], uv = [], idx = [];
+  blobs.forEach((b, i) => {
+    leaves.getMatrixAt(i, m4);
+    if (m4.elements[0] === 0 && m4.elements[5] === 0) return;     // couronne remplacée (arbre scanné)
+    if (leaves.instanceColor) leaves.getColorAt(i, c); else c.set(0x4caf3a);
+    const k = b.bush ? Math.ceil(per / 3) : per;
+    for (let j = 0; j < k; j++) {
+      // posé sur la surface de la couronne, à peu près face à l'extérieur
+      const up = -0.55 + r() * 1.5, a = r() * Math.PI * 2, uy = Math.max(-1, Math.min(1, up)), rr = Math.sqrt(1 - uy * uy);
+      const d = b.s * (0.86 + r() * 0.3), size = b.s * (0.75 + r() * 0.45);
+      const nx = Math.cos(a) * rr, nz = Math.sin(a) * rr;
+      const cx = b.x + nx * d, cy = b.y + uy * d * 0.85, cz = b.z + nz * d;
+      w.set(nx, uy, nz);
+      q.setFromUnitVectors(n.set(0, 0, 1), w);
+      q.multiply(new THREE.Quaternion().setFromEuler(e.set((r() - 0.5) * 1.2, (r() - 0.5) * 1.2, r() * 6.28)));
+      const base = pos.length / 3;
+      for (const [qx, qy, u, vv] of quad) {
+        v.set(qx * size, (qy - 0.5) * size, 0).applyQuaternion(q);
+        w.set(cx + v.x, cy + v.y, cz + v.z);
+        pos.push(w.x, w.y, w.z);
+        n.set(w.x - b.x, (w.y - b.y) + b.s * 0.15, w.z - b.z).normalize();
+        nor.push(n.x, n.y, n.z);
+        // même dégradé que la couronne : clair en haut, plus sombre dessous
+        const t = smooth(-0.9, 0.9, (w.y - b.y) / b.s) * 0.6 + smooth(-0.5, 1, n.y) * 0.4, l = 0.62 + 0.45 * t;
+        col.push(c.r * l, c.g * l, c.b * l * 0.95);
+        uv.push(u, vv);
+      }
+      idx.push(base, base + 1, base + 2, base, base + 2, base + 3);
+    }
+  });
+  if (!idx.length) return;
+  const g = new THREE.BufferGeometry();
+  g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+  g.setAttribute('normal', new THREE.Float32BufferAttribute(nor, 3));
+  g.setAttribute('color', new THREE.Float32BufferAttribute(col, 3));
+  g.setAttribute('uv', new THREE.Float32BufferAttribute(uv, 2));
+  g.setIndex(pos.length / 3 > 65535 ? new THREE.Uint32BufferAttribute(idx, 1) : new THREE.Uint16BufferAttribute(idx, 1));
+  const tex = sprigTexture();
+  const mat = new THREE.MeshStandardMaterial({ map: tex, vertexColors: true, alphaTest: 0.5, side: THREE.DoubleSide, roughness: 0.85 });
+  mat.onBeforeCompile = (sh) => {
+    // l'envers d'un rameau est éclairé comme l'endroit (sinon : feuilles noires)
+    sh.fragmentShader = sh.fragmentShader.replace('#include <normal_fragment_begin>', THREE.ShaderChunk.normal_fragment_begin.replace('normal *= faceDirection;', ''));
+  };
+  mat.customProgramCacheKey = () => 'fringe';
+  const mesh = new THREE.Mesh(g, mat);
+  mesh.customDepthMaterial = new THREE.MeshDepthMaterial({ depthPacking: THREE.RGBADepthPacking, map: tex, alphaTest: 0.5 });
+  mesh.castShadow = !(quality && quality.lite); mesh.receiveShadow = true;
+  mesh.userData.noOutline = true;
+  scene.add(mesh);
 }
 
 /** Fougères scannées au pied des arbres et des ruines (rendu réaliste). */
@@ -1011,6 +1100,8 @@ export function leafClusterGeo(detail) {
     if (tiny) k++;            // moitié moins de petites touffes
   }
   parts.push({ geo: new THREE.IcosahedronGeometry(0.5, tiny ? 0 : lite ? 1 : 2), y: 0.62, x: 0.05 });
+  // normales rondes (même sur les touffes à peu de faces : pas d'aspect taillé à facettes)
+  for (const pt of parts) { const gp = pt.geo.attributes.position, gn = pt.geo.attributes.normal, v = new THREE.Vector3(); for (let i = 0; i < gp.count; i++) { v.fromBufferAttribute(gp, i).normalize(); gn.setXYZ(i, v.x, v.y, v.z); } }
   const g = M.mergeGeos(parts);
   const p = g.attributes.position, nrm = g.attributes.normal;
   if (LOOK.real) {
@@ -1021,7 +1112,6 @@ export function leafClusterGeo(detail) {
       const k = 1 + n * 0.16;
       p.setXYZ(i, x * k, y * k, z * k);
     }
-    g.computeVertexNormals();
   }
   const col = new Float32Array(p.count * 3);
   for (let i = 0; i < p.count; i++) {
@@ -1127,7 +1217,53 @@ export function buildPaintedClouds(scene) {
 const HAZE = new THREE.Color(0x9cc2ea);
 function hazeMat() { return new THREE.MeshLambertMaterial({ vertexColors: true, fog: false, emissive: HAZE, emissiveIntensity: 0.18 }); }
 
+// bruit de valeur 3D (relief des montagnes)
+function mh(x, y, z) { let h = Math.sin(x * 127.1 + y * 311.7 + z * 74.7) * 43758.5453; return h - Math.floor(h); }
+function mnoise(x, y, z) {
+  const ix = Math.floor(x), iy = Math.floor(y), iz = Math.floor(z);
+  let fx = x - ix, fy = y - iy, fz = z - iz;
+  fx = fx * fx * (3 - 2 * fx); fy = fy * fy * (3 - 2 * fy); fz = fz * fz * (3 - 2 * fz);
+  const l = (a, b, t) => a + (b - a) * t;
+  return l(l(l(mh(ix, iy, iz), mh(ix + 1, iy, iz), fx), l(mh(ix, iy + 1, iz), mh(ix + 1, iy + 1, iz), fx), fy),
+           l(l(mh(ix, iy, iz + 1), mh(ix + 1, iy, iz + 1), fx), l(mh(ix, iy + 1, iz + 1), mh(ix + 1, iy + 1, iz + 1), fx), fy), fz);
+}
+/** Montagne réaliste : crêtes et ravines (bruit « ridged »), forêt en bas, roche, neige. */
+function realMountainGeo(seed, rad, h, snow, hazeK) {
+  const r = rng(seed);
+  const g = new THREE.ConeGeometry(rad, h, 88, 36);
+  const p = g.attributes.position;
+  const o = [r() * 50, r() * 50, r() * 50], f = 3.2 / rad;
+  for (let i = 0; i < p.count; i++) {
+    const x = p.getX(i), y = p.getY(i), z = p.getZ(i), t = (y + h / 2) / h, a = Math.atan2(z, x);
+    let ridge = 0, amp = 1, fr = 1, sum = 0;
+    for (let k = 0; k < 5; k++) {
+      const nv = 1 - Math.abs(mnoise(x * f * fr + o[0], y * f * fr * 1.6 + o[1], z * f * fr + o[2]) * 2 - 1);
+      ridge += nv * nv * amp; sum += amp; amp *= 0.5; fr *= 2.1;
+    }
+    ridge /= sum;
+    const k = 0.72 + 0.16 * Math.sin(a * 2 + o[0]) + ridge * 0.5 * (1 - t * 0.4);
+    p.setXYZ(i, x * k, y + (ridge - 0.5) * h * 0.18 * (1 - t), z * k);
+  }
+  g.computeVertexNormals();
+  g.translate(0, h / 2, 0);
+  const n = g.attributes.normal;
+  const col = new Float32Array(p.count * 3), c = new THREE.Color();
+  const forest = new THREE.Color(0x3d5e3a), rock = new THREE.Color(0x77736c), dark = new THREE.Color(0x4f4c48), white = new THREE.Color(0xf2f6fc);
+  for (let i = 0; i < p.count; i++) {
+    const t = p.getY(i) / h, steep = 1 - Math.max(0, n.getY(i));
+    const nv = mnoise(p.getX(i) * 0.08, p.getY(i) * 0.08, p.getZ(i) * 0.08);
+    c.copy(rock).lerp(dark, smooth(0.3, 0.7, steep) * 0.7 + (nv - 0.5) * 0.3);
+    c.lerp(forest, smooth(0.42, 0.18, t + (nv - 0.5) * 0.15) * (1 - smooth(0.55, 0.85, steep) * 0.6));
+    if (snow) c.lerp(white, smooth(0.55, 0.68, t + (nv - 0.5) * 0.12 - steep * 0.15));
+    c.lerp(HAZE, hazeK * (1 - t * 0.25));
+    col[i * 3] = c.r; col[i * 3 + 1] = c.g; col[i * 3 + 2] = c.b;
+  }
+  g.setAttribute('color', new THREE.BufferAttribute(col, 3));
+  return g;
+}
+
 function mountainGeo(seed, rad, h, snow, hazeK) {
+  if (LOOK.real) return realMountainGeo(seed, rad, h, snow, hazeK);
   const r = rng(seed);
   const g = new THREE.ConeGeometry(rad, h, 18, 8);
   const p = g.attributes.position;
