@@ -75,7 +75,7 @@
     const peer = new window.Peer(PREFIX + code, PEER_OPTS);
     pending = peer;
     const session = {
-      code, profile, links: new Set(), onJoin: null, closed: false, level: 1,
+      code, profile, peer, links: new Set(), onJoin: null, closed: false, level: 1,
       get link() { for (const l of this.links) if (!l.closed) return l; return null; },
       close() {
         this.closed = true;

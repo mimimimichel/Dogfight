@@ -311,6 +311,10 @@
 
   <script src="game-core.js"></script>
   <script src="room.js"></script>
+  <script>
+    // Safari (iPhone, iPad, Mac) dessine mal les contours épais des titres : on les remplace par des ombres
+    (function () { var u = navigator.userAgent; if (/iP(hone|ad|od)/.test(u) || (/Safari/.test(u) && !/Chrome|Chromium|CriOS|FxiOS|Android/.test(u)) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1)) document.documentElement.classList.add('ios-text'); })();
+  </script>
   <script src="vendor/peerjs.min.js"></script>
   <script src="p2p.js"></script>
   <script src="coop.js"></script>

@@ -277,3 +277,13 @@
 .hbtn.kpick.extra.active { background: radial-gradient(circle at 30% 20%, #e8c8ff, #b05ae8 55%, #7a2ec0); color: #fff; -webkit-text-stroke: 3px #2a1408; }
 .coop-extra { width: 100%; justify-content: center; }
 .hbtn.kpick.extra { font-size: 14px; padding: 5px 9px 7px; }
+
+/* Safari (iPhone, iPad) : pas de contour « text-stroke », un contour fait d'ombres à la place */
+html.ios-text * { -webkit-text-stroke: 0 !important; paint-order: normal !important; }
+html.ios-text .home-logo .w span, html.ios-text .coop-title, html.ios-text .level-card .lv-num {
+  text-shadow: 3px 0 #2a1408, -3px 0 #2a1408, 0 3px #2a1408, 0 -3px #2a1408, 2px 2px #2a1408, -2px 2px #2a1408, 2px -2px #2a1408, -2px -2px #2a1408, 0 6px 0 #2a1408 !important;
+}
+html.ios-text .hbtn, html.ios-text .hbtn small, html.ios-text .level-card b, html.ios-text .hbtn.lvpick.active, html.ios-text .hbtn.kpick.active {
+  text-shadow: 2px 0 #2a1408, -2px 0 #2a1408, 0 2px #2a1408, 0 -2px #2a1408, 1.5px 1.5px #2a1408, -1.5px 1.5px #2a1408, 1.5px -1.5px #2a1408, -1.5px -1.5px #2a1408 !important;
+}
+html.ios-text .hbtn.small, html.ios-text .hbtn.lvpick:not(.active), html.ios-text .hbtn.kpick:not(.active) { text-shadow: none !important; }

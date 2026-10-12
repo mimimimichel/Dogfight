@@ -8,6 +8,7 @@ import * as THREE from '../vendor/three.module.min.js';
 import { L, setLevel } from './current.js';
 import * as F from './forest.js';
 import * as C from './city.js';
+import { voiceFor } from './voice.js';
 import * as M from './models.js';
 import * as W from './world.js';
 import * as T from './toon.js';
@@ -181,6 +182,7 @@ class Adventure {
       <div class="adv-banner hidden"></div>
       <div class="adv-prompt hidden"></div>
       <div class="adv-dialog hidden"><div class="adv-dname"></div><div class="adv-dtext"></div><div class="adv-dnext">▼</div></div>
+      <button class="adv-mic hidden" aria-label="Micro"><svg viewBox="0 0 24 24" width="20" height="20"><rect x="9" y="3" width="6" height="11" rx="3" fill="#fff"/><path d="M6 11a6 6 0 0 0 12 0M12 17v4M8 21h8" stroke="#fff" stroke-width="2" fill="none" stroke-linecap="round"/><path class="slash" d="M4 4 20 20" stroke="#ff6a5a" stroke-width="2.6" stroke-linecap="round"/></svg></button>
       <button class="adv-pause" aria-label="Pause"><svg viewBox="0 0 20 20" width="18" height="18"><rect x="4" y="3" width="4" height="14" rx="1.5" fill="#fff"/><rect x="12" y="3" width="4" height="14" rx="1.5" fill="#fff"/></svg></button>
       <div class="adv-touch ${this.isTouch ? '' : 'hidden'}">
         <div class="adv-stick-zone"></div>
@@ -219,6 +221,8 @@ class Adventure {
       pMatcha: root.querySelector('.p-matcha'),
     };
     root.querySelector('.adv-pause').addEventListener('click', () => this.togglePause());
+    this.dom.mic = root.querySelector('.adv-mic');
+    this.dom.mic.addEventListener('click', () => this.toggleMic());
   }
 
   updateHud() {
@@ -1079,6 +1083,7 @@ class Adventure {
     this.onKeyDown = (e) => {
       if (this.disposed) return;
       if (e.code === 'Escape') { this.togglePause(); return; }
+      if (e.code === 'KeyV' && !e.repeat) { this.toggleMic(); return; }
       const moveKeys = ['KeyW', 'KeyA', 'KeyS', 'KeyD', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'KeyQ', 'KeyE', 'Space'];
       if (moveKeys.includes(e.code) || KEYMAP[e.code]) e.preventDefault();
       if (e.repeat) return;
@@ -1259,6 +1264,7 @@ class Adventure {
   /** Invité : se présente (prénom, chien, couleur) puis suit l'état du monde. */
   initCoop() {
     const { link, profile } = this.coop;
+    this.vc = voiceFor(link.peer);
     this.localBanner = this.banner.bind(this);
     this.coopBadge(`<b>Monde partagé</b> · connexion…`);
     link.onmessage = (m) => this.onCoopMessage(m);
@@ -1267,6 +1273,36 @@ class Adventure {
     this.hpKey = '';
     link.send({ t: 'join', name: profile.name, kind: profile.kind, extra: profile.extra, color: profile.color });
     link.send({ t: 'ready' }); // l'hôte renvoie alors tout l'état du monde
+  }
+
+  /** Chat vocal : allume ou coupe mon micro. */
+  async toggleMic() {
+    if (!this.vc || this.party.size < 2 || this.micBusy) return;
+    this.micBusy = true;
+    const r = await this.vc.toggle();
+    this.micBusy = false;
+    if (this.disposed) return;
+    this.dom.mic.classList.toggle('on', r === 'on');
+    if (r === 'on') this.localBanner('Micro allumé', 'Tout le monde t\'entend ! (re-clique pour le couper)', 2000);
+    else if (r === 'off') this.localBanner('Micro coupé', '', 1200);
+    else this.localBanner('Micro', r, 3000);
+  }
+
+  /** Qui parle ? (liste des joueurs, note au-dessus du chien, bouton micro) */
+  showVoices() {
+    const v = this.vc;
+    if (!v || this.party.size < 2 || (this.voiceT = (this.voiceT || 0) + 1) % 6) return;
+    const spans = this.dom.roster ? this.dom.roster.querySelectorAll('span[data-id]') : [];
+    for (const P of this.players) {
+      const talk = !!P.peerId && v.speaking(P.peerId);
+      for (const sp of spans) if (+sp.dataset.id === P.id) sp.classList.toggle('talk', talk);
+      if (talk && !P.voiceMark) P.voiceMark = this.makeMark('♪', 0x40c060);
+      if (P.voiceMark) {
+        P.voiceMark.visible = talk && P.mesh && P.mesh.visible !== false;
+        P.voiceMark.position.set(P.pos.x, P.pos.y + (P.mesh && P.mesh.userData.ainu ? 3.3 : 2.4), P.pos.z);
+      }
+    }
+    this.dom.mic.classList.toggle('speak', !!v.on && v.speaking(v.myId));
   }
 
   coopBadge(html) {
@@ -1287,7 +1323,9 @@ class Adventure {
     if (!el) { el = this.dom.roster = document.createElement('div'); el.className = 'adv-roster'; this.dom.root.querySelector('.adv-hud').appendChild(el); }
     const list = this.players;
     el.classList.toggle('hidden', list.length < 2);
-    el.innerHTML = list.map(P => `<span style="--c:${DOG_COLORS[P.color % DOG_COLORS.length]}" class="${P === this.me ? 'me' : ''}">${escapeHtml(P.name)} <small>${dogName(P.kind)}</small></span>`).join('');
+    el.innerHTML = list.map(P => `<span data-id="${P.id}" style="--c:${DOG_COLORS[P.color % DOG_COLORS.length]}" class="${P === this.me ? 'me' : ''}">${escapeHtml(P.name)} <small>${dogName(P.kind)}</small></span>`).join('');
+    if (this.vc) this.vc.setRoster(list.map(P => ({ pid: P.peerId, id: P.id })));
+    this.dom.mic.classList.toggle('hidden', !this.vc || list.length < 2);
     const n = list.length;
     if (this.guest) this.coopBadge(`<b>Monde de ${escapeHtml(this.player.name)}</b> · ${n} joueur${n > 1 ? 's' : ''}`);
     else if (this.hostSession) this.coopBadge(`<b>Monde ${this.hostSession.code}</b> · ${n > 1 ? n + ' joueurs' : 'en attente d\'amis…'}`);
@@ -1302,6 +1340,8 @@ class Adventure {
     const pr = ses.profile || {};
     this.player.name = cleanName(pr.name) || 'Moi';
     this.player.color = (pr.color | 0) % DOG_COLORS.length;
+    this.player.peerId = ses.peer && ses.peer.id;
+    this.vc = voiceFor(ses.peer);
     this.hostKind = pr.kind === 'matcha' ? 'matcha' : 'ainu';
     this.localBanner = this.banner.bind(this);
     // les effets (sons, particules, bandeaux) sont rejoués chez les amis
@@ -1359,6 +1399,7 @@ class Adventure {
     const P = this.mkPlayer(null, 'ainu');
     P.id = id; P.meshes = {};
     P.name = cleanName(m.name) || 'Ami ' + id;
+    P.peerId = link.conn && link.conn.peer;
     P.color = (m.color | 0) % DOG_COLORS.length;
     const H = this.player;
     const a = (id / 6) * Math.PI * 2;
@@ -1393,13 +1434,14 @@ class Adventure {
     for (const k in P.meshes) { this.scene.remove(P.meshes[k]); }
     this.scene.remove(P.shadow);
     if (P.tag) this.scene.remove(P.tag);
+    if (P.voiceMark) this.scene.remove(P.voiceMark);
     if (this.party.size === 1) { this.coop = null; this.dogMesh(this.player, 'duo'); }
     this.broadcastRoster();
     this.localBanner(`${P.name} est parti`, `Il peut revenir avec le code ${this.hostSession.code}.`, 2600);
   }
 
   broadcastRoster() {
-    const list = this.players.map(P => ({ id: P.id, kind: P.kind, color: P.color, name: P.name }));
+    const list = this.players.map(P => ({ id: P.id, kind: P.kind, color: P.color, name: P.name, pid: P.peerId }));
     for (const l of this.hostSession.links) if (!l.closed && l.pid !== undefined) l.send({ t: 'roster', list });
     this.updateRoster();
   }
@@ -1454,13 +1496,13 @@ class Adventure {
     for (const [id, P] of [...this.party]) {
       if (id === 0 || ids.has(id)) continue;
       for (const k in P.meshes) this.scene.remove(P.meshes[k]);
-      this.scene.remove(P.shadow); if (P.tag) this.scene.remove(P.tag);
+      this.scene.remove(P.shadow); if (P.tag) this.scene.remove(P.tag); if (P.voiceMark) this.scene.remove(P.voiceMark);
       this.party.delete(id);
     }
     for (const e of list) {
       let P = this.party.get(e.id);
       if (!P) { P = this.mkPlayer(null, 'ainu'); P.id = e.id; P.meshes = {}; this.party.set(e.id, P); }
-      P.name = e.name; P.color = e.color;
+      P.name = e.name; P.color = e.color; P.peerId = e.pid;
       if (P.kind !== e.kind || !P.mesh) this.dogMesh(P, e.kind);
     }
     this.coop.multi = this.party.size > 1;
@@ -2410,6 +2452,7 @@ class Adventure {
     this.camera.lookAt(this.camTarget);
 
     if ((this.mapT = (this.mapT || 0) + 1) % 4 === 0) this.drawMinimap();
+    this.showVoices();
     this.renderer.render(this.scene, this.camera);
   }
 
@@ -2587,6 +2630,8 @@ class Adventure {
 
   dispose(keepSession) {
     this.disposed = true;
+    // le chat vocal ne s'arrête que si on quitte vraiment le monde (pas en changeant de niveau)
+    if (this.vc && ((this.coop && this.coop.link) || (this.hostSession && !keepSession))) this.vc.close();
     if (this.coop && this.coop.link) { this.coop.link.onclose = null; this.coop.link.close(); }
     if (this.hostSession && !keepSession) { this.hostSession.onJoin = null; this.hostSession.close(); }
     cancelAnimationFrame(this.raf);
