@@ -111,7 +111,8 @@ class Adventure {
     const chars = [this.player.mesh, this.mamie, this.puppy.mesh, ...this.cats.map(c => c.mesh), ...(this.levelLogic ? this.levelLogic.chars : [])];
     for (const c of chars) T.outlineTree(c, 0.018, 0x1e120c);
     const vista = this.vista.group;
-    T.outlineTree(this.scene, 0.035, 0x2a1c14, (o) => {
+    // grande ville sur téléphone : contours seulement sur les personnages (trop d'objets sinon)
+    if (!(this.lite && L.WORLD)) T.outlineTree(this.scene, 0.035, 0x2a1c14, (o) => {
       if (chars.some(c => c === o || isChild(o, c)) || isChild(o, vista)) return false;
       if (!o.geometry.boundingSphere) o.geometry.computeBoundingSphere();
       return o.geometry.boundingSphere.radius < 14;
@@ -168,7 +169,7 @@ class Adventure {
         <div class="adv-right">
           <div class="adv-counts">
             <div class="adv-count"><img src="${L.ID === 2 ? ICONS.kibble : L.ID === 3 ? ICONS.coin : ICONS.bone}" alt=""><span id="adv-bones">0</span><small>/100</small></div>
-            <div class="adv-count"><img src="${ICONS.medal}" alt=""><span id="adv-medals">0</span><small>/5</small></div>
+            <div class="adv-count"><img src="${ICONS.medal}" alt=""><span id="adv-medals">0</span><small>/${L.medals.length}</small></div>
             <div class="adv-count adv-balls hidden"><img src="${ICONS.ball}" alt=""><span id="adv-balls">0</span><small>/5</small></div>
           </div>
           <div class="adv-mapcol">
@@ -291,9 +292,13 @@ class Adventure {
 
   /** Mini-carte : relief peint une fois, puis repères mis à jour en jeu. */
   buildMinimap() {
-    const N = 160, base = document.createElement('canvas'); base.width = base.height = N;
-    const x = base.getContext('2d'), img = x.createImageData(N, N);
-    const R = 75; // demi-côté couvert (unités du monde)
+    const base = document.createElement('canvas'); base.width = base.height = 160;
+    let x, img;
+    // grand monde : la carte entière est peinte en grand, on n'en affiche qu'un morceau autour du joueur (radar)
+    const R = L.WORLD ? L.WORLD / 2 : 75; // demi-côté couvert (unités du monde)
+    if (L.WORLD) { base.width = base.height = 512; }
+    const N = base.width;
+    x = base.getContext('2d'); img = x.createImageData(N, N);
     for (let j = 0; j < N; j++) for (let i = 0; i < N; i++) {
       const wx = (i / N) * 2 * R - R, wz = (j / N) * 2 * R - R, h = L.heightAt(wx, wz);
       let c;
@@ -305,7 +310,8 @@ class Adventure {
     }
     x.putImageData(img, 0, 0);
     x.fillStyle = 'rgba(40,90,40,0.55)';
-    for (const t of L.trees) { x.beginPath(); x.arc((t.x + R) / (2 * R) * N, (t.z + R) / (2 * R) * N, 2.4, 0, 7); x.fill(); }
+    for (const t of L.trees) { x.beginPath(); x.arc((t.x + R) / (2 * R) * N, (t.z + R) / (2 * R) * N, L.WORLD ? 1.6 : 2.4, 0, 7); x.fill(); }
+    if (L.drawMap) L.drawMap(x, (wx) => (wx + R) / (2 * R) * N, N / (2 * R));
     x.fillStyle = '#ece6da';
     for (const co of L.colliders) {
       if (!co.map || co.type !== 'box') continue;
@@ -318,12 +324,25 @@ class Adventure {
   }
 
   drawMinimap() {
-    const c = this.dom.map, x = c.getContext('2d'), N = c.width, R = this.mapR;
-    const P = (wx, wz) => [(wx + R) / (2 * R) * N, (wz + R) / (2 * R) * N];
-    x.drawImage(this.mapBase, 0, 0);
-    const dot = (wx, wz, col, rad) => { const [px, py] = P(wx, wz); x.fillStyle = '#3a2410'; x.beginPath(); x.arc(px, py, rad + 1.5, 0, 7); x.fill(); x.fillStyle = col; x.beginPath(); x.arc(px, py, rad, 0, 7); x.fill(); };
+    const c = this.dom.map, x = c.getContext('2d'), N = c.width;
+    let P, R = this.mapR;
+    if (L.RADAR) {
+      // radar : fenêtre de ±RADAR mètres autour du joueur, nord en haut
+      const me = this.me, Rr = L.RADAR, B = this.mapBase, k = B.width / (2 * R);
+      x.fillStyle = '#2a78c0'; x.fillRect(0, 0, N, N);
+      x.drawImage(B, (me.pos.x - Rr + R) * k, (me.pos.z - Rr + R) * k, 2 * Rr * k, 2 * Rr * k, 0, 0, N, N);
+      P = (wx, wz) => [(wx - me.pos.x + Rr) / (2 * Rr) * N, (wz - me.pos.z + Rr) / (2 * Rr) * N];
+    } else {
+      P = (wx, wz) => [(wx + R) / (2 * R) * N, (wz + R) / (2 * R) * N];
+      x.drawImage(this.mapBase, 0, 0);
+    }
+    const dot = (wx, wz, col, rad, edge) => {
+      let [px, py] = P(wx, wz);
+      // repère hors du radar : collé au bord, dans sa direction
+      if (L.RADAR && edge) { const cx = px - N / 2, cy = py - N / 2, m = Math.max(Math.abs(cx), Math.abs(cy)) / (N / 2 - 7); if (m > 1) { px = N / 2 + cx / m; py = N / 2 + cy / m; } }
+      if (px < -6 || py < -6 || px > N + 6 || py > N + 6) return; x.fillStyle = '#3a2410'; x.beginPath(); x.arc(px, py, rad + 1.5, 0, 7); x.fill(); x.fillStyle = col; x.beginPath(); x.arc(px, py, rad, 0, 7); x.fill(); };
     for (const m of this.medals) if (m.mesh.visible) dot(m.def.x, m.def.z, '#ffd23a', 4);
-    if (this.levelLogic && this.levelLogic.minimapMarks) for (const [mx, mz, col, rad] of this.levelLogic.minimapMarks()) dot(mx, mz, col, rad);
+    if (this.levelLogic && this.levelLogic.minimapMarks) for (const [mx, mz, col, rad, edge] of this.levelLogic.minimapMarks()) dot(mx, mz, col, rad, edge);
     dot(L.npcs.mamie.x, L.npcs.mamie.z, '#ff8a5a', 3.5);
     if (this.puppy.state !== 'home') dot(this.puppy.pos.x, this.puppy.pos.z, '#8ad0ff', 3.5);
     for (const Q of this.players) {
@@ -371,7 +390,14 @@ class Adventure {
     const sun = new THREE.DirectionalLight(...LT.sun);
     sun.castShadow = true;
     const sc = sun.shadow.camera;
-    if (touch) {
+    if (touch && L.WORLD) {
+      // grand monde sur téléphone : ombres du décor recalculées quand on s'éloigne
+      sun.shadow.mapSize.set(2048, 2048);
+      sc.left = -70; sc.right = 70; sc.top = 70; sc.bottom = -70; sc.near = 1; sc.far = 260;
+      sun.shadow.bias = -0.0015; sun.shadow.normalBias = 0.08;
+      r.shadowMap.autoUpdate = false; r.shadowMap.needsUpdate = true;
+      this.shadowFollow = true;
+    } else if (touch) {
       // Sur téléphone : les ombres du décor sont calculées une seule fois pour
       // toute l'île (les personnages gardent leur ombre ronde sous les pattes).
       sun.shadow.mapSize.set(2048, 2048);
@@ -1305,6 +1331,7 @@ class Adventure {
     if (this.disposed) return;
     if (m.t === 'join' && link.pid === undefined) this.addGuest(link, m);
     else if (m.t === 'ready') { link.lastSave = undefined; link.send({ t: 'level', id: L.ID }); }
+    else if (m.t === 'lv' && link.pid !== undefined && this.levelLogic && this.levelLogic.remote) this.levelLogic.remote(this.party.get(link.pid), m);
     else if (m.t === 'in' && link.pid !== undefined) {
       const r = this.remoteIn.get(link.pid);
       if (!r) return;
@@ -1580,7 +1607,7 @@ class Adventure {
   pushOut(p, y, rad) {
     const r = rad || PLAYER_R;
     const solids = [];
-    for (const c of L.colliders) if ((SOLID.has(c.kind) || c.solid) && !c.off) solids.push(c);
+    for (const c of (L.near ? L.near(p.x, p.z, r + 1) : L.colliders)) if ((SOLID.has(c.kind) || c.solid) && !c.off) solids.push(c);
     for (const c of this.crates) if (!c.broken) solids.push({ type: 'box', x: c.def.x, z: c.def.z, w: 1.2, d: 1.2, y0: c.def.y, y1: c.def.y + 1.2 });
     for (const c of solids) {
       if (c.y1 <= y + 0.35 || c.y0 >= y + 1.5) continue;
@@ -1697,6 +1724,11 @@ class Adventure {
       P.pos.y = sup.y; P.vel.y = 0; P.grounded = true; P.onCol = sup.collider;
     } else {
       P.grounded = false; P.onCol = null;
+    }
+    // plates-formes mobiles (nacelles de la grande roue…) : elles emportent le chien
+    if (P.grounded && P.onCol && P.onCol.dx !== undefined) {
+      const nx = { x: P.pos.x + P.onCol.dx, z: P.pos.z + P.onCol.dz };
+      P.pos.x = nx.x; P.pos.z = nx.z;
     }
     // Champignons rebondissants
     if (P.grounded && P.onCol && P.onCol.bounce) {
@@ -2069,6 +2101,7 @@ class Adventure {
         s.gone[b.id] = Date.now();          // il repoussera plus tard
         P.score = (P.score || 0) + 1;
         if (P === this.player) addToProfile(1);
+        if (this.levelLogic && this.levelLogic.onCoin) this.levelLogic.onCoin(P);
         this.burst(b.x, b.y, b.z, 6, 0xffe070, 2.5, 0.35);
         this.sound('bone', s.bones.length);
         const fresh = !s.bones.includes(b.id);
@@ -2125,8 +2158,9 @@ class Adventure {
     for (const Q of this.players) Q.cheerT = 1.4;
     this.freeze = 1.4;
     this.sound('win');
-    this.banner(L.MEDAL_TITLE || 'MÉDAILLE PATOUNE !', `${m.def.label} — ${s.medals.length}/5`, 2800);
-    if (s.medals.length >= 5 && !s.done) this.endTimer = 1.7;
+    this.banner(L.MEDAL_TITLE || 'MÉDAILLE PATOUNE !', `${m.def.label} — ${s.medals.length}/${L.medals.length}`, 2800);
+    const finished = L.FINAL_MEDAL ? s.medals.includes(L.FINAL_MEDAL) : s.medals.length >= L.medals.length;
+    if (finished && !s.done) this.endTimer = 1.7;
   }
 
   // Dialogue de fin, déclenché en temps de jeu après la dernière médaille
@@ -2289,7 +2323,16 @@ class Adventure {
     }
     // Le soleil suit le joueur pour garder des ombres nettes autour de lui
     const sun = this.sun;
-    if (!this.lite) {
+    if (this.shadowFollow) {
+      const me = this.me.pos, c0 = this.shadowAt;
+      if (!c0 || Math.hypot(me.x - c0.x, me.z - c0.z) > 30) {
+        this.shadowAt = { x: me.x, z: me.z };
+        sun.target.position.set(Math.round(me.x), 0, Math.round(me.z));
+        sun.position.copy(sun.target.position).addScaledVector(W.SKY.sunDir, 120);
+        sun.target.updateMatrixWorld();
+        this.renderer.shadowMap.needsUpdate = true;
+      }
+    } else if (!this.lite) {
       sun.target.position.set(Math.round(this.me.pos.x), Math.round(this.me.pos.y), Math.round(this.me.pos.z));
       sun.position.copy(sun.target.position).addScaledVector(W.SKY.sunDir, 70);
       sun.target.updateMatrixWorld();
@@ -2310,7 +2353,7 @@ class Adventure {
     // Caméra
     const ME = this.me;
     const target = v.set(ME.pos.x, ME.pos.y + (ME.kind === 'matcha' ? 1.2 : 1.6), ME.pos.z);
-    this.camDist += ((ME.kart ? 11.5 : 9) - this.camDist) * Math.min(1, dt * 3);
+    this.camDist += ((this.camDistOverride || (ME.kart ? 11.5 : 9)) - this.camDist) * Math.min(1, dt * 3);
     this.camTarget.lerp(target, 1 - Math.exp(-dt * 10));
     const cp = Math.cos(this.camPitch), sp = Math.sin(this.camPitch);
     const desired = new THREE.Vector3(
@@ -2322,7 +2365,7 @@ class Adventure {
       const tx = this.camTarget.x, tz = this.camTarget.z, dx = desired.x - tx, dz = desired.z - tz;
       const len2 = dx * dx + dz * dz;
       let f = 1;
-      for (const c of L.colliders) {
+      for (const c of (L.near ? L.near(tx, tz, this.camDist + 2) : L.colliders)) {
         if (c.type === 'box' && c.cam) {
           // immeuble : intersection segment / rectangle (plan horizontal)
           const hx = c.w / 2 + 0.3, hz = c.d / 2 + 0.3;
@@ -2447,7 +2490,7 @@ class Adventure {
     let html = '';
     if (kind === 'pause') {
       html = `<h2>Pause</h2>
-        <div class="adv-stats">${L.ID === 3 ? 'Trophées' : 'Médailles'} ${s.medals.length}/5 · ${L.ID === 2 ? 'Croquettes' : L.ID === 3 ? 'Pièces' : 'Os'} ${s.bones.length}/100</div>
+        <div class="adv-stats">${L.ID === 3 ? 'Trophées' : 'Médailles'} ${s.medals.length}/${L.medals.length} · ${L.ID === 2 ? 'Croquettes' : L.ID === 3 ? 'Pièces' : 'Os'} ${s.bones.length}/100</div>
         ${this.hostSession ? `<div class="adv-stats">Code de ton monde : <b class="adv-code">${this.hostSession.code}</b> (jusqu'à 6 joueurs)</div>` : ''}
         ${this.visitorsLine()}
         <button class="btn primary" data-a="resume">Reprendre</button>
@@ -2455,7 +2498,7 @@ class Adventure {
         <button class="btn ghost" data-a="quit">Menu principal</button>`;
     } else if (kind === 'continue') {
       html = `<h2>${L.NAME}</h2>
-        <div class="adv-stats">${L.ID === 3 ? 'Trophées' : 'Médailles'} ${s.medals.length}/5 · ${L.ID === 2 ? 'Croquettes' : L.ID === 3 ? 'Pièces' : 'Os'} ${s.bones.length}/100</div>
+        <div class="adv-stats">${L.ID === 3 ? 'Trophées' : 'Médailles'} ${s.medals.length}/${L.medals.length} · ${L.ID === 2 ? 'Croquettes' : L.ID === 3 ? 'Pièces' : 'Os'} ${s.bones.length}/100</div>
         ${this.hostSession ? `<div class="adv-stats">Ton monde : code <b class="adv-code">${this.hostSession.code}</b></div>` : ''}
         ${this.visitorsLine()}
         <button class="btn primary" data-a="resume-save">Continuer l'aventure</button>
@@ -2476,7 +2519,7 @@ class Adventure {
         <button class="btn primary" data-a="lost">Menu principal</button>`;
     } else if (kind === 'complete') {
       html = `<h2>Niveau ${L.ID} terminé !</h2>
-        <div class="adv-medals">${('<img src="' + ICONS.medal + '" alt="">').repeat(5)}</div>
+        <div class="adv-medals">${('<img src="' + ICONS.medal + '" alt="">').repeat(Math.min(5, L.medals.length))}</div>
         <div class="adv-stats">${L.ID === 3 ? 'Pièces d\'or' : L.ID === 2 ? 'Croquettes' : 'Os dorés'} ${s.bones.length}/100 · Temps ${fmt}</div>
         ${L.ID < 3 && !this.guest ? `<button class="btn primary" data-a="next">${L.ID === 1 ? 'Niveau 2 : la Forêt des Moustaches' : 'Niveau 3 : Port-Croquette'} →</button>` : ''}
         <button class="btn ${L.ID < 3 && !this.guest ? '' : 'primary'}" data-a="resume">Continuer à explorer</button>
@@ -2538,7 +2581,7 @@ class Adventure {
       this.freeze = 0.6;
       setTimeout(() => { if (!this.disposed && !this.dialog) this.talkMamie(true); }, 700);
     } else {
-      this.banner(L.NAME, `Médailles ${this.save.medals.length}/5`, 2200);
+      this.banner(L.NAME, `${L.ID === 3 ? 'Trophées' : 'Médailles'} ${this.save.medals.length}/${L.medals.length}`, 2200);
     }
   }
 

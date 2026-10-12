@@ -150,3 +150,15 @@
 .adv-mission em:empty { display: none; }
 .adv-mission em.urgent { color: #ff7a6a; animation: adv-pulse 0.5s ease-in-out infinite alternate; }
 @keyframes adv-pulse { from { transform: scale(1); } to { transform: scale(1.12); } }
+
+/* Port-Croquette : porte-monnaie et boutique */
+.adv-wallet .coin-ic { display: inline-grid; place-items: center; width: 22px; height: 22px; border-radius: 50%; background: radial-gradient(circle at 35% 30%, #fff3a0, #ffc830 60%, #c88a10); color: #8a5a00; font-weight: 800; font-size: 13px; border: 2px solid #8a5a00; }
+.adv-shop { position: absolute; inset: 0; display: grid; place-items: center; background: rgba(20, 14, 10, 0.45); z-index: 30; }
+.adv-shop.hidden { display: none; }
+.adv-shop .adv-panel { max-height: 86vh; overflow: auto; min-width: min(420px, 90vw); }
+.adv-shop .shop-list { display: grid; gap: 6px; margin: 10px 0 12px; }
+.adv-shop .row { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 6px 10px; border-radius: 10px; background: rgba(255, 255, 255, 0.08); color: #fff4dc; font-weight: 600; }
+.adv-shop .row button { font: inherit; font-weight: 700; padding: 5px 12px; border-radius: 10px; border: 2px solid #2a1408; background: #ffd23a; color: #2a1408; cursor: pointer; min-width: 84px; }
+.adv-shop .row button:disabled { filter: grayscale(0.8); opacity: 0.6; cursor: default; }
+.adv-shop .row button.on { background: #9ae05a; }
+.adv-shop .row .ok { color: #9ae05a; }

@@ -158,7 +158,7 @@
 
   /** Progression sauvegardée d'un niveau de l'aventure (ou null). */
   function levelSave(n) {
-    try { return JSON.parse(localStorage.getItem('dogfight.aventure.niveau' + n) || 'null'); } catch (e) { return null; }
+    try { return JSON.parse(localStorage.getItem('dogfight.aventure.niveau' + n + (n === 3 ? 'b' : '')) || 'null'); } catch (e) { return null; }
   }
   /** Le gros bouton d'aventure indique la progression sauvegardée. */
   function updateAdventureButton() {

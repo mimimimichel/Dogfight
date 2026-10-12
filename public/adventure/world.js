@@ -96,7 +96,7 @@ function detailTexture() {
 }
 
 export function buildTerrain(scene, quality) {
-  const size = 180, seg = quality.high ? 200 : 110;
+  const size = L.WORLD || 180, seg = L.WORLD ? (quality.high ? 280 : 170) : (quality.high ? 200 : 110);
   const geo = new THREE.PlaneGeometry(size, size, seg, seg);
   geo.rotateX(-Math.PI / 2);
   const pos = geo.attributes.position;
@@ -131,12 +131,13 @@ export function buildTerrain(scene, quality) {
 // Eau : vagues, reflets du ciel et du soleil, couleur selon la profondeur, écume
 // ---------------------------------------------------------------------------
 function heightTexture() {
-  const N = 256, data = new Uint8Array(N * N);
+  const N = L.WORLD ? 512 : 256, data = new Uint8Array(N * N), S = L.WORLD || 180;
+  const shore = L.colliders.filter(c => c.kind === 'stone' || c.kind === 'islet' || c.shore);
   for (let j = 0; j < N; j++) for (let i = 0; i < N; i++) {
-    const x = (i / (N - 1)) * 180 - 90, z = (j / (N - 1)) * 180 - 90;
+    const x = (i / (N - 1)) * S - S / 2, z = (j / (N - 1)) * S - S / 2;
     let h = L.heightAt(x, z);
     // les galets et l'îlot comptent comme « rivage » pour l'écume
-    for (const c of L.colliders) if ((c.kind === 'stone' || c.kind === 'islet') && L.inside(c, x, z, 0)) h = Math.max(h, c.y1);
+    for (const c of shore) if (L.inside(c, x, z, 0)) h = Math.max(h, c.y1);
     data[j * N + i] = Math.max(0, Math.min(255, Math.round((h + 8) * 255 / 16)));
   }
   const t = new THREE.DataTexture(data, N, N, THREE.RedFormat);
@@ -149,7 +150,7 @@ export function buildWater(scene, fog) {
   const mat = new THREE.ShaderMaterial({
     transparent: true,
     uniforms: {
-      uTime: { value: 0 }, uHeight: { value: heightTexture() },
+      uTime: { value: 0 }, uHeight: { value: heightTexture() }, uHalf: { value: (L.WORLD || 180) / 2 },
       uSun: { value: SKY.sunDir }, uSky: { value: SKY.horizon }, uSkyTop: { value: SKY.top },
       uShallow: { value: new THREE.Color(0x4fe0e0) }, uDeep: { value: new THREE.Color(0x1a78c8) },
       uFogColor: { value: fog.color }, uFogNear: { value: fog.near }, uFogFar: { value: fog.far },
@@ -164,7 +165,7 @@ export function buildWater(scene, fog) {
         gl_Position = projectionMatrix * viewMatrix * w;
       }`,
     fragmentShader: `
-      uniform float uTime, uFogNear, uFogFar;
+      uniform float uTime, uFogNear, uFogFar, uHalf;
       uniform sampler2D uHeight;
       uniform vec3 uSun, uSky, uSkyTop, uShallow, uDeep, uFogColor;
       varying vec3 vWorld;
@@ -174,7 +175,7 @@ export function buildWater(scene, fog) {
         return mix(mix(hash(i), hash(i + vec2(1, 0)), f.x), mix(hash(i + vec2(0, 1)), hash(i + vec2(1, 1)), f.x), f.y);
       }
       void main() {
-        vec2 uv = (vWorld.xz + 90.0) / 180.0;
+        vec2 uv = (vWorld.xz + uHalf) / (2.0 * uHalf);
         float ground = texture2D(uHeight, uv).r * 16.0 - 8.0;
         if (uv.x < 0.0 || uv.x > 1.0 || uv.y < 0.0 || uv.y > 1.0) ground = -8.0;
         float depth = vWorld.y - ground;
@@ -254,17 +255,17 @@ function bladeClump(r, blades) {
 
 export function buildGrass(scene, quality, windUniform) {
   const r = rng(9);
-  const count = quality.high ? 5200 : 1300;
+  const count = (quality.high ? 5200 : 1300) * (L.GRASS_K || 1);
   const spots = [];
   for (let i = 0; i < count * 6 && spots.length < count; i++) {
-    const x = (r() - 0.5) * 140, z = (r() - 0.5) * 140;
+    const x = (r() - 0.5) * (L.WORLD ? L.WORLD - 20 : 140), z = (r() - 0.5) * (L.WORLD ? L.WORLD - 20 : 140);
     const h = L.heightAt(x, z);
     if (h < 1.5) continue;
     const slope = Math.abs(L.heightAt(x + 0.5, z) - h) + Math.abs(L.heightAt(x, z + 0.5) - h);
     if (slope > 0.45) continue;
     if (onPath(x, z) && r() < 0.85) continue;
     if (L.inWater(x, z)) continue;
-    if (L.colliders.some(c => c.kind !== 'trunk' && c.kind !== 'tree' && L.inside(c, x, z, 0.3) && c.y1 > h)) continue;
+    if ((L.near ? L.near(x, z, 1) : L.colliders).some(c => c.kind !== 'trunk' && c.kind !== 'tree' && L.inside(c, x, z, 0.3) && c.y1 > h)) continue;
     spots.push([x, h, z]);
   }
   const mat = new THREE.MeshStandardMaterial({ vertexColors: true, side: THREE.DoubleSide, roughness: 0.9 });
@@ -303,9 +304,9 @@ export function buildFlowers(scene, quality) {
     { geo: new THREE.SphereGeometry(0.13, 10, 4), y: 0.36, sy: 0.3 },
   ]);
   const spots = [];
-  const maxF = quality && quality.lite ? 220 : 420;
+  const maxF = (quality && quality.lite ? 220 : 420) * (L.GRASS_K || 1);
   for (let i = 0; i < 3000 && spots.length < maxF; i++) {
-    const x = (r() - 0.5) * 130, z = (r() - 0.5) * 130;
+    const x = (r() - 0.5) * (L.WORLD ? L.WORLD - 20 : 130), z = (r() - 0.5) * (L.WORLD ? L.WORLD - 20 : 130);
     const h = L.heightAt(x, z);
     if (h < 1.6 || onPath(x, z)) continue;
     // en petits bouquets
@@ -340,7 +341,7 @@ export function buildTrees(scene, quality) {
   for (let i = 0; i < tp.count; i++) { const y = tp.getY(i); if (y < -2) { const k = 1 + (-2 - y) * 0.35; tp.setX(i, tp.getX(i) * k); tp.setZ(i, tp.getZ(i) * k); } }
   trunkGeo.computeVertexNormals();
   const trunks = new THREE.InstancedMesh(trunkGeo, M.mat(0x7a4e2c, { roughness: 0.95 }), n);
-  const blobGeo = leafClusterGeo(quality && quality.lite ? 10 : 16);
+  const blobGeo = leafClusterGeo(L.WORLD ? 6 : quality && quality.lite ? 10 : 16);
   const blobs = [];
   // style du feuillage selon le niveau (la forêt du niveau 2 a moins de touffes, plus grosses)
   const ST = Object.assign({ min: 5, extra: 3, rad: 1.1, big: 1.9, small: 1.3, bushes: 2 }, L.TREE_STYLE || {});
@@ -375,6 +376,7 @@ export function buildTrees(scene, quality) {
     leaves.setColorAt(i, c.set(greens[i % greens.length]).offsetHSL(0, 0, b.bush ? -0.04 : (r() - 0.5) * 0.06));
   });
   trunks.castShadow = leaves.castShadow = true;
+  if (L.WORLD) leaves.userData.noOutline = true;   // grande ville : beaucoup d'arbres, pas de contour
   trunks.receiveShadow = leaves.receiveShadow = true;
   scene.add(trunks, leaves);
 }
@@ -727,16 +729,17 @@ export function leafTexture() {
  * (style dessin animé), plus claires en haut et plus sombres dessous.
  */
 export function leafClusterGeo(detail) {
-  const lite = detail <= 10;
+  const lite = detail <= 10, tiny = detail <= 6;
   const r = rng(77);
-  const parts = [{ geo: new THREE.IcosahedronGeometry(0.78, lite ? 2 : 3) }];
+  const parts = [{ geo: new THREE.IcosahedronGeometry(0.78, tiny ? 1 : lite ? 2 : 3) }];
   const n = 7;
   for (let k = 0; k < n; k++) {
     const a = (k / n) * Math.PI * 2 + r() * 0.4, up = 0.15 + r() * 0.35;
     const rad = 0.42 + r() * 0.14;
-    parts.push({ geo: new THREE.IcosahedronGeometry(rad, lite ? 1 : 2), x: Math.cos(a) * 0.62, y: up, z: Math.sin(a) * 0.62 });
+    parts.push({ geo: new THREE.IcosahedronGeometry(rad, tiny ? 0 : lite ? 1 : 2), x: Math.cos(a) * 0.62, y: up, z: Math.sin(a) * 0.62 });
+    if (tiny) k++;            // moitié moins de petites touffes
   }
-  parts.push({ geo: new THREE.IcosahedronGeometry(0.5, lite ? 1 : 2), y: 0.62, x: 0.05 });
+  parts.push({ geo: new THREE.IcosahedronGeometry(0.5, tiny ? 0 : lite ? 1 : 2), y: 0.62, x: 0.05 });
   const g = M.mergeGeos(parts);
   const p = g.attributes.position, nrm = g.attributes.normal;
   const col = new Float32Array(p.count * 3);
@@ -918,7 +921,7 @@ export function buildVista(scene, fallTex) {
   group.add(castle);
   // îles flottantes
   const isles = [];
-  for (const [x, y, z, rad, seed] of [[95, 38, -150, 9, 1], [150, 62, -60, 6, 2], [-160, 46, -95, 8, 3], [60, 70, -210, 5, 4], [-80, 30, 150, 7, 5], [140, 30, 110, 6, 6]]) {
+  for (const [x, y, z, rad, seed] of (L.WORLD ? [] : [[95, 38, -150, 9, 1], [150, 62, -60, 6, 2], [-160, 46, -95, 8, 3], [60, 70, -210, 5, 4], [-80, 30, 150, 7, 5], [140, 30, 110, 6, 6]])) {
     const isl = floatingIsland(seed, rad, fallTex);
     isl.position.set(x, y, z);
     isl.userData.y0 = y;
