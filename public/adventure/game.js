@@ -1102,6 +1102,7 @@ class Adventure {
   // -------------------------------------------------------------------------
   buildEntities() {
     M.FUR.layers = this.lite ? 8 : 14; // couches de fourrure
+    M.FUR.mode = this.realistic ? 'shells' : 'smooth';   // rendu réaliste : vrai pelage en couches pour tout le monde
     const sc = this.scene;
     const s = this.save;
     // Joueur
