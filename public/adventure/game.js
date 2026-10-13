@@ -178,7 +178,7 @@ export async function start(opts) {
   const photos = style !== 'toon' ? RT.preloadPhotos((k) => { if (LD) LD.progress(0.35 + k * 0.3, 'Les décors arrivent…'); }, L.ID) : null;
   const ultra = photos && RT.isUltra() ? RT.preloadUltra() : null;
   // personnages non joueurs réalistes (modèles gratuits CC-BY)
-  const npcs = photos ? N.preloadNpcs(L.ID === 3 ? ['mamie', 'biscotte', 'shiba', 'berger', 'bouledogue'] : ['mamie', 'biscotte']) : null;
+  const npcs = photos ? N.preloadNpcs(L.ID === 3 ? ['mamie', 'mamie2', 'biscotte', 'shiba', 'berger', 'bouledogue'] : ['mamie', 'mamie2', 'biscotte']) : null;
   await M.preloadDogs();
   if (photos) await photos;
   if (npcs) await npcs;
@@ -1340,8 +1340,8 @@ class Adventure {
     // (?mamie=scan|debout|dessin pour comparer les modèles)
     const mq = new URLSearchParams(location.search).get('mamie');
     this.mamie = mq === 'dessin' ? M.buildMamie()
-      : mq === 'debout' && N.hasNpc('biscotte') ? N.buildMamieStanding()
-        : this.realistic && N.hasNpc('mamie') ? N.buildMamieReal() : M.buildMamie();
+      : mq === 'assise' && N.hasNpc('mamie') ? N.buildMamieReal()
+        : this.realistic && N.hasNpc('mamie2') ? N.buildMamieStanding() : M.buildMamie();
     this.mamie.position.set(L.npcs.mamie.x, L.npcs.mamie.y, L.npcs.mamie.z);
     if (this.mamie.userData.rig) this.mamie.scale.multiplyScalar(MAMIE_SCALE);   // un peu plus grande
     this.mamie.rotation.y = Math.atan2(L.START.x - L.npcs.mamie.x, L.START.z - L.npcs.mamie.z);

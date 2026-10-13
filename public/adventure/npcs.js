@@ -118,24 +118,51 @@ export function buildNpc(name, opts) {
 }
 
 /**
- * Mamie Labrador, debout sur ses quatre pattes : le modèle du golden retriever (celui de
- * Biscotte), en grand, le pelage un peu plus clair (elle a l'âge d'être grand-mère) et son
- * bandana rouge. (Le scan de chienne assise penchait et ne posait pas ses pattes.)
+ * Mamie Labrador : le labrador assis fourni par la famille (modèle STL, converti par
+ * tools/npc/stl2npc.mjs), pelage doré peint par sommet et bandana rouge ajusté au cou.
+ * Elle est bien droite, les quatre pattes posées.
  */
 export function buildMamieStanding() {
-  const C = cache.biscotte, H = C.meta.size[1], W = C.meta.size[0];
-  const s = 1.35 / H;   // 1,35 m au sommet de la tête
-  const m = buildNpc('biscotte', { head: 0.3, tail: 0.12, scale: s, tint: 0xfff4e4 });
+  const C = cache.mamie2, H = C.meta.size[1];
+  // chienne assise : la tête est tout en haut, la queue au sol derrière ; les pattes ne bougent pas
+  const m = buildNpc('mamie2', { headTop: 0.76, tail: 0.1, tailMaxY: 0.25, legs: false });
   const u = m.userData;
-  const red = new THREE.MeshStandardMaterial({ color: 0xd8202a, roughness: 0.75, side: THREE.DoubleSide });
-  const band = new THREE.Group();
-  // collier-bandana autour du cou, juste derrière la tête (bien visible de face comme de côté)
-  const Lz = C.meta.size[2];
-  const ring = new THREE.Mesh(new THREE.TorusGeometry(W * 0.36, W * 0.08, 10, 28), red); ring.rotation.x = Math.PI / 2 - 0.35; band.add(ring);
-  const tri = new THREE.Mesh(new THREE.ConeGeometry(W * 0.24, W * 0.38, 3), red); tri.rotation.x = Math.PI; tri.scale.z = 0.35; tri.position.set(0, -W * 0.22, W * 0.3); band.add(tri);
-  band.traverse(o => { if (o.isMesh) o.castShadow = true; });
-  band.position.set(0, -H * 0.04, -Lz * 0.05);
-  u.head.add(band);
+  // pelage doré, plus clair sur le poitrail et le museau (couleurs par sommet : le modèle n'a pas de texture)
+  m.traverse((o) => {
+    if (!o.isSkinnedMesh) return;
+    const a = o.geometry.attributes.position.array, n = a.length / 3, col = new Float32Array(n * 3);
+    const base = new THREE.Color(0xc98a44), light = new THREE.Color(0xf0d2a0), dark = new THREE.Color(0xa86a2c), c = new THREE.Color();
+    for (let i = 0; i < n; i++) {
+      const y = a[i * 3 + 1] / H, z = a[i * 3 + 2];
+      const front = Math.max(0, Math.min(1, (z + 0.05) * 3));          // poitrail, devant
+      const high = Math.max(0, Math.min(1, (y - 0.55) * 3));           // dos et oreilles un peu plus foncés
+      const n1 = Math.sin(a[i * 3] * 41 + a[i * 3 + 1] * 37) * Math.sin(a[i * 3 + 2] * 29) * 0.5 + 0.5;
+      c.copy(base).lerp(light, front * (1 - high) * 0.6).lerp(dark, high * (1 - front) * 0.5);
+      c.multiplyScalar(0.94 + n1 * 0.1);
+      col[i * 3] = c.r; col[i * 3 + 1] = c.g; col[i * 3 + 2] = c.b;
+    }
+    o.geometry.setAttribute('color', new THREE.BufferAttribute(col, 3));
+    o.material.vertexColors = true; o.material.color.set(0xffffff); o.material.roughness = 0.92; o.material.metalness = 0;
+    o.material.needsUpdate = true;
+  });
+  // bandana rouge au cou : là où le corps est le plus fin, sous la tête
+  let best = null;
+  for (let y = 0.6; y <= 0.78; y += 0.02) {
+    const pts = points('mamie2', (px, py) => Math.abs(py / H - y) < 0.012);
+    if (pts.length < 20) continue;
+    let cx = 0, cz = 0; for (const p of pts) { cx += p[0]; cz += p[2]; } cx /= pts.length; cz /= pts.length;
+    let r = 0; for (const p of pts) r += Math.hypot(p[0] - cx, p[2] - cz); r /= pts.length;   // (rayon moyen : les oreilles pendantes ne comptent pas)
+    if (!best || r < best.r) best = { y: y * H, x: cx, z: cz, r };
+  }
+  if (best) {
+    const red = new THREE.MeshStandardMaterial({ color: 0xd8202a, roughness: 0.75, side: THREE.DoubleSide });
+    const band = new THREE.Group();
+    const ring = new THREE.Mesh(new THREE.TorusGeometry(best.r * 1.0, best.r * 0.16, 10, 30), red); ring.rotation.x = Math.PI / 2 + 0.3; band.add(ring);
+    const tri = new THREE.Mesh(new THREE.ConeGeometry(best.r * 0.5, best.r * 0.8, 3), red); tri.rotation.x = Math.PI; tri.scale.z = 0.35; tri.position.set(0, -best.r * 0.45, best.r * 0.9); band.add(tri);
+    band.traverse(o => { if (o.isMesh) o.castShadow = true; });
+    band.position.set(best.x, best.y, best.z);
+    u.body.add(band);
+  }
   u.mamie = true;
   return m;
 }

@@ -12,3 +12,6 @@ Objaverse, puis simplifiés et convertis pour le jeu (tools/npc/convert.mjs). Ac
 | Habitants (shiba) | « Doge » | kitsuneko_3d | https://sketchfab.com/3d-models/2beaf073b9de4d499d24f799865a59d0 |
 | Habitants (berger allemand) | « Riley » | lopuh22721 | https://sketchfab.com/3d-models/8aedf051c5714409a1171ceed6543644 |
 | Habitants (bouledogue) | « Bulldog Puppy » | doinspire | https://sketchfab.com/3d-models/7081c9c27df244bf84774361888f58a2 |
+
+Mamie Labrador (version actuelle, `mamie2`) : modèle de labrador assis (STL) fourni par la famille,
+simplifié et converti par `tools/npc/stl2npc.mjs` ; couleurs et bandana ajoutés par le jeu.
