@@ -279,18 +279,26 @@ let photoPromise = null;
 function loadImg(src) {
   return new Promise((res) => { const im = new Image(); im.onload = () => res(im); im.onerror = () => res(null); im.src = src; });
 }
-/** Charge toutes les photos (une seule fois). onProgress(0..1) pour l'écran de chargement. */
-export function preloadPhotos(onProgress) {
-  if (photoPromise) return photoPromise;
+/** Matières propres à la ville (les autres niveaux ne les chargent pas). */
+const CITY_ONLY = ['red_brick', 'painted_plaster_wall', 'asphalt_02', 'cobblestone_floor_04', 'rectangular_paving'];
+const loading = {};
+/**
+ * Charge les photos dont le niveau a besoin (une seule fois chacune). Sur téléphone et
+ * tablette, en demi-résolution (4 fois plus légères). onProgress(0..1) pour l'écran de chargement.
+ */
+export function preloadPhotos(onProgress, level) {
+  const small = document.documentElement.classList.contains('touch');
+  const names = PHOTO_NAMES.filter(n => level === 3 || !CITY_ONLY.includes(n));
   const jobs = [];
-  for (const n of PHOTO_NAMES) for (const k of ['d', 'n']) jobs.push([n + '_' + k, PH + n + '_' + k + '.jpg']);
+  for (const n of names) for (const k of ['d', 'n']) jobs.push([n + '_' + k, PH + n + '_' + k + (small ? '_s' : '') + '.jpg']);
   jobs.push(['leaves', PH + 'leaves.webp'], ['sky', PH + 'sky.jpg']);
   let done = 0;
   const total = jobs.length + PLANTS.length;
   const tick = () => { done++; if (onProgress) onProgress(done / total); };
+  const once = (key, fn) => (loading[key] || (loading[key] = fn()));
   photoPromise = Promise.all([
-    ...jobs.map(([key, src]) => loadImg(src).then(im => { photos[key] = im; tick(); })),
-    ...PLANTS.map(n => loadPlant(n).then(tick)),
+    ...jobs.map(([key, src]) => once(key, () => loadImg(src).then(im => { photos[key] = im; })).then(tick)),
+    ...PLANTS.map(n => once('plant:' + n, () => loadPlant(n)).then(tick)),
   ]);
   return photoPromise;
 }

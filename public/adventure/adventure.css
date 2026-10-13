@@ -98,7 +98,7 @@
 .adv-panel .btn:active { transform: translateY(3px); box-shadow: none; }
 
 /* Commandes tactiles */
-.adv-touch { position: absolute; inset: 0; pointer-events: none; --b: clamp(58px, 18vh, 96px); }
+.adv-touch { position: absolute; inset: 0; pointer-events: none; --b: clamp(64px, 21vh, 108px); }
 .adv-stick-zone { position: absolute; left: 0; top: 20%; width: 45%; bottom: 0; pointer-events: auto; }
 .adv-cam-zone { position: absolute; right: 0; top: 14%; width: 55%; bottom: 0; pointer-events: auto; }
 .adv-stick {
@@ -122,6 +122,8 @@
   font-family: var(--af); font-weight: 700; font-size: clamp(10px, 2.4vh, 13px); text-shadow: 0 1px 2px #000;
 }
 .adv-btn svg { width: 46%; height: 46%; filter: drop-shadow(0 1px 1px rgba(0, 0, 0, 0.6)); }
+/* zone de toucher plus large que le bouton (petites mains : un doigt un peu à côté compte quand même) */
+.adv-btn::after { content: ''; position: absolute; inset: -12px; border-radius: 50%; }
 .adv-btn span { line-height: 1; }
 .adv-btn.down { transform: scale(0.92); filter: brightness(1.3); }
 .adv-btn.jump { right: max(14px, env(safe-area-inset-right)); bottom: calc(var(--b) * 0.25); width: calc(var(--b) * 1.2); height: calc(var(--b) * 1.2); }

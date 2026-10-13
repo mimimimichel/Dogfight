@@ -203,6 +203,7 @@ export function buildTerrain(scene, quality) {
   const gtex = ph ? ph.map : LOOK.real ? grassGroundTexture() : detailTexture();
   const mat = new THREE.MeshStandardMaterial({ vertexColors: true, map: gtex, roughness: 0.95, normalMap: ph ? ph.normalMap : LOOK.real ? RT.normalFor(gtex, 2) : null });
   const m = new THREE.Mesh(geo, mat);
+  m.name = 'terrain';
   m.receiveShadow = true;
   scene.add(m);
   return m;
@@ -966,7 +967,8 @@ export function buildRuins(scene) {
       const top = (ru.h + 1) / 2;
       for (let i = 0; i < p.count; i++) {
         const x = p.getX(i), y = p.getY(i), z = p.getZ(i);
-        if (y > top - 0.01) p.setY(i, top - Math.abs(Math.sin((x + z) * 1.7 + seed)) * 0.7 - r() * 0.15);
+        // dessus un peu écroulé (sans descendre sous la hauteur où l'on marche)
+        if (y > top - 0.01) p.setY(i, top + 0.08 - Math.abs(Math.sin((x + z) * 1.7 + seed)) * 0.22 - r() * 0.06);
         uv.setXY(i, (Math.abs(n.getX(i)) > 0.5 ? z : x) / 1.4, (p.getY(i) + 2) / 1.4);
       }
       g.computeVertexNormals();
@@ -1221,6 +1223,7 @@ function leafPatternTexture() {
 export function leafMaterial() {
   if (leafM) return leafM;
   leafM = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.9 });
+  leafM.name = 'leaves';
   if (LOOK.real) {
     const tex = leafPatternTexture(), nrm = RT.normalFor(tex, 3);
     leafM.onBeforeCompile = (sh) => {

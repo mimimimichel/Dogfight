@@ -303,3 +303,17 @@ html.touch .kb-only { display: none !important; }
 
 .ios-tip { margin: 0; font-size: 8px; line-height: 16px; color: var(--gold); background: rgba(14, 8, 22, 0.8); padding: 8px 12px; box-shadow: var(--px-border); }
 .ios-tip b { color: #fff6e6; font-weight: normal; }
+
+/* Invitation au plein écran (téléphone tourné, pas encore en plein écran) */
+#fs-invite {
+  position: fixed; inset: 0; z-index: 99; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 10px;
+  background: radial-gradient(ellipse at center, rgba(40, 90, 160, 0.82), rgba(10, 20, 50, 0.92)); color: #fff; text-align: center;
+  font-family: 'Fredoka', 'Arial Rounded MT Bold', system-ui, sans-serif; cursor: pointer; padding: 20px;
+}
+#fs-invite.hidden { display: none; }
+#fs-invite .fs-hand { font-size: 64px; animation: fsTap 1.1s ease-in-out infinite; }
+#fs-invite .fs-main { margin: 0; font-size: 30px; font-weight: 700; -webkit-text-stroke: 6px #2a1408; paint-order: stroke fill; color: #ffd23a; }
+#fs-invite .fs-ios { margin: 0; max-width: 520px; font-size: 15px; line-height: 1.35; background: rgba(0, 0, 0, 0.35); border-radius: 12px; padding: 8px 12px; }
+#fs-invite .fs-ios.hidden { display: none; }
+@keyframes fsTap { 50% { transform: translateY(10px) scale(0.92); } }
+@media (orientation: portrait) { #fs-invite { display: none; } }

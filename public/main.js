@@ -267,8 +267,38 @@
     // iPhone : Safari n'autorise pas le plein écran d'une page → passer par l'écran d'accueil
     $('ios-tip').classList.toggle('hidden', !(isIOS && !fsSupported && !standalone));
   }
-  document.addEventListener('fullscreenchange', () => { updateFullscreenUi(); fit(); });
-  document.addEventListener('webkitfullscreenchange', () => { updateFullscreenUi(); fit(); });
+  // Plein écran par défaut sur téléphone : dès qu'on tourne le téléphone, un grand écran
+  // « touche pour jouer » ; le premier toucher (n'importe où) passe en plein écran.
+  // (Les navigateurs exigent un geste ; l'iPhone ne le permet qu'à l'appli de l'écran d'accueil.)
+  let fsRefused = false;
+  function updateFsInvite() {
+    const inv = $('fs-invite');
+    if (!inv) return;
+    const landscape = window.innerWidth > window.innerHeight;
+    const want = IS_TOUCH && !standalone && !isFullscreen() && landscape && !fsRefused && (fsSupported || isIOS) && !inv.dataset.seen;
+    inv.classList.toggle('hidden', !want);
+    inv.querySelector('.fs-ios').classList.toggle('hidden', !(isIOS && !fsSupported));
+  }
+  if (IS_TOUCH) {
+    const onGesture = () => {
+      if (fsSupported && !standalone && !isFullscreen()) {
+        goFullscreen();
+        // si le navigateur refuse, on n'insiste pas jusqu'à la prochaine rotation
+        setTimeout(() => { if (!isFullscreen()) { fsRefused = true; updateFsInvite(); } }, 600);
+      }
+      const inv = $('fs-invite');
+      if (inv && !inv.classList.contains('hidden')) { if (!fsSupported) inv.dataset.seen = '1'; inv.classList.add('hidden'); sfx.unlock(); }
+    };
+    document.addEventListener('touchend', onGesture, { capture: true, passive: true });
+    document.addEventListener('click', onGesture, { capture: true });
+    const reorient = () => { fsRefused = false; setTimeout(updateFsInvite, 250); };
+    window.addEventListener('orientationchange', reorient);
+    window.addEventListener('resize', () => setTimeout(updateFsInvite, 250));
+    $('fs-invite').addEventListener('click', (e) => e.stopPropagation());
+    updateFsInvite();
+  }
+  document.addEventListener('fullscreenchange', () => { updateFullscreenUi(); updateFsInvite(); fit(); });
+  document.addEventListener('webkitfullscreenchange', () => { updateFullscreenUi(); updateFsInvite(); fit(); });
 
   function togglePause() {
     if (app.screen === 'game') { app.paused = app.mode !== 'online'; show('pause'); }

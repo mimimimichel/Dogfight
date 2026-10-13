@@ -160,7 +160,7 @@ for (const g of giants) cyl(g.x, g.z, 1.5 * g.s, g.y - 1, g.y + 16 * g.s, { kind
 
 // Rochers à grimper (lanterne, croquettes)
 export const rocks = [{ x: 30, z: 34, r: 2.2, h: 2.6 }, { x: -46, z: 28, r: 1.8, h: 2.2 }];
-for (const r of rocks) { const g = heightAt(r.x, r.z); r.top = g + r.h; cyl(r.x, r.z, r.r, g - 2, r.top, { kind: 'rock' }); }
+for (const r of rocks) { const g = heightAt(r.x, r.z); r.top = g + r.h; cyl(r.x, r.z, r.r * 1.15, g - 2, r.top, { kind: 'rock' }); }   // (le rocher dessiné est un peu plus large)
 
 // Caisses (cassables)
 export const crates = [

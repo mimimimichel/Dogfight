@@ -136,7 +136,7 @@ export const rocks = [
   { x: 11.5, z: -33.5, r: 1.6, h: 3.4 },
   { x: 24, z: 30, r: 2.2, h: 2.0 },
 ];
-for (const r of rocks) { const g = heightAt(r.x, r.z); r.top = g + r.h; cyl(r.x, r.z, r.r, g - 2, r.top, { kind: 'rock' }); }
+for (const r of rocks) { const g = heightAt(r.x, r.z); r.top = g + r.h; cyl(r.x, r.z, r.r * 1.15, g - 2, r.top, { kind: 'rock' }); }   // (le rocher dessiné est un peu plus large)
 
 // Ruines anciennes (colonnes, arche, murets) : solides, on peut grimper dessus
 export const ruins = [];
@@ -150,6 +150,8 @@ export const ruins = [];
   // Arche d'entrée sur le chemin du départ
   pillar(-2.9, 34, 4.2); pillar(2.9, 34, 4.2);
   ruins.push({ type: 'arch', x: 0, z: 34, y: heightAt(0, 34) + 4.2, span: 5.8 });
+  // le linteau de l'arche est solide (on peut marcher dessus)
+  box(0, 34, 5.8 + 1.4, 1.2, heightAt(0, 34) + 4.1, heightAt(0, 34) + 5.25, { kind: 'rock' });
   // Colonnes le long du chemin du nord
   pillar(-3.6, -15, 3.6); pillar(3.6, -19, 2.0, true); pillar(-3.6, -26, 1.3, true); pillar(3.6, -31, 3.8);
   // Cercle de colonnes autour du piédestal (ouvert côté chemin)
@@ -166,6 +168,8 @@ export const ruins = [];
   wall(17, 22, 0.9, 4.5, 2.1);
   wall(-20, -14, 0.9, 4, 1.2);
 }
+// la niche de Biscotte (à côté de Mamie) : solide, on peut sauter sur le toit
+{ const kx = SPOTS.mamie.x - 3, kz = SPOTS.mamie.z - 1, g = heightAt(kx, kz); cyl(kx, kz, 1.3, g - 1, g + 2.1, { kind: 'rock' }); }
 
 // Ascenseur vers le plateau (diagonale sud-ouest, à 15 du centre) + passerelle
 const DIAG = Math.SQRT1_2;

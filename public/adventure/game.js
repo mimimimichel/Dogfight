@@ -152,7 +152,7 @@ export async function start(opts) {
   let style = null;
   try { style = localStorage.getItem('dogfight.style'); } catch (e) { /* ignore */ }
   // rendu réaliste : matières photographiées et ciel (chargés une seule fois)
-  const photos = style !== 'toon' ? RT.preloadPhotos((k) => { if (LD) LD.progress(0.35 + k * 0.3, 'Les décors arrivent…'); }) : null;
+  const photos = style !== 'toon' ? RT.preloadPhotos((k) => { if (LD) LD.progress(0.35 + k * 0.3, 'Les décors arrivent…'); }, L.ID) : null;
   const ultra = photos && RT.isUltra() ? RT.preloadUltra() : null;
   // personnages non joueurs réalistes (modèles gratuits CC-BY)
   const npcs = photos ? N.preloadNpcs(L.ID === 3 ? ['mamie', 'biscotte', 'shiba', 'berger', 'bouledogue'] : ['mamie', 'biscotte']) : null;
@@ -971,16 +971,17 @@ class Adventure {
     L.rocks.forEach((r, i) => {
       const g = L.heightAt(r.x, r.z);
       const hgt = r.top - g + 1.2;
-      const m = new THREE.Mesh(W.rockGeometry(40 + i, r.r * 1.05, hgt / 2, r.r * 1.05), rm);
+      // (un peu plus large que la collision : le dessus plat la couvre jusqu'au bord)
+      const m = new THREE.Mesh(W.rockGeometry(40 + i, r.r * 1.3, hgt / 2, r.r * 1.3), rm);
       // dessus aplati pour qu'on voie bien où se poser, exactement à la hauteur de la collision
-      const top = W.flattenRockTop(m.geometry);
+      const top = W.flattenRockTop(m.geometry, hgt / 2 * 0.4);
       m.position.set(r.x, r.top - top + 0.03, r.z);
       m.castShadow = m.receiveShadow = true;
       sc.add(m);
     });
     L.stones.forEach((s, i) => {
-      const m = new THREE.Mesh(W.rockGeometry(60 + i, 1.25, 2.4, 1.25), rm);
-      const top = W.flattenRockTop(m.geometry, 0.3);
+      const m = new THREE.Mesh(W.rockGeometry(60 + i, 1.5, 2.4, 1.5), rm);
+      const top = W.flattenRockTop(m.geometry, 0.95);
       m.position.set(s.x, s.top - top + 0.03, s.z);
       m.castShadow = m.receiveShadow = true;
       sc.add(m);

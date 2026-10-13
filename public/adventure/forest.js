@@ -403,9 +403,9 @@ export function buildForest(game) {
     S.rocks.forEach((r, i) => {
       const g = S.heightAt(r.x, r.z);
       const hgt = r.top - g + 1.2;
-      const m = new THREE.Mesh(W.rockGeometry(500 + i, r.r * 1.05, hgt / 2, r.r * 1.05), rm);
+      const m = new THREE.Mesh(W.rockGeometry(500 + i, r.r * 1.3, hgt / 2, r.r * 1.3), rm);
       // dessus aplati, pour bien voir où se poser (même hauteur que la collision)
-      const top = W.flattenRockTop(m.geometry);
+      const top = W.flattenRockTop(m.geometry, hgt / 2 * 0.4);
       m.position.set(r.x, r.top - top + 0.03, r.z);
       sc.add(shadowy(m));
     });
@@ -415,7 +415,7 @@ export function buildForest(game) {
   {
     const rm = W.rockMat();
     S.arenaRocks.forEach((r, i) => {
-      const m = new THREE.Mesh(W.rockGeometry(300 + i, 1.55, r.h / 2 + 0.6, 1.55), rm);
+      const m = new THREE.Mesh(W.rockGeometry(300 + i, 1.8, r.h / 2 + 0.6, 1.8), rm);   // (couvre bien sa collision : pas de mur invisible entre deux rochers)
       m.position.set(r.x, r.y + r.h / 2 - 0.5, r.z);
       sc.add(shadowy(m));
     });
