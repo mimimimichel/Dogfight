@@ -25,6 +25,7 @@
         this.master.gain.value = this.muted ? 0 : MASTER;
         // bruitages et ambiances passent par leur propre bus : on peut les baisser quand quelqu'un parle
         this.fx = this.ctx.createGain(); this.fx.connect(this.master);
+        this.loadBarks();
         // iOS/Android peuvent « interrompre » le son (appel, mise en veille, surcharge) : on le relance
         this.ctx.onstatechange = () => {
           if (this.ctx.state !== 'running' && !document.hidden) this.ctx.resume().catch(() => {});
@@ -192,7 +193,30 @@
 
     jump() { this.tone(260, 0.1, { type: 'triangle', to: 520, vol: 0.1 }); }
 
+    /** Vrais aboiements enregistrés (adventure/assets/sfx, voir CREDITS.md), chargés au premier appel. */
+    loadBarks() {
+      if (this.barkBufs || !this.ctx) return;
+      this.barkBufs = {};
+      for (const n of ['bark_big', 'bark_small']) {
+        fetch(new URL('adventure/assets/sfx/' + n + '.mp3', document.baseURI)).then(r => r.arrayBuffer())
+          .then(b => new Promise((res, rej) => this.ctx.decodeAudioData(b, res, rej))).then((buf) => { this.barkBufs[n] = buf; }).catch(() => {});
+      }
+    }
+    sample(name, rate, vol) {
+      const buf = this.barkBufs && this.barkBufs[name];
+      if (!buf || !this.ok) return false;
+      const c = this.ctx, src = c.createBufferSource(), g = c.createGain();
+      src.buffer = buf; src.playbackRate.value = rate * (0.96 + Math.random() * 0.08);
+      g.gain.value = vol;
+      src.connect(g); g.connect(this.fx || this.master);
+      src.start();
+      return true;
+    }
+
     bark(charId) {
+      this.loadBarks();
+      // un vrai aboiement : grave et fort pour Ainu, plus aigu pour Matcha
+      if (charId === 'matcha' ? this.sample('bark_small', 1.25, 0.9) : this.sample('bark_big', 0.9, 1.25)) return;
       if (charId === 'matcha') {
         this.tone(820, 0.07, { type: 'sawtooth', to: 520, vol: 0.2 });
         this.tone(900, 0.06, { type: 'sawtooth', to: 600, vol: 0.18, delay: 0.09 });

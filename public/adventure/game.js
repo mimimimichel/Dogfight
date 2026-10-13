@@ -133,7 +133,7 @@ function kidName() {
 }
 window.kidName = kidName;
 // Mamie (modèle scanné) : redressement du buste (radians) et taille
-const MAMIE_UPRIGHT = { x: -0.24, z: 0.13, neck: 0.1, head: 0.12 };
+const MAMIE_UPRIGHT = { x: -0.34, z: 0.13, neck: 0.14, head: 0.16 };
 const MAMIE_SCALE = 1.25;
 const medalWord = () => (L.ID === 3 ? 'Trophées' : L.ID === 4 ? 'Étoiles' : 'Médailles');
 const collectWord = (long) => ({ 2: 'Croquettes', 3: long ? 'Pièces d\'or' : 'Pièces', 4: 'Pièces du ciel' })[L.ID] || (long ? 'Os dorés' : 'Os');
@@ -3247,7 +3247,7 @@ class Adventure {
     if (!s || !s.ok) return;
     switch (name) {
       case 'jump': s.tone(300, 0.12, { type: 'triangle', to: 620, vol: 0.12 }); break;
-      case 'double': s.tone(520, 0.14, { type: 'square', to: 1040, vol: 0.08 }); s.bark('matcha'); break;
+      case 'double': s.tone(520, 0.14, { type: 'square', to: 1040, vol: 0.08 }); break;
       case 'spin': s.swing(true); break;
       case 'dash': s.noise(0.2, { filter: 'bandpass', freq: 800, freqTo: 2400, vol: 0.2 }); break;
       case 'bone': {
@@ -3280,8 +3280,8 @@ class Adventure {
       case 'bark': s.bark('ainu'); break;
       case 'barkM': s.bark('matcha'); break;
       case 'woof':   // le gros « OUAF » : grondement grave + souffle
-        s.tone(110, 0.35, { type: 'sine', to: 42, vol: 0.45 }); s.tone(70, 0.4, { type: 'triangle', to: 35, vol: 0.3, delay: 0.02 });
-        s.noise(0.3, { filter: 'lowpass', freq: 900, freqTo: 120, vol: 0.35 });
+        s.tone(90, 0.3, { type: 'sine', to: 40, vol: 0.35 });
+        s.noise(0.25, { filter: 'lowpass', freq: 500, freqTo: 100, vol: 0.2 });
         break;
       case 'yip': s.tone(900, 0.06, { type: 'sawtooth', to: 1300, vol: 0.1 }); s.tone(1000, 0.07, { type: 'sawtooth', to: 1400, vol: 0.09, delay: 0.1 }); break;
       case 'trick': [660, 880, 1100, 1320, 1760].forEach((f, i) => s.tone(f, 0.1, { type: 'triangle', vol: 0.08, delay: i * 0.05 })); break;

@@ -71,13 +71,15 @@ export function buildSeasons(game, opts) {
     p.traverse(o => { if (o.isMesh) o.castShadow = true; });
     scene.add(p); parts.push(p);
   }
-  if (mo.fete === 'noel' && mamie && mamie.userData && mamie.userData.rig && mamie.userData.rig.head) {
+  const mHead = mamie && mamie.userData && (mamie.userData.rig ? mamie.userData.rig.head : mamie.userData.headTop);
+  if (mo.fete === 'noel' && mHead) {
     const hat = new THREE.Group();
     const cone = new THREE.Mesh(new THREE.ConeGeometry(0.26, 0.55, 18), M.mat(0xd8202a, { roughness: 0.7 })); cone.position.y = 0.3; cone.rotation.z = -0.25; hat.add(cone);
     const rim = new THREE.Mesh(new THREE.TorusGeometry(0.25, 0.07, 8, 20), M.mat(0xffffff, { roughness: 0.9 })); rim.rotation.x = Math.PI / 2; rim.position.y = 0.04; hat.add(rim);
     const pom = new THREE.Mesh(new THREE.SphereGeometry(0.08, 10, 8), M.mat(0xffffff)); pom.position.set(0.14, 0.56, 0); hat.add(pom);
-    hat.position.set(0, 0.32, 0.02);
-    mamie.userData.rig.head.add(hat);
+    if (mamie.userData.rig) hat.position.set(0, 0.32, 0.02);
+    else hat.scale.setScalar(1 / mamie.scale.x);   // (le modèle debout est mis à l'échelle)
+    mHead.add(hat);
     parts.push(hat);
   }
 

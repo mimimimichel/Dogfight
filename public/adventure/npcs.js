@@ -117,6 +117,29 @@ export function buildNpc(name, opts) {
   return root;
 }
 
+/**
+ * Mamie Labrador, debout sur ses quatre pattes : le modèle du golden retriever (celui de
+ * Biscotte), en grand, le pelage un peu plus clair (elle a l'âge d'être grand-mère) et son
+ * bandana rouge. (Le scan de chienne assise penchait et ne posait pas ses pattes.)
+ */
+export function buildMamieStanding() {
+  const C = cache.biscotte, H = C.meta.size[1], W = C.meta.size[0];
+  const s = 1.35 / H;   // 1,35 m au sommet de la tête
+  const m = buildNpc('biscotte', { head: 0.3, tail: 0.12, scale: s, tint: 0xfff4e4 });
+  const u = m.userData;
+  const red = new THREE.MeshStandardMaterial({ color: 0xd8202a, roughness: 0.75, side: THREE.DoubleSide });
+  const band = new THREE.Group();
+  // collier-bandana autour du cou, juste derrière la tête (bien visible de face comme de côté)
+  const Lz = C.meta.size[2];
+  const ring = new THREE.Mesh(new THREE.TorusGeometry(W * 0.36, W * 0.08, 10, 28), red); ring.rotation.x = Math.PI / 2 - 0.35; band.add(ring);
+  const tri = new THREE.Mesh(new THREE.ConeGeometry(W * 0.24, W * 0.38, 3), red); tri.rotation.x = Math.PI; tri.scale.z = 0.35; tri.position.set(0, -W * 0.22, W * 0.3); band.add(tri);
+  band.traverse(o => { if (o.isMesh) o.castShadow = true; });
+  band.position.set(0, -H * 0.04, -Lz * 0.05);
+  u.head.add(band);
+  u.mamie = true;
+  return m;
+}
+
 /** Tous les sommets d'un modèle (pour placer des accessoires). */
 function points(name, test) {
   const out = [];
