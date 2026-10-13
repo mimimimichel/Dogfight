@@ -2558,6 +2558,17 @@ class Adventure {
       const dist = toP.length();
       let speed = 0, dir = null;
       const fromHome = Math.hypot(c.pos.x - c.home.x, c.pos.z - c.home.z);
+      // un gros « OUAF ! » : le chat saute en l'air et détale loin du chien
+      if (c.flee > 0) {
+        c.flee -= dt; c.hopT = Math.max(0, (c.hopT || 0) - dt);
+        const ax = c.pos.x - c.fleeX, az = c.pos.z - c.fleeZ, l = Math.hypot(ax, az) || 1;
+        const fx = c.pos.x + ax / l * 6.5 * dt, fz = c.pos.z + az / l * 6.5 * dt, h = L.heightAt(fx, fz);
+        if (h > 0.5 && Math.abs(h - c.pos.y) < 0.8 && !(L.blockedAt && L.blockedAt(fx, fz))) { c.pos.x = fx; c.pos.z = fz; c.pos.y = h; }
+        c.yaw = lerpAngle(c.yaw, Math.atan2(ax, az), Math.min(1, dt * 12));
+        c.phase += dt * 22;
+        c.chasing = false;
+        continue;
+      }
       if (c.stun <= 0 && dist < 9 && Math.abs(P.pos.y - c.pos.y) < 3 && fromHome < 15 && !this.dialog) {
         dir = toP.normalize(); speed = 3.6;
         // il repère le duo : un « ! » au-dessus de la tête, il se ramasse… puis bondit
@@ -2710,13 +2721,19 @@ class Adventure {
     this.bubble(P, 'Ouaf !');
     this.barkReact(P);
     if (L.npcs && L.npcs.mamie && Math.hypot(L.npcs.mamie.x - P.pos.x, L.npcs.mamie.z - P.pos.z) < 3.2) this.betise(P, 'mamie_bark');
+    // le gros « OUAF ! » : onde de choc, l'écran tremble, et les chats détalent en hurlant
+    this.sound('woof');
+    if (P === this.me) this.kick(0.35, 0.05);
+    let fled = 0;
     for (const c of this.cats || []) {
-      if (c.dead || Math.hypot(c.pos.x - P.pos.x, c.pos.z - P.pos.z) > 7) continue;
-      c.stun = Math.max(c.stun, 1.6); c.chasing = false;
+      const d = Math.hypot(c.pos.x - P.pos.x, c.pos.z - P.pos.z);
+      if (c.dead || d > 11) continue;
+      c.flee = 2.6; c.fleeX = P.pos.x; c.fleeZ = P.pos.z; c.stun = 0; c.chasing = false; c.warn = 0; c.hopT = 0.45;
       this.betise(P, 'bark_cats');
-      this.burst(c.pos.x, c.pos.y + 1.2, c.pos.z, 6, 0xffffff, 2.5, 0.4);
-      if (Math.random() < 0.5) this.sound('meowHi');
+      this.burst(c.pos.x, c.pos.y + 1.2, c.pos.z, 10, 0xffffff, 3.5, 0.5);
+      if (fled++ < 3) setTimeout(() => { if (!this.disposed) this.sound('meowHi'); }, 120 + fled * 140);
     }
+    if (fled) this.bubble({ pos: this.cats.find(c => c.flee > 0).pos, small: true }, 'Miaaaou !');
     const pp = this.puppy;
     if (pp && pp.state !== 'lost' && Math.hypot(pp.pos.x - P.pos.x, pp.pos.z - P.pos.z) < 10) setTimeout(() => { if (this.disposed) return; this.sound('yip'); pp.happyT = 1.2; this.bubble({ pos: pp.pos, mesh: pp.mesh, small: true }, 'Waf !'); }, 450);
   }
@@ -2726,6 +2743,7 @@ class Adventure {
    * des pétales s'envolent, et à plusieurs une patte lumineuse dit « viens ici ! ».
    */
   barkReact(P) {
+    this.shockwave(P);
     this.boneHop = { x: P.pos.x, z: P.pos.z, t: this.t };
     const n = 10;
     for (let i = 0; i < n; i++) {
@@ -2734,6 +2752,35 @@ class Adventure {
     }
     if (this.party.size > 1) this.pingAt(P);
   }
+  /** Onde de choc du « OUAF ! » : deux anneaux qui s'élargissent au sol. */
+  shockwave(P) {
+    this.waves = this.waves || [];
+    const y = this.support(P.pos.x, P.pos.z, P.pos.y + 0.3).y + 0.08;
+    for (let i = 0; i < 2; i++) {
+      const m = new THREE.Mesh(new THREE.RingGeometry(0.88, 1, 48), new THREE.MeshBasicMaterial({ color: i ? 0xffd23a : 0xffffff, transparent: true, opacity: 0.9, depthWrite: false, side: THREE.DoubleSide }));
+      m.rotation.x = -Math.PI / 2; m.position.set(P.pos.x, y + i * 0.02, P.pos.z); m.userData.noOutline = true; m.scale.setScalar(0.3);
+      this.scene.add(m);
+      this.waves.push({ m, t: -i * 0.12 });
+    }
+    // un souffle de poussière et de feuilles tout autour
+    for (let i = 0; i < 18; i++) {
+      const a = i / 18 * Math.PI * 2;
+      this.spawnParticle(P.pos.x + Math.cos(a) * 0.6, y + 0.2, P.pos.z + Math.sin(a) * 0.6, Math.cos(a) * 7, 1 + Math.random(), Math.sin(a) * 7, i % 3 ? 0xe8dcc0 : 0x8ad04a, 0.3, 0.6, 2);
+    }
+  }
+  stepWaves(dt) {
+    if (!this.waves || !this.waves.length) return;
+    this.waves = this.waves.filter((w) => {
+      w.t += dt;
+      if (w.t < 0) return true;
+      const k = w.t / 0.55;
+      if (k >= 1) { this.scene.remove(w.m); w.m.geometry.dispose(); w.m.material.dispose(); return false; }
+      w.m.scale.setScalar(0.3 + k * 10);
+      w.m.material.opacity = 0.9 * (1 - k);
+      return true;
+    });
+  }
+
   /** « Viens ici ! » : colonne de lumière à la couleur du joueur, visible de tous et sur la carte. */
   pingAt(P) {
     this.pings = this.pings || [];
@@ -3232,6 +3279,10 @@ class Adventure {
       case 'cp': s.tone(880, 0.1, { type: 'triangle', vol: 0.13 }); s.tone(1320, 0.14, { type: 'triangle', vol: 0.11, delay: 0.07 }); break;
       case 'bark': s.bark('ainu'); break;
       case 'barkM': s.bark('matcha'); break;
+      case 'woof':   // le gros « OUAF » : grondement grave + souffle
+        s.tone(110, 0.35, { type: 'sine', to: 42, vol: 0.45 }); s.tone(70, 0.4, { type: 'triangle', to: 35, vol: 0.3, delay: 0.02 });
+        s.noise(0.3, { filter: 'lowpass', freq: 900, freqTo: 120, vol: 0.35 });
+        break;
       case 'yip': s.tone(900, 0.06, { type: 'sawtooth', to: 1300, vol: 0.1 }); s.tone(1000, 0.07, { type: 'sawtooth', to: 1400, vol: 0.09, delay: 0.1 }); break;
       case 'trick': [660, 880, 1100, 1320, 1760].forEach((f, i) => s.tone(f, 0.1, { type: 'triangle', vol: 0.08, delay: i * 0.05 })); break;
       case 'reveal': [523, 659, 784, 1047].forEach((f, i) => s.tone(f, 0.18, { type: 'triangle', vol: 0.12, delay: i * 0.09 })); break;
@@ -3349,6 +3400,7 @@ class Adventure {
     for (const c of this.cats) {
       if (c.dead) continue;
       c.mesh.position.copy(c.pos);
+      if (c.hopT > 0) c.mesh.position.y += Math.sin((0.45 - c.hopT) / 0.45 * Math.PI) * 1.1;   // il sursaute
       c.mesh.rotation.y = c.yaw;
       const cu = c.mesh.userData;
       cu.legs.forEach((l, i) => { l.rotation.x = Math.sin(c.phase + (i % 3 ? Math.PI : 0)) * 0.7; });
@@ -3392,6 +3444,7 @@ class Adventure {
     if (!this.guide && !this.guest && this.t - this.progressAt > 75 && !(this.t < (this.guideUntil || 0))) { this.showWay(true); }
     if (this.guide || this.t < (this.guideUntil || 0)) this.renderGuide(dt);
     this.stepPings();
+    this.stepWaves(dt);
     for (const p of this.portals || []) {
       p.mat.uniforms.uTime.value = t;
       p.disc.rotation.y = Math.atan2(this.camera.position.x - p.def.x, this.camera.position.z - p.def.z);
