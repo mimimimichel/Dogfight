@@ -135,17 +135,13 @@ export function buildMamieStanding() {
     if (!o.isSkinnedMesh) return;
     const a = o.geometry.attributes.position.array, n = a.length / 3, col = new Float32Array(n * 3);
     const base = new THREE.Color(0xdcaa62), light = new THREE.Color(0xf7e6c4), dark = new THREE.Color(0xc0904c), c = new THREE.Color();
-    const nose = new THREE.Color(0x1c1410);
     for (let i = 0; i < n; i++) {
       const y = a[i * 3 + 1] / H, z = a[i * 3 + 2];
-      const dn = Math.hypot(a[i * 3] - nosePt[0], a[i * 3 + 1] - nosePt[1], a[i * 3 + 2] - nosePt[2]);
       const front = Math.max(0, Math.min(1, (z + 0.05) * 3));          // poitrail, devant
       const high = Math.max(0, Math.min(1, (y - 0.55) * 3));           // dos et oreilles un peu plus foncés
       const n1 = Math.sin(a[i * 3] * 41 + a[i * 3 + 1] * 37) * Math.sin(a[i * 3 + 2] * 29) * 0.5 + 0.5;
       c.copy(base).lerp(light, front * (1 - high) * 0.6).lerp(dark, high * (1 - front) * 0.5);
       c.multiplyScalar(0.94 + n1 * 0.1);
-      if (dn < H * 0.045) c.copy(nose);                                   // la truffe
-      else if (dn < H * 0.06) c.lerp(nose, (H * 0.06 - dn) / (H * 0.015) * 0.7);
       col[i * 3] = c.r; col[i * 3 + 1] = c.g; col[i * 3 + 2] = c.b;
     }
     o.geometry.setAttribute('color', new THREE.BufferAttribute(col, 3));
@@ -204,27 +200,11 @@ export function buildMamieStanding() {
     const curve = new THREE.QuadraticBezierCurve3(a.clone().lerp(b, 0.12), mid, b.clone().lerp(a, 0.12));
     u.head.add(new THREE.Mesh(new THREE.TubeGeometry(curve, 10, H * 0.004, 5), gold));
   }
-  // la bouche : un trait sombre qui part de la truffe et remonte en sourire de chaque côté du museau
-  const lip = new THREE.MeshStandardMaterial({ color: 0x2a1a12, roughness: 0.6 });
-  const near = (y, z, side) => {
-    const c = points('mamie2', (px, py, pz) => Math.abs(py - y) < H * 0.008 && Math.abs(pz - z) < H * 0.008 && (side ? px * side > 0 : Math.abs(px) < H * 0.012));
-    return c.reduce((bb, q) => (!bb || (side ? q[0] * side > bb[0] * side : q[2] > bb[2]) ? q : bb), null);
-  };
-  const mouthY = nosePt[1] - H * 0.06;
-  const front = (y) => { const c = points('mamie2', (px, py) => Math.abs(py - y) < H * 0.008 && Math.abs(px) < H * 0.012); return c.reduce((bb, q) => (!bb || q[2] > bb[2] ? q : bb), null); };
-  const top = front(nosePt[1] - H * 0.03), mid = front(mouthY);
-  if (top && mid) {
-    const off = (q, dx, dz) => new THREE.Vector3(q[0] + dx, q[1], q[2] + dz).sub(hp);
-    u.head.add(new THREE.Mesh(new THREE.TubeGeometry(new THREE.LineCurve3(off(top, 0, H * 0.004), off(mid, 0, H * 0.004)), 2, H * 0.0045, 6), lip));
-    for (const sx of [-1, 1]) {
-      const pts = [off(mid, 0, H * 0.004)];
-      for (let k = 1; k <= 5; k++) {
-        const q = near(mouthY - H * 0.006 * k + H * 0.0045 * k * k, mid[2] - H * 0.028 * k, sx);
-        if (q) pts.push(off(q, sx * H * 0.004, 0));
-      }
-      if (pts.length > 2) u.head.add(new THREE.Mesh(new THREE.TubeGeometry(new THREE.CatmullRomCurve3(pts), 16, H * 0.0045, 6), lip));
-    }
-  }
+  // la truffe : juste un petit point noir brillant au bout du museau
+  const truffe = new THREE.Mesh(new THREE.SphereGeometry(H * 0.022, 14, 10), new THREE.MeshStandardMaterial({ color: 0x1a1210, roughness: 0.25 }));
+  truffe.scale.set(1.3, 0.9, 0.7);
+  truffe.position.set(nosePt[0], nosePt[1], nosePt[2] - H * 0.004).sub(hp);
+  u.head.add(truffe);
   u.eyes = eyes;
   // bandana rouge au cou : là où le corps est le plus fin, sous la tête
   let best = null;
