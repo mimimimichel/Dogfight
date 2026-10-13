@@ -30,6 +30,7 @@ import * as T from './toon.js';
 import { Post } from './post.js';
 import * as RT from './realtex.js';
 import { Cinema } from './cinema.js';
+import { loadVoices, speak, stopVoice, prefetchVoices } from './voices.js';
 import { storyShots } from './story.js';
 import * as N from './npcs.js';
 
@@ -158,6 +159,7 @@ export async function start(opts) {
   await M.preloadDogs();
   if (photos) await photos;
   if (npcs) await npcs;
+  await loadVoices();                                // voix des personnages (liste des répliques enregistrées)
   if (ultra) { if (LD) LD.progress(0.68, 'Les grands arbres arrivent…'); await ultra; }
   if (LD) {
     LD.progress(0.7, L.ID === 3 ? 'Construction de la ville…' : 'Construction du monde…');
@@ -2526,7 +2528,8 @@ class Adventure {
   }
 
   say(lines, onDone) {
-    this.dialog = { lines, i: 0, chars: 0, onDone };
+    this.dialog = { lines, i: 0, chars: 0, onDone, spoken: -1, rate: 45 };
+    prefetchVoices(this.sfx, lines);
     this.dom.dialog.classList.remove('hidden');
     this.renderDialog();
   }
@@ -2534,6 +2537,13 @@ class Adventure {
   renderDialog() {
     const d = this.dialog;
     const l = d.lines[d.i];
+    // la voix de la réplique (le texte s'écrit au rythme de la voix)
+    if (d.spoken !== d.i) {
+      d.spoken = d.i;
+      const dur = speak(this.sfx, l.who, l.text);
+      d.voiced = dur > 0;
+      d.rate = d.voiced ? Math.max(20, l.text.length / Math.max(0.5, dur * 0.85)) : 45;
+    }
     this.dom.dname.textContent = l.who;
     this.dom.dtext.textContent = l.text.slice(0, Math.floor(d.chars));
     this.dom.dialog.classList.toggle('done', d.chars >= l.text.length);
@@ -2543,14 +2553,15 @@ class Adventure {
     const d = this.dialog;
     const l = d.lines[d.i];
     const before = Math.floor(d.chars);
-    if (d.chars < l.text.length) d.chars = Math.min(l.text.length, d.chars + dt * 45);
+    if (d.chars < l.text.length) d.chars = Math.min(l.text.length, d.chars + dt * d.rate);
     const after = Math.floor(d.chars);
-    if (after !== before && after % 3 === 0 && l.text[after - 1] !== ' ') this.voice(l.who);
+    if (!d.voiced && after !== before && after % 3 === 0 && l.text[after - 1] !== ' ') this.voice(l.who);
     const adv = this.pressed.has('talk') || this.pressed.has('jump') || this.pressed.has('attack');
     if (adv) {
       if (d.chars < l.text.length) d.chars = l.text.length;
       else if (d.i < d.lines.length - 1) { d.i++; d.chars = 0; }
       else {
+        stopVoice(this.sfx);
         this.dialog = null;
         this.dom.dialog.classList.add('hidden');
         this.pressed.clear();
@@ -3200,7 +3211,8 @@ class Adventure {
         Mamie Labrador : « Ella of Golden House » par 3dfascination<br>
         Biscotte : « Retriever » par doinspire<br>
         Habitants : « Doge » par kitsuneko_3d, « Riley » par lopuh22721, « Bulldog Puppy » par doinspire<br>
-        Matières, ciel, arbres et fougères scannés : Poly Haven (CC0)</div>
+        Matières, ciel, arbres et fougères scannés : Poly Haven (CC0)<br>
+        Voix : synthèse vocale Piper (rhasspy), voix SIWIS (CC BY 4.0) et UPMC Pierre et Jessica (CC BY-SA 4.0)</div>
         <button class="btn primary" data-a="pause">Retour</button>`;
     } else if (kind === 'continue') {
       html = `<h2>${L.NAME}</h2>
@@ -3306,6 +3318,7 @@ class Adventure {
     const shots = this.guest ? null : storyShots(this, L);
     if (!shots) { if (done) done(); return false; }
     if (this.cine) this.cine.finish();
+    stopVoice(this.sfx);
     this.dialog = null; this.dom.dialog.classList.add('hidden');
     this.cine = new Cinema(this, shots, () => { this.cine = null; if (done) done(); });
     return true;
@@ -3340,6 +3353,7 @@ class Adventure {
     window.removeEventListener('resize', this.onResize);
     clearTimeout(this.bannerTimer);
     if (this.sfx && this.sfx.ambStop) this.sfx.ambStop();
+    stopVoice(this.sfx);
     this.post.dispose();
     this.renderer.dispose();
     this.scene.traverse(o => { if (o.geometry) o.geometry.dispose(); });

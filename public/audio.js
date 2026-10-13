@@ -291,6 +291,12 @@
       return on;
     }
     /** Choisit l'ambiance ('menu', 'adventure', 'adv1', 'adv2', 'adv3', 'fight' ou null pour couper). */
+    /** Baisse la musique pendant qu'un personnage parle. */
+    duck(on) {
+      if (!this.musicBus || !this.ctx || !this.musicOn) return;
+      this.musicBus.gain.setTargetAtTime((this.musicVol || 0.5) * (on ? 0.4 : 1), this.ctx.currentTime, on ? 0.12 : 0.6);
+    }
+
     music(theme) {
       if (theme === 'adventure' && this.theme && /^adv\d/.test(this.theme)) return;   // l'ambiance du niveau est déjà là
       this.wantTheme = theme;

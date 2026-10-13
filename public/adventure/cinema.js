@@ -9,6 +9,7 @@
  *   title: [grand, petit], night (0..1), enter(c), update(c, k, dt) }
  */
 import * as THREE from '../vendor/three.module.min.js';
+import { speak, stopVoice } from './voices.js';
 
 const ease = (k) => k * k * (3 - 2 * k);
 const V = (a) => new THREE.Vector3(a[0], a[1], a[2]);
@@ -50,9 +51,14 @@ export class Cinema {
       cap.classList.toggle('narr', !s.say.who);
       this.$('.who').textContent = s.say.who || '';
       this.full = s.say.text; this.shown = 0;
+      // la voix : le plan dure au moins le temps de la réplique, le texte s'écrit à son rythme
+      const dur = speak(this.game.sfx, s.say.who || '', s.say.text);
+      this.voiced = dur > 0;
+      if (this.voiced) s.d = Math.max(s.d, dur + 0.8);
+      this.rate = this.voiced ? Math.max(18, s.say.text.length / Math.max(0.5, dur * 0.85)) : 38;
       this.$('.txt').textContent = '';
       cap.classList.add('on');
-    } else cap.classList.remove('on');
+    } else { cap.classList.remove('on'); this.full = null; }
     const ti = this.$('.cine-title');
     if (s.title) { ti.querySelector('b').textContent = s.title[0]; ti.querySelector('small').textContent = s.title[1] || ''; ti.classList.add('on'); if (this.game.sound) this.game.sound('lantern'); }
     else ti.classList.remove('on');
@@ -67,11 +73,11 @@ export class Cinema {
     // texte qui s'écrit, avec la petite voix du personnage
     if (this.full && this.shown < this.full.length) {
       const before = Math.floor(this.shown);
-      this.shown = Math.min(this.full.length, this.shown + dt * 38);
+      this.shown = Math.min(this.full.length, this.shown + dt * this.rate);
       const after = Math.floor(this.shown);
       if (after !== before) {
         this.$('.txt').textContent = this.full.slice(0, after);
-        if (s.say.who && after % 3 === 0 && this.game.voice) this.game.voice(s.say.who);
+        if (!this.voiced && s.say.who && after % 3 === 0 && this.game.voice) this.game.voice(s.say.who);
       }
     }
     // fondus au noir entre les plans, nuit
@@ -105,6 +111,7 @@ export class Cinema {
   finish() {
     if (this.done) return;
     this.done = true;
+    stopVoice(this.game.sfx);
     for (const o of this.actors) this.game.scene.remove(o);
     this.actors = [];
     for (const o of this.hidden) o.visible = true;
