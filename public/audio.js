@@ -294,15 +294,19 @@
     }
     /** Choisit l'ambiance ('menu', 'adventure', 'adv1', 'adv2', 'adv3', 'fight' ou null pour couper). */
     /** Baisse la musique pendant qu'un personnage parle. */
-    duck(on, why) {
+    /** (level : volume gardé, 0.3 par défaut ; le plus bas des baisses en cours l'emporte) */
+    duck(on, why, level) {
       if (!this.ctx) return;
       const k = why || 'voice';
       this.ducks = this.ducks || {};
-      this.ducks[k] = on;
-      on = Object.values(this.ducks).some(Boolean);
-      const t = this.ctx.currentTime, tc = on ? 0.1 : 0.6;
-      if (this.fx) this.fx.gain.setTargetAtTime(on ? 0.3 : 1, t, tc);
-      if (this.musicBus && this.musicOn) this.musicBus.gain.setTargetAtTime((this.musicVol || 0.5) * (on ? 0.3 : 1), t, tc);
+      const was = this.ducks[k] || 0, lv = on ? (level || 0.3) : 0;
+      if (was === lv) return;
+      this.ducks[k] = lv;
+      const g = Math.min(1, ...Object.values(this.ducks).filter(Boolean));
+      const t = this.ctx.currentTime, tc = g < (this.duckG || 1) ? 0.1 : 0.6;
+      this.duckG = g;
+      if (this.fx) this.fx.gain.setTargetAtTime(g, t, tc);
+      if (this.musicBus && this.musicOn) this.musicBus.gain.setTargetAtTime((this.musicVol || 0.5) * g, t, tc);
     }
 
     music(theme) {

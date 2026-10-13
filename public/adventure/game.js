@@ -110,6 +110,16 @@ function shingleTexture() {
 }
 
 let micAsked = false;
+// hôte : les amis dont la connexion vient de tomber (par identifiant de joueur) — s'ils
+// reviennent, ils retrouvent leur chien et leur place au lieu d'en créer un nouveau
+const ghosts = new Map();
+/** Identifiant stable de ce joueur sur cet appareil (rangé dans son profil). */
+function playerUid() {
+  let id = null;
+  try { id = localStorage.getItem('dogfight.profile.uid'); } catch (e) { /* ignore */ }
+  if (!id) { id = Math.random().toString(36).slice(2, 10) + Date.now().toString(36); try { localStorage.setItem('dogfight.profile.uid', id); } catch (e) { /* ignore */ } }
+  return id;
+}
 /** Secondes à attendre dans un portail avant de partir (seul : presque tout de suite). */
 const PORTAL_WAIT = (n) => (n > 1 ? 3 : 0.8);   // on ne propose le micro qu'une fois par partie
 
@@ -1638,6 +1648,8 @@ class Adventure {
     for (const P of players) {
       if (P === this.player) { inputs.push(input); presses.push(lp); continue; }
       const r = this.remoteIn.get(P.id) || { mx: 0, mz: 0, h: false, pressed: new Set() };
+      // plus de nouvelles depuis un moment (réseau qui coince) : son chien s'arrête au lieu d'avancer tout seul
+      if (r.at && performance.now() - r.at > 450) { r.mx = 0; r.mz = 0; r.h = false; }
       inputs.push({ wx: r.mx, wz: r.mz, jumpHeld: r.h });
       presses.push(new Set(r.pressed));
       for (const a of r.pressed) this.pressed.add(a);   // n'importe qui fait avancer les dialogues
@@ -1678,7 +1690,7 @@ class Adventure {
     this.hpKey = '';
     // sa copie du monde : rien de ce qu'on y a trouvé ne se perd, même si le gardien a changé
     const copy = this.save.intro ? this.save : null;
-    link.send({ t: 'join', name: profile.name, kind: profile.kind, extra: profile.extra, color: profile.color, sv: copy });
+    link.send({ t: 'join', name: profile.name, kind: profile.kind, extra: profile.extra, color: profile.color, sv: copy, uid: playerUid() });
     link.send({ t: 'ready' }); // l'hôte renvoie alors tout l'état du monde
   }
 
@@ -1710,7 +1722,7 @@ class Adventure {
     if (this.disposed) return;
     this.dom.mic.classList.toggle('on', r === 'on');
     if (r === 'on' || r === 'off') { try { localStorage.setItem('dogfight.mic', r === 'on' ? '1' : '0'); } catch (e) { /* ignore */ } }
-    if (r === 'on') this.localBanner('Micro allumé', 'Tout le monde t\'entend ! (le petit micro à côté de la pause le coupe)', 2600);
+    if (r === 'on') this.localBanner('Micro allumé', 'Tout le monde t\'entend ! Avec des écouteurs, c\'est encore mieux.', 3000);
     else if (r === 'off') this.localBanner('Micro coupé', '', 1200);
     else if (auto) this.dom.micAsk.classList.remove('hidden');   // (le navigateur veut un appui pour l'allumer)
     else this.localBanner('Micro', r, 3000);
@@ -1719,10 +1731,16 @@ class Adventure {
   /** Qui parle ? (liste des joueurs, note au-dessus du chien, bouton micro) */
   showVoices() {
     const v = this.vc;
-    if (!v || this.party.size < 2 || (this.voiceT = (this.voiceT || 0) + 1) % 6) return;
+    if ((this.voiceT = (this.voiceT || 0) + 1) % 6) return;
+    if (!v || this.party.size < 2) {
+      if (this.chatDuck !== 0 && this.sfx && this.sfx.duck) { this.chatDuck = 0; this.sfx.duck(false, 'chat'); this.sfx.duck(false, 'chatting'); }
+      return;
+    }
+    let others = false;
     const spans = this.dom.roster ? this.dom.roster.querySelectorAll('span[data-id]') : [];
     for (const P of this.players) {
       const talk = !!P.peerId && v.speaking(P.peerId);
+      if (talk && P !== this.me) others = true;
       for (const sp of spans) if (+sp.dataset.id === P.id) sp.classList.toggle('talk', talk);
       if (talk && !P.voiceMark) P.voiceMark = this.makeMark('♪', 0x40c060);
       if (P.voiceMark) {
@@ -1731,6 +1749,19 @@ class Adventure {
       }
     }
     this.dom.mic.classList.toggle('speak', !!v.on && v.speaking(v.myId));
+    // on se parle : la musique et les bruitages se font discrets (la voix passe mieux, et
+    // l'anti-écho du téléphone n'a plus à lutter contre le jeu, ce qui hachait la voix)
+    if (this.sfx && this.sfx.duck) {
+      const chat = v.on || v.in.size > 0;
+      if (others) this.chatHold = 8;
+      else if (this.chatHold > 0) this.chatHold--;
+      const state = (chat ? 1 : 0) + (this.chatHold > 0 ? 2 : 0);
+      if (state !== this.chatDuck) {
+        this.chatDuck = state;
+        this.sfx.duck(chat, 'chatting', 0.6);
+        this.sfx.duck(this.chatHold > 0, 'chat', 0.25);
+      }
+    }
   }
 
   coopBadge(html) {
@@ -1799,9 +1830,11 @@ class Adventure {
     if (m.t === 'join' && link.pid === undefined) this.addGuest(link, m);
     else if (m.t === 'ready') { link.lastSave = undefined; link.send({ t: 'level', id: L.ID }); }
     else if (m.t === 'lv' && link.pid !== undefined && this.levelLogic && this.levelLogic.remote) this.levelLogic.remote(this.party.get(link.pid), m);
+    else if (m.t === 'leave') link.close();
     else if (m.t === 'in' && link.pid !== undefined) {
       const r = this.remoteIn.get(link.pid);
       if (!r) return;
+      r.at = performance.now();
       const l = Math.hypot(m.mx, m.mz) || 1;
       r.mx = l > 1 ? m.mx / l : +m.mx || 0; r.mz = l > 1 ? m.mz / l : +m.mz || 0;
       r.h = !!m.h;
@@ -1810,6 +1843,20 @@ class Adventure {
   }
 
   addGuest(link, m) {
+    const uid = typeof m.uid === 'string' ? m.uid.slice(0, 40) : '';
+    // il revient (page rechargée, connexion retrouvée) alors que son ancien chien est encore là : il le reprend
+    const again = uid && this.players.find(Q => Q !== this.player && Q.uid === uid);
+    if (again) {
+      for (const l of this.hostSession.links) if (l !== link && l.pid === again.id) { l.replaced = true; l.close(); }
+      link.pid = again.id; link.lastSave = undefined;
+      again.peerId = link.conn && link.conn.peer;
+      again.name = cleanName(m.name) || again.name;
+      this.remoteIn.set(again.id, { mx: 0, mz: 0, h: false, pressed: new Set() });
+      link.send({ t: 'welcome', id: again.id });
+      this.broadcastRoster();
+      this.banner(`${again.name} est de retour !`, '', 1800);
+      return;
+    }
     let id = 1;
     while (this.party.has(id)) id++;
     if (id > 5) { link.send({ t: 'full' }); link.close(); return; }
@@ -1832,6 +1879,14 @@ class Adventure {
     const a = (id / 6) * Math.PI * 2;
     P.pos.set(H.pos.x + Math.cos(a) * 2, H.pos.y + 0.5, H.pos.z + Math.sin(a) * 2);
     P.lastSafe.copy(H.pos); P.vel.set(0, 6, 0); P.grounded = false; P.jumps = 1; P.invuln = 1.5; P.yaw = H.yaw;
+    P.uid = uid;
+    // il revient après une coupure : même chien, même endroit
+    const gh = uid && ghosts.get(uid);
+    if (gh && Date.now() - gh.at < 5 * 60000) {
+      if (gh.level === L.ID) { P.pos.set(gh.x, gh.y + 0.5, gh.z); P.lastSafe.set(gh.x, gh.y, gh.z); }
+      if (!this.players.some(Q => Q.kind === gh.kind) && (gh.kind === mainOther || M.FRIENDS[gh.kind])) kind = gh.kind;
+    }
+    ghosts.delete(uid);
     this.dogMesh(P, kind);
     this.party.set(id, P);
     this.remoteIn.set(id, { mx: 0, mz: 0, h: false, pressed: new Set() });
@@ -1858,8 +1913,10 @@ class Adventure {
   onLinkClose(link) {
     if (this.disposed) return;
     this.hostSession.links.delete(link);
+    if (link.replaced) return;   // (il est revenu par un nouveau lien : son chien reste)
     const P = this.party.get(link.pid);
     if (!P) return;
+    if (P.uid) ghosts.set(P.uid, { at: Date.now(), level: L.ID, x: P.lastSafe.x, y: P.lastSafe.y, z: P.lastSafe.z, kind: P.kind });
     this.party.delete(link.pid);
     this.remoteIn.delete(link.pid);
     for (const k in P.meshes) { this.scene.remove(P.meshes[k]); }
@@ -1868,7 +1925,8 @@ class Adventure {
     if (P.voiceMark) this.scene.remove(P.voiceMark);
     if (this.party.size === 1) { this.coop = null; this.dogMesh(this.player, 'duo'); }
     this.broadcastRoster();
-    this.localBanner(`${P.name} est parti`, `Il peut revenir avec le code ${this.hostSession.code}.`, 2600);
+    if (link.dropped) this.localBanner(`${P.name} a perdu la connexion`, 'Son chien revient dès que ça repasse !', 2600);
+    else this.localBanner(`${P.name} est parti`, `Il peut revenir avec le code ${this.hostSession.code}.`, 2600);
   }
 
   broadcastRoster() {
@@ -1898,6 +1956,8 @@ class Adventure {
     if (this.levelLogic) base.x = this.levelLogic.snapshot();
     const sv = JSON.stringify(Object.assign({}, this.save, { time: 0 }));
     for (const l of links) {
+      // réseau encombré : on saute cet état plutôt que d'empiler du retard (l'état suivant le remplace)
+      if (l.backlog > 48000) { l.skipped = (l.skipped || 0) + 1; continue; }
       const P = this.party.get(l.pid);
       const msg = Object.assign({}, base, { n: P && P.nearby ? (P.nearby.label || (P.nearby.kind === 'sign' ? 'LIRE' : 'PARLER')) : '' });
       if (sv !== l.lastSave) { msg.sv = this.save; l.lastSave = sv; }
@@ -1912,7 +1972,7 @@ class Adventure {
     else if (m.t === 'roster') this.syncRoster(m.list);
     else if (m.t === 's') this.applySnapshot(m);
     else if (m.t === 'full') this.showOverlay('full');
-    else if (m.t === 'bye') this.onCoopClose();
+    else if (m.t === 'bye') { this.hostBye = true; this.onCoopClose(); }
   }
 
   welcomeBanner() {
@@ -1966,8 +2026,9 @@ class Adventure {
     const { sfx, onExit } = this, profile = this.coop.profile, level = L.ID;
     const hostName = this.player.name;
     this.dispose();
-    const LD = window.AppLoader;
-    if (LD) { LD.show('Le monde continue !', `${hostName || 'Le gardien'} est parti${keeper ? ' : tu deviens le gardien du monde ' + code : ', on reste dans le monde ' + code}`); LD.progress(0.1, 'Passage de relais…'); }
+    const LD = window.AppLoader, dropped = !this.hostBye;
+    if (LD && dropped) { LD.show('Oups, la connexion a sauté !', `On revient dans le monde de ${hostName || 'ton ami'}…`); LD.progress(0.1, 'Reconnexion…'); }
+    else if (LD) { LD.show('Le monde continue !', `${hostName || 'Le gardien'} est parti${keeper ? ' : tu deviens le gardien du monde ' + code : ', on reste dans le monde ' + code}`); LD.progress(0.1, 'Passage de relais…'); }
     const back = (msg) => { if (LD) LD.hide(); onExit(); if (msg) setTimeout(() => alert(msg), 50); };
     // (le serveur de mise en relation met un instant à libérer le nom du monde)
     const becomeKeeper = () => AC.host(profile, {
@@ -1975,6 +2036,13 @@ class Adventure {
       onError: () => AC.join(code, { onReady: asGuest, onError: back }),   // un autre ami l'a repris avant
     }, { code, noTaken: true, maxTries: 10 });
     const asGuest = (lk, lv) => start({ sfx, onExit, coop: { link: lk, isHost: false, profile }, level: lv });
+    if (dropped) {
+      // la connexion a sauté (le gardien, lui, n'a rien dit) : on revient tout de suite dans son monde.
+      // S'il n'est vraiment plus là, le monde continue comme d'habitude.
+      const fallback = () => (keeper ? becomeKeeper() : AC.join(code, { onReady: asGuest, onError: back, onEmpty: becomeKeeper }, { retryFor: 20000 }));
+      AC.join(code, { onReady: asGuest, onError: fallback, onEmpty: fallback }, { retryFor: 15000 });
+      return;
+    }
     if (keeper) becomeKeeper();
     else AC.join(code, { onReady: asGuest, onError: back, onEmpty: becomeKeeper }, { retryFor: 20000 });
   }
@@ -3586,7 +3654,7 @@ class Adventure {
     clearTimeout(this.bannerTimer);
     if (this.sfx && this.sfx.ambStop) this.sfx.ambStop();
     stopVoice(this.sfx);
-    if (this.sfx && this.sfx.duck) this.sfx.duck(false, 'dialog');
+    if (this.sfx && this.sfx.duck) { this.sfx.duck(false, 'dialog'); this.sfx.duck(false, 'chat'); this.sfx.duck(false, 'chatting'); }
     this.post.dispose();
     this.renderer.dispose();
     this.scene.traverse(o => { if (o.geometry) o.geometry.dispose(); });

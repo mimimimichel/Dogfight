@@ -5,7 +5,13 @@
  * il allume son micro : son appel ne transporte que sa voix. Tout le monde
  * entend tout le monde, même sans micro. Un même objet sert pour toute la
  * session (il survit aux changements de niveau).
+ *
+ * Les voix passent par un simple élément <audio> (c'est lui que l'anti-écho du
+ * téléphone connaît : par le mixeur WebAudio, l'écho revenait et hachait la voix),
+ * avec un tampon un peu plus long pour encaisser les à-coups du réseau. Un appel
+ * qui tombe est relancé tout seul.
  */
+const JITTER_MS = 180;   // tampon de réception : un peu de retard, mais plus de voix hachée
 const voices = new Map();
 
 /** Le chat vocal attaché à un pair PeerJS (créé au premier appel). */
@@ -33,32 +39,37 @@ class Voice {
     };
     window.addEventListener('pointerdown', this.retry);
     window.addEventListener('keydown', this.retry);
+    this.health = setInterval(() => this.check(), 2000);
   }
 
   get myId() { return this.peer.id; }
 
   /** Volume des voix des amis (1 = normal ; on peut monter jusqu'à 4). */
-  get volume() { try { const v = parseFloat(localStorage.getItem('dogfight.voicevol')); return v > 0 ? v : 2.5; } catch (e) { return 2.5; } }
+  get volume() { try { const v = parseFloat(localStorage.getItem('dogfight.voicevol2')); return v > 0 ? v : 1; } catch (e) { return 1; } }
   setVolume(v) {
-    try { localStorage.setItem('dogfight.voicevol', String(v)); } catch (e) { /* ignore */ }
+    try { localStorage.setItem('dogfight.voicevol2', String(v)); } catch (e) { /* ignore */ }
     if (this.gain) this.gain.gain.value = v;
-    for (const e of this.in.values()) if (!e.boost) e.audio.volume = Math.min(1, v);
+    for (const e of this.in.values()) {
+      if (v > 1.05) this.boost(e);
+      else this.unboost(e);
+      if (!e.boost) e.audio.volume = Math.min(1, v);
+    }
   }
   /** Sortie des voix : amplifiée (un élément <audio> plafonne au volume normal). */
   voiceOut() {
     const ctx = this.audioCtx();
     if (!ctx || ctx.state !== 'running') return null;
     if (!this.gain) {
-      const comp = ctx.createDynamicsCompressor();
-      comp.threshold.value = -24; comp.knee.value = 12; comp.ratio.value = 4;
+      const comp = ctx.createDynamicsCompressor();   // (limiteur doux : pas de saturation)
+      comp.threshold.value = -10; comp.knee.value = 6; comp.ratio.value = 12; comp.attack.value = 0.003; comp.release.value = 0.15;
       this.gain = ctx.createGain(); this.gain.gain.value = this.volume;
       this.gain.connect(comp); comp.connect(ctx.destination);
     }
     return this.gain;
   }
-  /** Fait passer la voix d'un ami par l'amplificateur (si l'audio est débloqué). */
+  /** Fait passer la voix d'un ami par l'amplificateur (seulement si on monte au-delà du volume normal). */
   boost(e) {
-    if (e.boost) return;
+    if (e.boost || this.volume <= 1.05) return;
     const out = this.voiceOut();
     if (!out) return;
     try {
@@ -67,6 +78,12 @@ class Voice {
       e.boost = src;
       e.audio.muted = true;   // (l'élément continue de tourner : Chrome en a besoin pour recevoir le son)
     } catch (err) { /* on garde l'élément <audio> */ }
+  }
+  unboost(e) {
+    if (!e.boost) return;
+    try { e.boost.disconnect(); } catch (err) { /* ignore */ }
+    e.boost = null;
+    e.audio.muted = false;
   }
   boostAll() { for (const e of this.in.values()) this.boost(e); }
 
@@ -99,7 +116,7 @@ class Voice {
       // iPhone : le micro a besoin d'une session « lecture et enregistrement »
       try { if (navigator.audioSession) navigator.audioSession.type = 'play-and-record'; } catch (e) { /* ignore */ }
       try {
-        this.stream = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true }, video: false });
+        this.stream = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true, channelCount: 1 }, video: false });
       } catch (e) {
         try { if (navigator.audioSession) navigator.audioSession.type = 'playback'; } catch (err) { /* ignore */ }
         return e && e.name === 'NotAllowedError' ? 'Le micro a été refusé. Autorise-le dans le navigateur pour parler.' : 'Pas de micro trouvé.';
@@ -130,6 +147,7 @@ class Voice {
       let call;
       try { call = this.peer.call(r.pid, this.stream, { metadata: { voice: 1 } }); } catch (e) { continue; }
       if (!call) continue;
+      call.at = Date.now();
       this.out.set(r.pid, call);
       const gone = () => { if (this.out.get(r.pid) === call) this.out.delete(r.pid); };
       call.on('close', gone);
@@ -140,20 +158,55 @@ class Voice {
   incoming(call) {
     call.answer();                               // on écoute (notre voix part dans nos propres appels)
     call.on('stream', (stream) => {
+      const old = this.in.get(call.peer);
+      if (old && old.call === call) return;        // (PeerJS signale parfois deux fois le même flux)
       this.drop(call.peer);
       const audio = document.createElement('audio');
       audio.autoplay = true; audio.playsInline = true; audio.srcObject = stream;
+      audio.setAttribute('playsinline', '');
       audio.style.display = 'none';
       document.body.appendChild(audio);
       audio.volume = Math.min(1, this.volume);
       audio.play().catch(() => this.blocked.add(audio));
-      const e = Object.assign({ call, audio }, this.analyser(stream) || {});
+      this.smooth(call);
+      const e = Object.assign({ call, audio, at: Date.now() }, this.analyser(stream) || {});
       this.in.set(call.peer, e);
       this.boost(e);
     });
     const end = () => { const e = this.in.get(call.peer); if (e && e.call === call) this.drop(call.peer); };
     call.on('close', end);
     call.on('error', end);
+  }
+
+  /** Tampon de réception plus long : la voix arrive un poil plus tard mais d'un seul tenant. */
+  smooth(call) {
+    try {
+      for (const r of call.peerConnection ? call.peerConnection.getReceivers() : []) {
+        if (!r.track || r.track.kind !== 'audio') continue;
+        if ('jitterBufferTarget' in r) r.jitterBufferTarget = JITTER_MS;
+        else if ('playoutDelayHint' in r) r.playoutDelayHint = JITTER_MS / 1000;
+      }
+    } catch (e) { /* ignore */ }
+  }
+
+  /** Toutes les 2 s : relance les appels tombés ou bloqués. */
+  check() {
+    if (this.peer.destroyed) return;
+    const now = Date.now();
+    const dead = (call, since) => {
+      const pc = call && call.peerConnection;
+      if (!pc) return now - since > 12000;            // jamais établi
+      const st = pc.iceConnectionState;
+      if (st === 'failed' || st === 'closed') return true;
+      if (st === 'disconnected') { call.discAt = call.discAt || now; return now - call.discAt > 5000; }
+      call.discAt = 0;
+      return (st === 'new' || st === 'checking') && now - since > 15000;
+    };
+    for (const [pid, call] of [...this.out]) {
+      if (dead(call, call.at || now)) { this.out.delete(pid); try { call.close(); } catch (e) { /* ignore */ } }
+    }
+    for (const [pid, e] of [...this.in]) if (dead(e.call, e.at)) this.drop(pid);
+    if (this.stream) this.callAll();
   }
 
   drop(pid) {
@@ -187,6 +240,7 @@ class Voice {
     try { this.peer.off('call', this.onCall); } catch (e) { /* ignore */ }
     window.removeEventListener('pointerdown', this.retry);
     window.removeEventListener('keydown', this.retry);
+    clearInterval(this.health);
     for (const c of this.out.values()) { try { c.close(); } catch (e) { /* ignore */ } }
     for (const pid of [...this.in.keys()]) this.drop(pid);
     if (this.stream) for (const t of this.stream.getTracks()) t.stop();

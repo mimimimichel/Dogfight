@@ -9,7 +9,20 @@
   'use strict';
 
   const PREFIX = 'dogfight-mimimimichel-adv-';
-  const PEER_OPTS = { debug: 1 };
+  // Plusieurs serveurs STUN : la connexion directe (rapide) réussit plus souvent ; le
+  // relais TURN gratuit de PeerJS ne sert qu'en dernier recours (il est souvent saturé).
+  const PEER_OPTS = {
+    debug: 1,
+    config: {
+      iceServers: [
+        { urls: ['stun:stun.l.google.com:19302', 'stun:stun1.l.google.com:19302', 'stun:stun2.l.google.com:19302'] },
+        { urls: 'stun:stun.cloudflare.com:3478' },
+        { urls: ['turn:eu-0.turn.peerjs.com:3478', 'turn:us-0.turn.peerjs.com:3478'], username: 'peerjs', credential: 'peerjsp' },
+      ],
+      iceCandidatePoolSize: 2,
+      sdpSemantics: 'unified-plan',
+    },
+  };
   // Test : ?peer=hote:port pour utiliser un serveur PeerJS local
   const custom = new URLSearchParams(location.search).get('peer');
   if (custom) {
@@ -20,29 +33,53 @@
   const newCode = () => Array.from({ length: 4 }, () => LETTERS[Math.floor(Math.random() * LETTERS.length)]).join('');
   const other = (role) => (role === 'ainu' ? 'matcha' : 'ainu');
 
-  /** Lien établi entre les deux joueurs : send(objet), onmessage(objet), onclose(). */
+  /**
+   * Lien établi entre les deux joueurs : send(objet), onmessage(objet), onclose().
+   * Chaque côté donne des nouvelles au moins toutes les secondes : un lien muet depuis
+   * 10 s est considéré comme coupé (sinon un ami parti en rechargeant la page restait là).
+   */
+  const QUIET_MS = 10000;
   class Link {
     constructor(peer, conn, isHost, ownsPeer) {
       this.peer = peer; this.conn = conn; this.isHost = isHost; this.ownsPeer = ownsPeer;
       this.handler = null; this.queue = []; this.onclose = null; this.closed = false;
+      this.heardAt = this.sentAt = Date.now();
       conn.on('data', (d) => {
+        this.heardAt = Date.now();
         let m; try { m = JSON.parse(d); } catch (e) { return; }
+        if (m.t === 'ka') return;
         if (this.handler) this.handler(m);
         else if (this.queue.length < 50) this.queue.push(m);   // gardés jusqu'à ce que le jeu soit prêt
       });
-      const end = () => { if (this.closed) return; this.closed = true; if (this.onclose) this.onclose(); };
+      const end = () => { if (this.closed) return; this.closed = true; clearInterval(this.beat); if (this.onclose) this.onclose(); };
+      this.end = end;
       conn.on('close', end);
       conn.on('error', end);
       peer.on('disconnected', () => { /* le lien direct peut survivre au serveur de mise en relation */ });
+      this.beat = setInterval(() => {
+        if (this.closed) { clearInterval(this.beat); return; }
+        const now = Date.now();
+        if (now - this.heardAt > QUIET_MS) { this.dropped = true; try { conn.close(); } catch (e) { /* ignore */ } end(); return; }
+        if (now - this.sentAt > 900) this.send({ t: 'ka' });
+      }, 1000);
+    }
+    /** Octets en attente d'envoi (réseau encombré). */
+    get backlog() {
+      const dc = this.conn.dataChannel;
+      return (dc ? dc.bufferedAmount : 0) + (this.conn.bufferSize || 0) * 1024;
     }
     get onmessage() { return this.handler; }
     set onmessage(f) {
       this.handler = f;
       while (f && this.handler === f && this.queue.length) f(this.queue.shift());
     }
-    send(obj) { if (!this.closed && this.conn.open) this.conn.send(JSON.stringify(obj)); }
+    send(obj) {
+      if (this.closed || !this.conn.open) return;
+      try { this.conn.send(JSON.stringify(obj)); this.sentAt = Date.now(); } catch (e) { /* ignore */ }
+    }
     close() {
       this.closed = true;
+      clearInterval(this.beat);
       try { this.conn.close(); } catch (e) { /* ignore */ }
       if (this.ownsPeer) { try { this.peer.destroy(); } catch (e) { /* ignore */ } }
       if (this.onclose) { const f = this.onclose; this.onclose = null; f(); }
@@ -183,6 +220,11 @@
         conn.linked = true;
         const link = new Link(peer, conn, false, true);
         link.code = code;
+        // on recharge ou on ferme la page : l'hôte retire notre chien tout de suite
+        const leave = () => link.send({ t: 'leave' });
+        window.addEventListener('pagehide', leave);
+        const off = link.close.bind(link);
+        link.close = () => { window.removeEventListener('pagehide', leave); off(); };
         link.onmessage = (m) => {
           if (done) return;
           if (m.t === 'full') { fail('Ce monde est complet : il y a déjà 6 joueurs !'); link.close(); return; }
