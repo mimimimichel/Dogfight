@@ -50,6 +50,7 @@
   <script src="memories.js"></script>
   <script src="carnet.js"></script>
   <script src="niche.js"></script>
+  <script src="parents.js"></script>
   <script src="loader.js"></script>
   <div id="stage">
     <canvas id="game" width="480" height="270"></canvas>
@@ -110,6 +111,7 @@
           </div>
           <p class="ios-tip hidden" id="ios-tip">Plein écran sur iPhone : touche <b>Partager</b> puis <b>« Sur l'écran d'accueil »</b>.</p>
         </div>
+        <button class="parents-btn" data-action="parents" aria-label="Coin des parents">👪 Parents</button>
       </section>
 
       <!-- Choix du niveau -->
@@ -173,6 +175,46 @@
             </div>
           </div>
           <button class="hbtn small coop-back" data-action="back" id="players-back">Retour</button>
+        </div>
+      </section>
+
+      <!-- Coin des parents (derrière la porte parentale de parents.js) -->
+      <section class="screen home album hidden" id="screen-parents">
+        <div class="home-sky" aria-hidden="true">
+          <div class="home-cloud c1"></div><div class="home-cloud c2"></div>
+        </div>
+        <div class="coop-card album-card parents-card">
+          <h2 class="coop-title">Coin des parents</h2>
+          <div class="par-grid">
+            <div class="par-box">
+              <h3>⏰ Minuteur de séance</h3>
+              <div class="par-chips" id="par-timers">
+                <button class="par-chip" data-action="par-timer-0">Aucun</button>
+                <button class="par-chip" data-action="par-timer-20">20 min</button>
+                <button class="par-chip" data-action="par-timer-30">30 min</button>
+                <button class="par-chip" data-action="par-timer-45">45 min</button>
+                <button class="par-chip" data-action="par-timer-60">60 min</button>
+              </div>
+              <p class="par-note" id="par-session"></p>
+              <div class="par-chips">
+                <button class="par-chip" data-action="par-extend" id="par-extend">+10 minutes</button>
+                <button class="par-chip" data-action="par-reset">Nouvelle séance</button>
+              </div>
+              <p class="par-note">Temps écoulé : Matcha part faire la sieste au prochain moment calme, la partie est sauvegardée.</p>
+            </div>
+            <div class="par-box">
+              <h3>📅 Temps de jeu de la semaine</h3>
+              <div class="par-week" id="par-week"></div>
+              <p class="par-note" id="par-week-sum"></p>
+            </div>
+          </div>
+          <div class="par-box par-wide">
+            <div class="par-switch"><span>Cacher le mode « combat en ligne » de l'accueil</span><button class="par-toggle" data-action="par-combat" id="par-combat" role="switch"></button></div>
+            <div class="par-switch"><span>Autoriser le chat vocal (micro) quand on joue ensemble</span><button class="par-toggle" data-action="par-mic" id="par-mic" role="switch"></button></div>
+            <div class="par-switch"><span>Envoyer la qualité des appels vocaux</span><button class="par-toggle" data-action="par-netlog" id="par-netlog" role="switch"></button></div>
+            <p class="par-note par-privacy">🔒 Aucune donnée personnelle n'est envoyée. Seule la qualité des appels vocaux (pertes réseau, sans aucun son) est envoyée pour améliorer le jeu.</p>
+          </div>
+          <button class="hbtn small coop-back" data-action="back">Retour</button>
         </div>
       </section>
 
