@@ -280,3 +280,8 @@
 /* contours de texte propres (la police arrondie dessinait des traits à l'intérieur des lettres) */
 #adv *, #ui * { paint-order: stroke fill; }
 .adv-quest b::after { content: ' 👆'; font-size: 11px; opacity: .8; }
+/* plus de photos des chiens en haut à gauche : juste le nom et les cœurs, et plus de place pour voir le jeu */
+.adv-portrait { display: none !important; }
+.adv-party { display: block; }
+.adv-pause { top: calc(max(8px, env(safe-area-inset-top)) + clamp(54px, 13vh, 66px)); }
+.adv-mic { top: calc(max(8px, env(safe-area-inset-top)) + clamp(58px, 13vh, 70px)); }
