@@ -3416,6 +3416,7 @@ class Adventure {
     // Personnages
     const mu = this.mamie.userData;
     if (mu.rig) this.animateMamie(dt, t);
+    else if (mu.mamie) this.animateMamieSitting(dt, t);
     else {
       mu.tail.rotation.y = Math.sin(t * 6) * 0.5;
       mu.head.rotation.z = Math.sin(t * 1.3) * 0.08;
@@ -3726,6 +3727,40 @@ class Adventure {
     R.legR.rotation.set(0, 0, 0.12); R.pawR.rotation.set(0, 0, 0);
     R.pawR.position.copy(R.pawR.userData.p0); R.pawR.position.y -= 0.105;
     R.tail.rotation.set(0, Math.sin(t * (close ? 9 : 3.5)) * (close ? 0.4 : 0.18), 0);
+  }
+
+  /**
+   * Mamie assise (modèle « labrador assis ») : elle respire, suit les chiens du regard,
+   * penche la tête quand on approche, hoche la tête quand elle parle, et sa queue
+   * balaie le sol (vite quand un chien est tout près). Le corps se tourne doucement si
+   * on passe derrière elle.
+   */
+  animateMamieSitting(dt, t) {
+    const m = this.mamie, u = m.userData, a = u.anim || (u.anim = { yaw: 0, pitch: 0, tilt: 0, tiltGoal: 0, nextTilt: 2, wag: 0 });
+    const mx = m.position.x, mz = m.position.z;
+    let tx = this.camera.position.x, tz = this.camera.position.z, best = 1e9;
+    if (!this.cine) for (const Q of this.players) { const d = Math.hypot(Q.pos.x - mx, Q.pos.z - mz); if (d < best) { best = d; tx = Q.pos.x; tz = Q.pos.z; } }
+    const want = Math.atan2(tx - mx, tz - mz);
+    let rel = ((want - m.rotation.y + Math.PI) % (Math.PI * 2) + Math.PI * 2) % (Math.PI * 2) - Math.PI;
+    if (Math.abs(rel) > 0.9) m.rotation.y = lerpAngle(m.rotation.y, want, Math.min(1, dt * 1.0));
+    rel = ((want - m.rotation.y + Math.PI) % (Math.PI * 2) + Math.PI * 2) % (Math.PI * 2) - Math.PI;
+    const close = best < 7;
+    const d = this.dialog, cs = this.cine && this.cine.shot && this.cine.shot.say;
+    const talking = (d && d.lines && d.lines[d.i] && d.lines[d.i].who === 'Mamie Labrador' && d.chars < d.lines[d.i].text.length + 4)
+      || (cs && cs.who === 'Mamie Labrador' && this.cine.shown < (this.cine.full || '').length);
+    a.yaw += (clamp(rel, -0.7, 0.7) * (best < 25 || this.cine ? 1 : 0.3) - a.yaw) * Math.min(1, dt * 3);
+    if ((a.nextTilt -= dt) <= 0) { a.nextTilt = 2.5 + Math.random() * 3.5; a.tiltGoal = close ? (Math.random() - 0.5) * 0.5 : (Math.random() - 0.5) * 0.15; }
+    a.tilt += (a.tiltGoal - a.tilt) * Math.min(1, dt * 3);
+    const nod = talking ? Math.sin(t * 7) * 0.06 + Math.sin(t * 3.1) * 0.04 : 0;
+    // la tête (et ses yeux) tourne, penche, hoche ; petit souffle du haletement quand on est là
+    const pant = close && !talking ? Math.sin(t * 9) * 0.015 : 0;
+    u.head.rotation.set(nod + pant, a.yaw, a.tilt);
+    // respiration : le poitrail gonfle doucement
+    const br = Math.sin(t * 2.0);
+    u.body.scale.set(1 + br * 0.006, 1 + br * 0.004, 1 + br * 0.01);
+    // la queue balaie le sol
+    a.wag += dt * (close ? 11 : 4);
+    if (u.tail) u.tail.rotation.set(0, Math.sin(a.wag) * (close ? 0.45 : 0.2), 0);
   }
 
   /** Ainu (avec ou sans Matcha sur le dos) : course, saut, hélice de la queue. */

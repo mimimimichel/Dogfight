@@ -125,29 +125,64 @@ export function buildNpc(name, opts) {
 export function buildMamieStanding() {
   const C = cache.mamie2, H = C.meta.size[1];
   // chienne assise : la tête est tout en haut, la queue au sol derrière ; les pattes ne bougent pas
-  const m = buildNpc('mamie2', { headTop: 0.76, tail: 0.1, tailMaxY: 0.25, legs: false });
+  const m = buildNpc('mamie2', { headTop: 0.68, tail: 0.1, tailMaxY: 0.25, legs: false });
   const u = m.userData;
+  // repères du visage (mesurés sur le modèle, en proportion de la hauteur) : truffe et yeux
+  const nosePt = points('mamie2', (x, y) => y > 0.7 * H).reduce((b, p) => (!b || p[2] > b[2] ? p : b), null);
+  const eyeY = nosePt[1] + H * 0.09, eyeZ = nosePt[2] - H * 0.15;
   // pelage doré, plus clair sur le poitrail et le museau (couleurs par sommet : le modèle n'a pas de texture)
   m.traverse((o) => {
     if (!o.isSkinnedMesh) return;
     const a = o.geometry.attributes.position.array, n = a.length / 3, col = new Float32Array(n * 3);
     const base = new THREE.Color(0xc98a44), light = new THREE.Color(0xf0d2a0), dark = new THREE.Color(0xa86a2c), c = new THREE.Color();
+    const nose = new THREE.Color(0x1c1410);
     for (let i = 0; i < n; i++) {
       const y = a[i * 3 + 1] / H, z = a[i * 3 + 2];
+      const dn = Math.hypot(a[i * 3] - nosePt[0], a[i * 3 + 1] - nosePt[1], a[i * 3 + 2] - nosePt[2]);
       const front = Math.max(0, Math.min(1, (z + 0.05) * 3));          // poitrail, devant
       const high = Math.max(0, Math.min(1, (y - 0.55) * 3));           // dos et oreilles un peu plus foncés
       const n1 = Math.sin(a[i * 3] * 41 + a[i * 3 + 1] * 37) * Math.sin(a[i * 3 + 2] * 29) * 0.5 + 0.5;
       c.copy(base).lerp(light, front * (1 - high) * 0.6).lerp(dark, high * (1 - front) * 0.5);
       c.multiplyScalar(0.94 + n1 * 0.1);
+      if (dn < H * 0.045) c.copy(nose);                                   // la truffe
+      else if (dn < H * 0.06) c.lerp(nose, (H * 0.06 - dn) / (H * 0.015) * 0.7);
       col[i * 3] = c.r; col[i * 3 + 1] = c.g; col[i * 3 + 2] = c.b;
     }
     o.geometry.setAttribute('color', new THREE.BufferAttribute(col, 3));
     o.material.vertexColors = true; o.material.color.set(0xffffff); o.material.roughness = 0.92; o.material.metalness = 0;
     o.material.needsUpdate = true;
   });
+  // pelage : petites mèches (texture dessinée) projetées sur trois axes, le modèle n'ayant pas d'UV utilisables
+  const fur = furTexture();
+  m.traverse((o) => {
+    if (!o.isSkinnedMesh) return;
+    o.material.onBeforeCompile = (sh) => {
+      sh.uniforms.uFur = { value: fur };
+      sh.vertexShader = sh.vertexShader.replace('#include <common>', '#include <common>\nvarying vec3 vFurP; varying vec3 vFurN;')
+        .replace('#include <begin_vertex>', '#include <begin_vertex>\nvFurP = position * 5.0; vFurN = normal;');
+      sh.fragmentShader = sh.fragmentShader.replace('#include <common>', '#include <common>\nuniform sampler2D uFur; varying vec3 vFurP; varying vec3 vFurN;')
+        .replace('#include <color_fragment>', `#include <color_fragment>
+          vec3 fw = abs(normalize(vFurN)); fw = pow(fw, vec3(4.0)); fw /= (fw.x + fw.y + fw.z);
+          float f = texture2D(uFur, vFurP.yz).r * fw.x + texture2D(uFur, vFurP.xz).r * fw.y + texture2D(uFur, vFurP.xy).r * fw.z;
+          diffuseColor.rgb *= 0.7 + f * 0.55;`);
+    };
+    o.material.customProgramCacheKey = () => 'mamieFur';
+  });
+  // yeux : deux billes sombres et brillantes, un reflet blanc ; attachées à la tête (elles suivent ses mouvements)
+  const eyeMat = new THREE.MeshStandardMaterial({ color: 0x150c06, roughness: 0.15, metalness: 0.1 });
+  const glint = new THREE.MeshBasicMaterial({ color: 0xffffff });
+  for (const sx of [-1, 1]) {
+    const cand = points('mamie2', (x, y, z) => Math.abs(y - eyeY) < H * 0.02 && Math.abs(z - eyeZ) < H * 0.04 && x * sx > 0);
+    const surf = cand.reduce((b, p) => (!b || p[2] * 0.8 + Math.abs(p[0]) * 0.6 > b[2] * 0.8 + Math.abs(b[0]) * 0.6 ? p : b), null);
+    if (!surf) continue;
+    const e = new THREE.Mesh(new THREE.SphereGeometry(H * 0.022, 14, 10), eyeMat);
+    e.position.set(surf[0] - u.head.position.x - sx * H * 0.006, surf[1] - u.head.position.y, surf[2] - u.head.position.z - H * 0.006);
+    const g = new THREE.Mesh(new THREE.SphereGeometry(H * 0.006, 6, 4), glint); g.position.set(-sx * H * 0.006, H * 0.008, H * 0.018); e.add(g);
+    u.head.add(e);
+  }
   // bandana rouge au cou : là où le corps est le plus fin, sous la tête
   let best = null;
-  for (let y = 0.6; y <= 0.78; y += 0.02) {
+  for (let y = 0.52; y <= 0.66; y += 0.02) {   // (sous la mâchoire)
     const pts = points('mamie2', (px, py) => Math.abs(py / H - y) < 0.012);
     if (pts.length < 20) continue;
     let cx = 0, cz = 0; for (const p of pts) { cx += p[0]; cz += p[2]; } cx /= pts.length; cz /= pts.length;
@@ -155,16 +190,40 @@ export function buildMamieStanding() {
     if (!best || r < best.r) best = { y: y * H, x: cx, z: cz, r };
   }
   if (best) {
+    // un foulard en triangle posé sur le poitrail (un anneau ne suivait pas bien le cou penché)
     const red = new THREE.MeshStandardMaterial({ color: 0xd8202a, roughness: 0.75, side: THREE.DoubleSide });
     const band = new THREE.Group();
-    const ring = new THREE.Mesh(new THREE.TorusGeometry(best.r * 1.0, best.r * 0.16, 10, 30), red); ring.rotation.x = Math.PI / 2 + 0.3; band.add(ring);
-    const tri = new THREE.Mesh(new THREE.ConeGeometry(best.r * 0.5, best.r * 0.8, 3), red); tri.rotation.x = Math.PI; tri.scale.z = 0.35; tri.position.set(0, -best.r * 0.45, best.r * 0.9); band.add(tri);
+    const front = points('mamie2', (px, py) => Math.abs(py - best.y) < H * 0.015).reduce((b, p) => (!b || p[2] > b[2] ? p : b), null);
+    const tri = new THREE.Mesh(new THREE.ConeGeometry(H * 0.1, H * 0.16, 3), red);
+    tri.rotation.set(Math.PI + 0.35, 0, 0); tri.scale.z = 0.25; tri.position.set(0, -H * 0.04, 0);
+    const knot = new THREE.Mesh(new THREE.TorusGeometry(H * 0.075, H * 0.014, 6, 16, Math.PI), red); knot.rotation.set(-0.35, 0, Math.PI); knot.position.set(0, H * 0.02, -H * 0.01);
+    band.add(tri); band.add(knot);
     band.traverse(o => { if (o.isMesh) o.castShadow = true; });
-    band.position.set(best.x, best.y, best.z);
+    band.position.set(best.x, best.y, front ? front[2] - H * 0.008 : best.z + best.r);
     u.body.add(band);
   }
   u.mamie = true;
   return m;
+}
+
+/** Petites mèches de poils (texture qui se répète) pour le pelage de Mamie. */
+let furTex = null;
+function furTexture() {
+  if (furTex) return furTex;
+  const c = document.createElement('canvas'); c.width = c.height = 256;
+  const x = c.getContext('2d');
+  x.fillStyle = '#808080'; x.fillRect(0, 0, 256, 256);
+  let seed = 7; const rnd = () => (seed = (seed * 16807) % 2147483647) / 2147483647;
+  for (let i = 0; i < 2600; i++) {
+    const px = rnd() * 256, py = rnd() * 256, len = 6 + rnd() * 14, ang = Math.PI / 2 + (rnd() - 0.5) * 0.7, v = Math.floor(70 + rnd() * 120);
+    x.strokeStyle = `rgba(${v},${v},${v},0.55)`; x.lineWidth = 1 + rnd() * 1.5;
+    for (const ox of [-256, 0, 256]) for (const oy of [-256, 0, 256]) {
+      x.beginPath(); x.moveTo(px + ox, py + oy); x.quadraticCurveTo(px + ox + Math.cos(ang) * len * 0.5 + (rnd() - 0.5) * 3, py + oy + Math.sin(ang) * len * 0.5, px + ox + Math.cos(ang) * len, py + oy + Math.sin(ang) * len); x.stroke();
+    }
+  }
+  furTex = new THREE.CanvasTexture(c);
+  furTex.wrapS = furTex.wrapT = THREE.RepeatWrapping; furTex.anisotropy = 4;
+  return furTex;
 }
 
 /** Tous les sommets d'un modèle (pour placer des accessoires). */
