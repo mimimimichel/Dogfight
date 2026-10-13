@@ -108,7 +108,7 @@ export function storyShots(game, L) {
   // ouverture des autres chapitres : survol du décor, la Capitaine qui file, le duo qui repart
   const chapters = {
     2: { title: 'La Forêt des Moustaches', fly: 'La Capitaine s\'est réfugiée dans la Forêt des Moustaches, où les arbres touchent les nuages et les champignons rebondissent.',
-      cap: 'Miaou ! Jamais vous ne me trouverez dans ma forêt !', duo: ['Matcha', 'Elle ne nous échappera pas !'] },
+      cap: 'Miaou ! Jamais vous ne me trouverez dans ma forêt !', duo: ['Matcha', 'Il fait tout noir là-dedans… Tu restes près de moi, Ainu ?'] },
     3: { title: 'Port-Croquette', fly: 'Chassée de la forêt, la Capitaine a filé à Port-Croquette, la grande ville au bord de la mer. Son gang y sème la pagaille !',
       cap: 'Miaou-ha-ha ! En ville, personne ne rattrape mon bolide !', duo: ['Ainu', 'Ouaf ! Des karts… et même des avions ?!'] },
     4: { title: 'Les Îles du Ciel', fly: 'Pour leur échapper une dernière fois, la Capitaine s\'est envolée en montgolfière vers les Îles du Ciel.',

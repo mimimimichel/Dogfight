@@ -646,7 +646,9 @@ export function buildForest(game) {
       st.yarns.length = 0;
       game.say([
         { who: 'Capitaine Moustache', text: 'Grrr ! Vous m\'avez eue, sales cabots !' },
-        { who: 'Capitaine Moustache', text: 'Gardez votre médaille… mais on se reverra ! Miaou !' },
+        { who: 'Capitaine Moustache', text: 'Les chiens ont toujours un parc pour jouer… et moi, rien ! Gardez votre médaille… mais on se reverra !' },
+        { who: 'Matcha', text: 'Elle avait l\'air… un peu triste, non ?' },
+        { who: 'Ainu', text: 'Ouaf… Oui. Un peu.' },
       ], () => {
         save().boss = true;
         game.persist();

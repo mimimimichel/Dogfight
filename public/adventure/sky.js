@@ -753,7 +753,7 @@ export function buildSky(game) {
           { who: 'Mamie Labrador', text: 'Si vous tombez, pas de panique : vous repartez du dernier drapeau touché.' },
           { who: 'Matcha', text: 'Et si on est plusieurs ? On peut se faire la courte échelle !' },
           { who: 'Mamie Labrador', text: 'Exactement ! Sautez sur la tête d\'un ami pour monter plus haut. Et 5 Étoiles du ciel sont cachées en chemin…' },
-          { who: 'Ainu', text: 'Ouaf ! C\'est parti !' },
+          { who: 'Ainu', text: 'C\'est… très haut, Matcha. Mais je te suis. Ouaf !' },
         ], () => { s.intro = true; game.persist(); game.banner(S.NAME, 'Cap au nord, jusqu\'au Trophée du Ciel !', 2800); game.updateHud(); });
         return;
       }
@@ -771,14 +771,18 @@ export function buildSky(game) {
       const s = save();
       const stars = s.medals.filter(id => id !== S.FINAL_MEDAL).length;
       const tm = Math.round(sky().best || st.runT);
+      const kid = window.kidName ? window.kidName() : '';
       return [
         { who: 'Mamie Labrador', text: 'Le Trophée du Ciel ! Vous avez traversé toutes les îles… et battu la Capitaine !' },
         { who: 'Capitaine Moustache', text: 'Miaou… Vous m\'avez suivie jusqu\'au-dessus des nuages, et vous avez dégonflé ma montgolfière. Bon. Je rends tout : les médailles, les trophées…' },
-        { who: 'Mamie Labrador', text: 'Et si, au lieu de voler, tu venais jouer avec nous au Parc des Toutous ?' },
+        { who: 'Capitaine Moustache', text: 'Je voulais juste… que quelqu\'un m\'invite à jouer, moi aussi.' },
+        { who: 'Mamie Labrador', text: 'Alors c\'est décidé : la pancarte, on l\'enlève. Viens jouer avec nous au Parc des Toutous !' },
         { who: 'Capitaine Moustache', text: '…Jouer ? Avec des chiens ? …D\'accord. Mais c\'est moi qui lance la balle !' },
+        { who: 'Biscotte', text: 'Moi aussi je veux lancer ! J\'ai sauté comme toi, Ainu !' },
+        { who: 'Matcha', text: 'Tu vois, Ainu ? Même tout là-haut, tu n\'as pas eu peur.' },
+        { who: 'Ainu', text: 'Parce que vous étiez là. Merci de nous avoir guidés. Ouaf !' },
+        ...(kid ? [{ who: '', text: `Et tout ça, grâce à ${kid}.` }] : []),
         { who: 'Biscotte', text: `Record : ${Math.floor(tm / 60)} min ${tm % 60} s, avec ${stars} étoile${stars > 1 ? 's' : ''} sur 5 !` },
-        { who: 'Matcha', text: stars < 5 ? 'Il reste des étoiles cachées… on y retourne ?' : 'Toutes les étoiles ! On est trop forts !' },
-        { who: 'Ainu', text: 'Ouaf ! Quelle aventure !' },
       ];
     },
     render(dt, t) {

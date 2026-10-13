@@ -49,6 +49,7 @@
   <script src="profiles.js"></script>
   <script src="memories.js"></script>
   <script src="carnet.js"></script>
+  <script src="niche.js"></script>
   <script src="loader.js"></script>
   <div id="stage">
     <canvas id="game" width="480" height="270"></canvas>
@@ -89,6 +90,7 @@
           <div class="home-row">
             <button class="hbtn small player-btn" data-action="profiles" id="player-btn">👤 Joueur</button>
             <button class="hbtn small album-btn" data-action="album">📖 Mon aventure</button>
+            <button class="hbtn small album-btn" data-action="niche">🏠 Ma niche</button>
             <button class="hbtn small" data-action="controls">Commandes</button>
             <button class="hbtn small hidden" id="fs-btn" data-action="fullscreen">Plein écran</button>
             <button class="hbtn small install-btn hidden" id="install-btn" data-action="install">📲 Installer le jeu</button>
@@ -191,6 +193,16 @@
           <div class="album-carnet" id="album-carnet"></div>
           <h3 class="album-sub">Mes souvenirs 📷</h3>
           <div class="album-photos" id="album-photos"><p class="album-empty">Prends des photos en jeu (📷 dans la pause) : elles arrivent ici !</p></div>
+          <button class="hbtn small coop-back" data-action="back">Retour</button>
+        </div>
+      </section>
+
+      <section class="screen home niche hidden" id="screen-niche">
+        <div class="home-sky" aria-hidden="true">
+          <div class="home-cloud c1"></div><div class="home-cloud c2"></div>
+        </div>
+        <div class="coop-card niche-card">
+          <div id="niche-root"></div>
           <button class="hbtn small coop-back" data-action="back">Retour</button>
         </div>
       </section>

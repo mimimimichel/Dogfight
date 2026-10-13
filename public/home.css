@@ -2,7 +2,7 @@
  * Matcha & Ainu — écran d'accueil coloré (style plates-formes 3D),
  * dans la scène de 960×540 CSS mise à l'échelle par main.js.
  */
-#screen-menu.home, #screen-coop.home, #screen-levels.home, #screen-album.home, #screen-profiles.home {
+#screen-menu.home, #screen-coop.home, #screen-levels.home, #screen-album.home, #screen-niche.home, #screen-profiles.home {
   --hf: 'Fredoka', 'Arial Rounded MT Bold', system-ui, sans-serif;
   flex-direction: row;
   justify-content: space-between;
@@ -440,3 +440,38 @@ html.ios-text .hbtn.small, html.ios-text .hbtn.lvpick:not(.active), html.ios-tex
   flex: 1 0 100%; font-size: 14px; padding: 6px 10px 8px;
   background: linear-gradient(#f2ffe8, #b8e8a0); color: #1e5a14;
 }
+
+/* Ma niche */
+.niche-card { max-width: 980px; }
+.niche-top { display: flex; justify-content: space-between; align-items: center; font-size: 22px; margin-bottom: 8px; }
+.niche-wallet { font-size: 16px; background: #fff3d6; border-radius: 999px; padding: 4px 12px; font-weight: 700; color: #6a3a10; }
+.niche-room { position: relative; height: min(52vh, 420px); border-radius: 18px; overflow: hidden; border: 4px solid #8a5a2a; box-shadow: inset 0 -60px 0 rgba(160, 100, 50, .35), 0 6px 18px rgba(0,0,0,.2); touch-action: none; user-select: none; }
+.niche-floor { position: absolute; left: 0; right: 0; bottom: 0; height: 30%; background: repeating-linear-gradient(90deg, #c8925a 0 60px, #b8824a 60px 62px); }
+.niche-shelf { position: absolute; left: 4%; top: 7%; padding: 4px 10px 8px; border-bottom: 8px solid #8a5a2a; font-size: 24px; letter-spacing: 2px; max-width: 45%; }
+.niche-shelf small { font-size: 12px; opacity: .7; }
+.niche-frames { position: absolute; right: 4%; top: 6%; display: flex; gap: 10px; }
+.niche-frames img { width: 84px; height: 64px; object-fit: cover; border: 5px solid #fff; box-shadow: 0 3px 8px rgba(0,0,0,.3); transform: rotate(-3deg); }
+.niche-frames img:nth-child(2) { transform: rotate(4deg); }
+.niche-item { position: absolute; cursor: grab; line-height: 1; filter: drop-shadow(0 4px 3px rgba(0,0,0,.3)); transition: transform .15s; touch-action: none; }
+.niche-item.drag { transform: scale(1.2); cursor: grabbing; z-index: 5; }
+.niche-dogs { position: absolute; left: 50%; bottom: 6%; width: min(150px, 22%); transform: translateX(-50%); pointer-events: none; animation: nicheDogs 3s ease-in-out infinite; }
+@keyframes nicheDogs { 50% { transform: translateX(-50%) translateY(-4px) rotate(1deg); } }
+.niche-trash { position: absolute; right: 2%; bottom: 3%; padding: 6px 12px; border-radius: 14px; background: rgba(255,255,255,.75); font-weight: 700; font-size: 14px; }
+.niche-trash.hot { background: #ffd2c8; transform: scale(1.1); }
+.niche-help { font-size: 13px; opacity: .8; margin: 6px 0; }
+.niche-shop { display: grid; grid-template-columns: repeat(auto-fill, minmax(92px, 1fr)); gap: 6px; }
+.niche-buy { display: flex; flex-direction: column; align-items: center; padding: 6px 4px; border-radius: 12px; border: 2px solid #e8c48a; background: #fffaf0; cursor: pointer; font: inherit; color: #4a2a10; }
+.niche-buy span { font-size: 30px; }
+.niche-buy small { font-size: 11px; text-align: center; }
+.niche-buy.own { border-color: #7ac85a; }
+.niche-buy.locked { opacity: .5; }
+.niche-walls { display: flex; gap: 6px; margin-top: 8px; flex-wrap: wrap; }
+.niche-wall { width: 70px; height: 44px; border-radius: 10px; border: 3px solid #fff; box-shadow: 0 2px 6px rgba(0,0,0,.2); cursor: pointer; display: flex; align-items: flex-end; justify-content: center; }
+.niche-wall.on { border-color: #e05a3a; }
+.niche-wall small { font-size: 10px; background: rgba(255,255,255,.8); border-radius: 6px; padding: 0 4px; }
+.niche-toast { position: fixed; left: 50%; bottom: 12%; transform: translateX(-50%); background: #3a2410; color: #fff; padding: 10px 16px; border-radius: 14px; z-index: 300; font-weight: 600; }
+#screen-niche.home { justify-content: center; align-items: center; }
+#screen-niche .hbtn, .niche-card { font-family: var(--hf); }
+.niche-card { background: rgba(255, 255, 255, 0.82); width: 820px; max-height: calc(100% - 20px); overflow-y: auto; padding: 14px 20px; color: #3a2010; }
+@media (max-height: 480px) { .niche-room { height: 58vh; } .niche-shop { grid-template-columns: repeat(auto-fill, minmax(80px, 1fr)); } .niche-buy span { font-size: 24px; } }
+.niche-item { z-index: 2; }

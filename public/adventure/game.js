@@ -33,6 +33,7 @@ import { Cinema } from './cinema.js';
 import { loadVoices, speak, stopVoice, prefetchVoices } from './voices.js';
 import * as WR from './wardrobe.js';
 import { storyShots } from './story.js';
+import { buildSeasons } from './seasons.js';
 import * as N from './npcs.js';
 
 const STEP = 1 / 60;
@@ -130,6 +131,7 @@ function kidName() {
   if (!n && window.Profiles) { const c = window.Profiles.current(); if (c && !/^Joueur \d+$/.test(c.name)) n = c.name; }
   return n.slice(0, 16);
 }
+window.kidName = kidName;
 const medalWord = () => (L.ID === 3 ? 'Trophées' : L.ID === 4 ? 'Étoiles' : 'Médailles');
 const collectWord = (long) => ({ 2: 'Croquettes', 3: long ? 'Pièces d\'or' : 'Pièces', 4: 'Pièces du ciel' })[L.ID] || (long ? 'Os dorés' : 'Os');
 const NEXT_LEVEL = { 1: 'Niveau 2 : la Forêt des Moustaches', 2: 'Niveau 3 : Port-Croquette', 3: 'Niveau 4 : les Îles du Ciel' };
@@ -1330,6 +1332,8 @@ class Adventure {
     this.mamie.position.set(L.npcs.mamie.x, L.npcs.mamie.y, L.npcs.mamie.z);
     this.mamie.rotation.y = Math.atan2(L.START.x - L.npcs.mamie.x, L.START.z - L.npcs.mamie.z);
     sc.add(this.mamie);
+    // la vraie saison et l'heure du jour (flocons, feuilles, lucioles, fêtes)
+    try { this.seasons = buildSeasons(this, { lite: this.lite, L }); } catch (e) { this.seasons = null; }
     // Biscotte
     this.puppy = { mesh: this.realistic && N.hasNpc('biscotte') ? N.buildNpc('biscotte', { head: 0.3, tail: 0.12 }) : M.buildPuppy(), state: s.puppy, pos: new THREE.Vector3(), yaw: 0, phase: 0, shadow: this.makeShadow(0.45) };
     sc.add(this.puppy.mesh);
@@ -3070,8 +3074,9 @@ class Adventure {
       { who: 'Mamie Labrador', text: 'Les 5 Médailles Patounes ! Le Parc des Toutous est sauvé !' },
       { who: 'Matcha', text: 'Ces chats bandits n\'avaient aucune chance !' },
       { who: 'Mamie Labrador', text: 'Mais la Capitaine Moustache s\'est enfuie vers la Forêt des Moustaches…' },
+      { who: 'Mamie Labrador', text: 'Ces médailles, c\'est mon Firmin qui les avait gagnées, quand il était jeune chien. Merci, mes trésors.' },
       { who: 'Ainu', text: 'Ouaf ! On la rattrapera, promis !' },
-      { who: 'Mamie Labrador', text: '(À suivre dans le niveau 2 !)' },
+      { who: 'Mamie Labrador', text: 'Regardez : des poils de moustache… tout droit vers la Forêt des Moustaches !' },
     ], () => { s.done = true; this.persist(); this.showOverlay('complete'); if (this.coop) this.coopEvents.push(['overlay', 'complete']); });
   }
 
@@ -3288,6 +3293,7 @@ class Adventure {
     this.fallTex.offset.y = (t * 1.4) % 1;
     if (this.streamTex) this.streamTex.offset.y = (t * 0.9) % 1;
     if (this.levelLogic) this.levelLogic.render(dt, t);
+    if (this.seasons) this.seasons.step(dt, t);
     if (this.water) this.water.material.uniforms.uTime.value = t;
     // le chemin d'étincelles : toujours en Promenade, sinon à la demande (ou si on semble perdu)
     if (this.progressAt === undefined) this.progressAt = this.t;

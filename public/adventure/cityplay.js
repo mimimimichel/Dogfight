@@ -841,7 +841,9 @@ export function buildPlay(game, decor) {
                 game.say([
                   { who: 'Capitaine Moustache', text: 'Grrr ! Mon beau bolide tout cabossé…' },
                   { who: 'Capitaine Moustache', text: 'Vous avez gagné, les cabots ! Je quitte Port-Croquette… pour de bon !' },
-                  { who: 'Mamie Labrador', text: 'Bravo ! Toute la ville vous dit merci !' },
+                  { who: 'Capitaine Moustache', text: 'Au Parc des Toutous, il y a une pancarte : « Interdit aux chats ». Alors j\'ai pris vos médailles, voilà !' },
+                  { who: 'Mamie Labrador', text: 'Oh… Cette vieille pancarte ? Je ne savais pas qu\'elle t\'avait fait tant de peine.' },
+                  { who: 'Mamie Labrador', text: 'Bravo, mes toutous ! Toute la ville vous dit merci !' },
                 ], () => success('boss'));
               } else game.banner(b.hp === 2 ? 'Bien joué !' : 'Encore une fois !', `Il reste ${b.hp} coup${b.hp > 1 ? 's' : ''}`, 1400);
               game.updateHud();

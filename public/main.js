@@ -1045,6 +1045,7 @@
       }
       case 'controls': show('controls'); break;
       case 'album': renderAlbum(); show('album'); break;
+      case 'niche': if (window.Niche) window.Niche.open($('niche-root')); show('niche'); break;
       case 'profiles': renderPlayers(); show('profiles'); break;
       case 'player-save': savePlayer(); break;
       case 'player-cancel': editPlayer(null); break;

@@ -32,7 +32,7 @@ const PRECACHE = [
   'img/duo.png',
   // public/
   'audio.js', 'coop.js', 'game-core.js', 'loader.js', 'main.js', 'p2p.js', 'profiles.js',
-  'memories.js', 'carnet.js', 'parents.js',
+  'memories.js', 'carnet.js', 'parents.js', 'niche.js',
   'render.js', 'room.js', 'touch.js',
   'brand.css', 'home.css', 'style.css',
   // public/vendor/
@@ -43,7 +43,7 @@ const PRECACHE = [
   'adventure/current.js', 'adventure/forest.js', 'adventure/game.js', 'adventure/level1.js',
   'adventure/level2.js', 'adventure/level3.js', 'adventure/level4.js', 'adventure/models.js',
   'adventure/npcs.js', 'adventure/post.js', 'adventure/realtex.js', 'adventure/sky.js',
-  'adventure/sky_boss.js', 'adventure/story.js', 'adventure/toon.js', 'adventure/voice.js',
+  'adventure/sky_boss.js', 'adventure/story.js', 'adventure/seasons.js', 'adventure/toon.js', 'adventure/voice.js',
   'adventure/voices.js', 'adventure/wardrobe.js', 'adventure/world.js',
 ];
 
