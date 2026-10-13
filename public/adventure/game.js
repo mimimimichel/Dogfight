@@ -549,9 +549,10 @@ class Adventure {
       pm.dispose();
       this.scene.environment = this.envTex;
       // plus de contraste : soleil franc, ombres plus profondes (moins de lumière ambiante)
-      this.scene.environmentIntensity = 0.55;
-      LT.hemi = [LT.hemi[0], LT.hemi[1], LT.hemi[2] * 0.3];
-      LT.sun = [0xfff0d4, LT.sun[1] * 1.3];
+      // lumière de fin d'après-midi : soleil doré, ombres claires et un peu bleutées (lumière du ciel)
+      this.scene.environmentIntensity = 0.62;
+      LT.hemi = [0xcfe0ff, LT.hemi[1], LT.hemi[2] * 0.38];
+      LT.sun = [0xffe2b4, LT.sun[1] * 1.25];
     } else if (this.realistic) {
       // lumière du ciel tout autour (reflets doux sur l'herbe, le pelage, l'or des os)
       const envScene = new THREE.Scene();
