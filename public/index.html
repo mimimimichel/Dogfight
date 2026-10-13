@@ -46,6 +46,7 @@
     <div class="ld-barbox"><div class="ld-bar"><i></i></div><p class="ld-step"></p></div>
     <p class="ld-tip"></p>
   </div>
+  <script src="profiles.js"></script>
   <script src="loader.js"></script>
   <div id="stage">
     <canvas id="game" width="480" height="270"></canvas>
@@ -84,6 +85,7 @@
             <small>Jusqu'à 6 amis dans ton monde !</small>
           </button>
           <div class="home-row">
+            <button class="hbtn small player-btn" data-action="profiles" id="player-btn">👤 Joueur</button>
             <button class="hbtn small album-btn" data-action="album">📖 Mon aventure</button>
             <button class="hbtn small" data-action="controls">Commandes</button>
             <button class="hbtn small hidden" id="fs-btn" data-action="fullscreen">Plein écran</button>
@@ -144,6 +146,28 @@
             <button class="hbtn mpick" data-action="mode-defi">🏆 Défi<small>Les grands : 2 cœurs, chaque chute compte</small></button>
           </div>
           <button class="hbtn small coop-back" data-action="back">Retour</button>
+        </div>
+      </section>
+
+      <!-- Joueurs : « Qui joue ? » -->
+      <section class="screen home album hidden" id="screen-profiles">
+        <div class="home-sky" aria-hidden="true">
+          <div class="home-cloud c1"></div><div class="home-cloud c2"></div>
+        </div>
+        <div class="coop-card album-card">
+          <h2 class="coop-title">Qui joue ?</h2>
+          <div class="players" id="players"></div>
+          <div class="player-edit hidden" id="player-edit">
+            <input id="player-name" maxlength="16" placeholder="Ton prénom" autocomplete="off">
+            <div class="player-pick" id="player-avatars"></div>
+            <div class="player-pick" id="player-colors"></div>
+            <div class="player-edit-btns">
+              <button class="hbtn small go" data-action="player-save">C'est moi !</button>
+              <button class="hbtn small" data-action="player-cancel">Annuler</button>
+              <button class="hbtn small danger hidden" data-action="player-delete" id="player-delete">Supprimer</button>
+            </div>
+          </div>
+          <button class="hbtn small coop-back" data-action="back" id="players-back">Retour</button>
         </div>
       </section>
 

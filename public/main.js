@@ -181,6 +181,64 @@
     const best = s4 && s4.sky && s4.sky.best;
     $('lv4-prog').textContent = started(s4) ? `Étoiles ${(s4.medals || []).filter(m => m !== 'm_goal').length}/5${best ? ` · record ${Math.floor(best / 60)}:${String(best % 60).padStart(2, '0')}` : ''}` : 'Nouveau !';
   }
+  // ---------------------------------------------------------------------------
+  // « Qui joue ? » : un joueur = sa propre progression (profiles.js)
+  // ---------------------------------------------------------------------------
+  const PR = window.Profiles;
+  function updatePlayerButton() {
+    const me = PR.current();
+    $('player-btn').textContent = PR.AVATARS[me.avatar || 0] + ' ' + me.name;
+  }
+  function renderPlayers() {
+    editPlayer(null);
+    const me = PR.active();
+    $('players').innerHTML = PR.list().map(p => `<div class="player${p.id === me ? ' on' : ''}" data-player="${p.id}">
+        <div class="av" style="--c:${PR.COLORS[p.color % PR.COLORS.length]}">${PR.AVATARS[p.avatar % PR.AVATARS.length]}</div>
+        <b>${p.name.replace(/[<>&"]/g, '')}</b><small>${PR.progress(p.id)} %</small>
+        <span class="edit" data-edit="${p.id}">✏️</span></div>`).join('')
+      + (PR.list().length < 6 ? '<div class="player add" data-player="new"><div class="av">＋</div><b>Nouveau</b><small>joueur</small></div>' : '');
+    $('players-back').classList.toggle('hidden', PR.shouldAsk());
+  }
+  function editPlayer(id) {
+    app.editing = id;
+    $('player-edit').classList.toggle('hidden', !id);
+    $('players').classList.toggle('hidden', !!id);
+    if (!id) return;
+    const p = id === 'new' ? { name: '', color: PR.list().length % PR.COLORS.length, avatar: PR.list().length % PR.AVATARS.length } : PR.list().find(q => q.id === id);
+    app.editColor = p.color; app.editAvatar = p.avatar;
+    $('player-name').value = p.name;
+    $('player-delete').classList.toggle('hidden', id === 'new' || id === 'p0');
+    const pick = () => {
+      $('player-avatars').innerHTML = PR.AVATARS.map((a, i) => `<button data-av="${i}" class="${i === app.editAvatar ? 'on' : ''}">${a}</button>`).join('');
+      $('player-colors').innerHTML = PR.COLORS.map((c, i) => `<button data-col="${i}" style="--c:${c}" class="${i === app.editColor ? 'on' : ''}" aria-label="couleur ${i + 1}"></button>`).join('');
+    };
+    pick();
+    app.repick = pick;
+    setTimeout(() => $('player-name').focus(), 50);
+  }
+  function savePlayer() {
+    const name = $('player-name').value;
+    if (app.editing === 'new') PR.select(PR.create(name, app.editColor, app.editAvatar));
+    else { PR.rename(app.editing, name, app.editColor, app.editAvatar); renderPlayers(); updatePlayerButton(); }
+  }
+  document.addEventListener('click', (e) => {
+    const av = e.target.closest('[data-av]'), col = e.target.closest('[data-col]');
+    if (av) { app.editAvatar = +av.dataset.av; app.repick(); return; }
+    if (col) { app.editColor = +col.dataset.col; app.repick(); return; }
+    const ed = e.target.closest('[data-edit]');
+    if (ed) { e.stopPropagation(); editPlayer(ed.dataset.edit); return; }
+    const pl = e.target.closest('[data-player]');
+    if (pl) {
+      if (pl.dataset.player === 'new') { editPlayer('new'); return; }
+      PR.markChosen();
+      if (pl.dataset.player === PR.active()) { show('menu'); return; }
+      PR.select(pl.dataset.player);
+    }
+  });
+  updatePlayerButton();
+  // plusieurs joueurs sur cet appareil : on demande qui joue, une fois par visite
+  if (PR.shouldAsk()) { renderPlayers(); show('profiles'); }
+
   /** « Mon aventure » : progression des quatre mondes, rang et badges. */
   function renderAlbum() {
     const S = [1, 2, 3, 4].map(levelSave);
@@ -928,6 +986,10 @@
       }
       case 'controls': show('controls'); break;
       case 'album': renderAlbum(); show('album'); break;
+      case 'profiles': renderPlayers(); show('profiles'); break;
+      case 'player-save': savePlayer(); break;
+      case 'player-cancel': editPlayer(null); break;
+      case 'player-delete': if (app.editing && app.editing !== 'new' && confirm('Supprimer ce joueur et toute sa progression ?')) { window.Profiles.remove(app.editing); renderPlayers(); } break;
       case 'combat-menu': {
         const open = $('combat-panel').classList.toggle('hidden') === false;
         document.querySelector('.combat-toggle').setAttribute('aria-expanded', open);
