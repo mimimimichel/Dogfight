@@ -880,7 +880,7 @@ export function buildPlay(game, decor) {
     if (!s.intro) { game.say([{ who: g.name, text: 'Bonjour ! Allez d\'abord dire bonjour à Mamie Labrador, sur la place de la Fontaine.' }]); return; }
     if (id === 'shop') { openShop(P); return; }
     if (st.m && st.m.id === id) { game.say([{ who: g.name, text: objective(P.id) }]); return; }
-    if (st.m) { game.say([{ who: g.name, text: `Finissez d'abord « ${missionDef(st.m.id).title} », on verra après !` }]); return; }
+    if (st.m) { game.say([{ who: g.name, text: 'Finissez d\'abord votre mission en cours, on verra après !' }]); return; }
     const best = city().best;
     const say = (lines) => game.say(lines.map(t => ({ who: g.name, text: t })), () => start(id, P));
     const thanks = (t) => game.say([{ who: g.name, text: t }]);
@@ -1150,7 +1150,7 @@ export function buildPlay(game, decor) {
       if (owned('boss')) { game.say([{ who: 'Mamie Labrador', text: `La ville est sauvée ! Il vous reste ${S.medals.length - s.medals.length} trophée(s), des sauts acrobatiques et des pièces à trouver. Amusez-vous !` }]); return; }
       if (st.m && st.m.id === 'boss') { game.say([{ who: 'Mamie Labrador', text: objective() }]); return; }
       if (unlocked('boss')) {
-        if (st.m) { game.say([{ who: 'Mamie Labrador', text: `Finissez d'abord « ${missionDef(st.m.id).title} », et revenez me voir !` }]); return; }
+        if (st.m) { game.say([{ who: 'Mamie Labrador', text: 'Finissez d\'abord votre mission en cours, et revenez me voir !' }]); return; }
         game.say([
           { who: 'Mamie Labrador', text: `${s.medals.length} trophées ! Toute la ville parle de vous.` },
           { who: 'Mamie Labrador', text: 'La Capitaine Moustache et son gang se cachent aux docks, entre les conteneurs. C\'est le moment !' },

@@ -3219,7 +3219,7 @@ class Adventure {
         Biscotte : « Retriever » par doinspire<br>
         Habitants : « Doge » par kitsuneko_3d, « Riley » par lopuh22721, « Bulldog Puppy » par doinspire<br>
         Matières, ciel, arbres et fougères scannés : Poly Haven (CC0)<br>
-        Voix : synthèse vocale Piper (rhasspy), voix SIWIS (CC BY 4.0) et UPMC Pierre et Jessica (CC BY-SA 4.0)</div>
+        Voix : synthèse vocale Chatterbox (Resemble AI, MIT), d'après des lecteurs du corpus Multilingual LibriSpeech (CC BY 4.0)</div>
         <button class="btn primary" data-a="pause">Retour</button>`;
     } else if (kind === 'continue') {
       html = `<h2>${L.NAME}</h2>

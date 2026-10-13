@@ -1,11 +1,11 @@
 # Voix des personnages
 
-Générées par synthèse vocale avec [Piper](https://github.com/rhasspy/piper)
-(outil : `tools/voices/`), puis retouchées (hauteur, formants, débit) avec ffmpeg/rubberband.
+Générées par synthèse vocale avec **Chatterbox multilingue** (Resemble AI, licence MIT),
+qui imite le timbre d'un court extrait de référence (outil : `tools/voices/`).
 
-Voix de base (https://huggingface.co/rhasspy/piper-voices) :
+Extraits de référence : lecteurs du corpus **Multilingual LibriSpeech** (français),
+Pratap et al., 2020 — licence CC BY 4.0 (https://www.openslr.org/94/), enregistrements
+LibriVox du domaine public. Pour Matcha et Biscotte, l'extrait a été rendu plus aigu
+(voix d'enfant) avant d'être imité.
 
-- `fr_FR-siwis-medium` — corpus SIWIS (Université d'Édimbourg), licence CC BY 4.0
-- `fr_FR-upmc-medium` — corpus UPMC Pierre et Jessica (MaryTTS), licence CC BY-SA 4.0
-
-Ces enregistrements dérivés sont partagés sous les mêmes conditions (CC BY-SA 4.0).
+Les répliques sont vérifiées par transcription automatique (faster-whisper, licence MIT).
