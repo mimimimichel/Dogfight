@@ -70,7 +70,7 @@ export function buildNpc(name, opts) {
       const x = a[i], y = a[i + 1], z = a[i + 2];
       if (y < legTop) { const q = acc[legOf(x, z)]; q[0] += x; q[1] += z; q[2]++; }
       if (opts.headTop ? y > H * opts.headTop : (z > headZ && y > legTop)) { hy += y; hz += z; hn++; }
-      if (z < tailZ && y > legTop * 0.6) { ty += y; tn++; }
+      if (z < tailZ && (opts.tailMaxY ? y < H * opts.tailMaxY : y > legTop * 0.6)) { ty += y; tn++; }
     }
   }
   // ---- os ----
@@ -91,7 +91,7 @@ export function buildNpc(name, opts) {
       let bi = 0, w = 0;
       if (opts.legs !== false && y < legTop) { bi = 1 + legOf(x, z); w = sm(legTop, legTop - H * 0.12, y); }
       else if (opts.headTop ? y > H * opts.headTop : z > headZ) { bi = 5; w = opts.headTop ? sm(H * opts.headTop, H * (opts.headTop + 0.05), y) : sm(headZ, headZ + L * 0.06, z); }
-      else if (z < tailZ) { bi = 6; w = sm(tailZ, tailZ - L * 0.05, z); }
+      else if (z < tailZ && (!opts.tailMaxY || y < H * opts.tailMaxY)) { bi = 6; w = sm(tailZ, tailZ - L * 0.05, z) * (opts.tailMaxY ? sm(H * opts.tailMaxY, H * opts.tailMaxY * 0.6, y) : 1); }
       si[i * 4] = bi; sw[i * 4] = w; si[i * 4 + 1] = 0; sw[i * 4 + 1] = 1 - w;
     }
     const g = p.g.clone();
@@ -128,7 +128,8 @@ const mean = (pts) => pts.reduce((m, p) => [m[0] + p[0] / pts.length, m[1] + p[1
 /** Mamie Labrador : golden retriever assis, lunettes rondes et bandana rouge. */
 export function buildMamieReal() {
   const HT = 0.72;
-  const g = buildNpc('mamie', { legs: false, headTop: HT, tail: 0.12, legTop: 0.3 });
+  // la queue est posée au sol derrière elle : seule la queue remue (pas l'arrière-train) ; pelage doré de labrador
+  const g = buildNpc('mamie', { legs: false, headTop: HT, tail: 0.1, tailMaxY: 0.1, legTop: 0.3, tint: 0xffe2b0 });
   const u = g.userData, H = cache.mamie.meta.size[1];
   // repères tirés de la forme : bout du museau, centre de la tête, cou
   const headPts = points('mamie', (x, y) => y > H * (HT + 0.04));
@@ -161,5 +162,8 @@ export function buildMamieReal() {
   const tri = new THREE.Mesh(new THREE.ConeGeometry(nr * 0.42, H * 0.08, 3), red); tri.rotation.set(Math.PI, 0, 0); tri.scale.z = 0.35; tri.position.set(0, -H * 0.035, nr * 0.98);
   const bandana = new THREE.Group(); bandana.add(band, tri); bandana.position.set(nc[0], nc[1], nc[2]);
   u.body.add(bandana);
+  // elle baisse la tête vers les chiens au lieu de regarder le ciel
+  u.head.rotation.x = 0.55;
+  u.headRestX = 0.55;
   return g;
 }
