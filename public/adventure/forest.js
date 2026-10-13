@@ -405,10 +405,8 @@ export function buildForest(game) {
       const hgt = r.top - g + 1.2;
       const m = new THREE.Mesh(W.rockGeometry(500 + i, r.r * 1.05, hgt / 2, r.r * 1.05), rm);
       // dessus aplati, pour bien voir où se poser (même hauteur que la collision)
-      const p = m.geometry.attributes.position;
-      for (let k = 0; k < p.count; k++) if (p.getY(k) > hgt / 2 - 0.15) p.setY(k, hgt / 2 - 0.15 + (p.getY(k) - (hgt / 2 - 0.15)) * 0.15);
-      m.geometry.computeVertexNormals();
-      m.position.set(r.x, r.top - (hgt / 2 - 0.12), r.z);
+      const top = W.flattenRockTop(m.geometry);
+      m.position.set(r.x, r.top - top + 0.03, r.z);
       sc.add(shadowy(m));
     });
   }

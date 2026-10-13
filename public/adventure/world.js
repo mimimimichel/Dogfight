@@ -498,29 +498,102 @@ export function buildTrees(scene, quality) {
   scene.add(trunks, leaves);
 }
 
-// Rocher arrondi et un peu bosselé, avec de la mousse sur le dessus
+// Rocher : une boule finement découpée, bosselée sur plusieurs échelles, avec quelques
+// grandes faces de cassure bien plates (comme un vrai bloc de pierre) et de la mousse dessus.
+function rnoise(x, y, z) {
+  const h = (a, b, c) => { const v = Math.sin(a * 127.1 + b * 311.7 + c * 74.7) * 43758.5453; return v - Math.floor(v); };
+  const ix = Math.floor(x), iy = Math.floor(y), iz = Math.floor(z);
+  let fx = x - ix, fy = y - iy, fz = z - iz;
+  fx = fx * fx * (3 - 2 * fx); fy = fy * fy * (3 - 2 * fy); fz = fz * fz * (3 - 2 * fz);
+  const l = (a, b, t) => a + (b - a) * t;
+  return l(l(l(h(ix, iy, iz), h(ix + 1, iy, iz), fx), l(h(ix, iy + 1, iz), h(ix + 1, iy + 1, iz), fx), fy),
+    l(l(h(ix, iy, iz + 1), h(ix + 1, iy, iz + 1), fx), l(h(ix, iy + 1, iz + 1), h(ix + 1, iy + 1, iz + 1), fx), fy), fz);
+}
+/** Fusionne les sommets confondus (la géométrie d'origine est « éclatée » par face). */
+function weld(g) {
+  const p = g.attributes.position, map = new Map(), idx = [], pos = [];
+  for (let i = 0; i < p.count; i++) {
+    const k = Math.round(p.getX(i) * 1e4) + ',' + Math.round(p.getY(i) * 1e4) + ',' + Math.round(p.getZ(i) * 1e4);
+    let j = map.get(k);
+    if (j === undefined) { j = pos.length / 3; map.set(k, j); pos.push(p.getX(i), p.getY(i), p.getZ(i)); }
+    idx.push(j);
+  }
+  const out = new THREE.BufferGeometry();
+  out.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+  out.setIndex(idx);
+  return out;
+}
 export function rockGeometry(seed, rx, ry, rz) {
   const r = rng(seed);
-  const g = new THREE.IcosahedronGeometry(1, 2);
+  const g = weld(new THREE.IcosahedronGeometry(1, 10));
   const p = g.attributes.position;
-  const off = [r() * 10, r() * 10, r() * 10];
+  const o = [r() * 40, r() * 40, r() * 40];
+  // plans de cassure : on rabote tout ce qui dépasse
+  const cuts = [];
+  for (let k = 0; k < 8; k++) {
+    const a = r() * Math.PI * 2, e = (r() - 0.35) * 1.2;
+    cuts.push({ n: [Math.cos(a) * Math.cos(e), Math.sin(e), Math.sin(a) * Math.cos(e)], d: 0.8 + r() * 0.12 });
+  }
   for (let i = 0; i < p.count; i++) {
-    const x = p.getX(i), y = p.getY(i), z = p.getZ(i);
-    const k = 1 + 0.12 * Math.sin(x * 3 + off[0]) * Math.cos(z * 3 + off[1]) + 0.06 * Math.sin(y * 5 + off[2]);
-    p.setXYZ(i, x * k * rx, y * k * ry, z * k * rz);
+    let x = p.getX(i), y = p.getY(i), z = p.getZ(i);
+    const big = rnoise(x * 1.3 + o[0], y * 1.3 + o[1], z * 1.3 + o[2]) - 0.5;
+    const mid = rnoise(x * 3.1 + o[1], y * 3.1 + o[2], z * 3.1 + o[0]) - 0.5;
+    const fine = rnoise(x * 8 + o[2], y * 8 + o[0], z * 8 + o[1]) - 0.5;
+    let k = 1 + big * 0.26 + mid * 0.12 + fine * 0.05;
+    x *= k; y *= k; z *= k;
+    for (const c of cuts) {
+      const dd = x * c.n[0] + y * c.n[1] + z * c.n[2];
+      if (dd > c.d) { const t = dd - c.d - fine * 0.03; x -= c.n[0] * t; y -= c.n[1] * t; z -= c.n[2] * t; }
+    }
+    if (y < -0.55) y = -0.55 + (y + 0.55) * 0.25;      // posé à plat sur le sol
+    p.setXYZ(i, x * rx, y * ry, z * rz);
   }
   g.computeVertexNormals();
   const n = g.attributes.normal;
   const col = new Float32Array(p.count * 3);
-  const stone = new THREE.Color(0xb4aca2), moss = new THREE.Color(0x6aa83e), c = new THREE.Color();
+  const stone = new THREE.Color(0xd8d2ca), dark = new THREE.Color(0xa8a096), moss = new THREE.Color(0x8ab858), c = new THREE.Color();
   for (let i = 0; i < p.count; i++) {
-    c.copy(stone).offsetHSL(0, 0, (Math.sin(p.getX(i) * 4) * 0.5) * 0.06).lerp(moss, smooth(0.55, 0.85, n.getY(i)) * 0.8);
+    const x = p.getX(i), y = p.getY(i), z = p.getZ(i);
+    const v = rnoise(x * 0.9 + o[0], y * 0.9, z * 0.9 + o[1]);
+    c.copy(stone).lerp(dark, smooth(0.3, 0.8, v) * 0.6 + smooth(0.0, -0.6, n.getY(i)) * 0.35);
+    const mossK = smooth(0.45, 0.85, n.getY(i)) * smooth(0.25, 0.6, rnoise(x * 1.6 + o[2], y * 1.6, z * 1.6));
+    c.lerp(moss, mossK * 0.7);
     col[i * 3] = c.r; col[i * 3 + 1] = c.g; col[i * 3 + 2] = c.b;
   }
   g.setAttribute('color', new THREE.BufferAttribute(col, 3));
   return g;
 }
-export const rockMat = () => new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.85 });
+/** Aplatit le dessus d'un rocher (on voit bien où se poser) ; renvoie la hauteur du dessus. */
+export function flattenRockTop(geo, band) {
+  const p = geo.attributes.position;
+  let top = -Infinity;
+  for (let i = 0; i < p.count; i++) top = Math.max(top, p.getY(i));
+  const cut = top - (band || 0.35);
+  let out = -Infinity;
+  for (let i = 0; i < p.count; i++) { let y = p.getY(i); if (y > cut) { y = cut + (y - cut) * 0.12; p.setY(i, y); } out = Math.max(out, y); }
+  geo.computeVertexNormals();
+  return out;
+}
+/**
+ * Matière des rochers : photo de roche moussue plaquée « des trois côtés » (projection
+ * triplanaire : pas d'étirement, pas de couture), teintée par les couleurs du rocher.
+ */
+let rockM = null;
+export const rockMat = () => {
+  if (rockM) return rockM;
+  const ph = LOOK.real && RT.hasPhotos() ? RT.photo('mossy_rock', 1) : null;
+  if (!ph) return (rockM = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.85 }));
+  const m = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.92, map: ph.map, color: new THREE.Color(1.9, 1.85, 1.78) });
+  m.onBeforeCompile = (sh) => {
+    sh.vertexShader = 'varying vec3 vTriP; varying vec3 vTriN;\n' + sh.vertexShader.replace('#include <begin_vertex>', '#include <begin_vertex>\n  vTriP = position * 0.32; vTriN = normal;');
+    sh.fragmentShader = 'varying vec3 vTriP; varying vec3 vTriN;\n' + sh.fragmentShader.replace('#include <map_fragment>', `
+      vec3 bw = pow(abs(normalize(vTriN)), vec3(4.0)); bw /= (bw.x + bw.y + bw.z);
+      vec4 tx = texture2D(map, vTriP.zy) * bw.x + texture2D(map, vTriP.xz) * bw.y + texture2D(map, vTriP.xy) * bw.z;
+      diffuseColor *= tx;`);
+  };
+  m.customProgramCacheKey = () => 'rockTri';
+  return (rockM = m);
+};
 
 // ---------------------------------------------------------------------------
 // Nuages et papillons

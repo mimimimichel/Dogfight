@@ -957,21 +957,16 @@ class Adventure {
       const g = L.heightAt(r.x, r.z);
       const hgt = r.top - g + 1.2;
       const m = new THREE.Mesh(W.rockGeometry(40 + i, r.r * 1.05, hgt / 2, r.r * 1.05), rm);
-      m.position.set(r.x, g - 1.2 + hgt / 2, r.z);
-      // dessus aplati pour qu'on voie bien où se poser
-      const p = m.geometry.attributes.position;
-      for (let k = 0; k < p.count; k++) if (p.getY(k) > hgt / 2 - 0.15) p.setY(k, hgt / 2 - 0.15 + (p.getY(k) - (hgt / 2 - 0.15)) * 0.15);
-      m.geometry.computeVertexNormals();
-      m.position.y = r.top - (hgt / 2 - 0.12);
+      // dessus aplati pour qu'on voie bien où se poser, exactement à la hauteur de la collision
+      const top = W.flattenRockTop(m.geometry);
+      m.position.set(r.x, r.top - top + 0.03, r.z);
       m.castShadow = m.receiveShadow = true;
       sc.add(m);
     });
     L.stones.forEach((s, i) => {
       const m = new THREE.Mesh(W.rockGeometry(60 + i, 1.25, 2.4, 1.25), rm);
-      const p = m.geometry.attributes.position;
-      for (let k = 0; k < p.count; k++) if (p.getY(k) > 2.1) p.setY(k, 2.1 + (p.getY(k) - 2.1) * 0.2);
-      m.geometry.computeVertexNormals();
-      m.position.set(s.x, s.top - 2.18, s.z);
+      const top = W.flattenRockTop(m.geometry, 0.3);
+      m.position.set(s.x, s.top - top + 0.03, s.z);
       m.castShadow = m.receiveShadow = true;
       sc.add(m);
     });

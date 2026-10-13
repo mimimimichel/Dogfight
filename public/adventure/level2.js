@@ -329,5 +329,9 @@ export const trees = [];
     const sc = 0.95 + rnd() * 0.7;
     trees.push({ x, z, y: h, s: sc, h: 8.5 + rnd() * 3 });
   }
+  // pas d'arbre à cheval sur une falaise (la moitié des racines dans le vide)
+  const onCliff = (t) => { for (let a = 0; a < 6.28; a += 0.785) if (Math.abs(heightAt(t.x + Math.cos(a) * 2.2, t.z + Math.sin(a) * 2.2) - t.y) > 1.3) return true; return false; };
+  // ni sur le Rocher du Hibou (la statue a besoin de place)
+  for (let i = trees.length - 1; i >= 0; i--) if (onCliff(trees[i]) || Math.hypot(trees[i].x - OWL.x, trees[i].z - OWL.z) < OWL.r + 2.5) trees.splice(i, 1);
   for (const t of trees) cyl(t.x, t.z, 0.55 * t.s, t.y - 1, t.y + t.h, { kind: 'tree' });
 }
