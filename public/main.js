@@ -972,6 +972,7 @@
         break;
       }
       case 'coop': show('coop'); coopReset(); break;
+      case 'install': promptInstall(); break;
       case 'coop-host': coopHost(); break;
       case 'coop-kind-ainu': case 'coop-kind-matcha': profile.kind = a === 'coop-kind-ainu' ? 'ainu' : 'matcha'; saveProfile(profile); renderProfile(); break;
       case 'coop-join': coopJoin(); break;
@@ -1182,6 +1183,11 @@
     coopInviteCode = coopInvite;
     coopReset(profile.name ? '' : `Tu es invité dans le monde ${coopInvite} ! Dis-nous qui tu es :`);
     history.replaceState(null, '', location.pathname + (params.get('peer') ? '?peer=' + params.get('peer') : ''));
+  } else if (params.get('menu') === 'coop') {
+    // raccourci « Monde partagé » de l'appli installée
+    show('coop');
+    coopReset();
+    history.replaceState(null, '', location.pathname);
   }
   if (invite) {
     app.mode = 'online';
@@ -1189,6 +1195,35 @@
     $('join-code').value = invite;
     $('online-status').textContent = `Invitation au salon ${invite} : clique sur « Rejoindre ».`;
     history.replaceState(null, '', location.pathname);
+  }
+
+  // ---------------------------------------------------------------------------
+  // Appli installable : bouton « Installer » (Android) et service worker (hors-ligne)
+  // ---------------------------------------------------------------------------
+  let installEvt = null;
+  window.addEventListener('beforeinstallprompt', (e) => {
+    e.preventDefault(); // pas de bandeau automatique : on propose notre bouton discret
+    installEvt = e;
+    $('install-btn').classList.remove('hidden');
+  });
+  window.addEventListener('appinstalled', () => { installEvt = null; $('install-btn').classList.add('hidden'); });
+  function promptInstall() {
+    if (!installEvt) return;
+    const e = installEvt;
+    installEvt = null;
+    $('install-btn').classList.add('hidden');
+    e.prompt();
+    if (e.userChoice) e.userChoice.catch(() => {});
+  }
+  if ('serviceWorker' in navigator) {
+    const local = /^(localhost|127\.0\.0\.1|\[::1\])$/.test(location.hostname);
+    if (!(local && params.has('nosw'))) {
+      const register = () => navigator.serviceWorker.register('sw.js').catch(() => { /* hors HTTPS, navigation privée… */ });
+      if (document.readyState === 'complete') register(); else window.addEventListener('load', register);
+    } else {
+      // développement : ?nosw retire aussi un service worker déjà installé
+      navigator.serviceWorker.getRegistrations().then((rs) => rs.forEach((r) => r.unregister())).catch(() => {});
+    }
   }
 
   function escapeHtml(s) {

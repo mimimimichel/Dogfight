@@ -417,3 +417,10 @@ html.ios-text .hbtn.small, html.ios-text .hbtn.lvpick:not(.active), html.ios-tex
 .coop-qr svg { width: 128px; height: 128px; background: #fff; border-radius: 10px; padding: 4px; box-shadow: 0 4px 12px rgba(0,0,0,.2); }
 .coop-qr small { font-size: 12px; opacity: .85; }
 @media (max-height: 420px) { .coop-qr svg { width: 92px; height: 92px; } }
+
+/* « Installer le jeu » (Android, seulement quand le navigateur le propose) : discret, sous les petits boutons */
+.home-row:has(.install-btn:not(.hidden)) { flex-wrap: wrap; }
+.home-row .hbtn.install-btn {
+  flex: 1 0 100%; font-size: 14px; padding: 6px 10px 8px;
+  background: linear-gradient(#f2ffe8, #b8e8a0); color: #1e5a14;
+}
