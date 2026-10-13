@@ -2,7 +2,7 @@
  * Matcha & Ainu — écran d'accueil coloré (style plates-formes 3D),
  * dans la scène de 960×540 CSS mise à l'échelle par main.js.
  */
-#screen-menu.home, #screen-coop.home, #screen-levels.home {
+#screen-menu.home, #screen-coop.home, #screen-levels.home, #screen-album.home {
   --hf: 'Fredoka', 'Arial Rounded MT Bold', system-ui, sans-serif;
   flex-direction: row;
   justify-content: space-between;
@@ -316,3 +316,76 @@ html.ios-text .hbtn.small, html.ios-text .hbtn.lvpick:not(.active), html.ios-tex
 #screen-levels .coop-card { gap: 10px; padding: 14px 20px; }
 #screen-levels .level-card .lv-num { font-size: 40px; }
 #screen-levels .level-card b { font-size: 20px; }
+
+/* ------------------------------------------------------------------------
+   Transitions entre les écrans : fondu, puis les cartes et boutons arrivent
+   l'un après l'autre avec un petit rebond.
+   ------------------------------------------------------------------------ */
+#ui .screen:not(.hidden) { animation: scrIn 0.32s ease-out both; }
+@keyframes scrIn { from { opacity: 0; } }
+#ui .screen:not(.hidden) .coop-card { animation: cardIn 0.5s cubic-bezier(0.2, 0.9, 0.3, 1.25) both; }
+@keyframes cardIn { from { opacity: 0; transform: translateY(26px) scale(0.94); } }
+#ui .screen:not(.hidden) .home-right > *, #ui .screen:not(.hidden) .level-card, #ui .screen:not(.hidden) .album-world, #ui .screen:not(.hidden) .abadge {
+  animation: popIn 0.45s cubic-bezier(0.2, 0.9, 0.3, 1.4) both;
+}
+@keyframes popIn { from { opacity: 0; transform: translateY(18px) scale(0.85); } }
+#ui .screen:not(.hidden) .home-right > *:nth-child(2), #ui .screen:not(.hidden) .level-card:nth-child(2), #ui .screen:not(.hidden) .album-world:nth-child(2) { animation-delay: 0.07s; }
+#ui .screen:not(.hidden) .home-right > *:nth-child(3), #ui .screen:not(.hidden) .level-card:nth-child(3), #ui .screen:not(.hidden) .album-world:nth-child(3) { animation-delay: 0.14s; }
+#ui .screen:not(.hidden) .home-right > *:nth-child(4), #ui .screen:not(.hidden) .level-card:nth-child(4), #ui .screen:not(.hidden) .album-world:nth-child(4) { animation-delay: 0.21s; }
+#ui .screen:not(.hidden) .home-right > *:nth-child(5) { animation-delay: 0.28s; }
+#ui .screen:not(.hidden) .abadge { animation-delay: calc(0.3s + var(--i, 0) * 0.04s); }
+.hbtn, .level-card { transition: transform 0.15s cubic-bezier(0.2, 0.9, 0.3, 1.6), filter 0.15s; }
+.hbtn:hover { filter: brightness(1.07); }
+.level-card .lv-bar { position: relative; z-index: 1; width: 78%; height: 8px; margin-top: 6px; border-radius: 6px; background: rgba(42, 20, 8, 0.55); overflow: hidden; }
+.level-card .lv-bar i { display: block; height: 100%; width: var(--p, 0%); border-radius: 6px; background: linear-gradient(90deg, #ffe066, #ffb020); }
+@media (prefers-reduced-motion: reduce) { #ui .screen, #ui .screen * { animation: none !important; } }
+
+/* ------------------------------------------------------------------------
+   « Mon aventure » : progression des 4 mondes et badges
+   ------------------------------------------------------------------------ */
+#screen-album.home { justify-content: center; align-items: center; }
+#screen-album .hbtn { font-family: var(--hf); }
+.album-card { background: rgba(255, 255, 255, 0.78); }
+.album-card { width: 820px; max-height: calc(100% - 20px); overflow-y: auto; gap: 10px; padding: 16px 22px 16px; }
+.album-head { display: flex; align-items: center; justify-content: space-between; width: 100%; gap: 16px; }
+.album-total { display: flex; align-items: center; gap: 12px; font-family: var(--hf); color: #3a2010; text-align: left; }
+.album-total b { display: block; font-size: 22px; }
+.album-total small { font-size: 14px; font-weight: 600; }
+.album-total .ring { width: 74px; height: 74px; border-radius: 50%; display: grid; place-items: center; flex: none;
+  background: conic-gradient(#ffb020 var(--p, 0%), rgba(42, 20, 8, 0.18) 0); border: 3px solid #2a1408; box-shadow: 0 4px 0 #2a1408; }
+.album-total .ring b { width: 54px; height: 54px; border-radius: 50%; display: grid; place-items: center; background: #fff8e0; font-size: 18px; }
+.album-worlds { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; width: 100%; }
+.album-world { position: relative; border: 3px solid #2a1408; border-radius: 18px; box-shadow: 0 5px 0 #2a1408; padding: 10px 10px 12px; color: #fff; font-family: var(--hf); text-align: left; min-height: 150px; }
+.album-world.l1 { background: linear-gradient(170deg, #5ab4ff, #3a8a2a); }
+.album-world.l2 { background: linear-gradient(170deg, #ff9a6a, #2f7c2c); }
+.album-world.l3 { background: linear-gradient(170deg, #5ab4ff, #1a5ab0); }
+.album-world.l4 { background: linear-gradient(170deg, #4a90f0, #d890b8); }
+.album-world.new { filter: grayscale(0.75) brightness(0.85); }
+.album-world h4 { margin: 0 0 6px; padding-right: 44px; font-size: 16px; line-height: 1.05; -webkit-text-stroke: 4px #2a1408; paint-order: stroke fill; }
+.album-world .pct { position: absolute; right: 8px; top: 6px; font-size: 20px; font-weight: 700; color: #ffd23a; -webkit-text-stroke: 5px #2a1408; paint-order: stroke fill; }
+.album-world .row { display: flex; align-items: center; gap: 6px; font-size: 13px; font-weight: 700; margin-top: 5px; -webkit-text-stroke: 3px #2a1408; paint-order: stroke fill; }
+.album-world .dots { display: flex; flex-wrap: wrap; gap: 3px; margin-top: 4px; }
+.album-world .dots i { width: 14px; height: 14px; border-radius: 50%; border: 2px solid #2a1408; background: rgba(255, 255, 255, 0.3); }
+.album-world .dots i.on { background: radial-gradient(circle at 35% 30%, #fff6a0, #ffc820 60%, #e08a00); }
+.album-world .bar { flex: 1; height: 9px; border-radius: 6px; background: rgba(42, 20, 8, 0.55); overflow: hidden; }
+.album-world .bar i { display: block; height: 100%; width: var(--p, 0%); background: linear-gradient(90deg, #ffe066, #ffb020); }
+.album-world .tag { display: inline-block; margin-top: 6px; font-size: 12px; font-weight: 700; padding: 2px 8px; border-radius: 9px; background: rgba(42, 20, 8, 0.7); -webkit-text-stroke: 0; }
+.album-sub { margin: 4px 0 0; font-family: var(--hf); font-size: 22px; color: #3a2010; }
+.album-badges { display: flex; flex-wrap: wrap; gap: 8px; justify-content: center; }
+.abadge { width: 86px; display: flex; flex-direction: column; align-items: center; gap: 2px; font-family: var(--hf); font-size: 11px; font-weight: 700; color: #3a2010; line-height: 1.1; }
+.abadge .ic { width: 48px; height: 48px; border-radius: 50%; display: grid; place-items: center; font-size: 24px; border: 3px solid #2a1408; box-shadow: 0 3px 0 #2a1408;
+  background: radial-gradient(circle at 35% 30%, #fff6a0, #ffc820 60%, #e08a00); }
+.abadge.off .ic { background: #c8c0b8; filter: grayscale(1); opacity: 0.55; }
+.abadge.off { color: rgba(58, 32, 16, 0.55); }
+.abadge.off .ic::after { content: '?'; position: absolute; font-size: 22px; color: #fff; -webkit-text-stroke: 4px #2a1408; paint-order: stroke fill; }
+.abadge.off .ic span { visibility: hidden; }
+.abadge .ic { position: relative; }
+@media (max-height: 520px) {
+  .album-card { width: calc(100% - 24px); padding: 10px 14px; gap: 6px; }
+  .album-card .coop-title { font-size: 32px; }
+  .album-world { min-height: 0; padding: 7px 8px 9px; }
+  .album-world h4 { font-size: 14px; }
+  .abadge { width: 70px; font-size: 10px; }
+  .abadge .ic { width: 38px; height: 38px; font-size: 19px; }
+}
+@media (max-width: 700px) { .album-worlds { grid-template-columns: repeat(2, 1fr); } }

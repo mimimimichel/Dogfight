@@ -168,15 +168,73 @@
     const any = started(s1) || started(s2) || started(s3) || started(s4);
     $('adv-play-label').textContent = any ? 'Continuer' : 'Jouer';
     $('adv-play-sub').textContent = any
-      ? `4 niveaux · Médailles ${medals(s1) + medals(s2) + medals(s3) + medals(s4)}/21`
+      ? `4 niveaux · Récompenses ${medals(s1) + medals(s2) + medals(s3) + medals(s4)}/28`
       : "Explore l'île avec tes chiens !";
     const prog = (s, what) => (started(s) ? `Médailles ${medals(s)}/5 · ${what} ${(s.bones || []).length}/100` : 'Nouveau !');
     $('lv1-prog').textContent = prog(s1, 'Os');
     $('lv2-prog').textContent = prog(s2, 'Croquettes');
-    $('lv3-prog').textContent = started(s3) ? `Trophées ${medals(s3)}/5 · Pièces ${(s3.bones || []).length}/100` : 'Nouveau !';
+    $('lv3-prog').textContent = started(s3) ? `Trophées ${medals(s3)}/12 · Pièces ${(s3.bones || []).length}/100` : 'Nouveau !';
+    [[s1, 5], [s2, 5], [s3, 12], [s4, 6]].forEach(([s, n], i) => {
+      const p = s ? Math.round((Math.min((s.medals || []).length, n) / n * 0.7 + Math.min((s.bones || []).length, 100) / 100 * 0.3) * 100) : 0;
+      $('lv' + (i + 1) + '-bar').style.setProperty('--p', p + '%');
+    });
     const best = s4 && s4.sky && s4.sky.best;
     $('lv4-prog').textContent = started(s4) ? `Étoiles ${(s4.medals || []).filter(m => m !== 'm_goal').length}/5${best ? ` · record ${Math.floor(best / 60)}:${String(best % 60).padStart(2, '0')}` : ''}` : 'Nouveau !';
   }
+  /** « Mon aventure » : progression des quatre mondes, rang et badges. */
+  function renderAlbum() {
+    const S = [1, 2, 3, 4].map(levelSave);
+    const has = (s, id) => !!(s && s.medals && s.medals.includes(id));
+    const count = (s, k) => (s && s[k] ? s[k].length : 0);
+    const W = [
+      { n: 'Le Parc des Toutous', med: 5, medName: 'Médailles', col: 'Os', s: S[0] },
+      { n: 'La Forêt des Moustaches', med: 5, medName: 'Médailles', col: 'Croquettes', s: S[1], extra: S[1] && S[1].boss ? 'Capitaine chassée !' : '' },
+      { n: 'Port-Croquette', med: 12, medName: 'Trophées', col: 'Pièces', s: S[2], extra: has(S[2], 'm_boss') ? 'Ville sauvée !' : '' },
+      { n: 'Les Îles du Ciel', med: 6, medName: 'Étoiles + Trophée', col: 'Pièces', s: S[3],
+        extra: S[3] && S[3].sky && S[3].sky.best ? `Record ${Math.floor(S[3].sky.best / 60)}:${String(Math.round(S[3].sky.best) % 60).padStart(2, '0')}` : '' },
+    ];
+    let got = 0, all = 0;
+    $('album-worlds').innerHTML = W.map((w, i) => {
+      const m = count(w.s, 'medals'), b = count(w.s, 'bones');
+      const pct = Math.round((Math.min(m, w.med) / w.med * 0.7 + Math.min(b, 100) / 100 * 0.3) * 100);
+      got += Math.min(m, w.med) * 4 + Math.min(b, 100) / 100 * 10; all += w.med * 4 + 10;
+      const dots = Array.from({ length: w.med }, (_, k) => `<i class="${k < m ? 'on' : ''}"></i>`).join('');
+      return `<div class="album-world l${i + 1}${w.s && w.s.intro ? '' : ' new'}" style="--i:${i}">
+        <span class="pct">${pct}%</span><h4>${i + 1}. ${w.n}</h4>
+        <div class="row">${w.medName} ${Math.min(m, w.med)}/${w.med}</div><div class="dots">${dots}</div>
+        <div class="row">${w.col} ${b}/100 <span class="bar" style="--p:${b}%"><i></i></span></div>
+        ${w.extra ? `<span class="tag">${w.extra}</span>` : (w.s && w.s.intro ? '' : '<span class="tag">Pas encore visité</span>')}
+      </div>`;
+    }).join('');
+    const total = Math.round(got / all * 100);
+    $('album-ring').style.setProperty('--p', total + '%');
+    $('album-pct').textContent = total + '%';
+    const ranks = [[0, 'Chiot curieux'], [10, 'Petit explorateur'], [30, 'Renifleur de pistes'], [50, 'Toutou aventurier'], [75, 'Héros du parc'], [95, 'Toutous légendaires']];
+    $('album-rank').textContent = ranks.filter(r => total >= r[0]).pop()[1];
+    const medTotal = W.reduce((a, w) => a + Math.min(count(w.s, 'medals'), w.med), 0);
+    $('album-sum').textContent = `${medTotal}/28 récompenses · ${W.reduce((a, w) => a + count(w.s, 'bones'), 0)}/400 trésors`;
+    const anyBones100 = W.some(w => count(w.s, 'bones') >= 100);
+    const stars = S[3] ? (S[3].medals || []).filter(x => x !== 'm_goal').length : 0;
+    const badges = [
+      ['🏅', 'Première médaille', medTotal > 0],
+      ['🐶', 'Biscotte retrouvé', has(S[0], 'm_puppy')],
+      ['🐱', 'Chasseurs de chats', has(S[0], 'm_cats')],
+      ['🏮', 'Allumeurs de lanternes', has(S[1], 'm_lanterns')],
+      ['🦉', 'Ami du hibou', has(S[1], 'm_owl')],
+      ['🌲', 'Gardiens de la forêt', !!(S[1] && S[1].boss)],
+      ['🏎️', 'Champions du kart', has(S[2], 'm_champion') || has(S[2], 'm_race')],
+      ['🚕', 'Taxi toutou', has(S[2], 'm_taxi')],
+      ['🏙️', 'Sauveurs de la ville', has(S[2], 'm_boss')],
+      ['🎈', 'Montgolfière dégonflée', !!(S[3] && S[3].sky && S[3].sky.boss)],
+      ['🏆', 'Trophée du Ciel', has(S[3], 'm_goal')],
+      ['⭐', 'Toutes les étoiles', stars >= 5],
+      ['⏱️', 'Plus rapide que le vent', !!(S[3] && S[3].sky && S[3].sky.best && S[3].sky.best < 300)],
+      ['🦴', 'Grand collectionneur', anyBones100],
+      ['👑', 'Toutous légendaires', total >= 95],
+    ];
+    $('album-badges').innerHTML = badges.map(([ic, n, on], i) => `<div class="abadge${on ? '' : ' off'}" style="--i:${i}" title="${n}"><div class="ic"><span>${ic}</span></div>${n}</div>`).join('');
+  }
+
   function renderModes() {
     let m = 'aventure';
     try { m = localStorage.getItem('dogfight.mode') || 'aventure'; } catch (e) { /* ignore */ }
@@ -839,6 +897,7 @@
         break;
       }
       case 'controls': show('controls'); break;
+      case 'album': renderAlbum(); show('album'); break;
       case 'combat-menu': {
         const open = $('combat-panel').classList.toggle('hidden') === false;
         document.querySelector('.combat-toggle').setAttribute('aria-expanded', open);

@@ -293,7 +293,7 @@ export const trees = [];
 {
   let seed = 7;
   const rnd = () => (seed = (seed * 16807) % 2147483647) / 2147483647;
-  const want = { start: 7, balloon: 2, mill: 2, echo: 3, goal: 3 };
+  const want = { start: 7, balloon: 2, mill: 2, echo: 3, goal: 0 };   // l'Île du Trophée reste dégagée : c'est l'arène du combat final
   for (const I of ISLANDS) {
     const n = want[I.id] || 0;
     let guard = 0, made = 0;

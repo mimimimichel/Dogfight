@@ -8,6 +8,7 @@ import { L } from './current.js';
 import * as M from './models.js';
 import * as W from './world.js';
 import * as RT from './realtex.js';
+import { buildSkyBoss } from './sky_boss.js';
 
 const clamp = (v, a, b) => (v < a ? a : v > b ? b : v);
 function rng(seed) { let s = seed >>> 0 || 1; return () => (s = (s * 16807) % 2147483647) / 2147483647; }
@@ -577,8 +578,11 @@ export function buildSky(game) {
   }
   const headHeight = (Q) => (Q.mesh && Q.mesh.userData.ainu ? 1.45 : (Q.mesh && Q.mesh.userData.height) || 1.0);
 
+  // le combat final contre la Capitaine, sur l'Île du Trophée
+  const boss = buildSkyBoss(game, S, sky);
+
   const logic = {
-    moving, chars,
+    moving, chars, boss,
     step(dt) {
       const t = game.t, players = game.players;
       S.updateMovers(t);
@@ -622,6 +626,7 @@ export function buildSky(game) {
           }
         }
       }
+      boss.step(dt);
       // nuages fragiles
       st.crumble.forEach((c, i) => {
         const def = S.crumbles[i];
@@ -659,12 +664,15 @@ export function buildSky(game) {
     },
     /** Mode Promenade : le chemin d'étincelles mène au prochain drapeau, puis au Trophée. */
     guideTarget() {
+      if (boss.active) return null;
       if (st.cp >= S.CHECKPOINTS.length - 1) { const g = S.medals.find(m => m.id === S.FINAL_MEDAL); return save().medals.includes(g.id) ? null : g; }
       const c = S.CHECKPOINTS[st.cp + 1];
       return { x: c.x, y: c.y, z: c.z };
     },
-    reveal() { const o = {}; for (const m of S.medals) o[m.id] = true; return o; },
+    camFocus() { return boss.focus(); },
+    reveal() { const o = {}; for (const m of S.medals) o[m.id] = true; o[S.FINAL_MEDAL] = boss.done || save().medals.includes(S.FINAL_MEDAL); return o; },
     applySave() {
+      boss.sync();
       st.cp = sky().cp;
       if (sky().bridge) setBridge('on');
       flags.forEach((f, i) => { f.raise = i <= st.cp ? 1 : 0; });
@@ -676,6 +684,8 @@ export function buildSky(game) {
       const tm = Math.floor(st.runT);
       const chrono = `${Math.floor(tm / 60)}:${String(tm % 60).padStart(2, '0')}`;
       if (!s.intro) return 'Parle à Mamie Labrador';
+      if (boss.active) return `Combat ! Battez la Capitaine (${boss.hp} coup${boss.hp > 1 ? 's' : ''})`;
+      if (boss.done && !s.medals.includes(S.FINAL_MEDAL)) return 'Attrapez le Trophée du Ciel !';
       if (s.medals.includes(S.FINAL_MEDAL)) return `Parcours fini ! ⭐ ${stars}/5${sky().best ? ` · record ${Math.floor(sky().best / 60)}:${String(Math.floor(sky().best) % 60).padStart(2, '0')}` : ''}`;
       const next = S.CHECKPOINTS[Math.min(st.cp + 1, S.CHECKPOINTS.length - 1)];
       return st.running ? `Vers : ${next.name} · ⭐ ${stars}/5 · ⏱ ${chrono}` : `Vers : ${next.name} · ⭐ ${stars}/5`;
@@ -686,9 +696,10 @@ export function buildSky(game) {
       return out;
     },
     snapshot() {
-      return { f: st.running ? 1 : 0, cp: st.cp, b: st.bridge === 'on' ? 1 : st.bridge === 'timed' ? Math.round((st.bridgeUntil - game.t) * 10) / 10 : 0, c: st.crumble.map(c => (c.s === 'idle' ? 0 : c.s === 'shake' ? 1 : 2)), r: Math.round(st.runT), p: st.plates.map(Number) };
+      return { bo: boss.snapshot(), f: st.running ? 1 : 0, cp: st.cp, b: st.bridge === 'on' ? 1 : st.bridge === 'timed' ? Math.round((st.bridgeUntil - game.t) * 10) / 10 : 0, c: st.crumble.map(c => (c.s === 'idle' ? 0 : c.s === 'shake' ? 1 : 2)), r: Math.round(st.runT), p: st.plates.map(Number) };
     },
     apply(x) {
+      boss.apply(x.bo);
       if (x.cp > st.cp) { flags[x.cp].raisedAt = game.t; }
       st.cp = x.cp; st.runT = x.r; st.running = !!x.f; st.plates = x.p.map(Boolean);
       if (x.b === 1) setBridge('on'); else if (x.b > 0) setBridge('timed', game.t + x.b); else setBridge('off');
@@ -725,8 +736,8 @@ export function buildSky(game) {
       const stars = s.medals.filter(id => id !== S.FINAL_MEDAL).length;
       const tm = Math.round(sky().best || st.runT);
       return [
-        { who: 'Mamie Labrador', text: 'Le Trophée du Ciel ! Vous avez traversé toutes les îles !' },
-        { who: 'Capitaine Moustache', text: 'Miaou… Vous m\'avez suivie jusqu\'ici, au-dessus des nuages ? Bon. Je rends tout : les médailles, les trophées…' },
+        { who: 'Mamie Labrador', text: 'Le Trophée du Ciel ! Vous avez traversé toutes les îles… et battu la Capitaine !' },
+        { who: 'Capitaine Moustache', text: 'Miaou… Vous m\'avez suivie jusqu\'au-dessus des nuages, et vous avez dégonflé ma montgolfière. Bon. Je rends tout : les médailles, les trophées…' },
         { who: 'Mamie Labrador', text: 'Et si, au lieu de voler, tu venais jouer avec nous au Parc des Toutous ?' },
         { who: 'Capitaine Moustache', text: '…Jouer ? Avec des chiens ? …D\'accord. Mais c\'est moi qui lance la balle !' },
         { who: 'Biscotte', text: `Record : ${Math.floor(tm / 60)} min ${tm % 60} s, avec ${stars} étoile${stars > 1 ? 's' : ''} sur 5 !` },
@@ -735,6 +746,7 @@ export function buildSky(game) {
       ];
     },
     render(dt, t) {
+      boss.render(dt, t);
       // plates-formes mobiles (calculées depuis le temps : pareil chez les amis)
       for (const m of movers) {
         const p = S.moverAt(m.def, t);

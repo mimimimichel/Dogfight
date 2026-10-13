@@ -23,7 +23,7 @@ function trot(cat, x0, z0, x1, z1, k, y, t) {
 }
 
 /** Montgolfière de la Capitaine (chapitre 4). */
-function balloon() {
+export function balloon() {
   const g = new THREE.Group();
   const stripes = new THREE.CanvasTexture((() => { const c = document.createElement('canvas'); c.width = 256; c.height = 8; const x = c.getContext('2d'); for (let i = 0; i < 8; i++) { x.fillStyle = i % 2 ? '#2a2a3a' : '#e8c040'; x.fillRect(i * 32, 0, 32, 8); } return c; })());
   stripes.colorSpace = THREE.SRGBColorSpace;

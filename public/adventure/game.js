@@ -355,6 +355,15 @@ class Adventure {
 
   updateHud() {
     const s = this.save;
+    // petit rebond du compteur qui vient d'augmenter, secousse des cœurs perdus, éclat de la quête qui change
+    const bump = (el, cls) => { if (!el) return; el.classList.remove(cls); void el.offsetWidth; el.classList.add(cls); };
+    const prev = this.hudPrev || {};
+    const hp0 = this.player ? this.me.hearts : MAX_HEARTS;
+    if (prev.bones !== undefined && s.bones.length > prev.bones) bump(this.dom.bones.closest('.adv-count'), 'bump');
+    if (prev.medals !== undefined && s.medals.length > prev.medals) bump(this.dom.medals.closest('.adv-count'), 'bump');
+    if (prev.hp !== undefined && hp0 < prev.hp) bump(this.dom.hearts, 'hurt');
+    if (prev.hp !== undefined && hp0 > prev.hp) bump(this.dom.hearts, 'bump');
+    this.hudPrev = { bones: s.bones.length, medals: s.medals.length, hp: hp0, quest: prev.quest };
     this.dom.bones.textContent = s.bones.length;
     this.dom.medals.textContent = s.medals.length;
     this.dom.balls.textContent = s.balls.length;
@@ -368,7 +377,12 @@ class Adventure {
     else if (s.medals.length < 5) q = `Trouve les Médailles Patounes (${s.medals.length}/5)`;
     else q = 'Tu as tout trouvé, bravo !';
     if (this.levelLogic && this.levelLogic.questText) q = this.levelLogic.questText() || q;
-    this.dom.quest.textContent = q;
+    if (this.dom.quest.textContent !== q) {
+      this.dom.quest.textContent = q;
+      const key = q.replace(/[\d:]/g, '');
+      if (prev.quest !== undefined && prev.quest !== key) bump(this.dom.quest.closest('.adv-quest') || this.dom.quest, 'flash');
+      this.hudPrev.quest = key;
+    }
   }
 
   /** Portraits ronds d'Ainu et de Matcha, rendus une fois depuis leurs modèles 3D. */
@@ -1581,6 +1595,7 @@ class Adventure {
     // cinématique : le jeu attend (un ami qui arrive l'interrompt)
     if (this.cine) { if (this.party.size > 1 || this.guest) this.cine.skip(); else if (!this.paused) this.cine.update(dt); }
     if (this.guest) this.guestFrame(dt);
+    else if (this.hitStop > 0) this.hitStop -= dt;
     else if (!this.paused && !this.cine) {
       this.acc += dt;
       let n = 0;
@@ -2113,8 +2128,11 @@ class Adventure {
     if (!this.dialog && this.freeze <= 0) {
       if (pr.has('talk') && P.nearby) { this.interact(P.nearby, P); pr.delete('talk'); }
       const onGround = P.coyote > 0 && P.jumps === 0;
-      if (ap.has('jump') && onGround) {
-        P.vel.y = JUMP_V; P.jumps = 1; P.grounded = false; P.coyote = 0;
+      // saut demandé un peu trop tôt (double saut déjà utilisé) : gardé en mémoire jusqu'à l'atterrissage
+      if (ap.has('jump') && !onGround && P.jumps >= 2) P.jumpBuf = 0.18;
+      P.jumpBuf = Math.max(0, (P.jumpBuf || 0) - dt);
+      if ((ap.has('jump') || P.jumpBuf > 0) && onGround) {
+        P.vel.y = JUMP_V; P.jumps = 1; P.grounded = false; P.coyote = 0; P.jumpBuf = 0;
         this.sound('jump');
         this.burst(P.pos.x, P.pos.y + 0.1, P.pos.z, 6, 0xf0e0c0, 2.5, 0.35);
       } else if (mp.has('jump') && !onGround) {
@@ -2282,6 +2300,10 @@ class Adventure {
     if (P.kart) {
       // en kart : la caméra se replace vite derrière le volant
       if (this.t - this.lastCamManual > 0.8 && Math.abs(P.kart.speed) > 1) this.camYaw = lerpAngle(this.camYaw, P.kart.yaw + Math.PI, Math.min(1, dt * 3.2));
+    } else if (this.camFocus) {
+      // combat : la caméra se place derrière le chien, tournée vers le boss
+      const f = this.camFocus;
+      if (this.t - this.lastCamManual > 1.2 && Math.hypot(P.pos.x - f.x, P.pos.z - f.z) > 1.5) this.camYaw = lerpAngle(this.camYaw, Math.atan2(P.pos.x - f.x, P.pos.z - f.z), Math.min(1, dt * 2.2));
     } else if (this.t - this.lastCamManual > 1.5 && speed > 2 && !this.dialog) {
       this.camYaw = lerpAngle(this.camYaw, P.yaw + Math.PI, Math.min(1, dt * 0.9 * (speed / RUN_SPEED)));
     }
@@ -2667,6 +2689,8 @@ class Adventure {
   // Sons
   // -------------------------------------------------------------------------
   sound(name, n) {
+    const kick = { bossHit: [0.45, 0.1], hurt: [0.35, 0.07], crate: [0.16, 0.04], poof: [0.12, 0.05], bump: [0.2, 0], splash: [0.1, 0] }[name];
+    if (kick) this.kick(kick[0], kick[1]);
     const s = this.sfx;
     if (!s || !s.ok) return;
     switch (name) {
@@ -2875,8 +2899,17 @@ class Adventure {
 
     // Caméra
     const ME = this.me;
-    const target = v.set(ME.pos.x, ME.pos.y + (ME.kind === 'matcha' ? 1.2 : 1.6), ME.pos.z);
-    this.camDist += ((this.camDistOverride || (ME.kart ? 11.5 : 9)) - this.camDist) * Math.min(1, dt * 3);
+    // la caméra regarde un peu devant le chien, et ne suit pas chaque saut en hauteur
+    const lead = this.camLead || (this.camLead = new THREE.Vector3());
+    const lk = ME.kart ? 0.12 : 0.22;
+    lead.lerp(v.set(clamp(ME.vel.x * lk, -2.6, 2.6), 0, clamp(ME.vel.z * lk, -2.6, 2.6)), 1 - Math.exp(-dt * 2.5));
+    if (this.camY === undefined || ME.grounded || ME.kart || ME.pos.y < this.camY - 0.4 || ME.pos.y > this.camY + 3.5 || ME.gliding) this.camY = ME.pos.y;
+    this.camYs = this.camYs === undefined ? this.camY : this.camYs + (this.camY - this.camYs) * (1 - Math.exp(-dt * 6));
+    if (ME.pos.y < this.camYs - 0.4) this.camYs = ME.pos.y + 0.4;
+    const target = v.set(ME.pos.x + lead.x, this.camYs + (ME.kind === 'matcha' ? 1.2 : 1.6), ME.pos.z + lead.z);
+    this.camFocus = this.levelLogic && this.levelLogic.camFocus ? this.levelLogic.camFocus() : null;
+    if (this.camFocus) target.y += clamp((this.camFocus.y - target.y) * 0.25, 0, 2.5);
+    this.camDist += ((this.camDistOverride || (ME.kart ? 11.5 : this.camFocus ? 12 : 9)) - this.camDist) * Math.min(1, dt * 3);
     this.camTarget.lerp(target, 1 - Math.exp(-dt * 10));
     const cp = Math.cos(this.camPitch), sp = Math.sin(this.camPitch);
     const desired = new THREE.Vector3(
@@ -2931,6 +2964,12 @@ class Adventure {
     this.camPos.lerp(desired, 1 - Math.exp(-dt * 8));
     this.camera.position.copy(this.camPos);
     this.camera.lookAt(this.camTarget);
+    if (this.shakeT > 0) {
+      this.shakeT = Math.max(0, this.shakeT - dt);
+      const a = this.shakeA * (this.shakeT / this.shakeD), tt = this.t * 60;
+      this.camera.position.x += Math.sin(tt * 1.7) * a; this.camera.position.y += Math.sin(tt * 2.3 + 1) * a * 0.8;
+      this.camera.rotation.z += Math.sin(tt * 1.3 + 2) * a * 0.05;
+    }
 
     if ((this.mapT = (this.mapT || 0) + 1) % 4 === 0) this.drawMinimap();
     this.showVoices();
@@ -2941,6 +2980,88 @@ class Adventure {
     this.post.render(this.scene, this.camera, this.t, W.SKY.sunDir);
   }
 
+  /**
+   * Mouvement « vivant » commun aux chiens : inclinaison dans les virages,
+   * écrasement à l'atterrissage, étirement au saut, tête qui regarde ce qui
+   * l'intéresse, queue qui traîne derrière les virages, petites animations
+   * quand on attend (renifler, se gratter, regarder autour, s'ébrouer).
+   */
+  animState(P, dt, t, speed) {
+    const a = P.anim || (P.anim = { yaw: P.yaw, rate: 0, bank: 0, land: 0, landK: 0, stretch: 0, air: !P.grounded, vy: 0, still: 0, idle: null, idleT: 0, look: 0, lookP: 0, tail: 0, tailV: 0, lookT: 0, target: null });
+    const dy = ((P.yaw - a.yaw + Math.PI) % (Math.PI * 2) + Math.PI * 2) % (Math.PI * 2) - Math.PI;
+    a.yaw = P.yaw;
+    a.rate += (clamp(dy / Math.max(dt, 1e-3), -8, 8) - a.rate) * (1 - Math.exp(-dt * 10));
+    const run = Math.min(1, speed / 5);
+    a.bank += (clamp(-a.rate * 0.05 * run, -0.22, 0.22) - a.bank) * (1 - Math.exp(-dt * 8));
+    // atterrissage : écrasement proportionnel à la chute ; décollage : étirement
+    if (a.air && P.grounded) { a.landK = clamp(-a.vy / 14, 0.25, 1); a.land = 1; if (a.vy < -9 && P === this.player) this.landDust(P, a.landK); }
+    if (!a.air && !P.grounded && P.vel.y > 2) a.stretch = 1;
+    a.air = !P.grounded; a.vy = P.vel.y;
+    a.land = Math.max(0, a.land - dt * 5); a.stretch = Math.max(0, a.stretch - dt * 4);
+    // petites bouffées de poussière quand on court vite
+    if (P.grounded && speed > 6 && Math.random() < dt * 7 && P.pos.y > L.WATER_Y + 0.1) {
+      this.spawnParticle(P.pos.x - Math.sin(P.yaw) * 0.6 + (Math.random() - 0.5) * 0.5, P.pos.y + 0.1, P.pos.z - Math.cos(P.yaw) * 0.6 + (Math.random() - 0.5) * 0.5,
+        (Math.random() - 0.5) * 0.8, 0.5 + Math.random() * 0.5, (Math.random() - 0.5) * 0.8, 0xd8ccb4, 0.22 + Math.random() * 0.12, 0.45, 2);
+    }
+    // queue : ressort qui traîne derrière les virages
+    const tailGoal = clamp(a.rate * 0.12, -0.7, 0.7);
+    a.tailV += ((tailGoal - a.tail) * 60 - a.tailV * 7) * dt; a.tail += a.tailV * dt;
+    // ce que la tête regarde (le plus proche : chat, Mamie, médaille, ami), cherché 4 fois par seconde
+    if ((a.lookT -= dt) <= 0) {
+      a.lookT = 0.25; a.target = null;
+      let best = 81;
+      const consider = (x, z, w) => { const d = ((x - P.pos.x) ** 2 + (z - P.pos.z) ** 2) / (w || 1); if (d < best && d > 0.8) { best = d; a.target = { x, z }; } };
+      for (const c of this.cats || []) if (!c.dead && c.mesh.visible) consider(c.pos.x, c.pos.z, 1.6);
+      if (this.mamie) consider(this.mamie.position.x, this.mamie.position.z, 0.6);
+      for (const m of this.medals || []) if (!m.taken && m.mesh.visible) consider(m.def.x, m.def.z);
+      for (const b of this.balls || []) if (!b.taken) consider(b.def.x, b.def.z);
+      for (const Q of this.players) if (Q !== P && Q.pos) consider(Q.pos.x, Q.pos.z, 0.5);
+    }
+    let look = clamp(a.rate * 0.12, -0.5, 0.5), lookP = 0;
+    if (a.target && P.grounded) {
+      const ang = Math.atan2(a.target.x - P.pos.x, a.target.z - P.pos.z);
+      const rel = ((ang - P.yaw + Math.PI) % (Math.PI * 2) + Math.PI * 2) % (Math.PI * 2) - Math.PI;
+      if (Math.abs(rel) < 1.9) look = clamp(rel, -0.9, 0.9);
+    }
+    // attente
+    if (speed < 0.3 && P.grounded && !P.attackT && !P.kart) a.still += dt; else { a.still = 0; a.idle = null; }
+    if (a.still > 3.5 && !a.idle) { a.idle = ['sniff', 'scratch', 'look', 'shake', 'sniff', 'look'][Math.floor(Math.random() * 6)]; a.idleT = 0; }
+    if (a.idle) {
+      a.idleT += dt;
+      const dur = { sniff: 2.6, scratch: 2.0, look: 3.2, shake: 1.1 }[a.idle];
+      if (a.idleT > dur) { a.idle = null; a.still = 1.5 - Math.random() * 2; }
+    }
+    a.look += (look - a.look) * (1 - Math.exp(-dt * 6));
+    a.lookP += (lookP - a.lookP) * (1 - Math.exp(-dt * 6));
+    return a;
+  }
+
+  /** Échelle d'écrasement / étirement (x, y, z) à partir de l'état d'animation. */
+  squash(o, a) {
+    const l = Math.sin(a.land * Math.PI) * a.landK * 0.2, st = Math.sin(a.stretch * Math.PI) * 0.12;
+    o.scale.set(1 + l * 0.5 - st * 0.4, 1 - l + st, 1 + l * 0.5 - st * 0.4);
+  }
+
+  /** Secousse de l'écran et micro-arrêt de l'image (coups, chocs). */
+  kick(amp, stop) {
+    if (this.cine) return;
+    if (amp > (this.shakeT > 0 ? this.shakeA * (this.shakeT / this.shakeD) : 0)) { this.shakeA = amp; this.shakeD = this.shakeT = 0.18 + amp * 0.5; }
+    if (stop && this.party.size === 1 && !this.guest) this.hitStop = Math.max(this.hitStop || 0, stop);
+    if (amp >= 0.3) try { if (navigator.vibrate) navigator.vibrate(Math.round(amp * 90)); } catch (e) { /* ignore */ }
+  }
+
+  /** Petit nuage de poussière (atterrissage lourd, démarrage, dérapage). */
+  landDust(P, k) {
+    const s = this.support(P.pos.x, P.pos.z, P.pos.y + 0.2);
+    if (s.y < L.WATER_Y) return;
+    if (P === this.me) this.kick(0.06 + k * 0.1);
+    const n = Math.round(6 + k * 10);
+    for (let i = 0; i < n; i++) {
+      const ang = (i / n) * Math.PI * 2 + Math.random() * 0.4, v = 1.4 + Math.random() * 1.6 * k;
+      this.spawnParticle(P.pos.x + Math.cos(ang) * 0.4, s.y + 0.12, P.pos.z + Math.sin(ang) * 0.4, Math.cos(ang) * v, 0.6 + Math.random() * 0.8, Math.sin(ang) * v, 0xd8ccb4, 0.32, 0.55, 3);
+    }
+  }
+
   /** Ainu (avec ou sans Matcha sur le dos) : course, saut, hélice de la queue. */
   renderDuo(P, dt, t) {
     const duo = P.mesh, u = duo.userData;
@@ -2949,20 +3070,44 @@ class Adventure {
     if (P.attackT > 0) yaw += (1 - P.attackT / ATTACK_TIME) * Math.PI * 4;
     duo.rotation.y = yaw;
     const speed = Math.hypot(P.vel.x, P.vel.z);
-    P.phase += dt * speed * 1.7;
-    const run = Math.min(1, speed / 5);
+    const a = this.animState(P, dt, t, speed);
+    P.phase += dt * (speed * 1.55 + (speed > 0.3 ? 1.2 : 0));
+    const run = Math.min(1, speed / 5), gallop = Math.min(1, Math.max(0, (speed - 5) / 4));
+    // trot (diagonales) qui devient galop (pattes avant puis arrière) quand on va vite
     u.legs.forEach((l, i) => {
-      if (P.grounded) l.rotation.x = Math.sin(P.phase + (i === 0 || i === 3 ? 0 : Math.PI)) * 0.8 * run;
-      else l.rotation.x = i < 2 ? -0.7 : 0.7;
+      if (P.grounded) {
+        const trot = P.phase + (i === 0 || i === 3 ? 0 : Math.PI);
+        const gal = P.phase + (i < 2 ? 0 : Math.PI * 0.85) + (i % 2) * 0.35;
+        const ph = trot + (gal - trot) * gallop;
+        l.rotation.x = Math.sin(ph) * (0.8 + gallop * 0.25) * run;
+      } else l.rotation.x = P.vel.y > 0 ? (i < 2 ? -0.9 : 0.8) : (i < 2 ? -0.35 : 0.3);
     });
-    u.ainu.position.y = P.grounded ? Math.abs(Math.sin(P.phase)) * 0.08 * run : 0;
-    u.ainu.rotation.x = P.dashT > 0 ? 0.18 : P.grounded ? 0 : clamp(-P.vel.y * 0.02, -0.25, 0.3);
-    u.tail.rotation.set(P.gliding ? -1.2 : 0, P.gliding ? t * 28 : Math.sin(t * (speed > 1 ? 14 : 7)) * 0.45, 0);
+    // le corps rebondit deux fois par foulée, et plonge un peu au galop
+    const bob = Math.abs(Math.sin(P.phase)) * 0.08 * run;
+    u.ainu.position.y = P.grounded ? bob - Math.sin(a.land * Math.PI) * a.landK * 0.12 : 0;
+    const pitchRun = gallop * Math.sin(P.phase * 2) * 0.08;
+    u.ainu.rotation.x = P.dashT > 0 ? 0.18 : P.grounded ? pitchRun + run * 0.04 : clamp(-P.vel.y * 0.02, -0.25, 0.3);
+    u.ainu.rotation.z = a.bank;
+    this.squash(duo, a);
+    // queue : hélice en planant, sinon remue + ressort des virages ; plus heureuse près des amis
+    const wag = Math.sin(t * (speed > 1 ? 14 : a.target ? 11 : 7)) * (a.target ? 0.6 : 0.45);
+    u.tail.rotation.set(P.gliding ? -1.2 : -0.15 * run, P.gliding ? t * 28 : wag - a.tail, 0);
     u.tail.position.y = u.tailY0 + (P.gliding ? 0.3 : 0);
-    u.matcha.rotation.x = P.flipT > 0 ? (1 - P.flipT / 0.45) * Math.PI * 2 : (P.dashT > 0 ? 0.4 : 0);
+    u.matcha.rotation.x = P.flipT > 0 ? (1 - P.flipT / 0.45) * Math.PI * 2 : (P.dashT > 0 ? 0.4 : 0) + Math.sin(a.land * Math.PI) * a.landK * 0.3;
     u.matcha.position.y = u.matchaY0 + (P.grounded ? Math.abs(Math.sin(P.phase + 0.6)) * 0.06 * run : 0.05) + (P.flipT > 0 ? Math.sin((1 - P.flipT / 0.45) * Math.PI) * 0.8 : 0);
-    u.head.rotation.x = Math.sin(t * 2) * 0.05;
-    if (P.cheerT > 0) { u.ainu.position.y = Math.abs(Math.sin(P.cheerT * 9)) * 0.5; u.matcha.rotation.z = Math.sin(P.cheerT * 12) * 0.3; } else u.matcha.rotation.z = 0;
+    u.matcha.rotation.y = -a.look * 0.6;
+    // tête : regarde ce qui l'intéresse, compense le rebond
+    let hx = Math.sin(t * 2) * 0.05 - bob * 1.2, hy = a.look, hz = 0;
+    if (a.idle) {
+      const k = a.idleT, ease = Math.min(1, k * 3) * Math.min(1, (({ sniff: 2.6, scratch: 2.0, look: 3.2, shake: 1.1 })[a.idle] - k) * 3);
+      if (a.idle === 'sniff') { hx += (0.55 + Math.sin(k * 16) * 0.07) * ease; hy += Math.sin(k * 1.7) * 0.4 * ease; }
+      else if (a.idle === 'look') { hy += Math.sin(k * 1.9) * 0.85 * ease; hx -= 0.15 * ease; u.matcha.rotation.y += Math.sin(k * 1.9 + 1) * 0.6 * ease; }
+      else if (a.idle === 'scratch') { u.legs[3].rotation.x = (-1.0 + Math.sin(k * 34) * 0.35) * ease; u.ainu.rotation.z += 0.1 * ease; hz = 0.35 * ease; hy -= 0.4 * ease; }
+      else if (a.idle === 'shake') { const sh = Math.sin(k * 38) * (1 - k / 1.1) * ease; u.ainu.rotation.z += sh * 0.14; hz = sh * 0.4; u.matcha.rotation.z = sh * 0.2; }
+    }
+    u.head.rotation.set(hx, hy, hz);
+    if (P.cheerT > 0) { u.ainu.position.y = Math.abs(Math.sin(P.cheerT * 9)) * 0.5; u.matcha.rotation.z = Math.sin(P.cheerT * 12) * 0.3; }
+    else if (!(a.idle === 'shake')) u.matcha.rotation.z = 0;
     duo.visible = !(P.invuln > 0 && Math.floor(t * 12) % 2 === 0);
     this.placeShadow(P.shadow, P.pos, 0.8);
   }
@@ -2975,17 +3120,30 @@ class Adventure {
     if (Q.attackT > 0) yaw += (1 - Q.attackT / ATTACK_TIME) * Math.PI * 4;
     m.rotation.y = yaw;
     const speed = Math.hypot(Q.vel.x, Q.vel.z);
-    Q.phase += dt * speed * 2.4;
+    const a = this.animState(Q, dt, t, speed);
+    Q.phase += dt * (speed * 2.2 + (speed > 0.3 ? 1.5 : 0));
     const run = Math.min(1, speed / 5);
-    u.matcha.position.y = u.matchaY0 + (Q.grounded ? Math.abs(Math.sin(Q.phase)) * (u.legs.length ? 0.07 : 0.25) * run : 0);
+    const bob = Math.abs(Math.sin(Q.phase)) * (u.legs.length ? 0.07 : 0.25) * run;
+    u.matcha.position.y = u.matchaY0 + (Q.grounded ? bob - Math.sin(a.land * Math.PI) * a.landK * 0.08 : 0);
     u.matcha.rotation.x = Q.flipT > 0 ? (1 - Q.flipT / 0.45) * Math.PI * 2 : Q.dashT > 0 ? 0.45 : Q.grounded ? Math.sin(Q.phase * 2) * 0.1 * run : clamp(-Q.vel.y * 0.02, -0.25, 0.3);
-    u.mhead.rotation.x = Math.sin(t * 2.3) * 0.06;
+    u.matcha.rotation.z = a.bank;
+    this.squash(m, a);
+    let hx = Math.sin(t * 2.3) * 0.06 - bob, hy = a.look, hz = 0;
+    if (a.idle) {
+      const k = a.idleT, ease = Math.min(1, k * 3) * Math.min(1, (({ sniff: 2.6, scratch: 2.0, look: 3.2, shake: 1.1 })[a.idle] - k) * 3);
+      if (a.idle === 'sniff') { hx += (0.5 + Math.sin(k * 18) * 0.07) * ease; hy += Math.sin(k * 1.7) * 0.4 * ease; }
+      else if (a.idle === 'look') { hy += Math.sin(k * 1.9) * 0.85 * ease; hz = Math.sin(k * 0.9) * 0.3 * ease; }
+      else if (a.idle === 'scratch') { if (u.legs[3]) u.legs[3].rotation.x = (-1.0 + Math.sin(k * 34) * 0.35) * ease; hz = 0.35 * ease; }
+      else if (a.idle === 'shake') { const sh = Math.sin(k * 38) * (1 - k / 1.1) * ease; u.matcha.rotation.z += sh * 0.16; hz = sh * 0.4; }
+    }
+    u.mhead.rotation.set(hx, hy, hz);
     u.legs.forEach((l, i) => {
+      if (a.idle === 'scratch' && i === 3) return;
       if (Q.grounded) l.rotation.x = Math.sin(Q.phase * 2 + (i === 0 || i === 3 ? 0 : Math.PI)) * 0.9 * run;
-      else l.rotation.x = i < 2 ? -0.8 : 0.8;
+      else l.rotation.x = Q.vel.y > 0 ? (i < 2 ? -0.9 : 0.9) : (i < 2 ? -0.4 : 0.35);
     });
-    if (u.mtail) u.mtail.rotation.y = Math.sin(t * (speed > 1 ? 16 : 8)) * 0.5;
-    if (Q.cheerT > 0) { u.matcha.position.y += Math.abs(Math.sin(Q.cheerT * 9)) * 0.45; u.matcha.rotation.z = Math.sin(Q.cheerT * 12) * 0.3; } else u.matcha.rotation.z = 0;
+    if (u.mtail) u.mtail.rotation.y = Math.sin(t * (speed > 1 ? 16 : a.target ? 12 : 8)) * 0.5 - a.tail;
+    if (Q.cheerT > 0) { u.matcha.position.y += Math.abs(Math.sin(Q.cheerT * 9)) * 0.45; u.matcha.rotation.z = Math.sin(Q.cheerT * 12) * 0.3; }
     m.visible = !(Q.invuln > 0 && Math.floor(t * 12) % 2 === 0);
     this.placeShadow(Q.shadow, Q.pos, 0.5);
   }

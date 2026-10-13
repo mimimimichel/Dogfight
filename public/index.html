@@ -78,6 +78,7 @@
             <small>Jusqu'à 6 amis dans ton monde !</small>
           </button>
           <div class="home-row">
+            <button class="hbtn small album-btn" data-action="album">📖 Mon aventure</button>
             <button class="hbtn small" data-action="controls">Commandes</button>
             <button class="hbtn small hidden" id="fs-btn" data-action="fullscreen">Plein écran</button>
           </div>
@@ -110,21 +111,25 @@
               <span class="lv-num">1</span>
               <b>Le Parc des Toutous</b>
               <small id="lv1-prog">Nouveau</small>
+              <span class="lv-bar" id="lv1-bar"><i></i></span>
             </button>
             <button class="level-card l2" data-action="level-2">
               <span class="lv-num">2</span>
               <b>La Forêt des Moustaches</b>
               <small id="lv2-prog">Nouveau</small>
+              <span class="lv-bar" id="lv2-bar"><i></i></span>
             </button>
             <button class="level-card l3" data-action="level-3">
               <span class="lv-num">3</span>
               <b>Port-Croquette</b>
               <small id="lv3-prog">Nouveau</small>
+              <span class="lv-bar" id="lv3-bar"><i></i></span>
             </button>
             <button class="level-card l4" data-action="level-4">
               <span class="lv-num">4</span>
               <b>Les Îles du Ciel</b>
               <small id="lv4-prog">Nouveau</small>
+              <span class="lv-bar" id="lv4-bar"><i></i></span>
             </button>
           </div>
           <div class="mode-pick">
@@ -132,6 +137,23 @@
             <button class="hbtn mpick" data-action="mode-aventure">🐶 Aventure<small>Le jeu normal</small></button>
             <button class="hbtn mpick" data-action="mode-defi">🏆 Défi<small>Les grands : 2 cœurs, chaque chute compte</small></button>
           </div>
+          <button class="hbtn small coop-back" data-action="back">Retour</button>
+        </div>
+      </section>
+
+      <!-- Progression : « Mon aventure » -->
+      <section class="screen home album hidden" id="screen-album">
+        <div class="home-sky" aria-hidden="true">
+          <div class="home-cloud c1"></div><div class="home-cloud c2"></div>
+        </div>
+        <div class="coop-card album-card">
+          <div class="album-head">
+            <h2 class="coop-title">Mon aventure</h2>
+            <div class="album-total"><div class="ring" id="album-ring"><b id="album-pct">0%</b></div><div><b id="album-rank">Chiot curieux</b><small id="album-sum"></small></div></div>
+          </div>
+          <div class="album-worlds" id="album-worlds"></div>
+          <h3 class="album-sub">Badges</h3>
+          <div class="album-badges" id="album-badges"></div>
           <button class="hbtn small coop-back" data-action="back">Retour</button>
         </div>
       </section>

@@ -138,7 +138,7 @@ export function buildCaptain() {
   return cat;
 }
 
-function buildYarn() {
+export function buildYarn() {
   const g = new THREE.Group();
   const ball = new THREE.Mesh(new THREE.SphereGeometry(0.45, 18, 14), M.mat(0xff6ab0, { roughness: 0.9 }));
   g.add(ball);
