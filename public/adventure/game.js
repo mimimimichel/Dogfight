@@ -316,7 +316,7 @@ class Adventure {
           </div>
           <div class="adv-mapcol">
             <div class="adv-map"><canvas width="160" height="160"></canvas><span class="adv-north">N</span></div>
-            <div class="adv-quest" role="button" aria-label="Où aller ?"><b><i class="qi">🐾</i> Quête</b><span></span><em class="adv-where">🐾 Où aller ?</em></div>
+            <div class="adv-quest" role="button" aria-label="Où aller ?"><b><i class="qi">🐾</i> Quête</b><span></span></div>
           </div>
         </div>
       </div>
@@ -335,7 +335,6 @@ class Adventure {
         <button class="adv-btn attack" data-btn="attack"><svg viewBox="0 0 48 48" fill="currentColor"><ellipse cx="24" cy="31" rx="9" ry="8"/><ellipse cx="12" cy="20" rx="4" ry="5"/><ellipse cx="19" cy="13" rx="4" ry="5"/><ellipse cx="29" cy="13" rx="4" ry="5"/><ellipse cx="36" cy="20" rx="4" ry="5"/></svg><span>Attaque</span></button>
         <button class="adv-btn dash" data-btn="dash"><svg viewBox="0 0 48 48" fill="currentColor"><path d="M10 12h6l10 12-10 12h-6l10-12z"/><path d="M24 12h6l10 12-10 12h-6l10-12z"/></svg><span>Charge</span></button>
         <button class="adv-btn bark" data-btn="bark"><span class="big">🐾</span><span>Ouaf !</span></button>
-        <button class="adv-btn trick" data-btn="trick"><span class="big">💫</span><span>Pirouette</span></button>
         <button class="adv-btn talk hidden" data-btn="talk"><svg viewBox="0 0 48 48" fill="currentColor"><path d="M8 10h32a4 4 0 0 1 4 4v16a4 4 0 0 1-4 4H22l-9 8v-8H8a4 4 0 0 1-4-4V14a4 4 0 0 1 4-4z"/></svg><span>Parler</span></button>
       </div>
       <div class="adv-overlay hidden"></div>
@@ -370,10 +369,9 @@ class Adventure {
     // commandes vocales « Ainu, saute ! » (si le téléphone sait reconnaître la voix)
     const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
     const sayBtn = root.querySelector('.adv-saydog');
-    if (SR && this.isTouch) {
-      sayBtn.classList.remove('hidden');
-      sayBtn.addEventListener('click', (e) => { e.stopPropagation(); this.listenCommand(); });
-    }
+    if (SR) sayBtn.addEventListener('click', (e) => { e.stopPropagation(); this.listenCommand(); });
+    this.voiceCmdOn = () => { try { return !!SR && localStorage.getItem('dogfight.voicecmd') === '1'; } catch (e) { return false; } };
+    sayBtn.classList.toggle('hidden', !this.voiceCmdOn());
     this.dom.mic = root.querySelector('.adv-mic');
     this.dom.mic.addEventListener('click', () => this.toggleMic());
     this.dom.micAsk = root.querySelector('.adv-micask');
@@ -2301,7 +2299,9 @@ class Adventure {
         }
       }
       // Ouaf ! (les chats sursautent, Biscotte répond) et pirouette
-      if (mp.has('bark') && P.barkT <= 0) { P.barkT = 0.7; this.dogBark(P); }
+      // deux « Ouaf ! » d'affilée : pirouette (un bouton de moins à l'écran)
+      if (mp.has('bark') && P.barkT > 0 && P.barkT < 0.62 && P.grounded && P.trickT <= 0 && P.attackT <= 0) { P.trickT = 0.9; P.vel.y = 7.5; P.grounded = false; P.jumps = 1; this.sound('trick'); this.betise(P, 'tricks'); }
+      else if (mp.has('bark') && P.barkT <= 0) { P.barkT = 0.7; this.dogBark(P); }
       if (mp.has('trick') && P.grounded && P.trickT <= 0 && P.attackT <= 0) { P.trickT = 0.9; P.vel.y = 7.5; P.grounded = false; P.jumps = 1; this.sound('trick'); this.betise(P, 'tricks'); }
       // deuxième appui pendant la toupie (en duo) : Ainu lance Matcha !
       if (mp.has('attack') && P.attackT > 0 && P.attackT < ATTACK_TIME - 0.05 && !this.throwM && P.mesh && P.mesh.userData.ainu && P.mesh.userData.matcha.visible && P === this.player && this.party.size === 1) this.throwMatcha(P, wx, wz, wlen);
@@ -3849,6 +3849,7 @@ class Adventure {
           ${this.isTouch ? '' : `<button class="btn" data-a="quality">✨ Qualité : ${RT.isUltra() ? 'ultra' : 'normale'}</button>`}
           ${this.guest ? '' : `<button class="btn" data-a="style">🎨 Style : ${this.realistic ? 'réaliste' : 'dessin animé'}</button>`}
           <button class="btn" data-a="mic">🎤 Micro : ${this.vc && this.vc.on ? 'allumé' : 'coupé'}</button>
+          ${(window.SpeechRecognition || window.webkitSpeechRecognition) ? `<button class="btn" data-a="voicecmd">🗣️ Parler au chien : ${this.voiceCmdOn && this.voiceCmdOn() ? 'oui' : 'non'}</button>` : ''}
         </div>
         ${this.vc && this.party.size > 1 ? `<label class="adv-vol">🔊 Voix des amis <input type="range" min="0.5" max="5" step="0.25" value="${this.vc.volume}" data-vol="1"></label>` : ''}
         <div class="adv-stats adv-mic-note">${!this.vc ? 'Le micro sert à parler avec tes amis : choisis « Jouer ensemble » dans le menu pour ouvrir ton monde.' : this.party.size < 2 ? 'Personne n\'est encore là : tes amis t\'entendront dès qu\'ils arrivent.' : ''}
@@ -3957,6 +3958,13 @@ class Adventure {
         this.hideOverlay(); this.switchLevel(L.ID);
         break;
       case 'mic': this.toggleMic().then(() => { if (this.dom.overlay.dataset.kind === 'pause') this.showOverlay('pause'); }); break;
+      case 'voicecmd': {
+        const on = !this.voiceCmdOn();
+        try { localStorage.setItem('dogfight.voicecmd', on ? '1' : '0'); } catch (e) { /* ignore */ }
+        this.dom.root.querySelector('.adv-saydog').classList.toggle('hidden', !on);
+        this.showOverlay('pause');
+        break;
+      }
       case 'resume-save': this.hideOverlay(); this.beginLevel(false); break;
       case 'restart': this.showOverlay('confirm'); break;
       case 'back-pause': this.showOverlay('pause'); break;

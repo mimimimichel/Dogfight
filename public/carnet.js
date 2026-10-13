@@ -12,7 +12,7 @@
     { id: 'throw_cat', icon: '🎯', text: 'Lancer Matcha sur un chat', need: 1 },
     { id: 'plouf', icon: '💦', text: 'Faire 3 ploufs dans l\'eau', need: 3 },
     { id: 'chain10', icon: '🦴', text: 'Ramasser 10 trésors d\'affilée', need: 1 },
-    { id: 'tricks', icon: '💫', text: 'Faire 20 pirouettes', need: 20 },
+    { id: 'tricks', icon: '💫', text: 'Faire 20 pirouettes (2 fois « Ouaf ! » d\'affilée)', need: 20 },
     { id: 'mamie_bark', icon: '👵', text: 'Aboyer sous le nez de Mamie', need: 1 },
     { id: 'hat_photo', icon: '🎩', text: 'Prendre une photo avec un chapeau', need: 1 },
     { id: 'pet', icon: '🐶', text: 'Caresser Biscotte 5 fois', need: 5 },
