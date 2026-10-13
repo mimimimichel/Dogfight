@@ -112,8 +112,8 @@ export function moverAt(m, t) {
 // Colonnes de vent : on y monte en planant (ou en sautant dedans)
 export const FINISH = { x: 0, z: -95.5 };   // l'arche d'arrivée (chrono)
 export const UPDRAFTS = [
-  { x: 0, z: 11, r: 2.8, y0: 6, y1: 27, lift: 50 },
-  { x: 0, z: -90, r: 2.6, y0: 18, y1: 37, lift: 46 },          // au pied de l'île du Trophée
+  { x: 0, z: 12.7, r: 2.5, y0: 8, y1: 27, lift: 50 },          // dans le vide, entre l'îlot et le Moulin
+  { x: 0, z: -89, r: 2.6, y0: 18, y1: 37, lift: 46 },          // au pied de l'île du Trophée
 ];
 
 // 3. Le Pont des Copains : deux dalles à presser en même temps (à plusieurs),
@@ -151,6 +151,7 @@ for (let i = 0; i < CAROUSEL.n; i++) mover('orbit', { cx: CAROUSEL.cx, cz: CAROU
 pad(0, -65.5, 19.8, 2.4);                    // sortie du manège
 export const TOWER = { x: 0, z: -79, r: 2.6, top: 37.4 };
 cyl(TOWER.x, TOWER.z, TOWER.r, 8, TOWER.top, { kind: 'rock' });
+cyl(TOWER.x, TOWER.z, TOWER.r * 1.6, 18.1, 19.3, { kind: 'pad' });   // le socle de pierre au pied de la tour : on peut s'y poser
 export const spiral = [];
 for (let i = 0; i < 11; i++) {
   const a = Math.PI / 2 + i * (3 * Math.PI / 10);   // départ côté sud, arrivée côté nord (vers le Trophée)

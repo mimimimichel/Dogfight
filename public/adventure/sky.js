@@ -274,12 +274,20 @@ export function buildSky(game) {
 
   // --- pierres flottantes ----------------------------------------------------------
   const padGeos = [], crystalGeos = [];
-  S.pads.forEach((p, i) => (p.look === 'crystal' ? crystalGeos : padGeos).push({ geo: padGeometry(p.r, 70 + i, p.look), x: p.x, y: p.top, z: p.z }));
+  S.pads.forEach((p, i) => {
+    padGeos.push({ geo: padGeometry(p.r, 70 + i), x: p.x, y: p.top, z: p.z });
+    // pierres « de cristal » : des éclats bleus plantés au bord (décor, on marche entre eux)
+    if (p.look === 'crystal') for (let k = 0; k < 3; k++) {
+      const a = k * 2.1 + i, h = 0.7 + (k % 2) * 0.4, g = new THREE.OctahedronGeometry(0.22, 0);
+      g.scale(1, h / 0.22 * 0.5, 1); g.translate(0, h * 0.4, 0);
+      crystalGeos.push({ geo: g, x: p.x + Math.cos(a) * p.r * 0.82, y: p.top - 0.05, z: p.z + Math.sin(a) * p.r * 0.82, rz: (k - 1) * 0.25 });
+    }
+  });
   const padMesh = new THREE.Mesh(M.mergeGeos(padGeos), rockMat);
   padMesh.castShadow = true; padMesh.receiveShadow = true;
   sc.add(padMesh);
   if (crystalGeos.length) {
-    const cm = new THREE.Mesh(M.mergeGeos(crystalGeos), std({ roughness: 0.25, metalness: 0.1, emissive: 0x3a7ad0, emissiveIntensity: 0.55 }));
+    const cm = new THREE.Mesh(M.mergeGeos(crystalGeos), new THREE.MeshStandardMaterial({ color: 0xa8e0ff, roughness: 0.2, metalness: 0.1, emissive: 0x3a7ad0, emissiveIntensity: 0.6, flatShading: true }));
     cm.castShadow = true; sc.add(cm);
   }
 
@@ -436,13 +444,24 @@ export function buildSky(game) {
   }
 
   const T = S.TOWER;
-  const crystal = new THREE.Mesh(new THREE.CylinderGeometry(T.r * 0.85, T.r, T.top - 19, 6, 4), std({ vertexColors: false, color: 0x9ad8ff, roughness: 0.15, metalness: 0.1, emissive: 0x2a6ad0, emissiveIntensity: 0.6, transparent: true, opacity: 0.92 }));
+  // la Tour du Vent : un grand cristal taillé (facettes), des éclats autour du pied, un plateau d'or au sommet
+  const crystalMat = new THREE.MeshStandardMaterial({ color: 0x9ad8ff, roughness: 0.12, metalness: 0.15, emissive: 0x2a5ac0, emissiveIntensity: 0.55, flatShading: true });
+  const towerGeo = new THREE.CylinderGeometry(T.r * 0.9, T.r, T.top - 19, 6, 6);
+  { const tp = towerGeo.attributes.position; for (let i = 0; i < tp.count; i++) { const y = tp.getY(i), k = 1 + Math.sin(y * 1.7 + Math.atan2(tp.getZ(i), tp.getX(i)) * 3) * 0.04; tp.setX(i, tp.getX(i) * k); tp.setZ(i, tp.getZ(i) * k); } towerGeo.computeVertexNormals(); }
+  const crystal = new THREE.Mesh(towerGeo, crystalMat);
   crystal.position.set(T.x, 19 + (T.top - 19) / 2, T.z); crystal.castShadow = true;
   sc.add(crystal);
+  const shards = [];
+  for (let k = 0; k < 7; k++) {
+    const a = k * 0.9 + 0.3, h = 2 + (k % 3) * 1.2, g = new THREE.OctahedronGeometry(0.45, 0);
+    g.scale(1, h / 0.9, 1); g.rotateZ((k % 2 ? 1 : -1) * 0.3); g.rotateY(a);
+    shards.push({ geo: g, x: T.x + Math.cos(a) * (T.r + 0.5), y: 19.3 + h * 0.35, z: T.z + Math.sin(a) * (T.r + 0.5) });
+  }
+  const shardMesh = new THREE.Mesh(M.mergeGeos(shards), crystalMat); shardMesh.castShadow = true; sc.add(shardMesh);
   const crystalBase = new THREE.Mesh(padGeometry(T.r * 1.6, 333), rockMat);
   crystalBase.position.set(T.x, 19.3, T.z); sc.add(crystalBase);
-  const cap = new THREE.Mesh(new THREE.CylinderGeometry(T.r * 1.1, T.r * 0.85, 0.4, 6), M.mat(0xffe08a, { metalness: 0.7, roughness: 0.25, emissive: 0x8a5a00, emissiveIntensity: 0.4 }));
-  cap.position.set(T.x, T.top - 0.2, T.z); sc.add(cap);
+  const cap = new THREE.Mesh(new THREE.CylinderGeometry(T.r * 1.08, T.r * 0.92, 0.45, 6), M.mat(0xffd23a, { metalness: 0.7, roughness: 0.3, emissive: 0x7a4a00, emissiveIntensity: 0.35 }));
+  cap.position.set(T.x, T.top - 0.22, T.z); cap.castShadow = true; sc.add(cap);
 
   const GI = S.ISLANDS.find(q => q.id === 'goal');
   const arch = new THREE.Group();
@@ -456,37 +475,48 @@ export function buildSky(game) {
   // (le module des données survit d'une partie à l'autre : on repart d'un état propre)
   for (const c of S.crumbles) c.col.off = false;
 
-  // --- mer lointaine et mer de nuages ---------------------------------------------------
-  const seaMat = new THREE.ShaderMaterial({
-    uniforms: { uTime: { value: 0 }, uFog: { value: sc.fog.color }, uNear: { value: 60 }, uFar: { value: 420 }, uSun: { value: new THREE.Vector3(...S.SKY.sunDir).normalize() } },
+  // --- mer de nuages : un tapis de nuages moelleux, éclairé par le soleil, qui dérive
+  // lentement ; par quelques trouées on aperçoit la mer, tout en bas ---------------------------
+  const cloudFloorMat = new THREE.ShaderMaterial({
+    uniforms: { uTime: { value: 0 }, uFog: { value: sc.fog.color }, uNear: { value: 90 }, uFar: { value: 520 }, uSun: { value: new THREE.Vector3(...S.SKY.sunDir).normalize() },
+      uTint: { value: new THREE.Color(S.SKY.horizon) } },
     vertexShader: 'varying vec3 vW; void main(){ vec4 w = modelMatrix * vec4(position,1.0); vW = w.xyz; gl_Position = projectionMatrix * viewMatrix * w; }',
-    fragmentShader: `uniform float uTime, uNear, uFar; uniform vec3 uFog, uSun; varying vec3 vW;
+    fragmentShader: `uniform float uTime, uNear, uFar; uniform vec3 uFog, uSun, uTint; varying vec3 vW;
+      float h(vec2 p){ return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); }
+      float n(vec2 p){ vec2 i = floor(p), f = fract(p); f = f * f * (3.0 - 2.0 * f);
+        return mix(mix(h(i), h(i + vec2(1, 0)), f.x), mix(h(i + vec2(0, 1)), h(i + vec2(1, 1)), f.x), f.y); }
+      float fbm(vec2 p){ float s = 0.0, a = 0.5; for (int i = 0; i < 5; i++) { s += a * n(p); p = p * 2.03 + vec2(1.7, 9.2); a *= 0.5; } return s; }
       void main(){
-        vec2 p = vW.xz * 0.05;
-        float w = sin(p.x * 3.0 + uTime * 0.6) * sin(p.y * 2.6 - uTime * 0.5) + sin((p.x + p.y) * 5.0 + uTime) * 0.4;
-        vec3 n = normalize(vec3(w * 0.12, 1.0, w * 0.1));
-        vec3 v = normalize(cameraPosition - vW);
-        vec3 col = mix(vec3(0.03, 0.22, 0.48), vec3(0.12, 0.46, 0.72), 0.5 + 0.5 * w);
-        float spec = pow(max(dot(reflect(-uSun, n), v), 0.0), 60.0);
-        col += vec3(1.0, 0.9, 0.75) * spec * 1.6;
-        float f = smoothstep(uNear, uFar, length(cameraPosition - vW));
+        vec2 p = vW.xz * 0.018 + vec2(uTime * 0.006, uTime * 0.002);
+        float d = fbm(p);
+        // relief : le côté tourné vers le soleil est plus clair
+        float dl = fbm(p + uSun.xz * 0.06);
+        float lit = clamp(0.62 + (d - dl) * 3.2, 0.35, 1.0);
+        float cover = smoothstep(0.30, 0.52, d);
+        vec3 shade = mix(vec3(0.62, 0.66, 0.82), vec3(1.0, 0.985, 0.975), lit);
+        shade = mix(shade, shade * uTint, 0.22);
+        vec3 sea = vec3(0.10, 0.36, 0.62) * (0.8 + 0.2 * n(vW.xz * 0.2 + uTime * 0.3));
+        vec3 col = mix(sea, shade, cover);
+        float f = smoothstep(uNear, uFar, length(cameraPosition.xz - vW.xz));
         gl_FragColor = vec4(mix(col, uFog, f), 1.0);
       }`,
   });
-  const sea = new THREE.Mesh(new THREE.PlaneGeometry(1400, 1400, 1, 1), seaMat);
-  sea.rotation.x = -Math.PI / 2; sea.position.y = S.WATER_Y; sea.userData.noOutline = true;
-  sc.add(sea);
-  const puff = puffTexture();
+  const cloudFloor = new THREE.Mesh(new THREE.PlaneGeometry(1600, 1600, 1, 1), cloudFloorMat);
+  cloudFloor.rotation.x = -Math.PI / 2; cloudFloor.position.y = -12; cloudFloor.userData.noOutline = true;
+  sc.add(cloudFloor);
+  const seaMat = cloudFloorMat;      // (animé plus bas, comme l'ancienne mer)
+  // quelques gros nuages en volume qui dépassent du tapis
   const cloudSea = [];
   {
-    const r = rng(77);
-    const N = lite ? 36 : 70;
+    const r = rng(77), mat = std({ roughness: 1, emissive: 0xffffff, emissiveIntensity: 0.18 });
+    const N = lite ? 10 : 22;
     for (let i = 0; i < N; i++) {
-      const sp = new THREE.Sprite(new THREE.SpriteMaterial({ map: puff, color: new THREE.Color(0xffffff).lerp(new THREE.Color(0xffd8e0), r() * 0.5), transparent: true, opacity: 0.85, depthWrite: false }));
-      const x = (r() - 0.5) * 260, z = 120 - r() * 260, y = -6 - r() * 16, s = 26 + r() * 36;
-      sp.position.set(x, y, z); sp.scale.set(s, s * 0.55, 1);
-      sp.userData = { x, y, z, ph: r() * 6, sp: 0.3 + r() * 0.6, noOutline: true };
-      sc.add(sp); cloudSea.push(sp);
+      const x = (r() - 0.5) * 300, z = 130 - r() * 300;
+      if (Math.abs(x) < 22 && z > -120 && z < 110) continue;       // pas sous le parcours (on les verrait de près)
+      const m = new THREE.Mesh(cloudGeometry(6 + r() * 8, 900 + i), mat);
+      m.scale.set(1, 0.8 + r() * 0.5, 1);
+      m.position.set(x, -11 + r() * 3, z); m.userData = { x, y: m.position.y, z, ph: r() * 6, sp: 0.3 + r() * 0.6, noOutline: true };
+      sc.add(m); cloudSea.push(m);
     }
   }
   // îlots lointains (décor)
@@ -601,14 +631,20 @@ export function buildSky(game) {
         if (P.pos.y < S.KILL_Y) { respawnAt(P, 'fall'); continue; }
         // drapeaux
         for (const c of S.CHECKPOINTS) if (c.id > st.cp && Math.hypot(P.pos.x - c.x, P.pos.z - c.z) < 4.5 && Math.abs(P.pos.y - c.y) < 3) reachCheckpoint(c.id, P);
-        // colonnes de vent
+        // colonnes de vent : elles portent tout le monde jusqu'en haut (sans rien tenir appuyé),
+        // puis on flotte au sommet le temps de choisir où planer
         for (const u of S.UPDRAFTS) {
-          if (P.grounded || P.pos.y < u.y0 - 1 || P.pos.y > u.y1) continue;
+          if (P.pos.y < u.y0 - 1 || P.pos.y > u.y1 + 1.5) continue;
           const d = Math.hypot(P.pos.x - u.x, P.pos.z - u.z);
-          if (d > u.r) continue;
-          const k = (1 - d / u.r * 0.5) * (P.gliding ? 1 : 0.7) * (P.pos.y > u.y1 - 3 ? (u.y1 - P.pos.y) / 3 : 1);
-          P.vel.y = Math.min(P.vel.y + u.lift * k * dt, 9);
-          if (Math.random() < dt * 20) game.spawnParticle(P.pos.x + (Math.random() - 0.5), P.pos.y, P.pos.z + (Math.random() - 0.5), 0, 6, 0, 0xe0f8ff, 0.2, 0.5);
+          if (d > u.r + 0.3) continue;
+          const top = u.y1 - P.pos.y;
+          const want = top > 3 ? 11 : top > 0 ? 1 + top * 3 : -1.5;          // vitesse de montée voulue
+          if (P.grounded && want > 0) { P.grounded = false; P.vel.y = Math.max(P.vel.y, 4); }
+          P.vel.y += (32 + (want - P.vel.y) * 6) * dt;                           // compense la pesanteur
+          P.jumps = Math.min(P.jumps, 1); P.coyote = 0;                           // le double saut reste possible en sortant
+          if (Math.random() < dt * 30) game.spawnParticle(P.pos.x + (Math.random() - 0.5) * 1.2, P.pos.y - 0.5, P.pos.z + (Math.random() - 0.5) * 1.2, 0, 8, 0, 0xe0f8ff, 0.22, 0.5, 0);
+          if (!P.windT || game.t - P.windT > 1.2) { P.windT = game.t; if (P === game.me) game.sound('dash'); }
+          if (!st.windTold && P === game.me) { st.windTold = true; game.banner('Courant d\'air !', 'Il vous monte tout en haut : sortez-en en planant', 2200); }
         }
         // rebond sur la tête d'un ami
         if (P.vel.y < -2 && game.party.size > 1) {
