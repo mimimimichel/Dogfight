@@ -3759,7 +3759,6 @@ class Adventure {
     if ((a.blink = (a.blink === undefined ? 3 : a.blink) - dt) < 0) a.blink = 2.5 + Math.random() * 3;
     const lid = a.blink < 0.14 ? Math.max(0.08, Math.abs(a.blink - 0.07) / 0.07) : 1;
     if (u.eyes) for (const e of u.eyes) e.scale.y = lid;
-    if (u.tongue) u.tongue.scale.y = talking ? 0.3 : close ? 1 + Math.sin(t * 9) * 0.12 : 0.75;
     // respiration : le poitrail gonfle doucement
     const br = Math.sin(t * 2.0);
     u.body.scale.set(1 + br * 0.006, 1 + br * 0.004, 1 + br * 0.01);

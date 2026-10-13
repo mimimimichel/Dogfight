@@ -169,7 +169,7 @@ export function buildMamieStanding() {
     o.material.customProgramCacheKey = () => 'mamieFur';
   });
   // yeux : grands, brun chaud, deux reflets (un regard doux) ; attachés à la tête pour suivre ses mouvements.
-  // Par-dessus, des lunettes rondes de mamie, et une petite langue rose : elle sourit.
+  // Par-dessus, des lunettes rondes de mamie.
   const eyeMat = new THREE.MeshStandardMaterial({ color: 0x3a200c, roughness: 0.08, metalness: 0.05 });
   const glint = new THREE.MeshBasicMaterial({ color: 0xffffff });
   const gold = new THREE.MeshStandardMaterial({ color: 0xd8b04a, roughness: 0.3, metalness: 0.8 });
@@ -204,14 +204,28 @@ export function buildMamieStanding() {
     const curve = new THREE.QuadraticBezierCurve3(a.clone().lerp(b, 0.12), mid, b.clone().lerp(a, 0.12));
     u.head.add(new THREE.Mesh(new THREE.TubeGeometry(curve, 10, H * 0.004, 5), gold));
   }
-  // la langue : sous la truffe, au bout de la mâchoire
-  const tongue = new THREE.Group();
-  const tm = new THREE.Mesh(new THREE.CapsuleGeometry(H * 0.018, H * 0.035, 4, 10), new THREE.MeshStandardMaterial({ color: 0xe8848f, roughness: 0.5 }));
-  tm.scale.set(1.2, 1, 0.4); tm.position.y = -H * 0.025; tongue.add(tm);
-  tongue.position.set(nosePt[0], nosePt[1] - H * 0.08, nosePt[2] - H * 0.055).sub(hp);
-  tongue.rotation.x = -0.12;
-  u.head.add(tongue);
-  u.eyes = eyes; u.tongue = tongue;
+  // la bouche : un trait sombre qui part de la truffe et remonte en sourire de chaque côté du museau
+  const lip = new THREE.MeshStandardMaterial({ color: 0x2a1a12, roughness: 0.6 });
+  const near = (y, z, side) => {
+    const c = points('mamie2', (px, py, pz) => Math.abs(py - y) < H * 0.008 && Math.abs(pz - z) < H * 0.008 && (side ? px * side > 0 : Math.abs(px) < H * 0.012));
+    return c.reduce((bb, q) => (!bb || (side ? q[0] * side > bb[0] * side : q[2] > bb[2]) ? q : bb), null);
+  };
+  const mouthY = nosePt[1] - H * 0.06;
+  const front = (y) => { const c = points('mamie2', (px, py) => Math.abs(py - y) < H * 0.008 && Math.abs(px) < H * 0.012); return c.reduce((bb, q) => (!bb || q[2] > bb[2] ? q : bb), null); };
+  const top = front(nosePt[1] - H * 0.03), mid = front(mouthY);
+  if (top && mid) {
+    const off = (q, dx, dz) => new THREE.Vector3(q[0] + dx, q[1], q[2] + dz).sub(hp);
+    u.head.add(new THREE.Mesh(new THREE.TubeGeometry(new THREE.LineCurve3(off(top, 0, H * 0.004), off(mid, 0, H * 0.004)), 2, H * 0.0045, 6), lip));
+    for (const sx of [-1, 1]) {
+      const pts = [off(mid, 0, H * 0.004)];
+      for (let k = 1; k <= 5; k++) {
+        const q = near(mouthY - H * 0.006 * k + H * 0.0045 * k * k, mid[2] - H * 0.028 * k, sx);
+        if (q) pts.push(off(q, sx * H * 0.004, 0));
+      }
+      if (pts.length > 2) u.head.add(new THREE.Mesh(new THREE.TubeGeometry(new THREE.CatmullRomCurve3(pts), 16, H * 0.0045, 6), lip));
+    }
+  }
+  u.eyes = eyes;
   // bandana rouge au cou : là où le corps est le plus fin, sous la tête
   let best = null;
   for (let y = 0.52; y <= 0.66; y += 0.02) {   // (sous la mâchoire)
