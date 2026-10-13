@@ -434,3 +434,9 @@ html.ios-text .hbtn.small, html.ios-text .hbtn.lvpick:not(.active), html.ios-tex
 .photo-view { position: fixed; inset: 0; z-index: 200; background: rgba(10, 6, 2, .85); display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 12px; padding: 16px; }
 .photo-view img { max-width: 100%; max-height: 78vh; border-radius: 6px; box-shadow: 0 10px 30px rgba(0,0,0,.5); }
 .pv-bar { display: flex; gap: 8px; }
+/* « Installer le jeu » (Android, seulement quand le navigateur le propose) : discret, sous les petits boutons */
+.home-row:has(.install-btn:not(.hidden)) { flex-wrap: wrap; }
+.home-row .hbtn.install-btn {
+  flex: 1 0 100%; font-size: 14px; padding: 6px 10px 8px;
+  background: linear-gradient(#f2ffe8, #b8e8a0); color: #1e5a14;
+}
