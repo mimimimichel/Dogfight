@@ -4,6 +4,8 @@
  */
 import * as THREE from '../vendor/three.module.min.js';
 import * as M from './models.js';
+import * as N from './npcs.js';
+import { LOOK } from './world.js';
 export { buildCaptain } from './forest.js';
 
 export const clamp = (v, a, b) => (v < a ? a : v > b ? b : v);
@@ -296,7 +298,23 @@ export function hat(kind) {
   return g;
 }
 
+// habitants réalistes (rendu réaliste) : modèle et teinte du pelage selon le rôle
+const REAL_LOOK = {
+  baker: ['bouledogue'], mechanic: ['shiba'], police: ['berger'], mayor: ['berger', 0xf4ece0], lady: ['shiba', 0xfff2e6],
+  sailor: ['bouledogue', 0xe0d0b8], clown: ['shiba', 0xffe0c0], director: ['berger', 0xd8d0c8], pirate: ['bouledogue', 0xb8a898],
+  astro: ['shiba', 0xd8d0d0], driver: ['berger', 0xf0d8b0], seller: ['bouledogue', 0xffe8e0],
+};
+function realCitizen(look) {
+  const [name, tint] = REAL_LOOK[look] || ['shiba'];
+  const m = N.buildNpc(name, { tint });
+  const u = m.userData;
+  const h = hat(look); h.scale.setScalar(0.85); h.position.y = -u.height * 0.1; u.headTop.add(h);
+  u.mhead = u.head; u.mtail = u.tail;
+  return m;
+}
+
 export function buildCitizen(look) {
+  if (LOOK.real && REAL_LOOK[look] && N.hasNpc(REAL_LOOK[look][0])) return realCitizen(look);
   let m;
   if (look === 'baker') m = M.buildPug({ fur: 0xd8b088, mask: 0x5a3a28, belly: 0xf0dcc0, collar: 0xffffff, scale: 1.55 });
   else if (look === 'mechanic') m = M.buildYorkie({ bow: null, steel: 0x6a6070, tan: 0xd0a070, scale: 1.65 });
@@ -513,7 +531,13 @@ export function buildCar(color, kind) {
 }
 
 /** Petit passant (chien à poils courts, sans fourrure : léger à dessiner). */
-export function buildWalker(color, cat) {
+export function buildWalker(color, cat, real) {
+  if (real && !cat && LOOK.real && N.hasNpc('shiba')) {
+    // passant réaliste : un des trois chiens, teinté par la couleur demandée, un peu plus petit
+    const names = ['shiba', 'berger', 'bouledogue'], name = names[(color >> 3) % 3];
+    const m = N.buildNpc(name, { tint: new THREE.Color(color).lerp(new THREE.Color(0xffffff), 0.55).getHex(), scale: 0.72 });
+    return m;
+  }
   const g = new THREE.Group();
   const LT = 0xf6eee0, BK = 0x111111, parts = [];
   const add = (geo, col, x, y, z, rx, sx, sy, sz) => parts.push({ geo, color: col, x, y, z, rx, sx, sy, sz });

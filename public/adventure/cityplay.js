@@ -182,7 +182,7 @@ export function buildPlay(game, decor) {
   const walkers = [];
   S.WALKS.forEach((pts, i) => {
     if (i >= (lite ? 8 : 14)) return;
-    const m = K.buildWalker([0xd8a868, 0x6a4a3a, 0xf0e0c8, 0x3a3a3a, 0xc8a070, 0xe8d0b0, 0x9a7a5a][i % 7], i % 4 === 3);
+    const m = K.buildWalker([0xd8a868, 0x6a4a3a, 0xf0e0c8, 0x3a3a3a, 0xc8a070, 0xe8d0b0, 0x9a7a5a][i % 7], i % 4 === 3, !lite);
     sc.add(m); moving.push(m);
     let total = 0; const segs = [];
     for (let k = 0; k < pts.length; k++) { const a = pts[k], b = pts[(k + 1) % pts.length]; const l = Math.hypot(b[0] - a[0], b[1] - a[1]); segs.push({ a, b, l, s0: total }); total += l; }
@@ -1290,8 +1290,16 @@ export function buildPlay(game, decor) {
         w.m.visible = vis;
         if (!vis) continue;
         w.m.position.set(w.x, G, w.z); w.m.rotation.y = w.yaw;
-        w.m.userData.body.position.y = Math.abs(Math.sin(w.ph)) * 0.07;
-        w.m.userData.body.rotation.z = Math.sin(w.ph) * 0.06;
+        const wu = w.m.userData;
+        if (wu.realistic) {
+          // vrai trot : les pattes en diagonale, la tête qui balance un peu
+          wu.legs.forEach((l, k) => { l.rotation.x = Math.sin(w.ph * 1.6 + (k === 0 || k === 3 ? 0 : Math.PI)) * 0.45; });
+          wu.body.position.y = Math.abs(Math.sin(w.ph * 1.6)) * 0.025;
+          wu.tail.rotation.y = Math.sin(t * 6 + w.ph) * 0.4; wu.head.rotation.x = Math.sin(w.ph * 3.2) * 0.04;
+        } else {
+          wu.body.position.y = Math.abs(Math.sin(w.ph)) * 0.07;
+          wu.body.rotation.z = Math.sin(w.ph) * 0.06;
+        }
       }
       // habitants
       for (const id in citizens) {

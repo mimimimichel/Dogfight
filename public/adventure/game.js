@@ -31,6 +31,7 @@ import { Post } from './post.js';
 import * as RT from './realtex.js';
 import { Cinema } from './cinema.js';
 import { storyShots } from './story.js';
+import * as N from './npcs.js';
 
 const STEP = 1 / 60;
 const GRAVITY = 32;
@@ -152,8 +153,11 @@ export async function start(opts) {
   // rendu réaliste : matières photographiées et ciel (chargés une seule fois)
   const photos = style !== 'toon' ? RT.preloadPhotos((k) => { if (LD) LD.progress(0.35 + k * 0.3, 'Les décors arrivent…'); }) : null;
   const ultra = photos && RT.isUltra() ? RT.preloadUltra() : null;
+  // personnages non joueurs réalistes (modèles gratuits CC-BY)
+  const npcs = photos ? N.preloadNpcs(L.ID === 3 ? ['mamie', 'biscotte', 'shiba', 'berger', 'bouledogue'] : ['mamie', 'biscotte']) : null;
   await M.preloadDogs();
   if (photos) await photos;
+  if (npcs) await npcs;
   if (ultra) { if (LD) LD.progress(0.68, 'Les grands arbres arrivent…'); await ultra; }
   if (LD) {
     LD.progress(0.7, L.ID === 3 ? 'Construction de la ville…' : 'Construction du monde…');
@@ -1239,12 +1243,12 @@ class Adventure {
     });
 
     // Mamie
-    this.mamie = M.buildMamie();
+    this.mamie = this.realistic && N.hasNpc('mamie') ? N.buildMamieReal() : M.buildMamie();
     this.mamie.position.set(L.npcs.mamie.x, L.npcs.mamie.y, L.npcs.mamie.z);
     this.mamie.rotation.y = Math.atan2(L.START.x - L.npcs.mamie.x, L.START.z - L.npcs.mamie.z);
     sc.add(this.mamie);
     // Biscotte
-    this.puppy = { mesh: M.buildPuppy(), state: s.puppy, pos: new THREE.Vector3(), yaw: 0, phase: 0, shadow: this.makeShadow(0.45) };
+    this.puppy = { mesh: this.realistic && N.hasNpc('biscotte') ? N.buildNpc('biscotte', { head: 0.3, tail: 0.12 }) : M.buildPuppy(), state: s.puppy, pos: new THREE.Vector3(), yaw: 0, phase: 0, shadow: this.makeShadow(0.45) };
     sc.add(this.puppy.mesh);
     if (s.puppy === 'home') this.puppy.pos.set(L.npcs.mamie.x + 1.6, L.npcs.mamie.y, L.npcs.mamie.z + 1.2);
     else { this.puppy.state = 'lost'; this.puppy.pos.set(L.npcs.puppy.x, L.npcs.puppy.y, L.npcs.puppy.z); }
@@ -2986,7 +2990,16 @@ class Adventure {
         </div>
         ${this.guest || this.party.size > 1 ? '' : '<button class="btn" data-a="story">🎬 Revoir l\'histoire</button>'}
         ${this.coop ? '' : '<button class="btn" data-a="restart">Recommencer le niveau</button>'}
+        <button class="btn ghost" data-a="credits">📜 Crédits</button>
         <button class="btn ghost" data-a="quit">Menu principal</button>`;
+    } else if (kind === 'credits') {
+      html = `<h2>Crédits</h2>
+        <div class="adv-stats adv-credits">Modèles 3D gratuits (licence CC BY 4.0, Sketchfab) :<br>
+        Mamie Labrador : « Ella of Golden House » par 3dfascination<br>
+        Biscotte : « Retriever » par doinspire<br>
+        Habitants : « Doge » par kitsuneko_3d, « Riley » par lopuh22721, « Bulldog Puppy » par doinspire<br>
+        Matières, ciel, arbres et fougères scannés : Poly Haven (CC0)</div>
+        <button class="btn primary" data-a="pause">Retour</button>`;
     } else if (kind === 'continue') {
       html = `<h2>${L.NAME}</h2>
         <div class="adv-stats">${medalWord()} ${s.medals.length}/${L.medals.length} · ${collectWord()} ${s.bones.length}/100</div>
@@ -3044,6 +3057,8 @@ class Adventure {
     switch (a) {
       case 'resume': this.hideOverlay(); break;
       case 'story': this.hideOverlay(); this.playStory(); break;
+      case 'credits': this.showOverlay('credits'); break;
+      case 'pause': this.showOverlay('pause'); break;
       case 'music': if (this.sfx && this.sfx.setMusic) this.sfx.setMusic(this.sfx.musicOn === false); this.showOverlay('pause'); break;
       case 'mode': {
         const order = ['promenade', 'aventure', 'defi'];
