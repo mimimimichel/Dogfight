@@ -231,8 +231,7 @@ class Adventure {
 
     if (this.coop) this.initCoop();
     else if (this.hostSession) this.initHostSession();
-    else if (this.hasProgress()) this.showOverlay('continue');
-    else this.beginLevel(true);
+    else this.beginLevel(!this.hasProgress());     // on arrive directement dans le monde (« Recommencer le niveau » est dans le menu pause)
   }
 
   // -------------------------------------------------------------------------
@@ -875,7 +874,21 @@ class Adventure {
 
     // Grand Chêne : tronc noueux, branches rondes en spirale, grand feuillage
     const T = L.TREE;
-    const bark = M.mat(0x7a5030, { roughness: 0.95 });
+    // écorce photographiée (comme les autres arbres), répétée selon la taille de chaque pièce
+    const barkPh = (rx, ry) => (W.LOOK.real && RT.hasPhotos() ? RT.photo('bark_willow_02', rx, ry) : null);
+    const barkOf = (rx, ry) => { const ph = barkPh(rx, ry); return ph ? new THREE.MeshStandardMaterial({ map: ph.map, normalMap: ph.normalMap, color: new THREE.Color(1.45, 1.35, 1.25), roughness: 0.95 }) : M.mat(0x7a5030, { roughness: 0.95 }); };
+    const bark = barkOf(5, 6), barkSmall = barkOf(1.2, 1);
+    // dessus des branches : bois coupé avec ses cernes
+    const ringsTex = (() => {
+      if (!W.LOOK.real) return null;
+      const c = document.createElement('canvas'); c.width = c.height = 256;
+      const x = c.getContext('2d');
+      x.fillStyle = '#b88a58'; x.fillRect(0, 0, 256, 256);
+      for (let r = 124; r > 2; r -= 5 + (r % 3)) { x.strokeStyle = `rgba(110,70,35,${0.25 + (r % 7) * 0.04})`; x.lineWidth = 1.5 + (r % 4) * 0.5; x.beginPath(); x.ellipse(128 + Math.sin(r) * 2, 128, r, r * 0.97, 0, 0, Math.PI * 2); x.stroke(); }
+      x.strokeStyle = '#6a4424'; x.lineWidth = 8; x.beginPath(); x.arc(128, 128, 124, 0, Math.PI * 2); x.stroke();
+      const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace; return t;
+    })();
+    const woodTop = ringsTex ? new THREE.MeshStandardMaterial({ map: ringsTex, normalMap: RT.normalFor(ringsTex, 3), roughness: 0.85 }) : null;
     const trunkGeo = new THREE.CylinderGeometry(T.trunkR * 0.9, T.trunkR * 1.25, T.height + 2.4, 24, 16);
     const tp = trunkGeo.attributes.position;
     for (let i = 0; i < tp.count; i++) {
@@ -891,7 +904,7 @@ class Adventure {
     // Racines
     for (let i = 0; i < 6; i++) {
       const a = i * 1.047 + 0.3;
-      const root = new THREE.Mesh(new THREE.CapsuleGeometry(0.45, 2.2, 4, 10), bark);
+      const root = new THREE.Mesh(new THREE.CapsuleGeometry(0.45, 2.2, 4, 10), barkSmall);
       root.position.set(Math.cos(a) * 2.6, T.base + 0.2, Math.sin(a) * 2.6);
       root.rotation.set(0, -a, 0); root.rotateZ(Math.PI / 2 - 0.35);
       root.castShadow = root.receiveShadow = true;
@@ -902,12 +915,12 @@ class Adventure {
     const leafGeo = W.leafClusterGeo(this.lite ? 10 : 16);
     for (const s of L.treeSteps) {
       // plate-forme ronde (même forme que la collision : rayon 1.5)
-      const pad = new THREE.Mesh(new THREE.CylinderGeometry(1.5, 1.35, 0.5, 28), branchTop);
+      const pad = new THREE.Mesh(new THREE.CylinderGeometry(1.5, 1.35, 0.5, 28), woodTop ? [barkSmall, woodTop, barkSmall] : branchTop);
       pad.position.set(s.x, s.top - 0.25, s.z);
       pad.castShadow = pad.receiveShadow = true;
       sc.add(pad);
       // bras qui relie la plate-forme au tronc
-      const arm = new THREE.Mesh(new THREE.CylinderGeometry(0.35, 0.55, 2.4, 12), bark);
+      const arm = new THREE.Mesh(new THREE.CylinderGeometry(0.35, 0.55, 2.4, 12), barkSmall);
       arm.position.set(s.x * 0.62, s.top - 0.7, s.z * 0.62);
       arm.rotation.set(0, -s.a, 0); arm.rotateZ(Math.PI / 2 + 0.35);
       arm.castShadow = true;
@@ -919,7 +932,7 @@ class Adventure {
       tuft.castShadow = true;
       sc.add(tuft);
     }
-    const canopy = new THREE.Mesh(new THREE.CylinderGeometry(4.6, 4.3, 0.6, 40), branchTop);
+    const canopy = new THREE.Mesh(new THREE.CylinderGeometry(4.6, 4.3, 0.6, 40), woodTop ? [barkOf(4, 0.3), woodTop, barkSmall] : branchTop);
     canopy.position.set(0, L.TREE_TOP - 0.3, 0);
     canopy.castShadow = canopy.receiveShadow = true;
     sc.add(canopy);
@@ -942,6 +955,8 @@ class Adventure {
     });
     crownI.castShadow = crownI.receiveShadow = true;
     sc.add(crownI);
+    // feuilles détaillées en bordure, comme les autres arbres du parc
+    if (W.LOOK.real) W.buildLeafFringe(sc, crownI, crown.map(([x, y, z, s]) => ({ x, y, z, s })), { lite: this.lite }, this.lite ? 8 : 30);
     // Petit drapeau au sommet
     const pole = new THREE.Mesh(new THREE.CylinderGeometry(0.06, 0.06, 2.6, 10), M.mat(0xf4f4f4, { roughness: 0.4 }));
     pole.position.set(-2.8, L.TREE_TOP + 1.3, -2.8); pole.castShadow = true; sc.add(pole);
@@ -1758,8 +1773,7 @@ class Adventure {
     ses.onJoin = (link) => this.linkJoined(link);
     for (const l of ses.links) if (!l.closed) this.linkJoined(l);   // amis déjà là (changement de niveau)
     this.updateRoster();
-    if (this.hasProgress() && ![...ses.links].some(l => !l.closed)) this.showOverlay('continue');
-    else this.beginLevel(!this.hasProgress());
+    this.beginLevel(!this.hasProgress());
   }
 
   linkJoined(link) {
@@ -2832,9 +2846,12 @@ class Adventure {
 
     // Personnages
     const mu = this.mamie.userData;
-    mu.tail.rotation.y = Math.sin(t * 6) * 0.5;
-    mu.head.rotation.z = Math.sin(t * 1.3) * 0.08;
-    this.mamie.rotation.y = lerpAngle(this.mamie.rotation.y, Math.atan2(P.pos.x - L.npcs.mamie.x, P.pos.z - L.npcs.mamie.z), 0.05);
+    if (mu.rig) this.animateMamie(dt, t);
+    else {
+      mu.tail.rotation.y = Math.sin(t * 6) * 0.5;
+      mu.head.rotation.z = Math.sin(t * 1.3) * 0.08;
+      this.mamie.rotation.y = lerpAngle(this.mamie.rotation.y, Math.atan2(P.pos.x - L.npcs.mamie.x, P.pos.z - L.npcs.mamie.z), 0.05);
+    }
     const pp = this.puppy, pu = pp.mesh.userData;
     pp.mesh.position.copy(pp.pos);
     pp.mesh.rotation.y = pp.yaw;
@@ -3075,6 +3092,54 @@ class Adventure {
     }
   }
 
+  /**
+   * Mamie Labrador (squelette complet) : elle respire, suit du regard le chien le plus
+   * proche (cou et tête ; le corps ne tourne que si on passe derrière elle), hoche et
+   * penche la tête quand elle parle, lève une patte pour dire bonjour, balaie le sol
+   * de la queue (plus vite quand on est là).
+   */
+  animateMamie(dt, t) {
+    const m = this.mamie, R = m.userData.rig, a = m.userData.anim || (m.userData.anim = { yaw: 0, pitch: 0, tilt: 0, tiltGoal: 0, wave: 0, near: false, nextTilt: 3, talkLine: null });
+    const mx = L.npcs.mamie.x, mz = L.npcs.mamie.z;
+    // qui regarder : le chien le plus proche (ou la caméra pendant une cinématique)
+    let tx = this.camera.position.x, tz = this.camera.position.z, best = 1e9;
+    if (!this.cine) for (const Q of this.players) { const d = Math.hypot(Q.pos.x - mx, Q.pos.z - mz); if (d < best) { best = d; tx = Q.pos.x; tz = Q.pos.z; } }
+    const want = Math.atan2(tx - mx, tz - mz);
+    let rel = ((want - m.rotation.y + Math.PI) % (Math.PI * 2) + Math.PI * 2) % (Math.PI * 2) - Math.PI;
+    // le corps se tourne seulement si on est vraiment derrière elle
+    if (Math.abs(rel) > 1.1) m.rotation.y = lerpAngle(m.rotation.y, want, Math.min(1, dt * 1.2));
+    rel = ((want - m.rotation.y + Math.PI) % (Math.PI * 2) + Math.PI * 2) % (Math.PI * 2) - Math.PI;
+    const close = best < 7;
+    a.yaw += (clamp(rel, -1.0, 1.0) * (best < 25 || this.cine ? 1 : 0.2) - a.yaw) * Math.min(1, dt * 3);
+    a.pitch += ((close ? 0.55 : 0.4) - a.pitch) * Math.min(1, dt * 2);      // (le modèle regarde un peu en l'air au repos)
+    // elle parle ?
+    const d = this.dialog, cs = this.cine && this.cine.shot && this.cine.shot.say;
+    const talking = (d && d.lines && d.lines[d.i] && d.lines[d.i].who === 'Mamie Labrador' && d.chars < d.lines[d.i].text.length + 4)
+      || (cs && cs.who === 'Mamie Labrador' && this.cine.shown < (this.cine.full || '').length);
+    const line = d && d.lines ? d.i + ':' + (d.lines[d.i] || {}).text : cs ? cs.text : null;
+    if (talking && line !== a.talkLine) { a.talkLine = line; a.tiltGoal = (Math.random() - 0.5) * 0.4; }
+    // pencher la tête de temps en temps (curieuse)
+    if ((a.nextTilt -= dt) <= 0) { a.nextTilt = 3 + Math.random() * 4; a.tiltGoal = close ? (Math.random() - 0.5) * 0.45 : 0; }
+    a.tilt += (a.tiltGoal - a.tilt) * Math.min(1, dt * 3);
+    // bonjour : une patte levée quand un chien arrive près d'elle
+    if (close && !a.near) a.wave = 1.6;
+    a.near = close;
+    a.wave = Math.max(0, a.wave - dt);
+    const breath = Math.sin(t * 2.2);
+    R.chest.scale.set(1 + breath * 0.012, 1 + breath * 0.008, 1 + breath * 0.022);
+    R.chest.rotation.set(-0.02 + breath * 0.01, a.yaw * 0.15, Math.sin(t * 0.5) * 0.025);
+    const talk = talking ? Math.sin(t * 9) * 0.05 + Math.sin(t * 4.3) * 0.03 : 0;
+    R.neck.rotation.set(a.pitch * 0.4 + talk * 0.5, a.yaw * 0.4, a.tilt * 0.3);
+    R.head.rotation.set(a.pitch * 0.6 + talk, a.yaw * 0.45, a.tilt * 0.7 + (talking ? Math.sin(t * 2.1) * 0.06 : 0));
+    const w = a.wave > 0 ? Math.sin(Math.min(1, (1.6 - a.wave) * 3) * Math.PI / 2) * Math.min(1, a.wave * 3) : 0;
+    // donne la patte : l'épaule lève, le poignet se plie et la patte s'agite un peu
+    R.legL.rotation.set(-w * 0.55, 0, w * 0.12);
+    R.pawL.rotation.set(w * (0.9 + Math.sin(t * 10) * 0.15), 0, 0);
+    R.legR.rotation.set(0, 0, 0); R.pawR.rotation.set(0, 0, 0);
+    R.chest.rotation.x -= w * 0.06;
+    R.tail.rotation.set(0, Math.sin(t * (close ? 9 : 3.5)) * (close ? 0.45 : 0.2), 0);
+  }
+
   /** Ainu (avec ou sans Matcha sur le dos) : course, saut, hélice de la queue. */
   renderDuo(P, dt, t) {
     const duo = P.mesh, u = duo.userData;
@@ -3225,8 +3290,8 @@ class Adventure {
         <button class="btn" data-a="new">Nouvelle partie</button>
         <button class="btn ghost" data-a="quit">Menu principal</button>`;
     } else if (kind === 'confirm') {
-      html = `<h2>Tout recommencer ?</h2>
-        <div class="adv-stats">Les médailles et les os ramassés seront perdus.</div>
+      html = `<h2>Recommencer ce niveau ?</h2>
+        <div class="adv-stats">Les ${medalWord().toLowerCase()} et les ${collectWord().toLowerCase()} ramassés dans ce niveau seront perdus.</div>
         <button class="btn primary" data-a="new">Oui, recommencer</button>
         <button class="btn ghost" data-a="back-pause">Non</button>`;
     } else if (kind === 'full') {

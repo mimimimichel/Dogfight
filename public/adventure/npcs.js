@@ -125,49 +125,118 @@ function points(name, test) {
 }
 const mean = (pts) => pts.reduce((m, p) => [m[0] + p[0] / pts.length, m[1] + p[1] / pts.length, m[2] + p[2] / pts.length], [0, 0, 0]);
 
-/** Mamie Labrador : golden retriever assis, lunettes rondes et bandana rouge. */
+/**
+ * Mamie Labrador : golden retriever assis, lunettes rondes et bandana rouge.
+ * Squelette complet posé d'après la forme du modèle (chiffres relevés sur le scan,
+ * assis, avant = +z, hauteur 1,75) : hanches → poitrine → cou → tête, deux pattes
+ * avant, queue. Chaque sommet suit un ou deux os, avec des transitions douces.
+ */
 export function buildMamieReal() {
+  const C = cache.mamie, H = C.meta.size[1], k = H / 1.75;
+  const sm = (a, b, x) => { const t = Math.min(1, Math.max(0, (x - a) / (b - a))); return t * t * (3 - 2 * t); };
+  const root = new THREE.Group();
+  // ---- os (repère du modèle) ----
+  const B = {};
+  const bone = (name, parent, x, y, z) => {
+    const b = new THREE.Bone(); b.name = name;
+    const pw = parent ? parent.userData.w : [0, 0, 0];
+    b.position.set(x * k - pw[0], y * k - pw[1], z * k - pw[2]); b.userData.w = [x * k, y * k, z * k];
+    if (parent) parent.add(b);
+    B[name] = b; return b;
+  };
+  const rootB = bone('root', null, 0, 0, 0);
+  const hips = bone('hips', rootB, 0.05, 0.25, -0.1);
+  const chest = bone('chest', hips, 0.05, 0.6, 0.25);
+  const neck = bone('neck', chest, 0.08, 1.05, 0.38);
+  const head = bone('head', neck, 0.1, 1.3, 0.52);
+  // (pattes accrochées aux hanches : quand elle se tourne, les pattes restent au sol)
+  const legL = bone('legL', hips, -0.12, 0.74, 0.55);
+  const legR = bone('legR', hips, 0.2, 0.74, 0.55);
+  const pawL = bone('pawL', legL, -0.12, 0.3, 0.6);
+  const pawR = bone('pawR', legR, 0.2, 0.3, 0.6);
+  const tail = bone('tail', hips, 0.04, 0.15, -0.42);
+  const list = [rootB, hips, chest, neck, head, legL, legR, tail, pawL, pawR];
+  const id = (b) => list.indexOf(b);
+  // ---- poids ----
+  const spine = (y) => {
+    y /= k;
+    if (y < 0.35) return [[hips, 1]];
+    if (y < 0.55) { const t = sm(0.35, 0.55, y); return [[hips, 1 - t], [chest, t]]; }
+    if (y < 0.95) return [[chest, 1]];
+    if (y < 1.1) { const t = sm(0.95, 1.1, y); return [[chest, 1 - t], [neck, t]]; }
+    if (y < 1.24) return [[neck, 1]];
+    if (y < 1.36) { const t = sm(1.24, 1.36, y); return [[neck, 1 - t], [head, t]]; }
+    return [[head, 1]];
+  };
+  const meshes = [];
+  for (const p of C.parts) {
+    const a = p.g.attributes.position.array, n = a.length / 3;
+    const si = new Uint16Array(n * 4), sw = new Float32Array(n * 4);
+    for (let i = 0; i < n; i++) {
+      const x = a[i * 3] / k, y = a[i * 3 + 1] / k, z = a[i * 3 + 2] / k;
+      let w = spine(a[i * 3 + 1]);
+      const legW = sm(0.42, 0.52, z) * sm(0.8, 0.62, y);
+      const tailW = sm(-0.42, -0.6, z) * sm(0.38, 0.25, y);
+      if (legW > 0) {
+        // bas de la patte (poignet) : suit l'os du poignet, pour plier la patte quand elle la lève
+        const left = x < 0.05, pw = sm(0.4, 0.28, y);
+        w = [[left ? legL : legR, legW * (1 - pw)], [hips, 1 - legW], [left ? pawL : pawR, legW * pw]];
+      }
+      else if (tailW > 0) w = [[tail, tailW], [hips, 1 - tailW]];
+      si[i * 4] = id(w[0][0]); sw[i * 4] = w[0][1];
+      if (w[1]) { si[i * 4 + 1] = id(w[1][0]); sw[i * 4 + 1] = w[1][1]; }
+      if (w[2]) { si[i * 4 + 2] = id(w[2][0]); sw[i * 4 + 2] = w[2][1]; }
+    }
+    const g = p.g.clone();
+    g.setAttribute('skinIndex', new THREE.Uint16BufferAttribute(si, 4));
+    g.setAttribute('skinWeight', new THREE.Float32BufferAttribute(sw, 4));
+    const col = p.color.clone().multiply(new THREE.Color(0xffe2b0));      // pelage doré de labrador
+    const mat = new THREE.MeshStandardMaterial({ map: p.map, color: col, roughness: p.rough });
+    mat.userData.keepPBR = true;
+    const m = new THREE.SkinnedMesh(g, mat);
+    m.castShadow = m.receiveShadow = true; m.frustumCulled = false;
+    meshes.push(m);
+  }
+  const body = new THREE.Group(); root.add(body);
+  const skeleton = new THREE.Skeleton(list);
+  meshes[0].add(rootB);
+  for (const m of meshes) { body.add(m); m.bind(skeleton); }
+  root.updateMatrixWorld(true);
+  // ---- lunettes (sur la tête) et bandana (sur le cou) ----
   const HT = 0.72;
-  // la queue est posée au sol derrière elle : seule la queue remue (pas l'arrière-train) ; pelage doré de labrador
-  const g = buildNpc('mamie', { legs: false, headTop: HT, tail: 0.1, tailMaxY: 0.1, legTop: 0.3, tint: 0xffe2b0 });
-  const u = g.userData, H = cache.mamie.meta.size[1];
-  // repères tirés de la forme : bout du museau, centre de la tête, cou
   const headPts = points('mamie', (x, y) => y > H * (HT + 0.04));
   const c = mean(headPts);
   const snout = headPts.reduce((b, p) => (p[2] + p[1] * 0.4 > b[2] + b[1] * 0.4 ? p : b), headPts[0]);
   const dir = new THREE.Vector3(snout[0] - c[0], snout[1] - c[1], snout[2] - c[2]).normalize();
   const eyes = new THREE.Vector3(c[0], c[1], c[2]).lerp(new THREE.Vector3(...snout), 0.22).add(new THREE.Vector3(0, H * 0.045, 0));
-  const neckPts = points('mamie', (x, y, z) => y > H * (HT - 0.07) && y < H * (HT - 0.02));
+  const neckPts = points('mamie', (x, y) => y > H * (HT - 0.07) && y < H * (HT - 0.02));
   const nc = mean(neckPts);
   const nr = neckPts.reduce((m, p) => m + Math.hypot(p[0] - nc[0], p[2] - nc[2]) / neckPts.length, 0);
-  const local = (v) => u.head.worldToLocal(v.clone());     // le squelette est au repos : repère du modèle
-  g.updateMatrixWorld(true);
-  // lunettes dorées, posées devant les yeux, face au museau
   const gold = new THREE.MeshStandardMaterial({ color: 0xd8b048, metalness: 0.9, roughness: 0.25 });
   const glasses = new THREE.Group();
-  const s = H * 0.03;
+  const gs = H * 0.03;
   for (const sx of [-1, 1]) {
-    const r = new THREE.Mesh(new THREE.TorusGeometry(s, s * 0.14, 8, 24), gold); r.position.set(sx * s * 1.3, 0, 0); glasses.add(r);
-    const lens = new THREE.Mesh(new THREE.CircleGeometry(s * 0.95, 20), new THREE.MeshStandardMaterial({ color: 0xffffff, transparent: true, opacity: 0.18, roughness: 0.05 }));
-    lens.position.set(sx * s * 1.3, 0, 0.001); glasses.add(lens);
+    const r = new THREE.Mesh(new THREE.TorusGeometry(gs, gs * 0.14, 8, 24), gold); r.position.set(sx * gs * 1.3, 0, 0); glasses.add(r);
+    const lens = new THREE.Mesh(new THREE.CircleGeometry(gs * 0.95, 20), new THREE.MeshStandardMaterial({ color: 0xffffff, transparent: true, opacity: 0.18, roughness: 0.05 }));
+    lens.position.set(sx * gs * 1.3, 0, 0.001); glasses.add(lens);
   }
-  const bridge = new THREE.Mesh(new THREE.CylinderGeometry(s * 0.1, s * 0.1, s * 0.7, 6), gold); bridge.rotation.z = Math.PI / 2; glasses.add(bridge);
+  const bridge = new THREE.Mesh(new THREE.CylinderGeometry(gs * 0.1, gs * 0.1, gs * 0.7, 6), gold); bridge.rotation.z = Math.PI / 2; glasses.add(bridge);
   const ep = eyes.clone().addScaledVector(dir, H * 0.02);
-  glasses.position.copy(local(ep));
+  // (os encore au repos : repère du modèle = repère du corps)
+  const toBone = (b, v) => v.clone().sub(new THREE.Vector3(...b.userData.w));
+  glasses.position.copy(toBone(head, ep));
   glasses.lookAt(new THREE.Vector3().copy(glasses.position).add(dir));
-  u.head.add(glasses);
-  // bandana rouge autour du cou
+  head.add(glasses);
   const red = new THREE.MeshStandardMaterial({ color: 0xc8202a, roughness: 0.75, side: THREE.DoubleSide });
   const band = new THREE.Mesh(new THREE.TorusGeometry(nr * 0.98, H * 0.018, 8, 32), red); band.rotation.x = Math.PI / 2;
   const tri = new THREE.Mesh(new THREE.ConeGeometry(nr * 0.42, H * 0.08, 3), red); tri.rotation.set(Math.PI, 0, 0); tri.scale.z = 0.35; tri.position.set(0, -H * 0.035, nr * 0.98);
-  const bandana = new THREE.Group(); bandana.add(band, tri); bandana.position.set(nc[0], nc[1], nc[2]);
-  u.body.add(bandana);
-  // elle baisse la tête vers les chiens au lieu de regarder le ciel
-  u.head.rotation.x = 0;
-  u.headRestX = 0;
-  // pattes avant posées au sol (le modèle scanné est un peu penché en arrière : le derrière s'enfonce dans l'herbe)
+  const bandana = new THREE.Group(); bandana.add(band, tri); bandana.position.copy(toBone(neck, new THREE.Vector3(nc[0], nc[1], nc[2])));
+  neck.add(bandana);
+  // pattes avant posées au sol (le modèle scanné est un peu penché en arrière)
   const zs = points('mamie', () => true).map(p => p[2]), zmax = Math.max(...zs), zmin = Math.min(...zs);
   const paws = points('mamie', (x, y, z) => z > zmax - (zmax - zmin) * 0.3 && y < H * 0.3);
-  if (paws.length) u.body.position.y = -Math.min(...paws.map(p => p[1]));
-  return g;
+  if (paws.length) body.position.y = -Math.min(...paws.map(p => p[1]));
+  const face = new THREE.Object3D(); face.position.copy(toBone(head, new THREE.Vector3(...snout))); head.add(face);
+  root.userData = { head, tail, legs: [], body, neck: neck, face, height: H, realistic: true, rig: { hips, chest, neck, head, legL, legR, pawL, pawR, tail } };
+  return root;
 }
