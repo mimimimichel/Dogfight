@@ -239,55 +239,6 @@
   // plusieurs joueurs sur cet appareil : on demande qui joue, une fois par visite
   if (PR.shouldAsk()) { renderPlayers(); show('profiles'); }
 
-  // ---------------------------------------------------------------------------
-  // Coin des parents (parents.js) : minuteur, temps de la semaine, réglages
-  // ---------------------------------------------------------------------------
-  const PS = window.ParentSettings, PT = window.ParentTimer;
-  const minutes = (m) => (m < 1 ? (m > 0 ? '< 1 min' : '0 min') : m < 60 ? Math.round(m) + ' min' : Math.floor(m / 60) + ' h ' + String(Math.round(m % 60)).padStart(2, '0'));
-  /** Applique les réglages des parents à l'accueil (mode combat caché ou non). */
-  function applyParents() {
-    const hide = PS.hideCombat;
-    document.querySelector('.combat-box').classList.toggle('hidden', hide);
-    document.querySelector('[data-action="ctl-fight"]').classList.toggle('hidden', hide);
-    if (hide) {
-      $('combat-panel').classList.add('hidden');
-      document.querySelector('.combat-box').classList.remove('open');
-      document.querySelector('.combat-toggle').setAttribute('aria-expanded', false);
-    }
-  }
-  function renderParents() {
-    const st = PS.get();
-    for (const b of document.querySelectorAll('#par-timers [data-action]')) b.classList.toggle('on', +b.dataset.action.slice(10) === st.timerMin);
-    const used = PT.used() / 60;
-    $('par-session').textContent = st.timerMin
-      ? `Cette séance : ${minutes(used)} jouées · encore ${minutes(PT.remaining() / 60)}`
-      : `Cette séance : ${minutes(used)} jouées · pas de limite`;
-    $('par-extend').classList.toggle('hidden', !st.timerMin);
-    const wk = PT.week(), max = Math.max(30, ...wk.map(d => d.min));
-    $('par-week').innerHTML = wk.map(d => `<div class="par-day${d.label === 'Auj.' ? ' today' : ''}" title="${minutes(d.min)}">
-        <small>${d.min >= 1 ? Math.round(d.min) : ''}</small><span class="par-bar"><i style="height:${Math.round(d.min / max * 100)}%"></i></span><b>${d.label}</b></div>`).join('');
-    $('par-week-sum').textContent = `Total sur 7 jours : ${minutes(wk.reduce((t, d) => t + d.min, 0))} (compté sur cet appareil seulement)`;
-    const sw = (id, on) => { $(id).classList.toggle('on', on); $(id).setAttribute('aria-checked', on); $(id).textContent = on ? 'Oui' : 'Non'; };
-    sw('par-combat', st.hideCombat);
-    sw('par-mic', st.mic);
-    sw('par-netlog', st.netlog);
-  }
-  /** Action des boutons du coin des parents (vrai si traitée). */
-  function parentsAction(a) {
-    const st = PS.get();
-    if (a.startsWith('par-timer-')) PS.set({ timerMin: +a.slice(10) });
-    else if (a === 'par-extend') PT.extend(10);
-    else if (a === 'par-reset') PT.reset();
-    else if (a === 'par-combat') PS.set({ hideCombat: !st.hideCombat });
-    else if (a === 'par-mic') PS.set({ mic: !st.mic });
-    else if (a === 'par-netlog') PS.set({ netlog: !st.netlog });
-    else return false;
-    applyParents();
-    renderParents();
-    return true;
-  }
-  applyParents();
-
   /** « Mon aventure » : progression des quatre mondes, rang et badges. */
   function renderAlbum() {
     const S = [1, 2, 3, 4].map(levelSave);
@@ -1042,7 +993,6 @@
   function onAction(a) {
     goFullscreen(); // sur tactile, chaque bouton remet en plein écran si on en est sorti
     if (a.startsWith('coop-open-')) { const pr = readyProfile(); if (pr) openWorld(pr, a.slice(10)); return; }
-    if (a.startsWith('par-') && parentsAction(a)) return;
     switch (a) {
       case 'online': app.mode = 'online'; show('online'); $('online-status').textContent = ''; break;
       case 'cpu': app.mode = 'cpu'; enterSelect(); break;
@@ -1097,7 +1047,6 @@
       case 'album': renderAlbum(); show('album'); break;
       case 'niche': if (window.Niche) window.Niche.open($('niche-root')); show('niche'); break;
       case 'profiles': renderPlayers(); show('profiles'); break;
-      case 'parents': window.ParentGate.open(() => { renderParents(); show('parents'); }); break;
       case 'player-save': savePlayer(); break;
       case 'player-cancel': editPlayer(null); break;
       case 'player-delete': if (app.editing && app.editing !== 'new' && confirm('Supprimer ce joueur et toute sa progression ?')) { window.Profiles.remove(app.editing); renderPlayers(); } break;
@@ -1286,8 +1235,7 @@
     coopReset();
     history.replaceState(null, '', location.pathname);
   }
-  if (invite && PS.hideCombat) history.replaceState(null, '', location.pathname);   // combat caché par les parents
-  else if (invite) {
+  if (invite) {
     app.mode = 'online';
     show('online');
     $('join-code').value = invite;

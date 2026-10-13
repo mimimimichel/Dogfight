@@ -1680,7 +1680,6 @@ class Adventure {
       while (this.acc >= STEP && n < 5) { this.step(STEP); this.acc -= STEP; n++; }
       if (n === 5) this.acc = 0;
     }
-    if (window.ParentTimer) window.ParentTimer.tick(dt, this.paused, this);   // minuteur des parents (parents.js)
     this.render(dt);
     this.adaptQuality(dt);
   }
@@ -1748,7 +1747,7 @@ class Adventure {
    * activé une fois, sinon on propose de l'activer (une fois par partie).
    */
   micHint() {
-    if (this.micHinted || !this.vc || (window.ParentSettings && !window.ParentSettings.micAllowed)) return;
+    if (this.micHinted || !this.vc) return;
     this.micHinted = true;
     if (this.vc.on) { this.dom.mic.classList.add('on'); return; }
     let pref = null;
@@ -1764,7 +1763,6 @@ class Adventure {
   async toggleMic(auto) {
     if (this.micBusy) return;
     this.dom.micAsk.classList.add('hidden');
-    if (window.ParentSettings && !window.ParentSettings.micAllowed) { this.localBanner('🎤 Le micro est désactivé par les parents', '', 3000); return; }
     if (!this.vc) { this.localBanner('Micro', 'Pour parler avec tes amis, choisis « Jouer ensemble » dans le menu', 3600); return; }
     this.micBusy = true;
     const r = await this.vc.toggle();
