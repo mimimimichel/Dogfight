@@ -3108,7 +3108,7 @@ class Adventure {
     if (!sfx || !sfx.ok) return;
     const base = { 'Mamie Labrador': 210, Biscotte: 720, Ainu: 330, Matcha: 560, Panneau: 0 }[who] || 300;
     if (!base) return;
-    sfx.tone(base * (0.85 + Math.random() * 0.4), 0.05, { type: 'square', vol: 0.06, to: base * (0.7 + Math.random() * 0.6) });
+    sfx.tone(base * (0.85 + Math.random() * 0.4), 0.05, { type: 'triangle', vol: 0.07, to: base * (0.7 + Math.random() * 0.6) });
   }
 
   // -------------------------------------------------------------------------
@@ -3956,23 +3956,30 @@ class Adventure {
         ${this.hostSession ? `<div class="adv-stats">${this.hostSession.own === false ? 'Code du monde' : 'Code de ton monde'} : <b class="adv-code">${this.hostSession.code}</b> (jusqu'à 6 joueurs)</div>` : ''}
         ${this.visitorsLine()}
         <button class="btn primary" data-a="resume">Reprendre</button>
-        <div class="adv-toggles">
+        <div class="adv-grid2">
+          <button class="btn" data-a="wardrobe">🎩 Déguisements</button>
+          ${this.party.size > 1 ? '' : '<button class="btn" data-a="photo">📷 Photo</button>'}
+          <button class="btn" data-a="settings">⚙️ Réglages</button>
+          ${this.guest || this.party.size > 1 ? '' : '<button class="btn" data-a="story">🎬 L\'histoire</button>'}
+          ${this.coop ? '' : '<button class="btn" data-a="restart">🔄 Recommencer</button>'}
+          <button class="btn ghost" data-a="quit">🏠 Menu</button>
+        </div>`;
+    } else if (kind === 'settings') {
+      html = `<h2>Réglages</h2>
+        <div class="adv-grid2">
           <button class="btn" data-a="music">🎵 Musique : ${this.sfx && this.sfx.musicOn === false ? 'non' : 'oui'}</button>
-          ${this.guest ? '' : `<button class="btn" data-a="mode">${{ promenade: '🐣', aventure: '🐶', defi: '🏆' }[this.mode]} Mode : ${MODES[this.mode]}</button>`}
+          <button class="btn" data-a="mic">🎤 Micro : ${this.vc && this.vc.on ? 'oui' : 'non'}</button>
+          ${this.guest ? '' : `<button class="btn" data-a="mode">${{ promenade: '🐣', aventure: '🐶', defi: '🏆' }[this.mode]} ${MODES[this.mode]}</button>`}
+          ${this.guest ? '' : `<button class="btn" data-a="style">🎨 ${this.realistic ? 'Réaliste' : 'Dessin animé'}</button>`}
           ${this.isTouch ? '' : `<button class="btn" data-a="quality">✨ Qualité : ${RT.isUltra() ? 'ultra' : 'normale'}</button>`}
-          ${this.guest ? '' : `<button class="btn" data-a="style">🎨 Style : ${this.realistic ? 'réaliste' : 'dessin animé'}</button>`}
-          <button class="btn" data-a="mic">🎤 Micro : ${this.vc && this.vc.on ? 'allumé' : 'coupé'}</button>
           ${(window.SpeechRecognition || window.webkitSpeechRecognition) ? `<button class="btn" data-a="voicecmd">🗣️ Parler au chien : ${this.voiceCmdOn && this.voiceCmdOn() ? 'oui' : 'non'}</button>` : ''}
         </div>
         ${this.vc && this.party.size > 1 ? `<label class="adv-vol">🔊 Voix des amis <input type="range" min="0.5" max="5" step="0.25" value="${this.vc.volume}" data-vol="1"></label>` : ''}
-        <div class="adv-stats adv-mic-note">${!this.vc ? 'Le micro sert à parler avec tes amis : choisis « Jouer ensemble » dans le menu pour ouvrir ton monde.' : this.party.size < 2 ? 'Personne n\'est encore là : tes amis t\'entendront dès qu\'ils arrivent.' : ''}
-        </div>
-        <button class="btn" data-a="wardrobe">🎩 Déguisements</button>
-        ${this.party.size > 1 ? '' : '<button class="btn" data-a="photo">📷 Mode photo</button>'}
-        ${this.guest || this.party.size > 1 ? '' : '<button class="btn" data-a="story">🎬 Revoir l\'histoire</button>'}
-        ${this.coop ? '' : '<button class="btn" data-a="restart">Recommencer le niveau</button>'}
-        <button class="btn ghost" data-a="credits">📜 Crédits</button>
-        <button class="btn ghost" data-a="quit">Menu principal</button>`;
+        <div class="adv-stats adv-mic-note">${!this.vc ? 'Le micro sert à parler avec tes amis : choisis « Jouer ensemble » dans le menu pour ouvrir ton monde.' : this.party.size < 2 ? 'Personne n\'est encore là : tes amis t\'entendront dès qu\'ils arrivent.' : ''}</div>
+        <div class="adv-grid2">
+          <button class="btn ghost" data-a="credits">📜 Crédits</button>
+          <button class="btn primary" data-a="pause">Retour</button>
+        </div>`;
     } else if (kind === 'wardrobe') {
       const o = WR.outfit(), n = WR.rewards();
       const cell = (it) => {
@@ -3992,7 +3999,7 @@ class Adventure {
         Habitants : « Doge » par kitsuneko_3d, « Riley » par lopuh22721, « Bulldog Puppy » par doinspire<br>
         Matières, ciel, arbres et fougères scannés : Poly Haven (CC0)<br>
         Voix : synthèse vocale Chatterbox (Resemble AI, MIT), d'après des lecteurs du corpus Multilingual LibriSpeech (CC BY 4.0)</div>
-        <button class="btn primary" data-a="pause">Retour</button>`;
+        <button class="btn primary" data-a="settings">Retour</button>`;
     } else if (kind === 'continue') {
       html = `<h2>${L.NAME}</h2>
         <div class="adv-stats">${medalWord()} ${s.medals.length}/${L.medals.length} · ${collectWord()} ${s.bones.length}/100</div>
@@ -4055,11 +4062,12 @@ class Adventure {
       case 'wardrobe': this.showOverlay('wardrobe'); break;
       case 'photo': this.hideOverlay(); this.setPhotoMode(true); break;
       case 'pause': this.showOverlay('pause'); break;
-      case 'music': if (this.sfx && this.sfx.setMusic) this.sfx.setMusic(this.sfx.musicOn === false); this.showOverlay('pause'); break;
+      case 'settings': this.showOverlay('settings'); break;
+      case 'music': if (this.sfx && this.sfx.setMusic) this.sfx.setMusic(this.sfx.musicOn === false); this.showOverlay('settings'); break;
       case 'mode': {
         const order = ['promenade', 'aventure', 'defi'];
         this.setMode(order[(order.indexOf(this.mode) + 1) % 3]);
-        this.showOverlay('pause');
+        this.showOverlay('settings');
         break;
       }
       case 'quality':
@@ -4070,12 +4078,12 @@ class Adventure {
         try { localStorage.setItem('dogfight.style', this.realistic ? 'toon' : 'real'); } catch (e) { /* ignore */ }
         this.hideOverlay(); this.switchLevel(L.ID);
         break;
-      case 'mic': this.toggleMic().then(() => { if (this.dom.overlay.dataset.kind === 'pause') this.showOverlay('pause'); }); break;
+      case 'mic': this.toggleMic().then(() => { if (this.dom.overlay.dataset.kind === 'settings') this.showOverlay('settings'); }); break;
       case 'voicecmd': {
         const on = !this.voiceCmdOn();
         try { localStorage.setItem('dogfight.voicecmd', on ? '1' : '0'); } catch (e) { /* ignore */ }
         this.dom.root.querySelector('.adv-saydog').classList.toggle('hidden', !on);
-        this.showOverlay('pause');
+        this.showOverlay('settings');
         break;
       }
       case 'resume-save': this.hideOverlay(); this.beginLevel(false); break;

@@ -121,17 +121,36 @@
       const c = this.ctx, t = c.currentTime + (opts.delay || 0);
       const o = c.createOscillator();
       const g = c.createGain();
-      o.type = opts.type || 'square';
+      o.type = opts.type || 'sine';
       o.frequency.setValueAtTime(freq, t);
       if (opts.to) o.frequency.exponentialRampToValueAtTime(Math.max(20, opts.to), t + dur);
       const v = opts.vol || 0.2;
       g.gain.setValueAtTime(0.0001, t);
       g.gain.exponentialRampToValueAtTime(v, t + 0.008);
       g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
-      o.connect(g);
+      // (les ondes carrées ou en dents de scie sont adoucies : pas de son « jeu vidéo 8 bits »)
+      if (o.type === 'square' || o.type === 'sawtooth') {
+        const lp = c.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.value = 1800; lp.Q.value = 0.3;
+        o.connect(lp); lp.connect(g);
+      } else o.connect(g);
       g.connect(this.fx || this.master);
       o.start(t);
       o.stop(t + dur + 0.02);
+    }
+
+    /** Une note douce, façon marimba / boîte à musique : son pur + une harmonique qui s'éteint vite. */
+    pluck(freq, dur, vol, delay) {
+      if (!this.ok) return;
+      const c = this.ctx, t = c.currentTime + (delay || 0);
+      for (const [mul, v, d] of [[1, 1, dur], [4, 0.18, dur * 0.35], [2, 0.12, dur * 0.6]]) {
+        const o = c.createOscillator(), g = c.createGain();
+        o.type = 'sine'; o.frequency.value = freq * mul;
+        g.gain.setValueAtTime(0.0001, t);
+        g.gain.exponentialRampToValueAtTime(vol * v, t + 0.005);
+        g.gain.exponentialRampToValueAtTime(0.0001, t + d);
+        o.connect(g); g.connect(this.fx || this.master);
+        o.start(t); o.stop(t + d + 0.02);
+      }
     }
 
     noise(dur, opts) {
@@ -183,7 +202,7 @@
     }
 
     block() {
-      this.tone(1100, 0.05, { type: 'square', vol: 0.12, to: 700 });
+      this.pluck(1320, 0.12, 0.1);
       this.noise(0.05, { filter: 'highpass', freq: 3000, vol: 0.15 });
     }
 
@@ -228,27 +247,31 @@
 
     superMove(charId) {
       const base = charId === 'matcha' ? 520 : 330;
-      [0, 4, 7, 12].forEach((s, i) => this.tone(base * Math.pow(2, s / 12), 0.15, { type: 'square', vol: 0.12, delay: i * 0.06 }));
+      [0, 4, 7, 12].forEach((s, i) => this.pluck(base * Math.pow(2, s / 12), 0.35, 0.14, i * 0.06));
       if (charId === 'ainu') this.tone(300, 1.1, { type: 'sawtooth', to: 620, vol: 0.18, delay: 0.3 });
       else this.noise(0.6, { filter: 'bandpass', freq: 1200, freqTo: 4000, vol: 0.2, delay: 0.25 });
     }
 
     ko() {
-      this.tone(600, 0.9, { type: 'square', to: 60, vol: 0.25 });
+      this.tone(500, 0.9, { type: 'triangle', to: 80, vol: 0.22 });
       this.noise(0.5, { freq: 500, vol: 0.4 });
     }
 
     announce(kind) {
-      if (kind === 'round') { this.tone(440, 0.12, { vol: 0.15 }); this.tone(660, 0.18, { vol: 0.15, delay: 0.12 }); }
-      else if (kind === 'fight') { [523, 659, 784].forEach((f) => this.tone(f, 0.3, { vol: 0.12, type: 'square' })); }
-      else if (kind === 'time') { this.tone(700, 0.2, { vol: 0.15 }); this.tone(500, 0.3, { vol: 0.15, delay: 0.2 }); }
+      if (kind === 'round') { this.pluck(523, 0.4, 0.16); this.pluck(784, 0.5, 0.16, 0.12); }
+      else if (kind === 'fight') { [523, 659, 784].forEach((f, i) => this.pluck(f, 0.6, 0.12, i * 0.03)); }
+      else if (kind === 'time') { this.pluck(784, 0.4, 0.15); this.pluck(587, 0.5, 0.15, 0.2); }
     }
 
     win() {
-      [523, 659, 784, 1047, 784, 1047].forEach((f, i) => this.tone(f, 0.18, { vol: 0.13, type: 'square', delay: i * 0.13 }));
+      [523, 659, 784, 1047, 784, 1047].forEach((f, i) => this.pluck(f, i === 5 ? 0.9 : 0.4, 0.15, i * 0.13));
     }
 
-    click() { this.tone(880, 0.04, { type: 'square', vol: 0.08 }); }
+    // un petit « toc » doux et rond (bulle + note de marimba), pas un bip
+    click() {
+      this.tone(420, 0.07, { type: 'sine', to: 760, vol: 0.12 });
+      this.pluck(988, 0.16, 0.07, 0.01);
+    }
 
     // ---------------------------------------------------------------------
     // Ambiances continues (eau, vent, vagues, ville, moteur) : quelques nœuds
