@@ -417,3 +417,20 @@ html.ios-text .hbtn.small, html.ios-text .hbtn.lvpick:not(.active), html.ios-tex
 .coop-qr svg { width: 128px; height: 128px; background: #fff; border-radius: 10px; padding: 4px; box-shadow: 0 4px 12px rgba(0,0,0,.2); }
 .coop-qr small { font-size: 12px; opacity: .85; }
 @media (max-height: 420px) { .coop-qr svg { width: 92px; height: 92px; } }
+
+/* album : carnet des bêtises et souvenirs */
+.album-sub small { font-weight: 500; opacity: .75; font-size: .8em; }
+.album-carnet { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 6px; }
+.cline { display: flex; align-items: center; gap: 8px; padding: 6px 10px; border-radius: 12px; background: rgba(255,255,255,.85); color: #4a2a10; font-size: 14px; }
+.cline:not(.ok) { opacity: .8; }
+.cline .st { width: 30px; height: 30px; flex: none; display: grid; place-items: center; border-radius: 50%; border: 2px dashed #c8a878; font-size: 17px; color: #c8a878; }
+.cline.ok .st { border: 2px solid #e05a3a; background: #fff3e0; transform: rotate(-8deg); }
+.cline small { margin-left: auto; opacity: .7; }
+.album-photos { display: grid; grid-template-columns: repeat(auto-fill, minmax(120px, 1fr)); gap: 8px; }
+.aphoto { padding: 0; border: 0; background: none; cursor: pointer; text-align: center; font: inherit; color: inherit; }
+.aphoto img { width: 100%; aspect-ratio: 4 / 3; object-fit: cover; border-radius: 8px; box-shadow: 0 3px 8px rgba(0,0,0,.2); transform: rotate(calc((var(--r, 0) * 1deg))); }
+.aphoto small { display: block; font-size: 11px; opacity: .8; }
+.album-empty { opacity: .75; font-size: 14px; }
+.photo-view { position: fixed; inset: 0; z-index: 200; background: rgba(10, 6, 2, .85); display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 12px; padding: 16px; }
+.photo-view img { max-width: 100%; max-height: 78vh; border-radius: 6px; box-shadow: 0 10px 30px rgba(0,0,0,.5); }
+.pv-bar { display: flex; gap: 8px; }

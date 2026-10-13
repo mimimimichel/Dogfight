@@ -19,6 +19,7 @@ export const ITEMS = [
   { id: 'c_bell', kind: 'collar', name: 'Collier à clochette', icon: '🔔', need: 5 },
   { id: 'h_flower', kind: 'hat', name: 'Couronne de fleurs', icon: '🌼', need: 8 },
   { id: 'c_gold', kind: 'collar', name: 'Collier d\'or', icon: '📿', need: 12 },
+  { id: 'c_scarf', kind: 'collar', name: 'Écharpe des farceurs', icon: '🧣', stamps: 6 },
   { id: 'h_cap', kind: 'hat', name: 'Casquette', icon: '🧢', shop: true },
   { id: 'h_sun', kind: 'hat', name: 'Lunettes de soleil', icon: '🕶️', shop: true },
   { id: 'h_cowboy', kind: 'hat', name: 'Chapeau de cowboy', icon: '🤠', shop: true },
@@ -40,7 +41,10 @@ export function rewards() {
 }
 /** Objets achetés à la boutique de la ville. */
 function bought() { const s = read('dogfight.aventure.niveau3b'); return (s && s.city && s.city.owned) || []; }
-export function unlocked(it) { return it.shop ? bought().includes(it.id) : rewards() >= it.need; }
+export function unlocked(it) {
+  if (it.stamps) return !!(window.Carnet && window.Carnet.stamps() >= it.stamps);   // tampons du Carnet des bêtises
+  return it.shop ? bought().includes(it.id) : rewards() >= it.need;
+}
 
 /** Porter / enlever un objet. */
 export function toggle(id) {
@@ -78,6 +82,13 @@ function buildExtra(id) {
     const red = new THREE.MeshStandardMaterial({ color: 0xd8202a, roughness: 0.7, side: THREE.DoubleSide });
     const band = new THREE.Mesh(new THREE.TorusGeometry(0.26, 0.035, 8, 28), red); band.rotation.x = Math.PI / 2; g.add(band);
     const tri = new THREE.Mesh(new THREE.ConeGeometry(0.13, 0.2, 3), red); tri.rotation.x = Math.PI; tri.scale.z = 0.3; tri.position.set(0, -0.08, 0.25); g.add(tri);
+  } else if (id === 'c_scarf') {
+    // écharpe à rayures (tricotée par Mamie, évidemment)
+    const tex = new THREE.CanvasTexture((() => { const c = document.createElement('canvas'); c.width = 64; c.height = 16; const x = c.getContext('2d'); for (let i = 0; i < 8; i++) { x.fillStyle = ['#e0402a', '#ffd23a', '#3a8ae0', '#ffffff'][i % 4]; x.fillRect(i * 8, 0, 8, 16); } return c; })());
+    tex.colorSpace = THREE.SRGBColorSpace; tex.wrapS = THREE.RepeatWrapping; tex.repeat.set(3, 1);
+    const wool = new THREE.MeshStandardMaterial({ map: tex, roughness: 0.95 });
+    const band = new THREE.Mesh(new THREE.TorusGeometry(0.26, 0.06, 10, 28), wool); band.rotation.x = Math.PI / 2; g.add(band);
+    for (const sx of [-1, 1]) { const tail = new THREE.Mesh(new THREE.BoxGeometry(0.1, 0.32, 0.04), wool); tail.position.set(sx * 0.07, -0.16, 0.27); tail.rotation.z = sx * 0.25; g.add(tail); }
   } else if (id === 'c_bell' || id === 'c_gold') {
     const gold = id === 'c_gold';
     const band = new THREE.Mesh(new THREE.TorusGeometry(0.26, 0.04, 8, 28), gold ? M.mat(0xffc830, { metalness: 0.85, roughness: 0.25 }) : M.mat(0x3a8ae0, { roughness: 0.5 }));

@@ -291,6 +291,51 @@
       ['👑', 'Toutous légendaires', total >= 95],
     ];
     $('album-badges').innerHTML = badges.map(([ic, n, on], i) => `<div class="abadge${on ? '' : ' off'}" style="--i:${i}" title="${n}"><div class="ic"><span>${ic}</span></div>${n}</div>`).join('');
+    // carnet des bêtises
+    const C = window.Carnet;
+    if (C) {
+      $('carnet-sum').textContent = `${C.stamps()}/${C.LIST.length} tampons`;
+      $('album-carnet').innerHTML = C.LIST.map((it) => {
+        const p = C.progress(it.id), ok = p >= it.need;
+        return `<div class="cline${ok ? ' ok' : ''}"><span class="st">${ok ? it.icon : '·'}</span><span>${it.text}</span>${it.need > 1 && !ok ? `<small>${p}/${it.need}</small>` : ''}</div>`;
+      }).join('');
+    }
+    renderPhotos();
+  }
+
+  /** Mes souvenirs : les photos du joueur (cartes postales), on touche pour voir en grand. */
+  let photoUrls = [];
+  function renderPhotos() {
+    const box = $('album-photos'), MEM = window.Memories;
+    if (!MEM || !box) return;
+    MEM.list().then((list) => {
+      for (const u of photoUrls) URL.revokeObjectURL(u);
+      photoUrls = [];
+      if (!list.length) return;
+      box.innerHTML = list.map((p) => {
+        const u = URL.createObjectURL(p.blob); photoUrls.push(u);
+        return `<button class="aphoto" data-pid="${p.id}"><img src="${u}" alt="${escapeHtml(p.label || 'Photo')}" loading="lazy"><small>${escapeHtml(p.label || '')}</small></button>`;
+      }).join('');
+      box.querySelectorAll('.aphoto').forEach((b) => b.addEventListener('click', () => viewPhoto(list.find(p => p.id === +b.dataset.pid))));
+    }).catch(() => {});
+  }
+  function viewPhoto(p) {
+    if (!p) return;
+    const url = URL.createObjectURL(p.blob);
+    const v = document.createElement('div'); v.className = 'photo-view';
+    v.innerHTML = `<img src="${url}" alt=""><div class="pv-bar"><button class="hbtn go" data-pv="share">📤 Envoyer</button><button class="hbtn" data-pv="del">🗑️</button><button class="hbtn" data-pv="close">Fermer</button></div>`;
+    const close = () => { v.remove(); URL.revokeObjectURL(url); };
+    v.addEventListener('click', (e) => {
+      const a = e.target.dataset && e.target.dataset.pv;
+      if (a === 'close' || e.target === v) close();
+      else if (a === 'del') { if (confirm('Supprimer cette photo ?')) window.Memories.remove(p.id).then(() => { close(); renderPhotos(); }); }
+      else if (a === 'share') {
+        const file = new File([p.blob], 'matcha-ainu.jpg', { type: p.blob.type || 'image/jpeg' });
+        if (navigator.canShare && navigator.canShare({ files: [file] })) navigator.share({ files: [file], title: 'Matcha & Ainu' }).catch(() => {});
+        else { const a2 = document.createElement('a'); a2.href = url; a2.download = 'matcha-ainu.jpg'; document.body.appendChild(a2); a2.click(); a2.remove(); }
+      }
+    });
+    document.body.appendChild(v);
   }
 
   function renderModes() {

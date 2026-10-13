@@ -519,6 +519,11 @@ class Adventure {
     if (this.levelLogic && this.levelLogic.minimapMarks) for (const [mx, mz, col, rad, edge] of this.levelLogic.minimapMarks()) dot(mx, mz, col, rad, edge);
     dot(L.npcs.mamie.x, L.npcs.mamie.z, '#ff8a5a', 3.5);
     if (this.puppy.state !== 'home') dot(this.puppy.pos.x, this.puppy.pos.z, '#8ad0ff', 3.5);
+    for (const g of this.pings || []) {
+      const [px, py] = P(g.x, g.z), r = 4 + ((this.t - g.t0) * 10) % 9;
+      x.strokeStyle = g.col; x.lineWidth = 2.5; x.beginPath(); x.arc(px, py, r, 0, 7); x.stroke();
+      x.fillStyle = g.col; x.beginPath(); x.arc(px, py, 3, 0, 7); x.fill();
+    }
     for (const Q of this.players) {
       const [px, py] = P(Q.pos.x, Q.pos.z);
       const k = Q === this.me ? 1 : 0.75;
@@ -1698,6 +1703,7 @@ class Adventure {
     this.stepCamera(dt);
     players.forEach((P, i) => this.stepPlayer(dt, inputs[i] || { x: 0, y: 0, wx: 0, wz: 0 }, P, presses[i] || new Set()));
     this.stepCats(dt);
+    this.stepThrow(dt);
     if (this.party.size > 1) this.stepRevive(dt);
     this.stepNpcs(dt);
     this.stepCollect(dt);
@@ -2136,7 +2142,7 @@ class Adventure {
       P.grounded = !!(q[8] & 1); P.gliding = !!(q[8] & 2); P.down = !!(q[8] & 4);
       if (q[11] > P.flipT + 0.1 || q[11] === 0) P.flipT = q[11];
       P.attackT = q[9]; P.dashT = q[10]; P.cheerT = q[12]; P.invuln = q[13]; P.hearts = q[14]; P.score = q[15] || 0;
-      if ((q[16] || 0) > (P.barkT || 0) + 0.2) this.bubble(P, 'Ouaf !');
+      if ((q[16] || 0) > (P.barkT || 0) + 0.2) { this.bubble(P, 'Ouaf !'); this.barkReact(P); }
       P.barkT = q[16] || 0; P.trickT = q[17] || 0;
     }
     if (this.myId !== undefined && this.me.score > sc0) addToProfile(this.me.score - sc0);
@@ -2284,8 +2290,10 @@ class Adventure {
       }
       // Ouaf ! (les chats sursautent, Biscotte répond) et pirouette
       if (mp.has('bark') && P.barkT <= 0) { P.barkT = 0.7; this.dogBark(P); }
-      if (mp.has('trick') && P.grounded && P.trickT <= 0 && P.attackT <= 0) { P.trickT = 0.9; P.vel.y = 7.5; P.grounded = false; P.jumps = 1; this.sound('trick'); }
-      if (mp.has('attack') && P.attackT <= 0) {
+      if (mp.has('trick') && P.grounded && P.trickT <= 0 && P.attackT <= 0) { P.trickT = 0.9; P.vel.y = 7.5; P.grounded = false; P.jumps = 1; this.sound('trick'); this.betise(P, 'tricks'); }
+      // deuxième appui pendant la toupie (en duo) : Ainu lance Matcha !
+      if (mp.has('attack') && P.attackT > 0 && P.attackT < ATTACK_TIME - 0.05 && !this.throwM && P.mesh && P.mesh.userData.ainu && P.mesh.userData.matcha.visible && P === this.player && this.party.size === 1) this.throwMatcha(P, wx, wz, wlen);
+      else if (mp.has('attack') && P.attackT <= 0) {
         P.attackT = ATTACK_TIME; P.hitIds.clear();
         if (!P.grounded) P.vel.y = Math.max(P.vel.y, 2);
         this.sound('spin');
@@ -2363,6 +2371,12 @@ class Adventure {
       this.burst(P.pos.x, P.pos.y + 0.1, P.pos.z, 8, 0xffe0f0, 3, 0.4);
     }
 
+    // planer longtemps, tomber de très haut (carnet des bêtises)
+    if (P.gliding) { P.glideT = (P.glideT || 0) + dt; if (P.glideT > 5) { this.betise(P, 'glide'); P.glideT = -99; } }
+    else if (P.grounded) P.glideT = 0;
+    if (!P.grounded) P.airTop = Math.max(P.airTop === undefined ? P.pos.y : P.airTop, P.pos.y);
+    else { if (P.airTop !== undefined && P.airTop - P.pos.y > 14) this.betise(P, 'fall_far'); P.airTop = P.pos.y; }
+
     // Point sûr pour réapparaître
     if (P.grounded && sup.y > 0.4 && !(sup.collider && sup.collider.moving) && this.t - P.lastSafeT > 0.4) {
       P.lastSafe.copy(P.pos); P.lastSafeT = this.t;
@@ -2375,6 +2389,7 @@ class Adventure {
     if (P.pos.y < L.WATER_Y - 0.9) {
       this.burst(P.pos.x, L.WATER_Y + 0.2, P.pos.z, 16, 0x9ae0ff, 4, 0.6);
       this.sound('splash');
+      this.betise(P, 'plouf');
       P.pos.copy(P.lastSafe); P.vel.set(0, 0, 0); P.invuln = 1; P.dashT = 0;
       if (P === this.player && this.puppy.state === 'follow') this.puppy.pos.copy(P.pos).add(new THREE.Vector3(1, 0, 1));
       this.banner('Plouf !', `${this.party.size > 1 ? P.name : (P.kind === 'matcha' ? 'Matcha' : 'Ainu')} n'aime pas l'eau…`, 1400);
@@ -2444,6 +2459,7 @@ class Adventure {
         this.burst(P.pos.x, P.pos.y + 1, P.pos.z, 20, 0xff6a9a, 4, 0.7);
         this.sound('reveal');
         this.banner(`${helper.name} a relevé ${P.name} !`, 'Les amis, c\'est fait pour ça.', 2200);
+        this.betise(helper, 'revive');
         this.updateHud();
       } else if (P.downT > 20 || !this.players.some(Q => Q !== P && !Q.ko)) {
         P.down = false;
@@ -2593,6 +2609,7 @@ class Adventure {
 
   breakCrate(cr) {
     cr.broken = true;
+    this.betise(this.me, 'crates');
     cr.mesh.visible = false;
     this.save.crates.push(cr.def.id);
     if (cr.def.content !== 'medal') this.save.crateT[cr.def.id] = Date.now();
@@ -2674,9 +2691,12 @@ class Adventure {
     this.sound(P.kind === 'matcha' ? 'barkM' : 'bark');
     if (P.mesh && P.mesh.userData.ainu) setTimeout(() => { if (!this.disposed) this.sound('barkM'); }, 220);   // Matcha aboie aussi
     this.bubble(P, 'Ouaf !');
+    this.barkReact(P);
+    if (L.npcs && L.npcs.mamie && Math.hypot(L.npcs.mamie.x - P.pos.x, L.npcs.mamie.z - P.pos.z) < 3.2) this.betise(P, 'mamie_bark');
     for (const c of this.cats || []) {
       if (c.dead || Math.hypot(c.pos.x - P.pos.x, c.pos.z - P.pos.z) > 7) continue;
       c.stun = Math.max(c.stun, 1.6); c.chasing = false;
+      this.betise(P, 'bark_cats');
       this.burst(c.pos.x, c.pos.y + 1.2, c.pos.z, 6, 0xffffff, 2.5, 0.4);
       if (Math.random() < 0.5) this.sound('meowHi');
     }
@@ -2684,10 +2704,115 @@ class Adventure {
     if (pp && pp.state !== 'lost' && Math.hypot(pp.pos.x - P.pos.x, pp.pos.z - P.pos.z) < 10) setTimeout(() => { if (this.disposed) return; this.sound('yip'); pp.happyT = 1.2; this.bubble({ pos: pp.pos, mesh: pp.mesh, small: true }, 'Waf !'); }, 450);
   }
 
+  /**
+   * Le monde répond à l'aboiement : les os tout proches sautillent (on les repère),
+   * des pétales s'envolent, et à plusieurs une patte lumineuse dit « viens ici ! ».
+   */
+  barkReact(P) {
+    this.boneHop = { x: P.pos.x, z: P.pos.z, t: this.t };
+    const n = 10;
+    for (let i = 0; i < n; i++) {
+      const a = i / n * Math.PI * 2;
+      this.spawnParticle(P.pos.x + Math.cos(a) * 0.8, P.pos.y + 0.3, P.pos.z + Math.sin(a) * 0.8, Math.cos(a) * 2.2, 1.2 + Math.random(), Math.sin(a) * 2.2, [0xff9ac8, 0xfff07a, 0xffffff][i % 3], 0.22, 0.9, 1);
+    }
+    if (this.party.size > 1) this.pingAt(P);
+  }
+  /** « Viens ici ! » : colonne de lumière à la couleur du joueur, visible de tous et sur la carte. */
+  pingAt(P) {
+    this.pings = this.pings || [];
+    if (this.pings.some(g => g.P === P && this.t - g.t0 < 1.5)) return;
+    const col = new THREE.Color(DOG_COLORS[(P.color || 0) % DOG_COLORS.length]);
+    const beam = new THREE.Mesh(new THREE.CylinderGeometry(0.35, 0.6, 14, 12, 1, true),
+      new THREE.MeshBasicMaterial({ color: col, transparent: true, opacity: 0.35, depthWrite: false, side: THREE.DoubleSide, blending: THREE.AdditiveBlending }));
+    beam.position.set(P.pos.x, P.pos.y + 7, P.pos.z); beam.userData.noOutline = true;
+    const mark = this.makeMark('🐾', col.getHex()); mark.position.set(P.pos.x, P.pos.y + 3.2, P.pos.z);
+    this.scene.add(beam); this.scene.add(mark);
+    this.pings.push({ P, x: P.pos.x, z: P.pos.z, t0: this.t, beam, mark, col: '#' + col.getHexString() });
+  }
+  stepPings() {
+    if (!this.pings || !this.pings.length) return;
+    this.pings = this.pings.filter((g) => {
+      const age = this.t - g.t0;
+      if (age > 6) { this.scene.remove(g.beam); this.scene.remove(g.mark); g.beam.geometry.dispose(); g.beam.material.dispose(); return false; }
+      g.beam.material.opacity = 0.35 * Math.min(1, (6 - age) / 1.5) * (0.8 + Math.sin(age * 6) * 0.2);
+      g.mark.position.y = g.beam.position.y - 3.8 + Math.sin(age * 3) * 0.15;
+      return true;
+    });
+  }
+
+  /**
+   * Ainu lance Matcha (en duo) : elle file droit devant, ramasse les os, renverse les
+   * chats, casse les caisses… puis revient se poser sur son dos.
+   */
+  throwMatcha(P, wx, wz, wlen) {
+    const u = P.mesh.userData;
+    const dx = wlen > 0.2 ? wx / wlen : Math.sin(P.yaw), dz = wlen > 0.2 ? wz / wlen : Math.cos(P.yaw);
+    P.yaw = Math.atan2(dx, dz);
+    const fly = u.matcha.clone(true);
+    fly.traverse(o => { o.castShadow = true; });
+    const start = new THREE.Vector3(); u.matcha.getWorldPosition(start);
+    fly.position.copy(start); fly.scale.copy(u.matcha.getWorldScale(new THREE.Vector3()));
+    this.scene.add(fly);
+    u.matcha.visible = false;
+    this.throwM = { P, fly, pos: start.clone(), vel: new THREE.Vector3(dx * 12, 5.5, dz * 12), t: 0, back: false, hit: new Set() };
+    this.sound('barkM'); this.sound('dash');
+    this.bubble({ pos: start.clone().setY(start.y - 1.2), mesh: fly, small: true }, 'Youpi !');
+    if (!this.save.threwOnce) { this.save.threwOnce = true; this.persist(); }
+  }
+  stepThrow(dt) {
+    const T = this.throwM;
+    if (!T) return;
+    const P = T.P;
+    T.t += dt;
+    if (!T.back) {
+      T.vel.y -= 14 * dt;
+      T.pos.addScaledVector(T.vel, dt);
+      const g = this.support(T.pos.x, T.pos.z, T.pos.y + 0.3).y;
+      if (T.t > 0.55 || T.pos.y < g + 0.3) T.back = true;
+    } else {
+      // retour vers le dos d'Ainu
+      const home = new THREE.Vector3(P.pos.x, P.pos.y + 1.6, P.pos.z), d = home.clone().sub(T.pos), L2 = d.length();
+      const sp = Math.min(L2 / dt, 16 + T.t * 10);
+      T.pos.addScaledVector(d.normalize(), sp * dt);
+      if (L2 < 0.6 || T.t > 2.5) {
+        this.scene.remove(T.fly);
+        P.mesh.userData.matcha.visible = true;
+        this.throwM = null;
+        this.sound('yip');
+        return;
+      }
+    }
+    T.fly.position.copy(T.pos);
+    T.fly.rotation.set(T.t * 14, P.yaw, 0);
+    // ce qu'elle touche en route
+    const proxy = Object.create(P);
+    proxy.pos = new THREE.Vector3(T.pos.x, T.pos.y - 0.8, T.pos.z);
+    this.collectFor(proxy);
+    P.score = proxy.score; P.chain = proxy.chain; P.chainAt = proxy.chainAt;
+    for (const c of this.cats) if (!c.dead && T.pos.distanceTo(c.pos) < 1.6) { this.defeatCat(c); this.betise(P, 'throw_cat'); }
+    for (const cr of this.crates) if (!cr.broken && !T.hit.has(cr) && Math.hypot(cr.def.x - T.pos.x, cr.def.z - T.pos.z) < 1.3 && Math.abs(cr.def.y + 0.5 - T.pos.y) < 1.2) { T.hit.add(cr); this.breakCrate(cr); }
+    if ((T.t * 30 | 0) % 2 === 0) this.spawnParticle(T.pos.x, T.pos.y, T.pos.z, 0, 0.3, 0, 0x9ae05a, 0.22, 0.4, 0);
+  }
+
+  /** Carnet des bêtises : avance une farce ; un tampon quand elle est réussie. */
+  betise(P, id, n) {
+    if ((P !== this.me && Object.getPrototypeOf(P) !== this.me) || !window.Carnet) return;
+    const it = window.Carnet.bump(id, n);
+    if (!it) return;
+    const k = window.Carnet.stamps();
+    setTimeout(() => {
+      if (this.disposed) return;
+      this.sound('reveal');
+      if (k === window.Carnet.PRIZE_AT) this.banner('🧣 Écharpe des farceurs !', 'Elle t\'attend dans les déguisements (menu pause)', 3600);
+      else this.banner(`Tampon ! ${it.icon}`, `${it.text} · Carnet des bêtises ${k}/${window.Carnet.LIST.length}`, 2600);
+    }, 900);
+  }
+
   /** Caresser Biscotte : il saute de joie, cœurs. */
   petPuppy(P) {
     const pp = this.puppy;
     pp.happyT = 2;
+    this.betise(P, 'pet');
     this.sound('yip'); this.sound('heart');
     for (let i = 0; i < 8; i++) setTimeout(() => { if (!this.disposed) this.spawnParticle(pp.pos.x + (Math.random() - 0.5) * 0.6, pp.pos.y + 1.0, pp.pos.z + (Math.random() - 0.5) * 0.6, (Math.random() - 0.5) * 0.6, 1.6, (Math.random() - 0.5) * 0.6, 0xff5a8a, 0.35, 1.0, 0); }, i * 90);
     if (P) P.cheerT = 0.8;
@@ -2866,6 +2991,7 @@ class Adventure {
         if (this.levelLogic && this.levelLogic.onCoin) this.levelLogic.onCoin(P);
         this.burst(b.x, b.y, b.z, 6, 0xffe070, 2.5, 0.35);
         this.sound('bone', P.chain);
+        if (P.chain === 9) this.betise(P, 'chain10');
         if (P.chain && P.chain % 5 === 4) {
           this.burst(b.x, b.y + 0.4, b.z, 22, 0xfff3a0, 5, 0.8);
           this.sound('chain');
@@ -2927,6 +3053,8 @@ class Adventure {
     this.sound('win');
     const kn = this.party.size > 1 ? '' : kidName();
     this.banner(L.MEDAL_TITLE || 'MÉDAILLE PATOUNE !', `${kn ? 'Bravo ' + kn + ' ! ' : ''}${m.def.label} — ${s.medals.length}/${L.medals.length}`, 2800);
+    this.autoSnapAt = this.t + 0.6;   // photo souvenir, le temps que les chiens fêtent ça
+    this.autoSnapLabel = m.def.label;
     const finished = L.FINAL_MEDAL ? s.medals.includes(L.FINAL_MEDAL) : s.medals.length >= L.medals.length;
     if (finished && !s.done) this.endTimer = 1.7;
   }
@@ -3093,8 +3221,15 @@ class Adventure {
     for (let i = 0; i < L.bones.length; i++) {
       const b = L.bones[i];
       const taken = this.boneTaken.has(b.id);
-      q.setFromEuler(e.set(0, t * 2.5 + i * 0.4, 0.35));
-      m4.compose(v.set(b.x, b.y + Math.sin(t * 3 + i) * 0.12, b.z), q, taken ? zero : one);
+      // aboiement tout près : les os sautillent pour se montrer
+      let hop = 0;
+      const bh = this.boneHop;
+      if (bh && this.t - bh.t < 1.6 && !taken) {
+        const d = Math.hypot(b.x - bh.x, b.z - bh.z);
+        if (d < 12) { const a = this.t - bh.t - d * 0.04; if (a > 0) hop = Math.abs(Math.sin(a * 9)) * 0.7 * Math.max(0, 1 - a / 1.4); }
+      }
+      q.setFromEuler(e.set(0, t * 2.5 + i * 0.4 + hop * 4, 0.35));
+      m4.compose(v.set(b.x, b.y + Math.sin(t * 3 + i) * 0.12 + hop, b.z), q, taken ? zero : one);
       this.bonesI.setMatrixAt(i, m4);
     }
     this.bonesI.instanceMatrix.needsUpdate = true;
@@ -3158,6 +3293,7 @@ class Adventure {
     if (this.progressAt === undefined) this.progressAt = this.t;
     if (!this.guide && !this.guest && this.t - this.progressAt > 75 && !(this.t < (this.guideUntil || 0))) { this.showWay(true); }
     if (this.guide || this.t < (this.guideUntil || 0)) this.renderGuide(dt);
+    this.stepPings();
     for (const p of this.portals || []) {
       p.mat.uniforms.uTime.value = t;
       p.disc.rotation.y = Math.atan2(this.camera.position.x - p.def.x, this.camera.position.z - p.def.z);
@@ -3294,6 +3430,7 @@ class Adventure {
     this.post.focus = this.cine ? this.cine.focusDist() : this.camera.position.distanceTo(this.camTarget);
     this.post.render(this.scene, this.camera, this.t, W.SKY.sunDir);
     if (this.snapPending) { this.snapPending = false; this.savePhoto(); }
+    if (this.autoSnapAt && this.t >= this.autoSnapAt) { this.autoSnapAt = 0; this.autoPhoto(this.autoSnapLabel); }
   }
 
   /**
@@ -3573,14 +3710,26 @@ class Adventure {
   }
 
   /** Enregistre (ou partage, sur téléphone) l'image qui vient d'être dessinée. */
+  /** Photo souvenir automatique (médaille…) : rangée dans l'album, sans flash ni partage. */
+  autoPhoto(label) {
+    const MEM = window.Memories;
+    if (!MEM) return;
+    try { MEM.postcard(this.renderer.domElement, L.NAME, 480).then(b => b && MEM.add(b, { world: L.NAME, label, auto: true })).catch(() => {}); } catch (e) { /* ignore */ }
+  }
   savePhoto() {
     const cv = this.renderer.domElement;
     const flash = document.createElement('div'); flash.className = 'adv-flash'; this.dom.root.appendChild(flash);
     setTimeout(() => flash.remove(), 600);
-    cv.toBlob((blob) => {
+    const MEM = window.Memories;
+    if (this.outfit && this.outfit.hat) this.betise(this.me, 'hat_photo');
+    // carte postale (cadre, nom du monde, date) : partagée, et un exemplaire rangé dans l'album
+    const make = MEM ? MEM.postcard(cv, L.NAME, Math.min(1280, cv.width)) : new Promise(res => cv.toBlob(res, 'image/png'));
+    if (MEM) MEM.postcard(cv, L.NAME, 640).then(b => b && MEM.add(b, { world: L.NAME, label: 'Photo' })).catch(() => {});
+    make.then((blob) => {
       if (!blob) return;
-      const name = `matcha-ainu-${new Date().toISOString().slice(0, 19).replace(/[:T]/g, '-')}.png`;
-      const file = new File([blob], name, { type: 'image/png' });
+      const jpg = blob.type === 'image/jpeg';
+      const name = `matcha-ainu-${new Date().toISOString().slice(0, 19).replace(/[:T]/g, '-')}.${jpg ? 'jpg' : 'png'}`;
+      const file = new File([blob], name, { type: blob.type });
       if (this.isTouch && navigator.canShare && navigator.canShare({ files: [file] })) {
         navigator.share({ files: [file], title: 'Matcha & Ainu' }).catch(() => {});
       } else {
@@ -3588,8 +3737,8 @@ class Adventure {
         document.body.appendChild(a); a.click(); a.remove();
         setTimeout(() => URL.revokeObjectURL(a.href), 4000);
       }
-      this.banner('Clic !', 'Photo enregistrée', 1200);
-    }, 'image/png');
+      this.banner('Clic !', 'Photo enregistrée (et rangée dans ton album)', 1600);
+    });
   }
 
   /** Change la tenue de mon chien (garde-robe). */
@@ -3773,6 +3922,8 @@ class Adventure {
       this.freeze = 0.6;
       setTimeout(() => { if (!this.disposed && !this.dialog) this.talkMamie(true); }, 700);
     } else {
+      // astuce : le lancer de Matcha, tant qu'on ne l'a jamais essayé
+      if (!this.save.threwOnce && this.party.size === 1) setTimeout(() => { if (!this.disposed && !this.dialog && this.player.kind === 'duo') this.banner('Astuce : lance Matcha !', 'Appuie 2 fois vite sur Attaque : elle ramasse les os et renverse les chats', 4200); }, 9000);
       const kn = kidName();
       this.banner(kn ? `Coucou ${kn} !` : L.NAME, kn ? `${L.NAME} · ${medalWord()} ${this.save.medals.length}/${L.medals.length}` : `${medalWord()} ${this.save.medals.length}/${L.medals.length}`, 2400);
     }
