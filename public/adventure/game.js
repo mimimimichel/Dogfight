@@ -1732,6 +1732,8 @@ class Adventure {
   showVoices() {
     const v = this.vc;
     if ((this.voiceT = (this.voiceT || 0) + 1) % 6) return;
+    // micro allumé : le son du jeu passe par le chemin que l'anti-écho connaît (voir audio.js)
+    if (this.sfx && this.sfx.echoSafe) this.sfx.echoSafe(!!(v && v.on));
     if (!v || this.party.size < 2) {
       if (this.chatDuck !== 0 && this.sfx && this.sfx.duck) { this.chatDuck = 0; this.sfx.duck(false, 'chat'); this.sfx.duck(false, 'chatting'); }
       return;
@@ -3644,7 +3646,7 @@ class Adventure {
   dispose(keepSession) {
     this.disposed = true;
     // le chat vocal ne s'arrête que si on quitte vraiment le monde (pas en changeant de niveau)
-    if (this.vc && ((this.coop && this.coop.link) || (this.hostSession && !keepSession))) this.vc.close();
+    if (this.vc && ((this.coop && this.coop.link) || (this.hostSession && !keepSession))) { this.vc.close(); if (this.sfx && this.sfx.echoSafe) this.sfx.echoSafe(false); }
     if (this.coop && this.coop.link) { this.coop.link.onclose = null; this.coop.link.close(); }
     if (this.hostSession && !keepSession) { this.hostSession.onJoin = null; this.hostSession.close(); }
     cancelAnimationFrame(this.raf);

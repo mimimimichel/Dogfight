@@ -41,6 +41,7 @@ function tuneSdp(sdp) {
 }
 
 // Journal de qualité (envoyé au serveur toutes les 15 s pendant qu'on se parle)
+const IOS = /iPhone|iPad|iPod/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
 const LOG = !/^(localhost|127\.)/.test(location.hostname) && !new URLSearchParams(location.search).get('peer');
 const DEVICE = (() => { const u = navigator.userAgent; return /iPhone|iPad/.test(u) ? 'iOS' : /Android/.test(u) ? 'Android' + ((/; ([^;)]+) Build/.exec(u) || [])[1] ? ' ' + /; ([^;)]+) Build/.exec(u)[1] : '') : /Mac/.test(u) ? 'Mac' : /Windows/.test(u) ? 'Windows' : 'autre'; })();
 const voices = new Map();
@@ -56,7 +57,7 @@ class Voice {
   constructor(peer) {
     this.peer = peer;
     this.out = new Map();      // pid -> appel sortant (ma voix vers lui)
-    this.in = new Map();       // pid -> { call, audio, analyser, buf }
+    this.in = new Map();       // pid -> { call, audio, at, boost }
     this.stream = null;        // mon micro
     this.on = false;
     this.roster = [];
@@ -71,6 +72,10 @@ class Voice {
     window.addEventListener('pointerdown', this.retry);
     window.addEventListener('keydown', this.retry);
     this.health = setInterval(() => this.check(), 2000);
+    // mon niveau sonore, lu dans les statistiques de l'appel (pas de mixeur audio en plus :
+    // sur iPhone, un mixeur ouvert pendant que le micro tourne fait bégayer le son)
+    this.myLevel = 0;
+    this.meter = setInterval(() => this.readMyLevel(), 300);
     this.prev = new Map();
     if (LOG) this.reporter = setInterval(() => this.report(), 15000);
   }
@@ -102,7 +107,7 @@ class Voice {
   }
   /** Fait passer la voix d'un ami par l'amplificateur (seulement si on monte au-delà du volume normal). */
   boost(e) {
-    if (e.boost || this.volume <= 1.05) return;
+    if (e.boost || this.volume <= 1.05 || IOS) return;
     const out = this.voiceOut();
     if (!out) return;
     try {
@@ -125,23 +130,6 @@ class Voice {
     if (this.ctx && this.ctx.state === 'suspended') this.ctx.resume();
     return this.ctx;
   }
-  analyser(stream) {
-    const ctx = this.audioCtx();
-    if (!ctx) return null;
-    try {
-      const src = ctx.createMediaStreamSource(stream), an = ctx.createAnalyser();
-      an.fftSize = 512; src.connect(an);
-      return { an, buf: new Uint8Array(an.fftSize) };
-    } catch (e) { return null; }
-  }
-  level(a) {
-    if (!a) return 0;
-    a.an.getByteTimeDomainData(a.buf);
-    let s = 0;
-    for (let i = 0; i < a.buf.length; i++) { const v = (a.buf[i] - 128) / 128; s += v * v; }
-    return Math.sqrt(s / a.buf.length);
-  }
-
   /** Allume ou coupe mon micro. Renvoie 'on', 'off' ou un message d'erreur. */
   async toggle() {
     if (!this.stream) {
@@ -154,7 +142,6 @@ class Voice {
         try { if (navigator.audioSession) navigator.audioSession.type = 'playback'; } catch (err) { /* ignore */ }
         return e && e.name === 'NotAllowedError' ? 'Le micro a été refusé. Autorise-le dans le navigateur pour parler.' : 'Pas de micro trouvé.';
       }
-      this.mine = this.analyser(this.stream);
       this.on = true;
       this.callAll();
       return 'on';
@@ -202,7 +189,7 @@ class Voice {
       audio.volume = Math.min(1, this.volume);
       audio.play().catch(() => this.blocked.add(audio));
       this.smooth(call);
-      const e = Object.assign({ call, audio, at: Date.now() }, this.analyser(stream) || {});
+      const e = { call, audio, at: Date.now() };
       this.in.set(call.peer, e);
       this.boost(e);
     });
@@ -313,7 +300,7 @@ class Voice {
 
   /** Est-ce que ce joueur parle en ce moment ? */
   speaking(pid) {
-    if (pid === this.myId) return this.on && this.level(this.mine) > 0.035;
+    if (pid === this.myId) return this.on && this.myLevel > 0.03;
     const e = this.in.get(pid);
     if (!e) return false;
     // niveau sonore donné par WebRTC (fiable partout), sinon par l'analyseur audio
@@ -325,7 +312,18 @@ class Voice {
         if (src && typeof src.audioLevel === 'number') return src.audioLevel > 0.03;
       }
     } catch (err) { /* ignore */ }
-    return !!(e.an && this.level(e) > 0.035);
+    return false;
+  }
+  async readMyLevel() {
+    const call = this.on && this.out.values().next().value;
+    const pc = call && call.peerConnection;
+    if (!pc || this.reading) { if (!call) this.myLevel = 0; return; }
+    this.reading = true;
+    try {
+      const r = await pc.getStats();
+      r.forEach((x) => { if (x.type === 'media-source' && x.kind === 'audio' && typeof x.audioLevel === 'number') this.myLevel = x.audioLevel; });
+    } catch (e) { /* ignore */ }
+    this.reading = false;
   }
   hears(pid) { return this.in.has(pid); }
 
@@ -335,6 +333,7 @@ class Voice {
     window.removeEventListener('keydown', this.retry);
     clearInterval(this.health);
     clearInterval(this.reporter);
+    clearInterval(this.meter);
     for (const c of this.out.values()) { try { c.close(); } catch (e) { /* ignore */ } }
     for (const pid of [...this.in.keys()]) this.drop(pid);
     if (this.stream) for (const t of this.stream.getTracks()) t.stop();

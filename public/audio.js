@@ -49,7 +49,60 @@
       comp.threshold.value = -20; comp.knee.value = 10; comp.ratio.value = 6; comp.attack.value = 0.004; comp.release.value = 0.25;
       makeup.gain.value = 1.15;
       master.connect(comp); comp.connect(makeup); makeup.connect(c.destination);
+      this.makeup = makeup;
       return master;
+    }
+
+    /**
+     * Micro allumé sur Chrome / Android : l'anti-écho de Chrome n'entend pas le son
+     * joué par WebAudio (musique, bruitages, voix des personnages) — il partait dans le
+     * micro et hachait la voix chez l'ami. Comme les applis de visio, on fait passer le
+     * son du jeu par une petite boucle WebRTC locale lue par un élément <audio> : l'anti-écho
+     * le connaît alors et l'enlève du micro. (Safari et Firefox le font déjà tout seuls.)
+     */
+    echoSafe(on) {
+      const ua = navigator.userAgent;
+      if (!this.ctx || !this.makeup || !/Chrome\//.test(ua) || /CriOS|EdgiOS|FxiOS/.test(ua) || !window.RTCPeerConnection || !this.ctx.createMediaStreamDestination) return;
+      if (!!on === !!this.loop) return;
+      const back = () => { try { this.makeup.disconnect(); } catch (e) { /* ignore */ } this.makeup.connect(this.ctx.destination); };
+      if (!on) {
+        const L = this.loop; this.loop = null;
+        if (L.live) back();
+        try { L.a.close(); L.b.close(); } catch (e) { /* ignore */ }
+        L.el.srcObject = null; L.el.remove();
+        return;
+      }
+      const L = this.loop = { live: false };
+      try {
+        const dest = this.ctx.createMediaStreamDestination();
+        const a = L.a = new RTCPeerConnection(), b = L.b = new RTCPeerConnection();
+        a.onicecandidate = (e) => { if (e.candidate) b.addIceCandidate(e.candidate).catch(() => {}); };
+        b.onicecandidate = (e) => { if (e.candidate) a.addIceCandidate(e.candidate).catch(() => {}); };
+        const el = L.el = document.createElement('audio');
+        el.autoplay = true; el.playsInline = true; el.style.display = 'none';
+        document.body.appendChild(el);
+        b.ontrack = (e) => {
+          try { if ('jitterBufferTarget' in e.receiver) e.receiver.jitterBufferTarget = 0; } catch (err) { /* ignore */ }
+          el.srcObject = e.streams[0] || new MediaStream([e.track]);
+          el.play().catch(() => {});
+        };
+        // on bascule seulement quand la boucle joue vraiment (sinon : plus aucun son)
+        el.addEventListener('playing', () => {
+          if (this.loop !== L || L.live) return;
+          L.live = true;
+          try { this.makeup.disconnect(); } catch (err) { /* ignore */ }
+          this.makeup.connect(dest);
+        });
+        for (const t of dest.stream.getAudioTracks()) a.addTrack(t, dest.stream);
+        // musique en stéréo et bon débit (ce n'est pas une voix)
+        const hifi = (sdp) => sdp.replace(/a=fmtp:(\d+) (.*useinbandfec=1.*)/g, (m, pt, p) => `a=fmtp:${pt} ${p};stereo=1;sprop-stereo=1;maxaveragebitrate=256000;usedtx=0`);
+        (async () => {
+          const o = await a.createOffer(); o.sdp = hifi(o.sdp);
+          await a.setLocalDescription(o); await b.setRemoteDescription(o);
+          const r = await b.createAnswer(); r.sdp = hifi(r.sdp);
+          await b.setLocalDescription(r); await a.setRemoteDescription(r);
+        })().catch(() => {});
+      } catch (e) { /* on garde la sortie directe */ }
     }
 
     toggleMute() {
