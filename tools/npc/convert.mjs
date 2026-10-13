@@ -5,7 +5,8 @@
 //   <nom>_<k>.webp : textures
 // Le modèle est tourné (avant = +z), posé au sol (y = 0), centré, mis à la hauteur voulue,
 // et simplifié (meshoptimizer) s'il a trop de triangles.
-// Usage : node convert.mjs <entrée.glb> <nom> <hauteur_m> <rotY_degrés> <triangles_max> [taille_texture=1024]
+// Usage : node convert.mjs <entrée.glb> <nom> <hauteur_m> <rotY_degrés> <triangles_max> [taille_texture=1024] [rotX_degrés=0]
+// (rotX : redresse un modèle scanné penché, ex. Mamie assise : 16.6)
 import { NodeIO } from '@gltf-transform/core';
 import { ALL_EXTENSIONS } from '@gltf-transform/extensions';
 import { MeshoptSimplifier } from 'meshoptimizer';
@@ -13,8 +14,8 @@ import sharp from 'sharp';
 import fs from 'node:fs';
 import path from 'node:path';
 
-const [src, name, hArg, rotArg, maxArg, texArg] = process.argv.slice(2);
-const HEIGHT = +hArg, ROT = (+rotArg || 0) * Math.PI / 180, MAXTRI = +maxArg || 30000, TEX = +texArg || 1024;
+const [src, name, hArg, rotArg, maxArg, texArg, tiltArg] = process.argv.slice(2);
+const TILT = (+tiltArg || 0) * Math.PI / 180, HEIGHT = +hArg, ROT = (+rotArg || 0) * Math.PI / 180, MAXTRI = +maxArg || 30000, TEX = +texArg || 1024;
 const OUT = process.env.OUT || path.join(path.dirname(new URL(import.meta.url).pathname), '../../public/adventure/assets/npc');
 fs.mkdirSync(OUT, { recursive: true });
 await MeshoptSimplifier.ready;
@@ -62,6 +63,10 @@ for (const q of parts.values()) {
     q.pos[i] = c * x + s * z; q.pos[i + 2] = -s * x + c * z;
     const nx = q.nor[i], nz = q.nor[i + 2];
     q.nor[i] = c * nx + s * nz; q.nor[i + 2] = -s * nx + c * nz;
+    if (TILT) {   // redressement autour de x (l'avant descend quand TILT > 0)
+      const ct = Math.cos(TILT), st = Math.sin(TILT);
+      for (const A of [q.pos, q.nor]) { const y = A[i + 1], z = A[i + 2]; A[i + 1] = y * ct - z * st; A[i + 2] = y * st + z * ct; }
+    }
     for (let k = 0; k < 3; k++) { mn[k] = Math.min(mn[k], q.pos[i + k]); mx[k] = Math.max(mx[k], q.pos[i + k]); }
   }
 }

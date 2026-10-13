@@ -163,7 +163,7 @@ export function buildMamieReal() {
   const bandana = new THREE.Group(); bandana.add(band, tri); bandana.position.set(nc[0], nc[1], nc[2]);
   u.body.add(bandana);
   // elle baisse la tête vers les chiens au lieu de regarder le ciel
-  u.head.rotation.x = 0.55;
-  u.headRestX = 0.55;
+  u.head.rotation.x = 0.3;
+  u.headRestX = 0.3;
   return g;
 }
