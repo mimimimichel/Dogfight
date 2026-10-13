@@ -2761,15 +2761,18 @@ class Adventure {
     const u = P.mesh.userData;
     const dx = wlen > 0.2 ? wx / wlen : Math.sin(P.yaw), dz = wlen > 0.2 ? wz / wlen : Math.cos(P.yaw);
     P.yaw = Math.atan2(dx, dz);
-    const fly = u.matcha.clone(true);
-    fly.traverse(o => { o.castShadow = true; });
-    const start = new THREE.Vector3(); u.matcha.getWorldPosition(start);
-    fly.position.copy(start); fly.scale.copy(u.matcha.getWorldScale(new THREE.Vector3()));
-    this.scene.add(fly);
-    u.matcha.visible = false;
-    this.throwM = { P, fly, pos: start.clone(), vel: new THREE.Vector3(dx * 12, 5.5, dz * 12), t: 0, back: false, hit: new Set() };
+    // la vraie Matcha quitte le dos d'Ainu (un modèle animé ne se copie pas : sa copie restait invisible) ;
+    // pendant le vol, l'animation du duo agit sur une doublure vide
+    const fly = u.matcha, parent = fly.parent;
+    const local = { p: fly.position.clone(), q: fly.quaternion.clone(), s: fly.scale.clone() };
+    const start = new THREE.Vector3(); fly.getWorldPosition(start);
+    this.scene.attach(fly);
+    const q0 = fly.quaternion.clone();
+    const stand = new THREE.Object3D(); stand.visible = false;
+    u.matcha = stand; u.matchaFlying = true;
+    this.throwM = { P, fly, parent, local, q0, pos: start.clone(), vel: new THREE.Vector3(dx * 12, 5.5, dz * 12), t: 0, back: false, hit: new Set() };
     this.sound('barkM'); this.sound('dash');
-    this.bubble({ pos: start.clone().setY(start.y - 1.2), mesh: fly, small: true }, 'Youpi !');
+    this.bubble({ pos: this.throwM.pos, mesh: fly, small: true }, 'Youpi !');   // (la bulle suit Matcha)
     if (!this.save.threwOnce) { this.save.threwOnce = true; this.persist(); }
   }
   stepThrow(dt) {
@@ -2788,15 +2791,22 @@ class Adventure {
       const sp = Math.min(L2 / dt, 16 + T.t * 10);
       T.pos.addScaledVector(d.normalize(), sp * dt);
       if (L2 < 0.6 || T.t > 2.5) {
-        this.scene.remove(T.fly);
-        P.mesh.userData.matcha.visible = true;
+        // elle se repose sur le dos d'Ainu
+        const u = P.mesh.userData;
+        T.parent.add(T.fly);
+        T.fly.position.copy(T.local.p); T.fly.quaternion.copy(T.local.q); T.fly.scale.copy(T.local.s);
+        T.fly.visible = true;
+        if (u.matchaFlying) { u.matcha = T.fly; u.matchaFlying = false; }
         this.throwM = null;
         this.sound('yip');
         return;
       }
     }
     T.fly.position.copy(T.pos);
-    T.fly.rotation.set(T.t * 14, P.yaw, 0);
+    // elle file tête la première en faisant des roulés-boulés
+    T.fly.quaternion.setFromEuler(new THREE.Euler(0, Math.atan2(T.back ? P.pos.x - T.pos.x : T.vel.x, T.back ? P.pos.z - T.pos.z : T.vel.z), 0));
+    T.fly.rotateX(T.t * 12);
+    T.fly.visible = true;
     // ce qu'elle touche en route
     const proxy = Object.create(P);
     proxy.pos = new THREE.Vector3(T.pos.x, T.pos.y - 0.8, T.pos.z);
