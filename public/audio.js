@@ -335,9 +335,10 @@
     }
 
     // -----------------------------------------------------------------------
-    // Musique de fond : un petit compositeur écrit des morceaux toujours
-    // nouveaux (intro, couplets, refrain, pont…), joués par des instruments doux
-    // avec de la réverbération. Une ambiance par lieu.
+    // Musique de fond : le thème d'Ainu & Matcha (écrit à la main) décliné pour
+    // chaque lieu, entouré de parties composées par un petit compositeur (graine
+    // fixe : un lieu sonne toujours pareil), joué par des instruments doux avec
+    // de la réverbération. La musique suit l'action (setIntensity, stinger).
     // -----------------------------------------------------------------------
     get musicOn() { try { return localStorage.getItem('dogfight.music') !== '0'; } catch (e) { return true; } }
     setMusic(on) {
@@ -345,7 +346,6 @@
       if (this.musicBus && this.ctx) this.musicBus.gain.setTargetAtTime(on ? (this.musicVol || 0.5) : 0.0001, this.ctx.currentTime, 0.3);
       return on;
     }
-    /** Choisit l'ambiance ('menu', 'adventure', 'adv1', 'adv2', 'adv3', 'fight' ou null pour couper). */
     /** Baisse la musique pendant qu'un personnage parle. */
     /** (level : volume gardé, 0.3 par défaut ; le plus bas des baisses en cours l'emporte) */
     duck(on, why, level) {
@@ -362,12 +362,51 @@
       if (this.musicBus && this.musicOn) this.musicBus.gain.setTargetAtTime((this.musicVol || 0.5) * g, t, tc);
     }
 
+    /**
+     * Intensité de l'action, de 0 (calme) à 1 (combat de boss) : ajoute ou retire la basse
+     * et la batterie. Peut être appelé à chaque image : la musique ne change qu'à la
+     * prochaine barre de mesure (jamais au milieu). null : la musique décide seule.
+     */
+    setIntensity(x) {
+      this.intensity = x === null || x === undefined ? null : Math.max(0, Math.min(1, +x || 0));
+      return this.intensity;
+    }
+
+    /**
+     * Courte phrase musicale calée sur le prochain temps de la musique en cours :
+     * 'medal' (victoire), 'found' (découverte), 'danger' (un chat repère le chien),
+     * 'ainu', 'matcha' (le motif du chien). La mélodie se tait le temps de la phrase.
+     * Ignorée si la musique est coupée ou si la même phrase vient d'être jouée.
+     */
+    stinger(name) {
+      const S = STINGERS[name], cm = this.composer;
+      if (!S || !this.ok || !cm || !this.musicBus || !this.musicOn || this.ctx.state !== 'running') return false;
+      const now = this.ctx.currentTime, seen = this.stingAt || (this.stingAt = {});
+      if (seen[name] !== undefined && now - seen[name] < S.gap) return false;
+      seen[name] = now;
+      const s16 = cm.s16, beat = s16 * 4, from = now + (S.after || 0.05);
+      const t0 = cm.tBar + Math.ceil((from - cm.tBar) / beat) * beat;
+      const base = S.low ? cm.key - 12 : cm.hi(), pitch = (d) => base + (S.semi ? d : cm.deg(d));
+      let end = t0;
+      for (const [p, d, l] of S.notes) {
+        const tt = t0 + p * s16, len = l * s16 * (S.legato || 0.9);
+        this.inst(cm.out, S.inst, pitch(d), tt, len, S.vol, 0.4);
+        end = Math.max(end, tt + len);
+      }
+      const lastP = S.notes[S.notes.length - 1][0];
+      if (S.bell) for (const d of S.bell) this.inst(cm.out, 'bell', pitch(d) + 12, t0 + lastP * s16, s16 * 6, 0.04, 0.8);
+      cm.sting = [t0, end];
+      return true;
+    }
+
+    /** Choisit l'ambiance ('menu', 'adventure', 'adv1'…'adv4', 'boss', 'fight' ou null pour couper). */
     music(theme) {
       if (theme === 'adventure' && this.theme && /^adv\d/.test(this.theme)) return;   // l'ambiance du niveau est déjà là
       this.wantTheme = theme;
       if (!this.ctx) return; // démarrera au premier contact (unlock)
       if (this.theme === theme) return;
       this.theme = theme;
+      this.intensity = null; this.composer = null;
       if (this.musicTimer) { clearInterval(this.musicTimer); this.musicTimer = null; }
       if (this.musicBus) {
         const old = this.musicBus, t = this.ctx.currentTime;
@@ -398,7 +437,7 @@
       bus.connect(this.master);
       this.musicBus = bus;
       const out = { dry, wet: rev };
-      const comp0 = new Composer(this, out, style);
+      const comp0 = this.composer = new Composer(this, out, style, theme === 'adventure' ? 'adv1' : theme);
       let next = c.currentTime + 0.15;
       const tick = () => {
         if (!this.ctx || this.musicBus !== bus || this.ctx.state !== 'running') return;
@@ -488,53 +527,136 @@
   // Le compositeur
   // ---------------------------------------------------------------------------
   const SCALES = { major: [0, 2, 4, 5, 7, 9, 11], dorian: [0, 2, 3, 5, 7, 9, 10], minor: [0, 2, 3, 5, 7, 8, 10], lydian: [0, 2, 4, 6, 7, 9, 11] };
+
   /**
-   * Ambiances. progs : enchaînements de degrés (0 = I). Les morceaux durent
-   * 1 min 30 à 2 min 30 puis un nouveau est composé (autre tonalité, autres thèmes).
+   * Le thème d'Ainu & Matcha (leitmotiv), écrit à la main : 8 mesures à 4 temps,
+   * facile à chanter (une octave, des pas conjoints, une question puis une réponse).
+   * Écrit en degrés de la gamme (0 = tonique, 7 = tonique à l'octave) : il prend
+   * tout seul la couleur du mode de chaque lieu (majeur, dorien, lydien, mineur).
+   * Une note = [position en doubles croches, degré, durée en doubles croches].
+   *   « Ai-nu, Mat-cha, | tous les deux, | on court, on joue, | par-tout !
+   *     Do  Do  Mi  Sol  | La  Sol Mi    | Fa  Fa   Mi  Ré   | Mi  Ré
+   *     Ai-nu, Mat-cha, | chiens si heu-reux, | on joue en-co- | re ! »
+   *     Do  Do  Mi  Sol  | La  Sol Mi  Do'    | La  Sol Fa  Ré  | Do
+   */
+  const LEITMOTIV = [
+    [[0, 0, 4], [4, 0, 4], [8, 2, 4], [12, 4, 4]],
+    [[0, 5, 4], [4, 4, 4], [8, 2, 8]],
+    [[0, 3, 4], [4, 3, 4], [8, 2, 4], [12, 1, 4]],
+    [[0, 2, 8], [8, 1, 8]],
+    [[0, 0, 4], [4, 0, 4], [8, 2, 4], [12, 4, 4]],
+    [[0, 5, 4], [4, 4, 4], [8, 2, 4], [12, 7, 4]],
+    [[0, 5, 4], [4, 4, 4], [8, 3, 4], [12, 1, 4]],
+    [[0, 0, 16]],
+  ];
+  /**
+   * Le petit motif de chaque chien (1 mesure, sur l'accord de la mesure).
+   * Ainu : grave et doux (Sol — Mi Do —, legato). Matcha : aigu et sautillant (Sol Mi Sol Do' · Sol Do', piqué).
+   */
+  const DOGS = {
+    ainu: { notes: [[0, 4, 6], [6, 2, 2], [8, 0, 8]], low: true, inst: 'flute', vol: 0.13, legato: 1 },
+    matcha: { notes: [[0, 4, 1], [2, 2, 1], [3, 4, 1], [4, 7, 2], [8, 4, 1], [10, 7, 3]], inst: 'mallet', vol: 0.12, legato: 0.8 },
+  };
+  /**
+   * Courtes phrases jouées par-dessus la musique, calées sur le prochain temps.
+   * semi : écart en demi-tons (sinon degrés de la gamme) ; after : pas avant (s) ; gap : délai mini entre deux fois (s).
+   */
+  const STINGERS = {
+    medal: { notes: [[0, 4, 1], [1, 5, 1], [2, 6, 1], [3, 7, 3], [6, 4, 1], [7, 7, 6]], inst: 'mallet', vol: 0.14, after: 0.75, gap: 2, bell: [7, 9] },
+    found: { notes: [[0, 2, 1], [1, 4, 1], [2, 7, 1], [3, 9, 5]], inst: 'bell', vol: 0.09, gap: 1.5 },
+    danger: { notes: [[0, 0, 1], [1, 1, 1], [2, 0, 1], [3, 1, 1], [4, 6, 4]], semi: true, low: true, inst: 'pluck', vol: 0.12, gap: 5 },
+    ainu: Object.assign({ gap: 2 }, DOGS.ainu),
+    matcha: Object.assign({ gap: 2 }, DOGS.matcha),
+  };
+  /**
+   * Ambiances. leit : le leitmotiv décliné pour le lieu (prog : un accord par mesure,
+   * oct : registre de la mélodie, legato, swing8 : croches swinguées, push : croches
+   * anticipées, pont : accords du dialogue des chiens). progs : enchaînements de degrés
+   * (0 = I) pour les parties composées par la machine. Tout est tiré d'une graine fixe
+   * par ambiance : un même lieu sonne toujours pareil.
    */
   const STYLES = {
     menu: { bpm: 84, keys: [65, 62, 67], mode: 'major', vol: 0.44, wet: 0.38, lead: 'piano', comp: 'piano', bassInst: 'bass', swing: 0.12, drums: 'soft', sevenths: true,
+      leit: { prog: [0, 5, 3, 4, 0, 5, 4, 0], oct: 0 },
       progs: [[0, 5, 3, 4], [0, 2, 5, 3], [3, 4, 2, 5], [0, 4, 5, 3]] },
+    // niveau 1 : le thème tel quel, clair et joyeux (marimba)
     adv1: { bpm: 100, keys: [60, 62, 65], mode: 'major', vol: 0.42, wet: 0.3, lead: 'mallet', comp: 'pluck', bassInst: 'bass', swing: 0.1, drums: 'light', sevenths: false, sparkle: true,
+      leit: { prog: [0, 5, 3, 4, 0, 5, 4, 0], oct: 12 },
       progs: [[0, 4, 5, 3], [0, 3, 4, 4], [5, 3, 0, 4], [0, 5, 1, 4]] },
+    // forêt : plus mystérieuse, dorien, à la flûte, plus grave et lié
     adv2: { bpm: 86, keys: [62, 57, 64], mode: 'dorian', vol: 0.44, wet: 0.45, lead: 'flute', comp: 'pluck', bassInst: 'bass', swing: 0, drums: 'brush', sevenths: true, sparkle: true,
+      leit: { prog: [0, 3, 3, 4, 0, 0, 3, 0], oct: 0, legato: 1 },
       progs: [[0, 3, 0, 6], [0, 6, 3, 4], [3, 0, 6, 0], [0, 2, 3, 6]] },
+    // ville : swing (croches inégales et anticipées), accords de septième, ii-V
     adv3: { bpm: 96, keys: [58, 63, 60], mode: 'major', vol: 0.42, wet: 0.3, lead: 'piano', comp: 'piano', bassInst: 'bass', swing: 0.18, drums: 'groove', sevenths: true,
+      leit: { prog: [0, 5, 1, 4, 0, 5, 4, 0], oct: 12, swing8: 0.6, push: true, legato: 0.85 },
       progs: [[1, 4, 0, 5], [0, 5, 1, 4], [3, 2, 1, 4], [0, 3, 2, 5]] },
+    // boss : en mineur, rapide et piqué
     boss: { bpm: 138, keys: [57, 55, 60], mode: 'minor', vol: 0.44, wet: 0.25, lead: 'mallet', comp: 'piano', bassInst: 'bass', swing: 0, drums: 'drive', sevenths: false,
+      leit: { prog: [0, 5, 3, 4, 0, 5, 4, 0], oct: 12, legato: 0.6 },
       progs: [[0, 5, 3, 4], [0, 3, 4, 4], [5, 3, 0, 4], [0, 6, 5, 4]] },
+    // ciel : lydien aérien (le Fa# des mesures 3 et 7), flûte haute, accord II majeur
     adv4: { bpm: 92, keys: [64, 62, 67], mode: 'lydian', vol: 0.42, wet: 0.5, lead: 'flute', comp: 'pluck', bassInst: 'bass', swing: 0.08, drums: 'light', sevenths: true, sparkle: true,
+      leit: { prog: [0, 5, 1, 4, 0, 5, 1, 0], oct: 12, legato: 1, pont: [0, 0, 1, 4] },
       progs: [[0, 1, 4, 0], [0, 3, 1, 4], [5, 1, 0, 4], [0, 1, 5, 3]] },
+    // combat 1 contre 1 : entièrement composé par la machine (graine fixe)
     fight: { bpm: 138, keys: [57, 64, 62], mode: 'minor', vol: 0.38, wet: 0.2, lead: 'mallet', comp: 'pluck', bassInst: 'bass', swing: 0, drums: 'drive', sevenths: false,
       progs: [[0, 5, 2, 6], [0, 3, 6, 4], [5, 6, 0, 0], [0, 6, 5, 6]] },
   };
   function rng(seed) { let x = seed >>> 0 || 1; return () => ((x = (x * 1664525 + 1013904223) >>> 0) / 4294967296); }
+  /** Graine fixe tirée du nom de l'ambiance (FNV-1a). */
+  function seedOf(name) { let h = 2166136261; const s = String(name || 'menu'); for (let i = 0; i < s.length; i++) { h ^= s.charCodeAt(i); h = Math.imul(h, 16777619); } return h >>> 0; }
+  /** Version « swing » d'une mesure du thème : les notes des temps 2 et 4 arrivent une croche plus tôt. */
+  function pushBar(bar) {
+    const ps = bar.map(([p, , l]) => ((p === 4 || p === 12) && l === 4 ? p - 2 : p));
+    return bar.map(([p, d, l], i) => [ps[i], d, Math.min(l + p - ps[i], (i + 1 < bar.length ? ps[i + 1] : 16) - ps[i])]);
+  }
 
   class Composer {
-    constructor(sfx, out, style) {
+    constructor(sfx, out, style, name) {
       this.sfx = sfx; this.out = out; this.st = style;
-      this.seed = Math.floor(Math.random() * 1e9);
+      this.seed = seedOf(name);   // graine FIXE par ambiance (plus de hasard d'une partie à l'autre)
+      this.loop = 0;
+      this.s16 = 60 / style.bpm / 4;
+      this.tBar = 0;
+      this.sting = null;
       this.newSong();
     }
     newSong() {
-      const st = this.st, r = this.r = rng(this.seed++);
-      this.key = st.keys[Math.floor(r() * st.keys.length)];
+      const st = this.st, r = this.r = rng(this.seed + this.loop * 7919);
+      this.rm = rng((this.seed ^ 0x5bd1e995) + this.loop);   // petites variations de la mélodie (ne dépendent pas de l'intensité)
+      this.key = st.leit ? st.keys[0] : st.keys[Math.floor(r() * st.keys.length)];
       this.scale = SCALES[st.mode];
       const pick = () => st.progs[Math.floor(r() * st.progs.length)];
-      const A = pick(), B = pick(), C = pick();
-      // une phrase = 4 accords (1 par mesure) ; un thème mélodique par section, répété avec variations
-      const ma = this.motif(), mb = this.motif(), mc = this.motif();
       const S = (name, prog, motif, bars, layers) => ({ name, prog, motif, bars, layers });
-      this.sections = [
-        S('intro', A, null, 4, { pad: 1, comp: 0, bass: 0, drums: 0, lead: 0 }),
-        S('A', A, ma, 8, { pad: 1, comp: 1, bass: 1, drums: 0, lead: 1 }),
-        S('B', B, mb, 8, { pad: 1, comp: 1, bass: 1, drums: 1, lead: 1 }),
-        S('A2', A, ma, 8, { pad: 0, comp: 1, bass: 1, drums: 1, lead: 1, vary: 1 }),
-        S('pont', C, mc, 8, { pad: 1, comp: 0, bass: 1, drums: 0, lead: 1, soft: 1 }),
-        S('B2', B, mb, 8, { pad: 1, comp: 1, bass: 1, drums: 1, lead: 1, vary: 1, up: 1 }),
-        S('fin', A, null, 4, { pad: 1, comp: 1, bass: 1, drums: 0, lead: 0 }),
-      ];
-      this.si = 0; this.bi = 0; this.last = this.key + 12;
+      if (st.leit) {
+        // le thème, puis une partie composée (qui change à chaque tour, toujours dans le même ordre),
+        // le dialogue des deux chiens, et le thème encore
+        const lp = st.leit.prog, B = pick(), mb = this.motif();
+        this.sections = [
+          S('intro', [0, 0], 'dogs', 2, { pad: 1, comp: 0, bass: 0, drums: 0, lead: 1 }),
+          S('A', lp, 'leit', 8, { pad: 1, comp: 1, bass: 1, drums: 0, lead: 1 }),
+          S('B', B, mb, 8, { pad: 1, comp: 1, bass: 1, drums: 1, lead: 1 }),
+          S('pont', st.leit.pont || [0, 0, 3, 4], 'dogs', 4, { pad: 1, comp: 0, bass: 1, drums: 0, lead: 1, soft: 1 }),
+          S('A2', lp, 'leit', 8, { pad: 0, comp: 1, bass: 1, drums: 1, lead: 1 }),
+          S('fin', [0, 0], 'dogs', 2, { pad: 1, comp: 1, bass: 1, drums: 0, lead: 1 }),
+        ];
+      } else {
+        const A = pick(), B = pick(), C = pick();
+        // une phrase = 4 accords (1 par mesure) ; un thème mélodique par section, répété avec variations
+        const ma = this.motif(), mb = this.motif(), mc = this.motif();
+        this.sections = [
+          S('intro', A, null, 4, { pad: 1, comp: 0, bass: 0, drums: 0, lead: 0 }),
+          S('A', A, ma, 8, { pad: 1, comp: 1, bass: 1, drums: 0, lead: 1 }),
+          S('B', B, mb, 8, { pad: 1, comp: 1, bass: 1, drums: 1, lead: 1 }),
+          S('A2', A, ma, 8, { pad: 0, comp: 1, bass: 1, drums: 1, lead: 1, vary: 1 }),
+          S('pont', C, mc, 8, { pad: 1, comp: 0, bass: 1, drums: 0, lead: 1, soft: 1 }),
+          S('B2', B, mb, 8, { pad: 1, comp: 1, bass: 1, drums: 1, lead: 1, vary: 1, up: 1 }),
+          S('fin', A, null, 4, { pad: 1, comp: 1, bass: 1, drums: 0, lead: 0 }),
+        ];
+      }
+      this.loop++;
+      this.si = 0; this.bi = 0; this.last = this.key + (st.leit ? st.leit.oct || 0 : 12);
     }
     /** Motif rythmique et mélodique de 2 mesures (positions en doubles croches, degrés relatifs). */
     motif() {
@@ -546,8 +668,12 @@
       for (const bar of bars) steps.push(bar.map(() => [0, 1, -1, 2, -2, 1, 0, 3][Math.floor(r() * 8)]));
       return { bars, steps, lens: bars.map(b => b.map((p, i) => (i + 1 < b.length ? b[i + 1] : 16) - p)) };
     }
+    /** Degré de la gamme → demi-tons au-dessus de la tonique. */
+    deg(d) { const sc = this.scale; return sc[((d % 7) + 7) % 7] + 12 * Math.floor(d / 7); }
+    /** Registre aigu (Matcha, petites phrases). */
+    hi() { return this.key < 63 ? this.key + 12 : this.key; }
     chordOf(deg) {
-      const sc = this.scale, n = (d) => this.key + sc[((d % 7) + 7) % 7] + 12 * Math.floor(d / 7);
+      const n = (d) => this.key + this.deg(d);
       const ch = [n(deg), n(deg + 2), n(deg + 4)];
       if (this.st.sevenths) ch.push(n(deg + 6));
       return ch;
@@ -559,13 +685,30 @@
       const oct = Math.floor((midi - this.key) / 12), d = oct * 7 + idx + step;
       return this.key + sc[((d % 7) + 7) % 7] + 12 * Math.floor(d / 7);
     }
+    /**
+     * Couches réellement jouées : la section décide, et l'intensité demandée par le jeu
+     * (sfx.setIntensity) ajoute ou retire basse et batterie. Lu au début de chaque mesure :
+     * le changement tombe toujours sur une barre de mesure.
+     */
+    layers(base) {
+      const x = this.sfx.intensity;
+      if (x === null || x === undefined) return base;
+      return Object.assign({}, base, { bass: x >= 0.5 ? 1 : x >= 0.2 ? base.bass : 0, drums: x >= 0.9 ? 2 : x >= 0.45 ? 1 : 0 });
+    }
+    /** Une note de mélodie (se tait le temps qu'une petite phrase passe devant). */
+    note(inst, midi, tt, len, vol, rev) {
+      const s = this.sting;
+      if (s && tt > s[0] - 0.05 && tt < s[1]) return;
+      this.sfx.inst(this.out, inst, midi, tt, len, vol, rev);
+    }
     /** Écrit et programme une mesure à partir de t ; renvoie le début de la mesure suivante. */
     bar(t) {
       let sec = this.sections[this.si];
       if (this.bi >= sec.bars) { this.si++; this.bi = 0; if (this.si >= this.sections.length) this.newSong(); sec = this.sections[this.si]; }
-      const st = this.st, L = sec.layers, sfx = this.sfx, out = this.out, r = this.r;
-      const s16 = 60 / st.bpm / 4, barLen = s16 * 16;
-      const deg = sec.prog[this.bi % sec.prog.length] + (L.up && this.bi >= 4 ? 0 : 0);
+      const st = this.st, L = this.layers(sec.layers), sfx = this.sfx, out = this.out, r = this.r;
+      const s16 = this.s16, barLen = s16 * 16;
+      this.tBar = t;
+      const deg = sec.prog[this.bi % sec.prog.length];
       const ch = this.chordOf(deg);
       const sw = (i) => t + i * s16 + (i % 2 ? st.swing * s16 : 0);
       const fade = sec.name === 'fin' ? 1 - this.bi / sec.bars : sec.name === 'intro' ? 0.6 + 0.4 * this.bi / sec.bars : 1;
@@ -586,7 +729,7 @@
             : [[0, root], [8, root + 7], [12, root + (r() < 0.5 ? 12 : 4)]];
         for (const [i, n] of line) sfx.inst(out, st.bassInst, n, sw(i), s16 * 3, 0.16 * fade, 0);
       }
-      // batterie feutrée
+      // batterie feutrée (L.drums = 2 : l'action bat son plein, un peu plus de charleston — sauf 'drive', déjà plein)
       if (L.drums && st.drums) {
         const D = st.drums;
         for (let i = 0; i < 16; i++) {
@@ -596,10 +739,14 @@
           else if (D === 'brush') { if (i === 0 || i === 8) sfx.perc(out, 'kick', tt, 0.22); if (i % 4 === 2) sfx.perc(out, 'brush', tt, 0.05); }
           else if (D === 'light') { if (i === 0 || i === 8) sfx.perc(out, 'kick', tt, 0.32); if (i === 4 || i === 12) sfx.perc(out, 'snare', tt, 0.1); if (i % 4 === 2) sfx.perc(out, 'shaker', tt, 0.045); }
           else { if (i === 0 || i === 8) sfx.perc(out, 'kick', tt, 0.25); if (i % 4 === 2) sfx.perc(out, 'shaker', tt, 0.03); }
+          if (L.drums > 1 && D !== 'drive' && i % 4 === 0 && i) sfx.perc(out, 'shaker', tt, 0.035);
         }
       }
-      // mélodie : le thème de la section, collé aux accords, avec variations
-      if (L.lead && sec.motif) {
+      // mélodie
+      if (L.lead && sec.motif === 'leit') this.leit(t, fade);
+      else if (L.lead && sec.motif === 'dogs') this.dog(this.bi % 2 ? 'matcha' : 'ainu', t, deg, fade * (L.soft ? 0.85 : 1));
+      else if (L.lead && sec.motif) {
+        // le thème de la section, collé aux accords, avec variations
         const m = sec.motif, half = this.bi % 2, phrase = Math.floor(this.bi / 2) % 4;
         const rhythm = m.bars[half], steps = m.steps[half], lens = m.lens[half];
         let note = this.last;
@@ -612,14 +759,31 @@
           if (L.vary && r() < 0.25) note = this.scaleNear(note, r() < 0.5 ? 1 : -1);
           if (phrase === 3 && half === 1 && k === rhythm.length - 1) note = target[0];   // fin de phrase : on se pose
           const len = lens[k] * s16 * (phrase === 3 && half === 1 && k === rhythm.length - 1 ? 1.8 : 0.92);
-          sfx.inst(out, st.lead, note + (L.up ? 0 : 0), sw(pos), len, (L.soft ? 0.09 : 0.12) * fade, 0.45);
+          this.note(st.lead, note, sw(pos), len, (L.soft ? 0.09 : 0.12) * fade, 0.45);
         });
         this.last = note;
-        // petites cloches qui scintillent de temps en temps
-        if (st.sparkle && r() < 0.3) sfx.inst(out, 'bell', target[Math.floor(r() * target.length)] + 12, sw(14), s16 * 4, 0.035, 0.8);
+        this.sparkle(target, sw(14));
       }
       this.bi++;
       return t + barLen;
+    }
+    /** Petites cloches qui scintillent de temps en temps. */
+    sparkle(notes, tt) {
+      if (this.st.sparkle && this.rm() < 0.3) this.note('bell', notes[Math.floor(this.rm() * notes.length)] + 12, tt, this.s16 * 4, 0.035, 0.8);
+    }
+    /** Une mesure du leitmotiv, à la manière du lieu. */
+    leit(t, fade) {
+      const st = this.st, lt = st.leit, s16 = this.s16, i = this.bi % LEITMOTIV.length;
+      const bar = lt.push ? pushBar(LEITMOTIV[i]) : LEITMOTIV[i];
+      const base = this.key + (lt.oct || 0), at = (p) => t + p * s16 + (p % 4 === 2 ? (lt.swing8 || 0) * s16 : 0) + (p % 2 ? st.swing * s16 : 0);
+      for (const [p, d, l] of bar) this.note(st.lead, base + this.deg(d), at(p), l * s16 * (i === 7 ? 1 : lt.legato || 0.92), 0.12 * fade, 0.45);
+      this.last = base + this.deg(bar[bar.length - 1][1]);
+      this.sparkle(this.chordOf(lt.prog[i]).map(n => n + (lt.oct || 0)), t + 14 * s16);
+    }
+    /** Le motif d'un chien, posé sur l'accord de degré « shift ». */
+    dog(who, t, shift, fade) {
+      const D = DOGS[who], base = D.low ? this.key - 12 : this.hi(), s16 = this.s16;
+      for (const [p, d, l] of D.notes) this.note(D.inst, base + this.deg(d + shift), t + p * s16, l * s16 * D.legato, D.vol * fade, 0.5);
     }
   }
   Sfx.prototype.styles = STYLES;
