@@ -31,6 +31,7 @@ import { Post } from './post.js';
 import * as RT from './realtex.js';
 import { Cinema } from './cinema.js';
 import { loadVoices, speak, stopVoice, prefetchVoices } from './voices.js';
+import * as WR from './wardrobe.js';
 import { storyShots } from './story.js';
 import * as N from './npcs.js';
 
@@ -313,6 +314,8 @@ class Adventure {
         <button class="adv-btn jump" data-btn="jump"><svg viewBox="0 0 48 48"><path d="M24 8 12 22h8v14h8V22h8z" fill="currentColor"/><rect x="14" y="39" width="20" height="4" rx="2" fill="currentColor" opacity=".6"/></svg><span>Saut</span></button>
         <button class="adv-btn attack" data-btn="attack"><svg viewBox="0 0 48 48" fill="currentColor"><ellipse cx="24" cy="31" rx="9" ry="8"/><ellipse cx="12" cy="20" rx="4" ry="5"/><ellipse cx="19" cy="13" rx="4" ry="5"/><ellipse cx="29" cy="13" rx="4" ry="5"/><ellipse cx="36" cy="20" rx="4" ry="5"/></svg><span>Attaque</span></button>
         <button class="adv-btn dash" data-btn="dash"><svg viewBox="0 0 48 48" fill="currentColor"><path d="M10 12h6l10 12-10 12h-6l10-12z"/><path d="M24 12h6l10 12-10 12h-6l10-12z"/></svg><span>Charge</span></button>
+        <button class="adv-btn bark" data-btn="bark"><span class="big">🐾</span><span>Ouaf !</span></button>
+        <button class="adv-btn trick" data-btn="trick"><span class="big">💫</span><span>Pirouette</span></button>
         <button class="adv-btn talk hidden" data-btn="talk"><svg viewBox="0 0 48 48" fill="currentColor"><path d="M8 10h32a4 4 0 0 1 4 4v16a4 4 0 0 1-4 4H22l-9 8v-8H8a4 4 0 0 1-4-4V14a4 4 0 0 1 4-4z"/></svg><span>Parler</span></button>
       </div>
       <div class="adv-overlay hidden"></div>
@@ -1469,7 +1472,7 @@ class Adventure {
   // -------------------------------------------------------------------------
   bindInput() {
     const KEYMAP = {
-      Space: 'jump', KeyJ: 'attack', KeyK: 'dash', ShiftLeft: 'dash', ShiftRight: 'dash', KeyF: 'talk', Enter: 'talk',
+      Space: 'jump', KeyJ: 'attack', KeyK: 'dash', ShiftLeft: 'dash', ShiftRight: 'dash', KeyF: 'talk', Enter: 'talk', KeyB: 'bark', KeyN: 'trick',
     };
     this.onKeyDown = (e) => {
       if (this.disposed) return;
@@ -1609,6 +1612,12 @@ class Adventure {
     if (this.cine) { if (this.party.size > 1 || this.guest) this.cine.skip(); else if (!this.paused) this.cine.update(dt); }
     if (this.guest) this.guestFrame(dt);
     else if (this.hitStop > 0) this.hitStop -= dt;
+    else if (this.photoMode) {
+      // mode photo : le monde est figé, on tourne la caméra ; la pirouette continue de s'animer
+      this.stepCamera(dt);
+      const P = this.me;
+      if (P.trickT > 0 || !P.grounded) { this.acc += dt; while (this.acc >= STEP) { this.acc -= STEP; P.trickT = Math.max(0, P.trickT - STEP); P.vel.x = P.vel.z = 0; P.vel.y -= 32 * STEP; P.pos.y += P.vel.y * STEP; const g = this.support(P.pos.x, P.pos.z, P.pos.y + 0.5).y; if (P.pos.y <= g) { P.pos.y = g; P.vel.y = 0; P.grounded = true; } } }
+    }
     else if (!this.paused && !this.cine) {
       this.acc += dt;
       let n = 0;
@@ -1796,7 +1805,7 @@ class Adventure {
       const l = Math.hypot(m.mx, m.mz) || 1;
       r.mx = l > 1 ? m.mx / l : +m.mx || 0; r.mz = l > 1 ? m.mz / l : +m.mz || 0;
       r.h = !!m.h;
-      for (const a of m.p || []) if (['jump', 'attack', 'dash', 'talk'].includes(a)) r.pressed.add(a);
+      for (const a of m.p || []) if (['jump', 'attack', 'dash', 'talk', 'bark', 'trick'].includes(a)) r.pressed.add(a);
     }
   }
 
@@ -1875,7 +1884,7 @@ class Adventure {
     const r = (v) => Math.round(v * 100) / 100;
     const pp = this.puppy, d = this.dialog;
     const pack = (P) => [P.id, r(P.pos.x), r(P.pos.y), r(P.pos.z), r(P.vel.x), r(P.vel.y), r(P.vel.z), r(P.yaw), (P.grounded ? 1 : 0) | (P.gliding ? 2 : 0),
-      r(P.attackT), r(P.dashT), r(P.flipT), r(P.cheerT), r(P.invuln), P.hearts, P.score];
+      r(P.attackT), r(P.dashT), r(P.flipT), r(P.cheerT), r(P.invuln), P.hearts, P.score, r(P.barkT || 0), r(P.trickT || 0)];
     const base = {
       t: 's', time: r(this.t),
       pl: this.players.map(pack),
@@ -2019,6 +2028,8 @@ class Adventure {
       P.grounded = !!(q[8] & 1); P.gliding = !!(q[8] & 2);
       if (q[11] > P.flipT + 0.1 || q[11] === 0) P.flipT = q[11];
       P.attackT = q[9]; P.dashT = q[10]; P.cheerT = q[12]; P.invuln = q[13]; P.hearts = q[14]; P.score = q[15] || 0;
+      if ((q[16] || 0) > (P.barkT || 0) + 0.2) this.bubble(P, 'Ouaf !');
+      P.barkT = q[16] || 0; P.trickT = q[17] || 0;
     }
     if (this.myId !== undefined && this.me.score > sc0) addToProfile(this.me.score - sc0);
     if (this.me.hearts !== hp0) this.updateHud();
@@ -2139,6 +2150,7 @@ class Adventure {
     P.dashCd = Math.max(0, P.dashCd - dt);
     P.flipT = Math.max(0, P.flipT - dt);
     P.cheerT = Math.max(0, P.cheerT - dt);
+    P.barkT = Math.max(0, (P.barkT || 0) - dt); P.trickT = Math.max(0, (P.trickT || 0) - dt);
     if (P.grounded) { P.coyote = 0.12; P.jumps = 0; P.airDash = false; } else P.coyote -= dt;
 
     // Actions
@@ -2159,6 +2171,9 @@ class Adventure {
           this.burst(P.pos.x, P.pos.y + 0.5, P.pos.z, 10, 0x8bc34a, 3, 0.4);
         }
       }
+      // Ouaf ! (les chats sursautent, Biscotte répond) et pirouette
+      if (mp.has('bark') && P.barkT <= 0) { P.barkT = 0.7; this.dogBark(P); }
+      if (mp.has('trick') && P.grounded && P.trickT <= 0 && P.attackT <= 0) { P.trickT = 0.9; P.vel.y = 7.5; P.grounded = false; P.jumps = 1; this.sound('trick'); }
       if (mp.has('attack') && P.attackT <= 0) {
         P.attackT = ATTACK_TIME; P.hitIds.clear();
         if (!P.grounded) P.vel.y = Math.max(P.vel.y, 2);
@@ -2450,6 +2465,7 @@ class Adventure {
     // Interaction la plus proche (pour chaque chien)
     const cand = [{ kind: 'mamie', x: L.npcs.mamie.x, z: L.npcs.mamie.z, y: L.npcs.mamie.y }];
     if (pp.state === 'lost') cand.push({ kind: 'puppy', x: pp.pos.x, z: pp.pos.z, y: pp.pos.y });
+    else cand.push({ kind: 'pet', label: 'CARESSER', x: pp.pos.x, z: pp.pos.z, y: pp.pos.y });
     L.signs.forEach((s, i) => cand.push({ kind: 'sign', i, x: s.x, z: s.z, y: L.heightAt(s.x, s.z) }));
     const LG = this.levelLogic;
     for (const Q of this.players) {
@@ -2472,10 +2488,57 @@ class Adventure {
     else prompt.classList.add('hidden');
   }
 
+  /** Ouaf ! : bulle, aboiement, les chats proches sursautent, Biscotte répond. */
+  dogBark(P) {
+    this.sound(P.kind === 'matcha' ? 'barkM' : 'bark');
+    if (P.mesh && P.mesh.userData.ainu) setTimeout(() => { if (!this.disposed) this.sound('barkM'); }, 220);   // Matcha aboie aussi
+    this.bubble(P, 'Ouaf !');
+    for (const c of this.cats || []) {
+      if (c.dead || Math.hypot(c.pos.x - P.pos.x, c.pos.z - P.pos.z) > 7) continue;
+      c.stun = Math.max(c.stun, 1.6); c.chasing = false;
+      this.burst(c.pos.x, c.pos.y + 1.2, c.pos.z, 6, 0xffffff, 2.5, 0.4);
+      if (Math.random() < 0.5) this.sound('meowHi');
+    }
+    const pp = this.puppy;
+    if (pp && pp.state !== 'lost' && Math.hypot(pp.pos.x - P.pos.x, pp.pos.z - P.pos.z) < 10) setTimeout(() => { if (this.disposed) return; this.sound('yip'); pp.happyT = 1.2; this.bubble({ pos: pp.pos, mesh: pp.mesh, small: true }, 'Waf !'); }, 450);
+  }
+
+  /** Caresser Biscotte : il saute de joie, cœurs. */
+  petPuppy(P) {
+    const pp = this.puppy;
+    pp.happyT = 2;
+    this.sound('yip'); this.sound('heart');
+    for (let i = 0; i < 8; i++) setTimeout(() => { if (!this.disposed) this.spawnParticle(pp.pos.x + (Math.random() - 0.5) * 0.6, pp.pos.y + 1.0, pp.pos.z + (Math.random() - 0.5) * 0.6, (Math.random() - 0.5) * 0.6, 1.6, (Math.random() - 0.5) * 0.6, 0xff5a8a, 0.35, 1.0, 0); }, i * 90);
+    if (P) P.cheerT = 0.8;
+  }
+
+  /** Petite bulle de texte au-dessus d'un chien (« Ouaf ! »). */
+  bubble(P, text) {
+    if (!this.bubbleTex) this.bubbleTex = {};
+    let tex = this.bubbleTex[text];
+    if (!tex) {
+      const c = document.createElement('canvas'); c.width = 256; c.height = 128;
+      const x = c.getContext('2d');
+      x.fillStyle = '#fff'; x.strokeStyle = '#2a1408'; x.lineWidth = 8;
+      x.beginPath(); x.ellipse(128, 56, 116, 46, 0, 0, Math.PI * 2); x.fill(); x.stroke();
+      x.beginPath(); x.moveTo(110, 96); x.lineTo(96, 124); x.lineTo(138, 98); x.fill();
+      x.font = 'bold 52px Fredoka, Arial Rounded MT Bold, sans-serif'; x.textAlign = 'center'; x.textBaseline = 'middle'; x.fillStyle = '#e0541e';
+      x.fillText(text, 128, 58);
+      tex = this.bubbleTex[text] = new THREE.CanvasTexture(c); tex.colorSpace = THREE.SRGBColorSpace;
+    }
+    const sp = new THREE.Sprite(new THREE.SpriteMaterial({ map: tex, transparent: true, depthTest: false }));
+    sp.renderOrder = 10; sp.userData.noOutline = true;
+    const k = P.small ? 0.7 : 1;
+    sp.scale.set(1.6 * k, 0.8 * k, 1);
+    this.scene.add(sp);
+    (this.bubbles || (this.bubbles = [])).push({ sp, P, t: 0, h: P.small ? 1.3 : (P.mesh && P.mesh.userData.ainu ? 2.9 : 2.0) });
+  }
+
   interact(n, P) {
     if (n.kind === 'lv') this.levelLogic.interact(n, P || this.player);
     else if (n.kind === 'mamie') this.talkMamie();
     else if (n.kind === 'puppy') this.talkPuppy();
+    else if (n.kind === 'pet') this.petPuppy(P || this.player);
     else if (n.kind === 'sign') this.say(L.signs[n.i].text.map(t => ({ who: 'Panneau', text: t })));
   }
 
@@ -2746,6 +2809,10 @@ class Adventure {
       case 'engine': s.tone(90, 0.35, { type: 'sawtooth', to: 160, vol: 0.08 }); s.tone(120, 0.3, { type: 'square', to: 220, vol: 0.04, delay: 0.12 }); break;
       case 'bump': s.noise(0.18, { freq: 500, vol: 0.35 }); s.tone(110, 0.15, { type: 'square', to: 60, vol: 0.12 }); break;
       case 'cp': s.tone(880, 0.1, { type: 'triangle', vol: 0.13 }); s.tone(1320, 0.14, { type: 'triangle', vol: 0.11, delay: 0.07 }); break;
+      case 'bark': s.bark('ainu'); break;
+      case 'barkM': s.bark('matcha'); break;
+      case 'yip': s.tone(900, 0.06, { type: 'sawtooth', to: 1300, vol: 0.1 }); s.tone(1000, 0.07, { type: 'sawtooth', to: 1400, vol: 0.09, delay: 0.1 }); break;
+      case 'trick': [660, 880, 1100, 1320, 1760].forEach((f, i) => s.tone(f, 0.1, { type: 'triangle', vol: 0.08, delay: i * 0.05 })); break;
       case 'reveal': [523, 659, 784, 1047].forEach((f, i) => s.tone(f, 0.18, { type: 'triangle', vol: 0.12, delay: i * 0.09 })); break;
     }
   }
@@ -2797,6 +2864,18 @@ class Adventure {
     if (this.needResize) { this.needResize = false; this.resize(); }
     const P = this.player;
     const t = this.t;
+    // bulles « Ouaf ! »
+    if (this.bubbles) this.bubbles = this.bubbles.filter(b => {
+      b.t += dt;
+      b.sp.position.set(b.P.pos.x, b.P.pos.y + b.h + b.t * 0.5, b.P.pos.z);
+      b.sp.material.opacity = Math.min(1, (1.1 - b.t) * 3);
+      const pop = Math.min(1, b.t * 8); b.sp.scale.x = (b.P.small ? 1.12 : 1.6) * pop; b.sp.scale.y = (b.P.small ? 0.56 : 0.8) * pop;
+      if (b.t > 1.1) { this.scene.remove(b.sp); b.sp.material.dispose(); return false; }
+      return true;
+    });
+    // la tenue de mon chien (garde-robe)
+    if (!this.outfit) this.outfit = WR.outfit();
+    WR.dress(this.me, this.outfit);
     // Chiens (et leur prénom à plusieurs)
     for (const Q of this.players) {
       if (!Q.mesh) continue;
@@ -2856,7 +2935,8 @@ class Adventure {
     const pp = this.puppy, pu = pp.mesh.userData;
     pp.mesh.position.copy(pp.pos);
     pp.mesh.rotation.y = pp.yaw;
-    pu.tail.rotation.y = Math.sin(t * (pp.state === 'lost' ? 3 : 16)) * 0.6;
+    pu.tail.rotation.y = Math.sin(t * (pp.state === 'lost' ? 3 : pp.happyT > 0 ? 24 : 16)) * (pp.happyT > 0 ? 0.9 : 0.6);
+    if (pp.happyT > 0) { pp.happyT -= dt; pp.mesh.position.y += Math.abs(Math.sin(pp.happyT * 9)) * 0.35; pp.mesh.rotation.y += Math.sin(pp.happyT * 5) * 0.6; }
     pu.legs.forEach((l, i) => { l.rotation.x = pp.state === 'follow' ? Math.sin(pp.phase + (i % 3 ? Math.PI : 0)) * 0.8 : 0; });
     pu.head.rotation.x = pp.state === 'lost' ? 0.3 : 0;
     this.placeShadow(pp.shadow, pp.pos, 0.45);
@@ -3009,6 +3089,7 @@ class Adventure {
     this.ambience(dt);
     this.post.focus = this.cine ? this.cine.focusDist() : this.camera.position.distanceTo(this.camTarget);
     this.post.render(this.scene, this.camera, this.t, W.SKY.sunDir);
+    if (this.snapPending) { this.snapPending = false; this.savePhoto(); }
   }
 
   /**
@@ -3065,6 +3146,13 @@ class Adventure {
     a.look += (look - a.look) * (1 - Math.exp(-dt * 6));
     a.lookP += (lookP - a.lookP) * (1 - Math.exp(-dt * 6));
     return a;
+  }
+
+  /** Étincelles de couleur autour d'un chien qui fait la pirouette. */
+  trickSparkles(P, dt) {
+    if (Math.random() > dt * 40) return;
+    const a = Math.random() * Math.PI * 2, cols = [0xffd23a, 0xff6ab0, 0x5ac8ff, 0x8ae05a];
+    this.spawnParticle(P.pos.x + Math.cos(a) * 0.9, P.pos.y + 0.6 + Math.random(), P.pos.z + Math.sin(a) * 0.9, Math.cos(a) * 1.2, 1.5, Math.sin(a) * 1.2, cols[(Math.random() * 4) | 0], 0.25, 0.6, 1);
   }
 
   /** Échelle d'écrasement / étirement (x, y, z) à partir de l'état d'animation. */
@@ -3147,6 +3235,7 @@ class Adventure {
     duo.position.copy(P.pos);
     let yaw = P.yaw;
     if (P.attackT > 0) yaw += (1 - P.attackT / ATTACK_TIME) * Math.PI * 4;
+    if (P.trickT > 0) { yaw += (1 - P.trickT / 0.9) * Math.PI * 2; this.trickSparkles(P, dt); }
     duo.rotation.y = yaw;
     const speed = Math.hypot(P.vel.x, P.vel.z);
     const a = this.animState(P, dt, t, speed);
@@ -3184,7 +3273,9 @@ class Adventure {
       else if (a.idle === 'scratch') { u.legs[3].rotation.x = (-1.0 + Math.sin(k * 34) * 0.35) * ease; u.ainu.rotation.z += 0.1 * ease; hz = 0.35 * ease; hy -= 0.4 * ease; }
       else if (a.idle === 'shake') { const sh = Math.sin(k * 38) * (1 - k / 1.1) * ease; u.ainu.rotation.z += sh * 0.14; hz = sh * 0.4; u.matcha.rotation.z = sh * 0.2; }
     }
-    u.head.rotation.set(hx, hy, hz);
+    const bk = P.barkT > 0 ? Math.sin((0.7 - P.barkT) / 0.7 * Math.PI) : 0;    // ouaf : tête en l'air
+    u.head.rotation.set(hx - bk * 0.5, hy, hz);
+    if (u.mhead) u.mhead.rotation.x = -bk * 0.6;
     if (P.cheerT > 0) { u.ainu.position.y = Math.abs(Math.sin(P.cheerT * 9)) * 0.5; u.matcha.rotation.z = Math.sin(P.cheerT * 12) * 0.3; }
     else if (!(a.idle === 'shake')) u.matcha.rotation.z = 0;
     duo.visible = !(P.invuln > 0 && Math.floor(t * 12) % 2 === 0);
@@ -3197,6 +3288,7 @@ class Adventure {
     m.position.copy(Q.pos);
     let yaw = Q.yaw;
     if (Q.attackT > 0) yaw += (1 - Q.attackT / ATTACK_TIME) * Math.PI * 4;
+    if (Q.trickT > 0) { yaw += (1 - Q.trickT / 0.9) * Math.PI * 2; this.trickSparkles(Q, dt); }
     m.rotation.y = yaw;
     const speed = Math.hypot(Q.vel.x, Q.vel.z);
     const a = this.animState(Q, dt, t, speed);
@@ -3215,7 +3307,8 @@ class Adventure {
       else if (a.idle === 'scratch') { if (u.legs[3]) u.legs[3].rotation.x = (-1.0 + Math.sin(k * 34) * 0.35) * ease; hz = 0.35 * ease; }
       else if (a.idle === 'shake') { const sh = Math.sin(k * 38) * (1 - k / 1.1) * ease; u.matcha.rotation.z += sh * 0.16; hz = sh * 0.4; }
     }
-    u.mhead.rotation.set(hx, hy, hz);
+    const bk = Q.barkT > 0 ? Math.sin((0.7 - Q.barkT) / 0.7 * Math.PI) : 0;
+    u.mhead.rotation.set(hx - bk * 0.6, hy, hz);
     u.legs.forEach((l, i) => {
       if (a.idle === 'scratch' && i === 3) return;
       if (Q.grounded) l.rotation.x = Math.sin(Q.phase * 2 + (i === 0 || i === 3 ? 0 : Math.PI)) * 0.9 * run;
@@ -3247,6 +3340,60 @@ class Adventure {
     this.showOverlay('pause');
   }
 
+  /** Mode photo : interface cachée, monde figé, caméra libre, bouton 📸. */
+  setPhotoMode(on) {
+    this.photoMode = on;
+    this.paused = false;
+    this.dom.root.classList.toggle('photo-on', on);
+    if (!this.dom.photoBar) {
+      const bar = document.createElement('div');
+      bar.className = 'adv-photo';
+      bar.innerHTML = `<div class="ph-tip">Glisse le doigt pour tourner autour de tes chiens</div>
+        <button data-ph="out" aria-label="Reculer">➖</button><button data-ph="in" aria-label="Approcher">➕</button>
+        <button data-ph="pose" aria-label="Pirouette">💫</button><button data-ph="snap" class="snap" aria-label="Prendre la photo">📸</button>
+        <button data-ph="close" aria-label="Fermer">✖</button>`;
+      bar.addEventListener('pointerdown', (e) => {
+        const b = e.target.closest('[data-ph]'); if (!b) return;
+        e.stopPropagation(); e.preventDefault();
+        const a = b.dataset.ph;
+        if (a === 'snap') { this.snapPending = true; this.sound('switch'); }
+        else if (a === 'close') this.setPhotoMode(false);
+        else if (a === 'in') this.camDistOverride = Math.max(3, (this.camDistOverride || this.camDist) - 1.5);
+        else if (a === 'out') this.camDistOverride = Math.min(22, (this.camDistOverride || this.camDist) + 1.5);
+        else if (a === 'pose') { const P = this.me; if (P.grounded) { P.trickT = 0.9; P.vel.y = 7.5; P.grounded = false; this.sound('trick'); } }
+      });
+      this.dom.root.appendChild(bar);
+      this.dom.photoBar = bar;
+    }
+    if (!on) this.camDistOverride = 0;
+  }
+
+  /** Enregistre (ou partage, sur téléphone) l'image qui vient d'être dessinée. */
+  savePhoto() {
+    const cv = this.renderer.domElement;
+    const flash = document.createElement('div'); flash.className = 'adv-flash'; this.dom.root.appendChild(flash);
+    setTimeout(() => flash.remove(), 600);
+    cv.toBlob((blob) => {
+      if (!blob) return;
+      const name = `matcha-ainu-${new Date().toISOString().slice(0, 19).replace(/[:T]/g, '-')}.png`;
+      const file = new File([blob], name, { type: 'image/png' });
+      if (this.isTouch && navigator.canShare && navigator.canShare({ files: [file] })) {
+        navigator.share({ files: [file], title: 'Matcha & Ainu' }).catch(() => {});
+      } else {
+        const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = name;
+        document.body.appendChild(a); a.click(); a.remove();
+        setTimeout(() => URL.revokeObjectURL(a.href), 4000);
+      }
+      this.banner('Clic !', 'Photo enregistrée', 1200);
+    }, 'image/png');
+  }
+
+  /** Change la tenue de mon chien (garde-robe). */
+  setOutfit(part) {
+    this.outfit = Object.assign(WR.outfit(), part);
+    WR.setOutfit(this.outfit);
+  }
+
   showOverlay(kind) {
     const o = this.dom.overlay;
     const s = this.save;
@@ -3269,10 +3416,23 @@ class Adventure {
         ${this.vc && this.party.size > 1 ? `<label class="adv-vol">🔊 Voix des amis <input type="range" min="0.5" max="5" step="0.25" value="${this.vc.volume}" data-vol="1"></label>` : ''}
         <div class="adv-stats adv-mic-note">${!this.vc ? 'Le micro sert à parler avec tes amis : choisis « Jouer ensemble » dans le menu pour ouvrir ton monde.' : this.party.size < 2 ? 'Personne n\'est encore là : tes amis t\'entendront dès qu\'ils arrivent.' : ''}
         </div>
+        <button class="btn" data-a="wardrobe">🎩 Déguisements</button>
+        ${this.party.size > 1 ? '' : '<button class="btn" data-a="photo">📷 Mode photo</button>'}
         ${this.guest || this.party.size > 1 ? '' : '<button class="btn" data-a="story">🎬 Revoir l\'histoire</button>'}
         ${this.coop ? '' : '<button class="btn" data-a="restart">Recommencer le niveau</button>'}
         <button class="btn ghost" data-a="credits">📜 Crédits</button>
         <button class="btn ghost" data-a="quit">Menu principal</button>`;
+    } else if (kind === 'wardrobe') {
+      const o = WR.outfit(), n = WR.rewards();
+      const cell = (it) => {
+        const ok = WR.unlocked(it), on = o[it.kind] === it.id;
+        const lock = it.shop ? 'Boutique de Port-Croquette' : `${it.need} récompense${it.need > 1 ? 's' : ''}`;
+        return `<button class="wr-item${on ? ' on' : ''}${ok ? '' : ' locked'}" ${ok ? `data-a="wear:${it.id}"` : 'disabled'}><span class="ic">${ok ? it.icon : '🔒'}</span><b>${it.name}</b><small>${ok ? (on ? 'Porté' : 'Mettre') : lock}</small></button>`;
+      };
+      html = `<h2>Déguisements</h2>
+        <div class="adv-stats">${n} récompense${n > 1 ? 's' : ''} gagnée${n > 1 ? 's' : ''} : chaque récompense débloque de nouveaux déguisements !</div>
+        <div class="wr-grid">${WR.ITEMS.map(cell).join('')}</div>
+        <button class="btn primary" data-a="pause">Retour</button>`;
     } else if (kind === 'credits') {
       html = `<h2>Crédits</h2>
         <div class="adv-stats adv-credits">Modèles 3D gratuits (licence CC BY 4.0, Sketchfab) :<br>
@@ -3336,10 +3496,13 @@ class Adventure {
 
   overlayAction(a) {
     if (this.sfx) { this.sfx.unlock(); this.sfx.click(); }
+    if (a.startsWith('wear:')) { this.outfit = WR.toggle(a.slice(5)); this.showOverlay('wardrobe'); return; }
     switch (a) {
       case 'resume': this.hideOverlay(); break;
       case 'story': this.hideOverlay(); this.playStory(); break;
       case 'credits': this.showOverlay('credits'); break;
+      case 'wardrobe': this.showOverlay('wardrobe'); break;
+      case 'photo': this.hideOverlay(); this.setPhotoMode(true); break;
       case 'pause': this.showOverlay('pause'); break;
       case 'music': if (this.sfx && this.sfx.setMusic) this.sfx.setMusic(this.sfx.musicOn === false); this.showOverlay('pause'); break;
       case 'mode': {

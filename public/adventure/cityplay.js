@@ -965,6 +965,7 @@ export function buildPlay(game, decor) {
       const key = P.name || 'Moi', s = c.style[key] || (c.style[key] = {});
       const slot = it.kind === 'hat' ? 'hat' : 'paint';
       s[slot] = s[slot] === id ? null : id;
+      if (slot === 'hat' && P === game.me && game.setOutfit) game.setOutfit({ hat: s.hat });   // même chapeau dans tous les mondes
     }
     game.persist();
   }
@@ -972,7 +973,7 @@ export function buildPlay(game, decor) {
   // Chapeaux et peinture des joueurs (d'après la sauvegarde)
   function dressPlayers() {
     for (const P of players()) {
-      if (!P.mesh) continue;
+      if (!P.mesh || P === game.me) continue;     // (mon chien : la garde-robe du jeu s'en charge)
       const hatId = styleOf(P).hat || null;
       const key = hatId + '|' + P.mesh.uuid;
       if (P.hatKey === key) continue;

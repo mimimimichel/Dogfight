@@ -10,7 +10,7 @@
  */
 (function () {
   'use strict';
-  const PER_PLAYER = ['dogfight.aventure.', 'dogfight.visited', 'dogfight.profile', 'dogfight.name', 'dogfight.mode', 'dogfight.world.code', 'dogfight.w.'];
+  const PER_PLAYER = ['dogfight.aventure.', 'dogfight.wardrobe', 'dogfight.visited', 'dogfight.profile', 'dogfight.name', 'dogfight.mode', 'dogfight.world.code', 'dogfight.w.'];
   const LIST_KEY = 'dogfight.players', ACTIVE_KEY = 'dogfight.activePlayer';
   const proto = Storage.prototype, rawGet = proto.getItem, rawSet = proto.setItem, rawRemove = proto.removeItem;
   let ls = null;
