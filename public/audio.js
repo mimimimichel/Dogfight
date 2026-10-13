@@ -23,6 +23,8 @@
         try { if (navigator.audioSession) navigator.audioSession.type = 'playback'; } catch (e) { /* ignore */ }
         this.master = this.output(this.ctx);
         this.master.gain.value = this.muted ? 0 : MASTER;
+        // bruitages et ambiances passent par leur propre bus : on peut les baisser quand quelqu'un parle
+        this.fx = this.ctx.createGain(); this.fx.connect(this.master);
         // iOS/Android peuvent « interrompre » le son (appel, mise en veille, surcharge) : on le relance
         this.ctx.onstatechange = () => {
           if (this.ctx.state !== 'running' && !document.hidden) this.ctx.resume().catch(() => {});
@@ -73,7 +75,7 @@
       g.gain.exponentialRampToValueAtTime(v, t + 0.008);
       g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
       o.connect(g);
-      g.connect(this.master);
+      g.connect(this.fx || this.master);
       o.start(t);
       o.stop(t + dur + 0.02);
     }
@@ -98,7 +100,7 @@
       g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
       src.connect(f);
       f.connect(g);
-      g.connect(this.master);
+      g.connect(this.fx || this.master);
       src.start(t);
     }
 
@@ -177,7 +179,7 @@
 
     makeAmb(name) {
       const c = this.ctx, g = c.createGain();
-      g.gain.value = 0.0001; g.connect(this.master);
+      g.gain.value = 0.0001; g.connect(this.fx || this.master);
       const a = { g, base: 0.2, v: 0, p: -1 };
       const filt = (type, f, q) => { const n = c.createBiquadFilter(); n.type = type; n.frequency.value = f; if (q) n.Q.value = q; return n; };
       if (name === 'water') {          // fontaine, cascade : bruissement clair qui bouillonne
@@ -275,7 +277,7 @@
       g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(0.5, t + 0.05);
       g.gain.setValueAtTime(0.5, t + 0.32); g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
       g2.gain.value = 0.25;
-      o.connect(bp); o2.connect(g2); g2.connect(bp); bp.connect(g); g.connect(this.master);
+      o.connect(bp); o2.connect(g2); g2.connect(bp); bp.connect(g); g.connect(this.fx || this.master);
       [o, o2, vib].forEach((x) => { x.start(t); x.stop(t + dur + 0.05); });
     }
 
@@ -292,9 +294,15 @@
     }
     /** Choisit l'ambiance ('menu', 'adventure', 'adv1', 'adv2', 'adv3', 'fight' ou null pour couper). */
     /** Baisse la musique pendant qu'un personnage parle. */
-    duck(on) {
-      if (!this.musicBus || !this.ctx || !this.musicOn) return;
-      this.musicBus.gain.setTargetAtTime((this.musicVol || 0.5) * (on ? 0.4 : 1), this.ctx.currentTime, on ? 0.12 : 0.6);
+    duck(on, why) {
+      if (!this.ctx) return;
+      const k = why || 'voice';
+      this.ducks = this.ducks || {};
+      this.ducks[k] = on;
+      on = Object.values(this.ducks).some(Boolean);
+      const t = this.ctx.currentTime, tc = on ? 0.1 : 0.6;
+      if (this.fx) this.fx.gain.setTargetAtTime(on ? 0.3 : 1, t, tc);
+      if (this.musicBus && this.musicOn) this.musicBus.gain.setTargetAtTime((this.musicVol || 0.5) * (on ? 0.3 : 1), t, tc);
     }
 
     music(theme) {

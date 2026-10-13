@@ -2038,8 +2038,13 @@ class Adventure {
       this.dom.dname.textContent = s.d[0];
       this.dom.dtext.textContent = s.d[1].slice(0, s.d[2]);
       dl.classList.toggle('done', s.d[2] >= s.d[1].length);
-      if (s.d[2] > before && s.d[2] < s.d[1].length) this.voice(s.d[0]);
-    } else if (this.dialog) { this.dialog = null; dl.classList.add('hidden'); }
+      const key = s.d[0] + '|' + s.d[1];
+      if (this.remoteLine !== key) { this.remoteLine = key; this.remoteVoiced = speak(this.sfx, s.d[0], s.d[1]) > 0; if (this.sfx && this.sfx.duck) this.sfx.duck(true, 'dialog'); }
+      if (!this.remoteVoiced && s.d[2] > before && s.d[2] < s.d[1].length) this.voice(s.d[0]);
+    } else if (this.dialog) {
+      this.dialog = null; dl.classList.add('hidden'); this.remoteLine = null;
+      stopVoice(this.sfx); if (this.sfx && this.sfx.duck) this.sfx.duck(false, 'dialog');
+    }
     // bouton « parler »
     this.nearby = s.n ? { kind: s.n } : null;
     this.dom.talkBtn.classList.toggle('hidden', !s.n);
@@ -2529,6 +2534,7 @@ class Adventure {
 
   say(lines, onDone) {
     this.dialog = { lines, i: 0, chars: 0, onDone, spoken: -1, rate: 45 };
+    if (this.sfx && this.sfx.duck) this.sfx.duck(true, 'dialog');
     prefetchVoices(this.sfx, lines);
     this.dom.dialog.classList.remove('hidden');
     this.renderDialog();
@@ -2562,6 +2568,7 @@ class Adventure {
       else if (d.i < d.lines.length - 1) { d.i++; d.chars = 0; }
       else {
         stopVoice(this.sfx);
+        if (this.sfx && this.sfx.duck) this.sfx.duck(false, 'dialog');
         this.dialog = null;
         this.dom.dialog.classList.add('hidden');
         this.pressed.clear();
@@ -3319,6 +3326,7 @@ class Adventure {
     if (!shots) { if (done) done(); return false; }
     if (this.cine) this.cine.finish();
     stopVoice(this.sfx);
+    if (this.sfx && this.sfx.duck) this.sfx.duck(false, 'dialog');
     this.dialog = null; this.dom.dialog.classList.add('hidden');
     this.cine = new Cinema(this, shots, () => { this.cine = null; if (done) done(); });
     return true;
@@ -3354,6 +3362,7 @@ class Adventure {
     clearTimeout(this.bannerTimer);
     if (this.sfx && this.sfx.ambStop) this.sfx.ambStop();
     stopVoice(this.sfx);
+    if (this.sfx && this.sfx.duck) this.sfx.duck(false, 'dialog');
     this.post.dispose();
     this.renderer.dispose();
     this.scene.traverse(o => { if (o.geometry) o.geometry.dispose(); });

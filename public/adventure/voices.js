@@ -51,7 +51,7 @@ export function speak(sfx, who, text) {
   buffer(sfx, id).then(buf => {
     if (!buf || current !== token || !sfx.ctx) return;
     const src = sfx.ctx.createBufferSource(), g = sfx.ctx.createGain();
-    src.buffer = buf; g.gain.value = 1.0;
+    src.buffer = buf; g.gain.value = 1.3;
     src.connect(g); g.connect(sfx.master);
     src.onended = () => { if (current === token) { current = null; if (sfx.duck) sfx.duck(false); } };
     token.src = src;

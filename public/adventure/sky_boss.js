@@ -72,6 +72,7 @@ export function buildSkyBoss(game, S, sky) {
         update: (c) => { P.cheerT = 0.4 + c.t * 0.1; } },
     ];
     game.dialog = null;
+    if (game.sfx && game.sfx.duck) game.sfx.duck(false, 'dialog');
     game.cine = new Cinema(game, shots, () => { game.cine = null; B.a = Math.atan2(GI.z + ORBIT - GI.z, 0); go(); });
   }
 
