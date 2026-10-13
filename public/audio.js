@@ -152,6 +152,111 @@
 
     click() { this.tone(880, 0.04, { type: 'square', vol: 0.08 }); }
 
+    // ---------------------------------------------------------------------
+    // Ambiances continues (eau, vent, vagues, ville, moteur) : quelques nœuds
+    // créés une seule fois, dont on règle juste le volume à chaque image.
+    // ---------------------------------------------------------------------
+    noiseLoop() {
+      if (!this.nbuf) {
+        const c = this.ctx, len = c.sampleRate * 3, buf = c.createBuffer(1, len, c.sampleRate), d = buf.getChannelData(0);
+        let b = 0;
+        for (let i = 0; i < len; i++) { const w = Math.random() * 2 - 1; b = 0.97 * b + 0.03 * w; d[i] = w * 0.55 + b * 3; }  // un peu « rose »
+        this.nbuf = buf;
+      }
+      const s = this.ctx.createBufferSource();
+      s.buffer = this.nbuf; s.loop = true; s.loopStart = 0; s.loopEnd = this.nbuf.duration;
+      s.start(this.ctx.currentTime, Math.random() * 2.5);
+      return s;
+    }
+
+    lfo(freq, depth, target) {
+      const c = this.ctx, o = c.createOscillator(), g = c.createGain();
+      o.frequency.value = freq; g.gain.value = depth; o.connect(g); g.connect(target); o.start();
+      return o;
+    }
+
+    makeAmb(name) {
+      const c = this.ctx, g = c.createGain();
+      g.gain.value = 0.0001; g.connect(this.master);
+      const a = { g, base: 0.2, v: 0, p: -1 };
+      const filt = (type, f, q) => { const n = c.createBiquadFilter(); n.type = type; n.frequency.value = f; if (q) n.Q.value = q; return n; };
+      if (name === 'water') {          // fontaine, cascade : bruissement clair qui bouillonne
+        const src = this.noiseLoop(), hi = filt('bandpass', 1500, 0.6), lo = filt('lowpass', 420), gh = c.createGain(), gl = c.createGain();
+        gh.gain.value = 0.7; gl.gain.value = 0.5;
+        src.connect(hi); hi.connect(gh); gh.connect(g); src.connect(lo); lo.connect(gl); gl.connect(g);
+        this.lfo(0.37, 380, hi.frequency); this.lfo(5.3, 0.18, gh.gain);
+        a.base = 0.32;
+      } else if (name === 'wind') {    // souffle qui monte et retombe ; p (0..1) : plus fort, plus aigu
+        const src = this.noiseLoop(), f = filt('lowpass', 420, 1.2), m = c.createGain();
+        m.gain.value = 0.75; src.connect(f); f.connect(m); m.connect(g);
+        this.lfo(0.09, 180, f.frequency); this.lfo(0.13, 0.35, m.gain);
+        a.base = 0.42;
+        a.set = (p, t) => f.frequency.setTargetAtTime(330 + p * 900, t, 0.5);
+      } else if (name === 'waves') {   // ressac lent
+        const src = this.noiseLoop(), f = filt('lowpass', 650), m = c.createGain();
+        m.gain.value = 0.55; src.connect(f); f.connect(m); m.connect(g);
+        this.lfo(0.11, 0.5, m.gain); this.lfo(0.11, 260, f.frequency);
+        a.base = 0.36;
+      } else if (name === 'city') {    // rumeur lointaine de la ville
+        const src = this.noiseLoop(), f = filt('lowpass', 260); src.connect(f); f.connect(g);
+        a.base = 0.2;
+      } else if (name === 'engine') {  // moteur à hélice ; p (0..1) : régime
+        const o1 = c.createOscillator(), o2 = c.createOscillator(), f = filt('lowpass', 700, 2), m = c.createGain(), flutter = c.createGain();
+        o1.type = 'sawtooth'; o2.type = 'square'; o2.detune.value = 9;
+        const g2 = c.createGain(); g2.gain.value = 0.45;
+        o1.connect(f); o2.connect(g2); g2.connect(f); f.connect(m); m.connect(g);
+        const src = this.noiseLoop(), nf = filt('bandpass', 900, 0.8), ng = c.createGain();
+        ng.gain.value = 0.35; src.connect(nf); nf.connect(ng); ng.connect(flutter); flutter.connect(g);
+        flutter.gain.value = 0.5;
+        const prop = c.createOscillator(), pg = c.createGain(); prop.frequency.value = 14; pg.gain.value = 0.45;
+        prop.connect(pg); pg.connect(flutter.gain); prop.start();
+        o1.start(); o2.start();
+        a.base = 0.16;
+        a.set = (p, t) => {
+          const f0 = 48 + p * 62;
+          o1.frequency.setTargetAtTime(f0, t, 0.15); o2.frequency.setTargetAtTime(f0 * 0.5, t, 0.15);
+          f.frequency.setTargetAtTime(500 + p * 1100, t, 0.2);
+          prop.frequency.setTargetAtTime(9 + p * 26, t, 0.15);
+        };
+      }
+      (this.ambs || (this.ambs = {}))[name] = a;
+      return a;
+    }
+
+    /** Volume (0..1) et réglage p d'une ambiance ; appelé à chaque image. */
+    amb(name, vol, p) {
+      if (!this.ctx || this.ctx.state !== 'running') return;
+      let a = this.ambs && this.ambs[name];
+      if (!a) { if (vol < 0.01) return; a = this.makeAmb(name); }
+      const t = this.ctx.currentTime;
+      if (Math.abs(vol - a.v) > 0.015 || (vol === 0 && a.v !== 0)) { a.v = vol; a.g.gain.setTargetAtTime(Math.max(0.0001, vol * a.base), t, 0.3); }
+      if (a.set && p !== undefined && Math.abs(p - a.p) > 0.02) { a.p = p; a.set(p, t); }
+    }
+
+    /** Coupe toutes les ambiances (fin de partie, pause). */
+    ambStop() { if (this.ambs) for (const k in this.ambs) this.amb(k, 0); }
+
+    /** Petit chant d'oiseau (kind : 'bird', 'gull', 'owl'). */
+    bird(kind, vol) {
+      if (!this.ok) return;
+      vol = vol || 1;
+      if (kind === 'gull') {
+        for (let i = 0; i < 2 + (Math.random() * 2 | 0); i++) {
+          const f = 1100 + Math.random() * 300;
+          this.tone(f, 0.22, { type: 'triangle', to: f * 0.62, vol: 0.05 * vol, delay: i * 0.26 });
+        }
+      } else if (kind === 'owl') {
+        this.tone(390, 0.32, { type: 'sine', to: 350, vol: 0.05 * vol });
+        this.tone(380, 0.5, { type: 'sine', to: 330, vol: 0.05 * vol, delay: 0.45 });
+      } else {
+        const f0 = 2600 + Math.random() * 1800, n = 2 + (Math.random() * 4 | 0), up = Math.random() < 0.5;
+        for (let i = 0; i < n; i++) {
+          const f = f0 * (1 + (Math.random() - 0.5) * 0.15);
+          this.tone(f, 0.06 + Math.random() * 0.05, { type: 'sine', to: f * (up ? 1.35 : 0.7), vol: 0.045 * vol, delay: i * (0.09 + Math.random() * 0.05) });
+        }
+      }
+    }
+
     /** Miaulement : voix nasillarde dont la hauteur et le timbre s'ouvrent puis retombent (« mi-a-ou »). */
     meow(pitch) {
       if (!this.ok) return;

@@ -2698,6 +2698,46 @@ class Adventure {
     }
   }
 
+  /**
+   * Ambiances sonores selon le niveau et l'endroit où l'on est (la caméra
+   * écoute) : eau de la cascade et des lacs, fontaine, vagues du port, rumeur
+   * de la ville, vent des Îles du Ciel, oiseaux, moteur du kart ou de l'avion.
+   */
+  ambience(dt) {
+    const s = this.sfx;
+    if (!s || !s.ctx) return;
+    if (this.paused && !this.coop) { s.ambStop(); return; }
+    const c = this.camera.position, near = (x, z, r) => Math.max(0, 1 - Math.hypot(c.x - x, c.z - z) / r) ** 1.6;
+    let water = 0, wind = 0, windP = 0, waves = 0, city = 0, birds = 0, owls = 0, gulls = 0;
+    if (L.ID === 1) {
+      if (L.POOL) water = Math.max(near(L.POOL.x, L.POOL.z, 38), L.STREAM ? near((L.STREAM.x0 + L.STREAM.x1) / 2, L.STREAM.z, 22) * 0.6 : 0);
+      if (L.SPOTS && L.SPOTS.lake) water = Math.max(water, near(L.SPOTS.lake.x, L.SPOTS.lake.z, 26) * 0.45);
+      wind = 0.25; windP = 0.1; birds = 0.5;
+    } else if (L.ID === 2) {
+      if (L.SPOTS && L.SPOTS.lake) water = near(L.SPOTS.lake.x, L.SPOTS.lake.z, 24) * 0.5;
+      wind = 0.3; windP = 0.25; birds = 0.35; owls = 0.04;
+    } else if (L.ID === 3) {
+      if (L.FOUNTAIN) water = near(L.FOUNTAIN.x, L.FOUNTAIN.z, 32);
+      if (L.PORT_QUAY) waves = Math.max(0, Math.min(1, 1 - (L.PORT_QUAY + 6 - c.z) / 70));
+      const P = L.PARK, inPark = P && c.x > P.x0 - 15 && c.x < P.x1 + 15 && c.z > P.z0 - 15 && c.z < P.z1 + 15;
+      city = 0.7 * (1 - waves * 0.6) * (inPark ? 0.5 : 1); birds = inPark ? 0.5 : 0.06; gulls = waves * 0.3;
+      if (c.y > 25) { wind = Math.min(1, (c.y - 25) / 40); windP = wind; city *= 1 - wind * 0.7; }
+    } else if (L.ID === 4) {
+      const v = this.player ? this.player.vel : null, sp = v ? Math.hypot(v.x, v.y, v.z) : 0;
+      wind = 0.6; windP = Math.min(1, 0.3 + sp / 25); birds = 0.06; gulls = 0.08;
+    }
+    // moteur : kart ou avion conduit par moi
+    const k = this.player && this.player.kart;
+    let eng = 0, engP = 0;
+    if (k && !this.cine) { eng = k.plane ? 1 : 0.55; engP = Math.min(1, Math.abs(k.speed || 0) / (k.plane ? 34 : 26)) * (k.plane && !k.grounded ? 1 : 0.85); }
+    if (this.cine) { eng = 0; wind *= 0.7; }
+    s.amb('water', water); s.amb('wind', wind, windP); s.amb('waves', waves); s.amb('city', city); s.amb('engine', eng, engP);
+    if (!s.ok) return;
+    if (Math.random() < dt * birds * 0.9) s.bird('bird', 0.6 + Math.random() * 0.6);
+    if (Math.random() < dt * gulls * 0.4) s.bird('gull', 0.7 + Math.random() * 0.5);
+    if (Math.random() < dt * owls) s.bird('owl');
+  }
+
   // -------------------------------------------------------------------------
   // Rendu
   // -------------------------------------------------------------------------
@@ -2896,6 +2936,7 @@ class Adventure {
     this.showVoices();
     if (this.cine) this.cine.applyCamera();
     // mise au point sur le duo (ou sur ce que regarde la cinématique)
+    this.ambience(dt);
     this.post.focus = this.cine ? this.cine.focusDist() : this.camera.position.distanceTo(this.camTarget);
     this.post.render(this.scene, this.camera, this.t, W.SKY.sunDir);
   }
@@ -3140,6 +3181,7 @@ class Adventure {
     window.removeEventListener('keyup', this.onKeyUp);
     window.removeEventListener('resize', this.onResize);
     clearTimeout(this.bannerTimer);
+    if (this.sfx && this.sfx.ambStop) this.sfx.ambStop();
     this.post.dispose();
     this.renderer.dispose();
     this.scene.traverse(o => { if (o.geometry) o.geometry.dispose(); });

@@ -54,7 +54,7 @@ export class Cinema {
       cap.classList.add('on');
     } else cap.classList.remove('on');
     const ti = this.$('.cine-title');
-    if (s.title) { ti.querySelector('b').textContent = s.title[0]; ti.querySelector('small').textContent = s.title[1] || ''; ti.classList.add('on'); }
+    if (s.title) { ti.querySelector('b').textContent = s.title[0]; ti.querySelector('small').textContent = s.title[1] || ''; ti.classList.add('on'); if (this.game.sound) this.game.sound('lantern'); }
     else ti.classList.remove('on');
   }
 
