@@ -2553,6 +2553,7 @@ class Adventure {
           c.warn = this.easy ? 0.9 : 0.6; c.warnAt = this.t;
           if (!c.alert) { c.alert = this.makeMark('!', 0xff5a3a); c.alert.scale.set(0.7, 0.7, 1); this.scene.add(c.alert); }
           if (this.t - (c.lastMeow || -9) > 4) { c.lastMeow = this.t; this.sound('meowHi'); }
+          if (this.sfx && this.sfx.stinger) this.sfx.stinger('danger');
         }
         c.chasing = true;
         if (c.warn > 0) { c.warn -= dt; speed = 0; c.yaw = lerpAngle(c.yaw, Math.atan2(dir.x, dir.z), Math.min(1, dt * 10)); }
@@ -3055,6 +3056,7 @@ class Adventure {
     for (const Q of this.players) Q.cheerT = 1.4;
     this.freeze = 1.4;
     this.sound('win');
+    if (this.sfx && this.sfx.stinger) this.sfx.stinger('medal');
     const kn = this.party.size > 1 ? '' : kidName();
     this.banner(L.MEDAL_TITLE || 'MÉDAILLE PATOUNE !', `${kn ? 'Bravo ' + kn + ' ! ' : ''}${m.def.label} — ${s.medals.length}/${L.medals.length}`, 2800);
     this.autoSnapAt = this.t + 0.6;   // photo souvenir, le temps que les chiens fêtent ça
@@ -3182,6 +3184,7 @@ class Adventure {
     if (k && !this.cine) { eng = k.plane ? 1 : 0.55; engP = Math.min(1, Math.abs(k.speed || 0) / (k.plane ? 34 : 26)) * (k.plane && !k.grounded ? 1 : 0.85); }
     if (this.cine) { eng = 0; wind *= 0.7; }
     s.amb('water', water); s.amb('wind', wind, windP); s.amb('waves', waves); s.amb('city', city); s.amb('engine', eng, engP);
+    if (s.setIntensity) s.setIntensity(s.theme === 'boss' || this.camFocus ? 1 : ((k && Math.abs(k.speed || 0) > 3) || (this.cats || []).some(c => c.chasing && !c.dead)) ? 0.7 : 0.3);
     if (!s.ok) return;
     if (Math.random() < dt * birds * 0.9) s.bird('bird', 0.6 + Math.random() * 0.6);
     if (Math.random() < dt * gulls * 0.4) s.bird('gull', 0.7 + Math.random() * 0.5);
