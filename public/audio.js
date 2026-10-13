@@ -157,6 +157,25 @@
       src.start(t);
     }
 
+    /** Bruit de patte selon le sol : 'grass', 'dirt', 'stone', 'wood', 'water', 'snow'. */
+    paw(surface, vol) {
+      if (!this.ok) return;
+      const c = this.ctx, t = c.currentTime;
+      if (!this.pawBuf) {
+        const len = Math.floor(c.sampleRate * 0.12), b = c.createBuffer(1, len, c.sampleRate), d = b.getChannelData(0);
+        for (let i = 0; i < len; i++) d[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / len, 2);
+        this.pawBuf = b;
+      }
+      const S = { grass: ['bandpass', 2600, 0.05, 0.07], dirt: ['lowpass', 900, 0.06, 0.09], stone: ['highpass', 2400, 0.035, 0.08], wood: ['bandpass', 520, 0.07, 0.12], water: ['bandpass', 1400, 0.12, 0.1], snow: ['lowpass', 1600, 0.09, 0.08] }[surface] || ['bandpass', 2600, 0.05, 0.07];
+      const src = c.createBufferSource(); src.buffer = this.pawBuf; src.playbackRate.value = 0.85 + Math.random() * 0.3;
+      const f = c.createBiquadFilter(); f.type = S[0]; f.frequency.value = S[1] * (0.9 + Math.random() * 0.2); f.Q.value = surface === 'wood' ? 3 : 0.8;
+      const g = c.createGain(); const v = S[3] * (vol || 1);
+      g.gain.setValueAtTime(v, t); g.gain.exponentialRampToValueAtTime(0.0001, t + S[2]);
+      src.connect(f); f.connect(g); g.connect(this.fx || this.master);
+      src.start(t); src.stop(t + S[2] + 0.02);
+      if (surface === 'wood') this.tone(160 + Math.random() * 30, 0.05, { type: 'sine', vol: 0.05 * (vol || 1) });
+    }
+
     hit(heavy) {
       this.noise(heavy ? 0.16 : 0.08, { freq: heavy ? 900 : 1800, vol: heavy ? 0.5 : 0.35 });
       this.tone(heavy ? 140 : 220, heavy ? 0.18 : 0.1, { type: 'sine', to: heavy ? 50 : 90, vol: heavy ? 0.5 : 0.3 });

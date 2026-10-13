@@ -268,3 +268,11 @@
 .adv-photo .ph-tip { position: absolute; bottom: 86px; left: 50%; transform: translateX(-50%); white-space: nowrap; color: #fff; font-size: 13px; text-shadow: 0 1px 3px #000; }
 .adv-flash { position: absolute; inset: 0; background: #fff; z-index: 20; pointer-events: none; animation: advFlash 0.5s ease-out forwards; }
 @keyframes advFlash { from { opacity: 0.9; } to { opacity: 0; } }
+
+/* « Dis-lui ! » : parler au chien (commandes vocales) */
+.adv-saydog { position: absolute; left: max(12px, env(safe-area-inset-left)); top: 46%; width: 64px; height: 64px; border-radius: 50%; border: 3px solid #fff; background: #ff8a3c; color: #fff; display: flex; flex-direction: column; align-items: center; justify-content: center; z-index: 9; pointer-events: auto; touch-action: manipulation; box-shadow: 0 4px 12px rgba(0,0,0,.3); }
+.adv-saydog span { font-size: 26px; line-height: 1; }
+.adv-saydog small { font-size: 10px; font-weight: 700; }
+.adv-saydog.on { background: #e0302a; animation: sayPulse .8s ease-in-out infinite; }
+@keyframes sayPulse { 50% { transform: scale(1.12); box-shadow: 0 0 0 10px rgba(224,48,42,.25); } }
+#adv.photo-on .adv-saydog { visibility: hidden; }

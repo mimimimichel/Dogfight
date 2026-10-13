@@ -325,6 +325,7 @@ class Adventure {
       <div class="adv-dialog hidden"><div class="adv-dname"></div><div class="adv-dtext"></div><div class="adv-dnext">▼</div></div>
       <button class="adv-mic hidden" aria-label="Micro"><svg viewBox="0 0 24 24" width="20" height="20"><rect x="9" y="3" width="6" height="11" rx="3" fill="#fff"/><path d="M6 11a6 6 0 0 0 12 0M12 17v4M8 21h8" stroke="#fff" stroke-width="2" fill="none" stroke-linecap="round"/><path class="slash" d="M4 4 20 20" stroke="#ff6a5a" stroke-width="2.6" stroke-linecap="round"/></svg><span class="lbl"></span></button>
       <div class="adv-micask hidden"><b>🎤 Parler avec tes amis&nbsp;?</b><button data-m="yes">Activer le micro</button><button data-m="no" class="no">Plus tard</button></div>
+      <button class="adv-saydog hidden" aria-label="Parler à Ainu"><span>🗣️</span><small>Dis-lui !</small></button>
       <button class="adv-pause" aria-label="Pause"><svg viewBox="0 0 20 20" width="18" height="18"><rect x="4" y="3" width="4" height="14" rx="1.5" fill="#fff"/><rect x="12" y="3" width="4" height="14" rx="1.5" fill="#fff"/></svg></button>
       <div class="adv-touch ${this.isTouch ? '' : 'hidden'}">
         <div class="adv-stick-zone"></div>
@@ -366,6 +367,13 @@ class Adventure {
     };
     root.querySelector('.adv-pause').addEventListener('click', () => this.togglePause());
     root.querySelector('.adv-quest').addEventListener('click', (e) => { e.stopPropagation(); this.showWay(); });
+    // commandes vocales « Ainu, saute ! » (si le téléphone sait reconnaître la voix)
+    const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+    const sayBtn = root.querySelector('.adv-saydog');
+    if (SR && this.isTouch) {
+      sayBtn.classList.remove('hidden');
+      sayBtn.addEventListener('click', (e) => { e.stopPropagation(); this.listenCommand(); });
+    }
     this.dom.mic = root.querySelector('.adv-mic');
     this.dom.mic.addEventListener('click', () => this.toggleMic());
     this.dom.micAsk = root.querySelector('.adv-micask');
@@ -2799,6 +2807,72 @@ class Adventure {
     if ((T.t * 30 | 0) % 2 === 0) this.spawnParticle(T.pos.x, T.pos.y, T.pos.z, 0, 0.3, 0, 0x9ae05a, 0.22, 0.4, 0);
   }
 
+  /**
+   * « Ainu, saute ! » : l'enfant parle au chien. On écoute une phrase (3 s au plus) et on
+   * cherche un mot connu : saute, aboie, pirouette, attaque, lance (Matcha), assis/sage,
+   * viens/ici, bravo/gentil/je t'aime.
+   */
+  listenCommand() {
+    const SR = window.SpeechRecognition || window.webkitSpeechRecognition, btn = this.dom.root.querySelector('.adv-saydog');
+    if (!SR || this.listening) return;
+    let rec;
+    try { rec = new SR(); } catch (e) { return; }
+    rec.lang = 'fr-FR'; rec.interimResults = true; rec.maxAlternatives = 3; rec.continuous = false;
+    this.listening = true; btn.classList.add('on');
+    if (this.sfx && this.sfx.duck) this.sfx.duck(true, 'listen', 0.2);
+    let done = false;
+    const finish = () => { if (!this.listening) return; this.listening = false; btn.classList.remove('on'); if (this.sfx && this.sfx.duck) this.sfx.duck(false, 'listen'); };
+    const P = this.me;
+    const act = (txt) => {
+      const s = txt.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+      const has = (...w) => w.some(x => s.includes(x));
+      const name = P.mesh && P.mesh.userData.ainu ? (P.kind === 'matcha' ? 'Matcha' : 'Ainu') : 'Matcha';
+      if (has('lance', 'jette') && P.mesh && P.mesh.userData.ainu && P.mesh.userData.matcha.visible && !this.throwM && this.party.size === 1) { this.throwMatcha(P, 0, 0, 0); return 'Lance !'; }
+      if (has('saute', 'saut', 'hop', 'haut')) { this.pressed.add('jump'); return 'Saute !'; }
+      if (has('aboie', 'ouaf', 'wouf', 'parle', 'crie')) { this.pressed.add('bark'); return 'Ouaf !'; }
+      if (has('tourne', 'pirouette', 'roule', 'danse')) { this.pressed.add('trick'); return 'Pirouette !'; }
+      if (has('attaque', 'toupie', 'chat')) { this.pressed.add('attack'); return 'Toupie !'; }
+      if (has('viens', 'ici', 'au pied')) { if (this.party.size > 1) this.pingAt(P); else this.pressed.add('bark'); return 'J\'arrive !'; }
+      if (has('assis', 'couche', 'sage', 'pas bouger', 'stop')) { P.vel.x = P.vel.z = 0; this.freeze = Math.max(this.freeze || 0, 1.2); P.cheerT = 0.6; return 'Je suis sage !'; }
+      if (has('bravo', 'gentil', 'bon chien', 'je t\'aime', 'je taime', 'calin', 'bisou', 'mignon')) {
+        P.cheerT = 1.4; this.sound('yip');
+        for (let i = 0; i < 10; i++) this.spawnParticle(P.pos.x + (Math.random() - 0.5) * 0.8, P.pos.y + 1.6, P.pos.z + (Math.random() - 0.5) * 0.8, (Math.random() - 0.5) * 0.8, 1.8, (Math.random() - 0.5) * 0.8, 0xff5a8a, 0.35, 1.1, 0);
+        return name === 'Matcha' ? 'Merci !' : 'Ouaf ! ♥';
+      }
+      return null;
+    };
+    rec.onresult = (e) => {
+      if (done) return;
+      for (let i = e.resultIndex; i < e.results.length; i++) {
+        for (let k = 0; k < e.results[i].length; k++) {
+          const r = act(e.results[i][k].transcript);
+          if (r) { done = true; this.bubble(P, r); try { rec.stop(); } catch (err) { /* ignore */ } finish(); return; }
+        }
+      }
+    };
+    rec.onerror = (e) => { finish(); if (e && e.error === 'not-allowed') this.localBanner ? this.localBanner('Micro', 'Autorise le micro pour parler à ton chien', 2600) : this.banner('Micro', 'Autorise le micro pour parler à ton chien', 2600); };
+    rec.onend = () => { if (!done) this.bubble(P, '?'); finish(); };
+    try { rec.start(); setTimeout(() => { try { rec.stop(); } catch (e) { /* ignore */ } }, 3500); } catch (e) { finish(); }
+  }
+
+  /** Bruits de pattes, selon le sol (herbe, chemin, pierre, bois, eau, neige). */
+  footsteps(P) {
+    const sp = Math.hypot(P.vel.x, P.vel.z), step = Math.floor((P.phase || 0) / Math.PI);
+    if (step === P.lastStep) return;
+    P.lastStep = step;
+    if (!P.grounded || sp < 1.2 || P.kart || !this.sfx || !this.sfx.paw) return;
+    const sup = this.support(P.pos.x, P.pos.z, P.pos.y + 0.3), k = sup.collider && sup.collider.kind;
+    let s = L.SURFACE || 'grass';
+    if (P.pos.y < L.WATER_Y + 0.25) s = 'water';
+    else if (k === 'rock' || k === 'stone' || k === 'pad' || k === 'islet') s = 'stone';
+    else if (k && /bridge|branch|trunk|tree|canopy|elevator|plank|wood|deck/.test(k)) s = 'wood';
+    else if (!k && W.onPath && W.onPath(P.pos.x, P.pos.z)) s = L.SURFACE === 'snow' ? 'snow' : 'dirt';
+    else if (!k && L.ID === 3) s = 'stone';
+    // Ainu porte Matcha : des pas un peu plus lourds ; on ne joue qu'un pas sur deux en marchant
+    if (sp < 4 && step % 2) return;
+    this.sfx.paw(s, Math.min(1.2, 0.6 + sp / 10) * (P.mesh && P.mesh.userData.ainu ? 1 : 0.7));
+  }
+
   /** Carnet des bêtises : avance une farce ; un tampon quand elle est réussie. */
   betise(P, id, n) {
     if ((P !== this.me && Object.getPrototypeOf(P) !== this.me) || !window.Carnet) return;
@@ -3214,6 +3288,7 @@ class Adventure {
     for (const Q of this.players) {
       if (!Q.mesh) continue;
       if (Q.mesh.userData.ainu) this.renderDuo(Q, dt, t); else this.renderMatcha(Q, dt, t);
+      if (Q === this.me) this.footsteps(Q);
       // tombé : couché sur le côté, petit flottement
       if (Q.down) { Q.mesh.rotation.z = 1.35; Q.mesh.position.y += 0.15 + Math.sin(t * 3) * 0.08; }
       else if (Q.mesh.rotation.z === 1.35) Q.mesh.rotation.z = 0;
