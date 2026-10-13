@@ -279,6 +279,7 @@ class Voice {
   }
   async report() {
     if (this.peer.destroyed || (!this.out.size && !this.in.size)) return;
+    if (window.ParentSettings && window.ParentSettings.netlog === false) return;   // coupé dans le coin des parents
     try {
       const calls = await this.stats();
       const body = JSON.stringify({
