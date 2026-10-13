@@ -226,6 +226,8 @@ export function buildMamieReal() {
   const toBone = (b, v) => v.clone().sub(new THREE.Vector3(...b.userData.w));
   glasses.position.copy(toBone(head, ep));
   glasses.lookAt(new THREE.Vector3().copy(glasses.position).add(dir));
+  // (les lunettes flottaient devant l'œil selon l'angle : on s'en passe)
+  glasses.visible = false;
   head.add(glasses);
   const red = new THREE.MeshStandardMaterial({ color: 0xc8202a, roughness: 0.75, side: THREE.DoubleSide });
   const band = new THREE.Mesh(new THREE.TorusGeometry(nr * 0.98, H * 0.018, 8, 32), red); band.rotation.x = Math.PI / 2;

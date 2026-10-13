@@ -132,6 +132,9 @@ function kidName() {
   return n.slice(0, 16);
 }
 window.kidName = kidName;
+// Mamie (modèle scanné) : redressement du buste (radians) et taille
+const MAMIE_UPRIGHT = { x: -0.24, z: 0.13, neck: 0.1, head: 0.12 };
+const MAMIE_SCALE = 1.25;
 const medalWord = () => (L.ID === 3 ? 'Trophées' : L.ID === 4 ? 'Étoiles' : 'Médailles');
 const collectWord = (long) => ({ 2: 'Croquettes', 3: long ? 'Pièces d\'or' : 'Pièces', 4: 'Pièces du ciel' })[L.ID] || (long ? 'Os dorés' : 'Os');
 const NEXT_LEVEL = { 1: 'Niveau 2 : la Forêt des Moustaches', 2: 'Niveau 3 : Port-Croquette', 3: 'Niveau 4 : les Îles du Ciel' };
@@ -1336,6 +1339,7 @@ class Adventure {
     // Mamie
     this.mamie = this.realistic && N.hasNpc('mamie') ? N.buildMamieReal() : M.buildMamie();
     this.mamie.position.set(L.npcs.mamie.x, L.npcs.mamie.y, L.npcs.mamie.z);
+    if (this.mamie.userData.rig) this.mamie.scale.multiplyScalar(MAMIE_SCALE);   // un peu plus grande
     this.mamie.rotation.y = Math.atan2(L.START.x - L.npcs.mamie.x, L.START.z - L.npcs.mamie.z);
     sc.add(this.mamie);
     // la vraie saison et l'heure du jour (flocons, feuilles, lucioles, fêtes)
@@ -3650,18 +3654,18 @@ class Adventure {
     a.near = close;
     a.wave = Math.max(0, a.wave - dt);
     const breath = Math.sin(t * 2.2);
-    R.chest.scale.set(1 + breath * 0.012, 1 + breath * 0.008, 1 + breath * 0.022);
-    R.chest.rotation.set(-0.02 + breath * 0.01, a.yaw * 0.15, Math.sin(t * 0.5) * 0.025);
-    const talk = talking ? Math.sin(t * 9) * 0.05 + Math.sin(t * 4.3) * 0.03 : 0;
-    R.neck.rotation.set(a.pitch * 0.4 + talk * 0.5, a.yaw * 0.4, a.tilt * 0.3);
-    R.head.rotation.set(a.pitch * 0.6 + talk, a.yaw * 0.45, a.tilt * 0.7 + (talking ? Math.sin(t * 2.1) * 0.06 : 0));
-    const w = a.wave > 0 ? Math.sin(Math.min(1, (1.6 - a.wave) * 3) * Math.PI / 2) * Math.min(1, a.wave * 3) : 0;
-    // donne la patte : l'épaule lève, le poignet se plie et la patte s'agite un peu
-    R.legL.rotation.set(-w * 0.55, 0, w * 0.12);
-    R.pawL.rotation.set(w * (0.9 + Math.sin(t * 10) * 0.15), 0, 0);
+    // corps immobile et bien droit (le modèle scanné se déformait dès qu'on le pliait) :
+    // juste la respiration, la tête qui suit les chiens et la queue qui remue
+    // le scan penche en avant (≈ 30°) et sur sa droite (≈ 9°) : on redresse le buste, les
+    // pattes restent posées (elles suivent les hanches), et la tête regarde droit devant
+    R.chest.scale.set(1, 1, 1 + breath * 0.012);
+    R.chest.rotation.set(MAMIE_UPRIGHT.x, 0, MAMIE_UPRIGHT.z);
+    const talk = talking ? Math.sin(t * 9) * 0.03 + Math.sin(t * 4.3) * 0.02 : 0;
+    R.neck.rotation.set(a.pitch * 0.25 + talk * 0.5 + MAMIE_UPRIGHT.neck, a.yaw * 0.3, a.tilt * 0.15);
+    R.head.rotation.set(a.pitch * 0.35 + talk + MAMIE_UPRIGHT.head, a.yaw * 0.35, a.tilt * 0.4 + (talking ? Math.sin(t * 2.1) * 0.04 : 0));
+    R.legL.rotation.set(0, 0, 0); R.pawL.rotation.set(0, 0, 0);
     R.legR.rotation.set(0, 0, 0); R.pawR.rotation.set(0, 0, 0);
-    R.chest.rotation.x -= w * 0.06;
-    R.tail.rotation.set(0, Math.sin(t * (close ? 9 : 3.5)) * (close ? 0.45 : 0.2), 0);
+    R.tail.rotation.set(0, Math.sin(t * (close ? 9 : 3.5)) * (close ? 0.4 : 0.18), 0);
   }
 
   /** Ainu (avec ou sans Matcha sur le dos) : course, saut, hélice de la queue. */
