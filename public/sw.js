@@ -2,9 +2,8 @@
  * Matcha & Ainu — service worker : jeu installable et jouable hors-ligne.
  *
  * - Au premier lancement, on précharge le « cœur » du jeu (HTML, CSS, JS, vendor/).
- * - HTML / CSS / JS : « stale-while-revalidate » → on sert le cache tout de suite
- *   (démarrage instantané) et on récupère la nouvelle version en arrière-plan
- *   (elle sera utilisée au lancement suivant).
+ * - HTML / CSS / JS (et les .json d'index) : réseau d'abord, pour avoir tout de suite la
+ *   dernière version du jeu ; si le réseau ne répond pas en 2,5 s (ou hors-ligne), le cache.
  * - adventure/assets/** (photos, voix, modèles) : « cache-first », mis en cache au
  *   moment où ils sont demandés → chaque niveau déjà joué devient disponible hors-ligne.
  * - Jamais de cache pour /api/* ni pour les autres domaines (PeerJS, polices, TURN…).
@@ -15,7 +14,7 @@
  */
 'use strict';
 
-const VERSION = 'v1';
+const VERSION = 'v2';
 const ASSETS_VERSION = 'v1';
 const PREFIX = 'matcha-';
 const CORE = PREFIX + 'core-' + VERSION;
@@ -33,6 +32,7 @@ const PRECACHE = [
   'img/duo.png',
   // public/
   'audio.js', 'coop.js', 'game-core.js', 'loader.js', 'main.js', 'p2p.js', 'profiles.js',
+  'memories.js', 'carnet.js', 'parents.js',
   'render.js', 'room.js', 'touch.js',
   'brand.css', 'home.css', 'style.css',
   // public/vendor/
@@ -93,36 +93,38 @@ self.addEventListener('fetch', (event) => {
   if (url.pathname === '/health' || url.pathname.endsWith('/sw.js')) return;
   if (req.headers.has('range')) return;                      // lecture audio partielle : réseau direct
 
-  if (url.pathname.startsWith(ASSETS_PATH)) {
+  if (url.pathname.startsWith(ASSETS_PATH) && !url.pathname.endsWith('.json')) {
     event.respondWith(cacheFirst(req, url));
     return;
   }
   // Une seule page HTML : toutes les navigations (?coop=…, ?menu=coop…) servent index.html
   const isPage = req.mode === 'navigate' && (url.pathname === SCOPE.pathname || url.pathname.endsWith('/index.html'));
   if (req.mode === 'navigate' && !isPage) return;
-  event.respondWith(staleWhileRevalidate(event, isPage ? INDEX_URL : stripSearch(url)));
+  event.respondWith(networkFirst(isPage ? INDEX_URL : stripSearch(url)));
 });
 
 function stripSearch(url) {
   return url.origin + url.pathname;
 }
 
-/** Cœur du jeu : on sert le cache tout de suite, la mise à jour arrive en arrière-plan. */
-async function staleWhileRevalidate(event, key) {
+/** Cœur du jeu : la dernière version par le réseau, le cache si le réseau traîne ou manque. */
+async function networkFirst(key) {
   const cache = await caches.open(CORE);
-  const cached = await cache.match(key);
   const update = fetch(key, { cache: 'no-cache', credentials: 'same-origin' })
     .then(async (res) => {
       if (res.ok && res.type === 'basic') await cache.put(key, res.clone());
       return res;
     });
-  if (cached) {
-    event.waitUntil(update.catch(() => {}));
-    return cached;
-  }
+  const slow = new Promise((resolve) => setTimeout(resolve, 2500, null));
   try {
+    const res = await Promise.race([update, slow]);
+    if (res) return res;
+    const cached = await cache.match(key);
+    if (cached) { update.catch(() => {}); return cached; }
     return await update;
   } catch (e) {
+    const cached = await cache.match(key);
+    if (cached) return cached;
     // hors-ligne et jamais vu : pour une page, on retombe sur l'accueil
     if (key === INDEX_URL) {
       const home = await cache.match(new URL('./', SCOPE).href);
