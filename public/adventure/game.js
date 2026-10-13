@@ -3717,7 +3717,10 @@ class Adventure {
     R.neck.rotation.set(a.pitch * 0.25 + talk * 0.5 + MAMIE_UPRIGHT.neck, a.yaw * 0.3, a.tilt * 0.15);
     R.head.rotation.set(a.pitch * 0.35 + talk + MAMIE_UPRIGHT.head, a.yaw * 0.35, a.tilt * 0.4 + (talking ? Math.sin(t * 2.1) * 0.04 : 0));
     R.legL.rotation.set(0, 0, 0); R.pawL.rotation.set(0, 0, 0);
-    R.legR.rotation.set(0, 0, 0); R.pawR.rotation.set(0, 0, 0);
+    // dans le scan, la patte avant droite reste levée (≈ 11 cm) : on l'écarte un peu et on la pose au sol
+    if (!R.pawR.userData.p0) R.pawR.userData.p0 = R.pawR.position.clone();
+    R.legR.rotation.set(0, 0, 0.12); R.pawR.rotation.set(0, 0, 0);
+    R.pawR.position.copy(R.pawR.userData.p0); R.pawR.position.y -= 0.105;
     R.tail.rotation.set(0, Math.sin(t * (close ? 9 : 3.5)) * (close ? 0.4 : 0.18), 0);
   }
 
