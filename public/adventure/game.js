@@ -1758,8 +1758,8 @@ class Adventure {
       const state = (chat ? 1 : 0) + (this.chatHold > 0 ? 2 : 0);
       if (state !== this.chatDuck) {
         this.chatDuck = state;
-        this.sfx.duck(chat, 'chatting', 0.6);
-        this.sfx.duck(this.chatHold > 0, 'chat', 0.25);
+        this.sfx.duck(chat, 'chatting', 0.45);
+        this.sfx.duck(this.chatHold > 0, 'chat', 0.15);
       }
     }
   }

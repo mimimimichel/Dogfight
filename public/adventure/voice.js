@@ -12,6 +12,37 @@
  * qui tombe est relancé tout seul.
  */
 const JITTER_MS = 180;   // tampon de réception : un peu de retard, mais plus de voix hachée
+
+/**
+ * Réglages de la voix dans la négociation : chaque paquet emporte aussi une copie du
+ * précédent (RED) et de quoi reconstruire un paquet perdu (FEC) ; débit confortable.
+ * Un paquet perdu sur le wifi ne fait plus de trou dans la phrase.
+ */
+function tuneSdp(sdp) {
+  try {
+    const opus = /a=rtpmap:(\d+) opus\/48000/i.exec(sdp), red = /a=rtpmap:(\d+) red\/48000/i.exec(sdp);
+    if (opus) {
+      const pt = opus[1];
+      sdp = sdp.replace(new RegExp('a=fmtp:' + pt + ' ([^\\r\\n]*)'), (m, p) => {
+        const set = {};
+        for (const kv of p.split(';')) { const [k, v] = kv.split('='); if (k) set[k.trim()] = v; }
+        Object.assign(set, { useinbandfec: '1', usedtx: '0', stereo: '0', maxaveragebitrate: '40000' });
+        return 'a=fmtp:' + pt + ' ' + Object.entries(set).map(([k, v]) => k + '=' + v).join(';');
+      });
+    }
+    if (red) {
+      sdp = sdp.replace(/^(m=audio \S+ \S+)((?: \d+)+)/m, (m, head, pts) => {
+        const l = pts.trim().split(' ').filter(x => x !== red[1]);
+        return head + ' ' + [red[1]].concat(l).join(' ');
+      });
+    }
+  } catch (e) { /* on garde la négociation telle quelle */ }
+  return sdp;
+}
+
+// Journal de qualité (envoyé au serveur toutes les 15 s pendant qu'on se parle)
+const LOG = !/^(localhost|127\.)/.test(location.hostname) && !new URLSearchParams(location.search).get('peer');
+const DEVICE = (() => { const u = navigator.userAgent; return /iPhone|iPad/.test(u) ? 'iOS' : /Android/.test(u) ? 'Android' + ((/; ([^;)]+) Build/.exec(u) || [])[1] ? ' ' + /; ([^;)]+) Build/.exec(u)[1] : '') : /Mac/.test(u) ? 'Mac' : /Windows/.test(u) ? 'Windows' : 'autre'; })();
 const voices = new Map();
 
 /** Le chat vocal attaché à un pair PeerJS (créé au premier appel). */
@@ -40,6 +71,8 @@ class Voice {
     window.addEventListener('pointerdown', this.retry);
     window.addEventListener('keydown', this.retry);
     this.health = setInterval(() => this.check(), 2000);
+    this.prev = new Map();
+    if (LOG) this.reporter = setInterval(() => this.report(), 15000);
   }
 
   get myId() { return this.peer.id; }
@@ -145,7 +178,7 @@ class Voice {
     for (const r of this.roster) {
       if (this.out.has(r.pid)) continue;
       let call;
-      try { call = this.peer.call(r.pid, this.stream, { metadata: { voice: 1 } }); } catch (e) { continue; }
+      try { call = this.peer.call(r.pid, this.stream, { metadata: { voice: 1 }, sdpTransform: tuneSdp }); } catch (e) { continue; }
       if (!call) continue;
       call.at = Date.now();
       this.out.set(r.pid, call);
@@ -156,7 +189,7 @@ class Voice {
   }
 
   incoming(call) {
-    call.answer();                               // on écoute (notre voix part dans nos propres appels)
+    call.answer(undefined, { sdpTransform: tuneSdp });   // on écoute (notre voix part dans nos propres appels)
     call.on('stream', (stream) => {
       const old = this.in.get(call.peer);
       if (old && old.call === call) return;        // (PeerJS signale parfois deux fois le même flux)
@@ -209,6 +242,66 @@ class Voice {
     if (this.stream) this.callAll();
   }
 
+  /** Qualité des appels en cours : route (directe ou relais), pertes, retard, trous dans la voix. */
+  async stats() {
+    const out = [];
+    const one = async (call, dir, pid) => {
+      const pc = call && call.peerConnection;
+      if (!pc) return;
+      const r = await pc.getStats();
+      const o = { dir, pid: String(pid).slice(0, 6), ice: pc.iceConnectionState };
+      let pair = null;
+      r.forEach((x) => { if (x.type === 'transport' && x.selectedCandidatePairId) pair = r.get(x.selectedCandidatePairId); });
+      if (!pair) r.forEach((x) => { if (x.type === 'candidate-pair' && x.nominated && x.state === 'succeeded') pair = x; });
+      if (pair) {
+        const lc = r.get(pair.localCandidateId), rc = r.get(pair.remoteCandidateId);
+        o.route = (lc ? lc.candidateType : '?') + '/' + (rc ? rc.candidateType : '?');
+        if (lc && lc.networkType) o.net = lc.networkType;
+        if (pair.currentRoundTripTime !== undefined) o.rtt = Math.round(pair.currentRoundTripTime * 1000);
+      }
+      const key = dir + pid, p = this.prev.get(key) || {};
+      const cur = {};
+      r.forEach((x) => {
+        if (x.kind !== 'audio' && x.mediaType !== 'audio') return;
+        if (x.type === 'inbound-rtp') {
+          cur.rx = x.packetsReceived; cur.lost = x.packetsLost; cur.conc = x.concealedSamples; cur.tot = x.totalSamplesReceived;
+          o.jit = Math.round((x.jitter || 0) * 1000);
+          if (x.jitterBufferEmittedCount) o.jb = Math.round(x.jitterBufferDelay / x.jitterBufferEmittedCount * 1000);
+          if (x.audioLevel !== undefined) o.lvl = +x.audioLevel.toFixed(3);
+        } else if (x.type === 'remote-inbound-rtp') {
+          o.lossOut = +(x.fractionLost || 0).toFixed(3);
+          if (x.roundTripTime) o.rtt = Math.round(x.roundTripTime * 1000);
+        } else if (x.type === 'outbound-rtp') {
+          cur.tx = x.packetsSent;
+        } else if (x.type === 'media-source') {
+          if (x.audioLevel !== undefined) o.mic = +x.audioLevel.toFixed(3);
+        }
+      });
+      if (cur.rx !== undefined && p.rx !== undefined) {
+        const rx = cur.rx - p.rx, lost = cur.lost - p.lost;
+        o.lossIn = +(lost / Math.max(1, rx + lost)).toFixed(3);
+        o.gaps = +((cur.conc - p.conc) / Math.max(1, cur.tot - p.tot)).toFixed(3);   // part de voix inventée (trous)
+      }
+      if (cur.tx !== undefined && p.tx !== undefined) o.pps = Math.round((cur.tx - p.tx) / 15);
+      this.prev.set(key, cur);
+      out.push(o);
+    };
+    for (const [pid, c] of this.out) await one(c, 'out', pid).catch(() => {});
+    for (const [pid, e] of this.in) await one(e.call, 'in', pid).catch(() => {});
+    return out;
+  }
+  async report() {
+    if (this.peer.destroyed || (!this.out.size && !this.in.size)) return;
+    try {
+      const calls = await this.stats();
+      const body = JSON.stringify({
+        me: String(this.myId).slice(-6), dev: DEVICE, mic: this.on, vol: this.volume, turn: !!window.DogTurn,
+        vis: document.visibilityState, calls,
+      });
+      fetch('/api/netlog', { method: 'POST', body, keepalive: true, headers: { 'Content-Type': 'application/json' } }).catch(() => {});
+    } catch (e) { /* ignore */ }
+  }
+
   drop(pid) {
     const e = this.in.get(pid);
     if (!e) return;
@@ -241,6 +334,7 @@ class Voice {
     window.removeEventListener('pointerdown', this.retry);
     window.removeEventListener('keydown', this.retry);
     clearInterval(this.health);
+    clearInterval(this.reporter);
     for (const c of this.out.values()) { try { c.close(); } catch (e) { /* ignore */ } }
     for (const pid of [...this.in.keys()]) this.drop(pid);
     if (this.stream) for (const t of this.stream.getTracks()) t.stop();

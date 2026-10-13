@@ -29,6 +29,25 @@
     const [host, port] = custom.split(':');
     Object.assign(PEER_OPTS, { host, port: Number(port) || 9000, path: '/', secure: false });
   }
+  // Relais fiable (s'il est réglé sur le serveur : voir api/turn.js), demandé une fois au chargement.
+  // On ne fait jamais attendre plus de 2,5 s : sans réponse, on garde les serveurs par défaut.
+  let iceReady = false;
+  const iceWaiters = [];
+  const iceDone = () => { if (iceReady) return; iceReady = true; while (iceWaiters.length) iceWaiters.shift()(); };
+  if (!custom && window.fetch && !/^(localhost|127\.)/.test(location.hostname)) {
+    const ctl = window.AbortController ? new AbortController() : null;
+    setTimeout(() => { if (ctl) ctl.abort(); iceDone(); }, 2500);
+    fetch('/api/turn', { cache: 'no-store', signal: ctl && ctl.signal }).then(r => r.json()).then((d) => {
+      const extra = (d && Array.isArray(d.iceServers) ? d.iceServers : []).filter(x => x && x.urls);
+      if (extra.length) {
+        // le relais fiable remplace celui de PeerJS (souvent saturé)
+        PEER_OPTS.config.iceServers = PEER_OPTS.config.iceServers.filter(x => !String(x.urls).includes('peerjs.com')).concat(extra);
+        window.DogTurn = true;
+      }
+    }).catch(() => {}).then(iceDone);
+  } else iceDone();
+  const withIce = (f) => (...a) => { if (iceReady) return f(...a); iceWaiters.push(() => f(...a)); };
+
   const LETTERS = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
   const newCode = () => Array.from({ length: 4 }, () => LETTERS[Math.floor(Math.random() * LETTERS.length)]).join('');
   const other = (role) => (role === 'ainu' ? 'matcha' : 'ainu');
@@ -242,5 +261,5 @@
     });
   }
 
-  window.AdvCoop = { host, join, cancel, savedCode, worldKey, worldLevel, hasCopy, PREFIX, MAX_PLAYERS: MAX_GUESTS + 1 };
+  window.AdvCoop = { host: withIce(host), join: withIce(join), cancel, savedCode, worldKey, worldLevel, hasCopy, PREFIX, MAX_PLAYERS: MAX_GUESTS + 1 };
 })();
