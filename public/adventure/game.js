@@ -3748,13 +3748,18 @@ class Adventure {
     const d = this.dialog, cs = this.cine && this.cine.shot && this.cine.shot.say;
     const talking = (d && d.lines && d.lines[d.i] && d.lines[d.i].who === 'Mamie Labrador' && d.chars < d.lines[d.i].text.length + 4)
       || (cs && cs.who === 'Mamie Labrador' && this.cine.shown < (this.cine.full || '').length);
-    a.yaw += (clamp(rel, -0.7, 0.7) * (best < 25 || this.cine ? 1 : 0.3) - a.yaw) * Math.min(1, dt * 3);
-    if ((a.nextTilt -= dt) <= 0) { a.nextTilt = 2.5 + Math.random() * 3.5; a.tiltGoal = close ? (Math.random() - 0.5) * 0.5 : (Math.random() - 0.5) * 0.15; }
+    a.yaw += (clamp(rel, -0.45, 0.45) * (best < 25 || this.cine ? 1 : 0.3) - a.yaw) * Math.min(1, dt * 3);
+    if ((a.nextTilt -= dt) <= 0) { a.nextTilt = 2.5 + Math.random() * 3.5; a.tiltGoal = close ? (Math.random() - 0.5) * 0.3 : (Math.random() - 0.5) * 0.1; }
     a.tilt += (a.tiltGoal - a.tilt) * Math.min(1, dt * 3);
     const nod = talking ? Math.sin(t * 7) * 0.06 + Math.sin(t * 3.1) * 0.04 : 0;
     // la tête (et ses yeux) tourne, penche, hoche ; petit souffle du haletement quand on est là
     const pant = close && !talking ? Math.sin(t * 9) * 0.015 : 0;
     u.head.rotation.set(nod + pant, a.yaw, a.tilt);
+    // elle cligne des yeux de temps en temps (un regard fixe, ça fait peur)
+    if ((a.blink = (a.blink === undefined ? 3 : a.blink) - dt) < 0) a.blink = 2.5 + Math.random() * 3;
+    const lid = a.blink < 0.14 ? Math.max(0.08, Math.abs(a.blink - 0.07) / 0.07) : 1;
+    if (u.eyes) for (const e of u.eyes) e.scale.y = lid;
+    if (u.tongue) u.tongue.scale.y = talking ? 0.3 : close ? 1 + Math.sin(t * 9) * 0.12 : 0.75;
     // respiration : le poitrail gonfle doucement
     const br = Math.sin(t * 2.0);
     u.body.scale.set(1 + br * 0.006, 1 + br * 0.004, 1 + br * 0.01);

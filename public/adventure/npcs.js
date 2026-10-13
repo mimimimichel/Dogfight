@@ -134,7 +134,7 @@ export function buildMamieStanding() {
   m.traverse((o) => {
     if (!o.isSkinnedMesh) return;
     const a = o.geometry.attributes.position.array, n = a.length / 3, col = new Float32Array(n * 3);
-    const base = new THREE.Color(0xc98a44), light = new THREE.Color(0xf0d2a0), dark = new THREE.Color(0xa86a2c), c = new THREE.Color();
+    const base = new THREE.Color(0xdcaa62), light = new THREE.Color(0xf7e6c4), dark = new THREE.Color(0xc0904c), c = new THREE.Color();
     const nose = new THREE.Color(0x1c1410);
     for (let i = 0; i < n; i++) {
       const y = a[i * 3 + 1] / H, z = a[i * 3 + 2];
@@ -168,18 +168,50 @@ export function buildMamieStanding() {
     };
     o.material.customProgramCacheKey = () => 'mamieFur';
   });
-  // yeux : deux billes sombres et brillantes, un reflet blanc ; attachées à la tête (elles suivent ses mouvements)
-  const eyeMat = new THREE.MeshStandardMaterial({ color: 0x150c06, roughness: 0.15, metalness: 0.1 });
+  // yeux : grands, brun chaud, deux reflets (un regard doux) ; attachés à la tête pour suivre ses mouvements.
+  // Par-dessus, des lunettes rondes de mamie, et une petite langue rose : elle sourit.
+  const eyeMat = new THREE.MeshStandardMaterial({ color: 0x3a200c, roughness: 0.08, metalness: 0.05 });
   const glint = new THREE.MeshBasicMaterial({ color: 0xffffff });
+  const gold = new THREE.MeshStandardMaterial({ color: 0xd8b04a, roughness: 0.3, metalness: 0.8 });
+  const hp = u.head.position, eyes = [], rims = [];
+  const hc = new THREE.Vector3(0, eyeY - H * 0.02, eyeZ - H * 0.12);   // (centre du crâne, pour savoir où « regarde » chaque œil)
   for (const sx of [-1, 1]) {
     const cand = points('mamie2', (x, y, z) => Math.abs(y - eyeY) < H * 0.02 && Math.abs(z - eyeZ) < H * 0.04 && x * sx > 0);
     const surf = cand.reduce((b, p) => (!b || p[2] * 0.8 + Math.abs(p[0]) * 0.6 > b[2] * 0.8 + Math.abs(b[0]) * 0.6 ? p : b), null);
     if (!surf) continue;
-    const e = new THREE.Mesh(new THREE.SphereGeometry(H * 0.022, 14, 10), eyeMat);
-    e.position.set(surf[0] - u.head.position.x - sx * H * 0.006, surf[1] - u.head.position.y, surf[2] - u.head.position.z - H * 0.006);
-    const g = new THREE.Mesh(new THREE.SphereGeometry(H * 0.006, 6, 4), glint); g.position.set(-sx * H * 0.006, H * 0.008, H * 0.018); e.add(g);
-    u.head.add(e);
+    const at = new THREE.Vector3(surf[0], surf[1], surf[2]);
+    const out = at.clone().sub(hc); out.y = 0; out.normalize();
+    out.lerp(new THREE.Vector3(0, 0, 1), 0.35).normalize();             // (un peu plus vers l'avant : elle nous regarde)
+    const eg = new THREE.Group();
+    eg.position.copy(at).addScaledVector(out, -H * 0.012).sub(hp);
+    eg.lookAt(eg.position.clone().add(out));
+    const e = new THREE.Mesh(new THREE.SphereGeometry(H * 0.03, 18, 12), eyeMat); e.scale.z = 0.75; eg.add(e);
+    const g1 = new THREE.Mesh(new THREE.SphereGeometry(H * 0.009, 8, 6), glint); g1.position.set(-sx * H * 0.009, H * 0.011, H * 0.02); eg.add(g1);
+    const g2 = new THREE.Mesh(new THREE.SphereGeometry(H * 0.0045, 6, 4), glint); g2.position.set(sx * H * 0.008, -H * 0.009, H * 0.021); eg.add(g2);
+    u.head.add(eg); eyes.push(eg);
+    // monture ronde dorée devant l'œil
+    const rim = new THREE.Mesh(new THREE.TorusGeometry(H * 0.046, H * 0.0055, 8, 28), gold);
+    rim.position.copy(eg.position).addScaledVector(out, H * 0.022);
+    rim.lookAt(rim.position.clone().add(out));
+    const lens = new THREE.Mesh(new THREE.CircleGeometry(H * 0.044, 24), new THREE.MeshStandardMaterial({ color: 0xffffff, transparent: true, opacity: 0.08, roughness: 0.05, metalness: 0.2, depthWrite: false }));
+    rim.add(lens);
+    u.head.add(rim); rims.push(rim);
   }
+  if (rims.length === 2) {
+    // le pont entre les deux verres, posé sur le haut du museau
+    const a = rims[0].position, b = rims[1].position;
+    const mid = a.clone().add(b).multiplyScalar(0.5); mid.z += H * 0.01; mid.y += H * 0.012;
+    const curve = new THREE.QuadraticBezierCurve3(a.clone().lerp(b, 0.12), mid, b.clone().lerp(a, 0.12));
+    u.head.add(new THREE.Mesh(new THREE.TubeGeometry(curve, 10, H * 0.004, 5), gold));
+  }
+  // la langue : sous la truffe, au bout de la mâchoire
+  const tongue = new THREE.Group();
+  const tm = new THREE.Mesh(new THREE.CapsuleGeometry(H * 0.018, H * 0.035, 4, 10), new THREE.MeshStandardMaterial({ color: 0xe8848f, roughness: 0.5 }));
+  tm.scale.set(1.2, 1, 0.4); tm.position.y = -H * 0.025; tongue.add(tm);
+  tongue.position.set(nosePt[0], nosePt[1] - H * 0.08, nosePt[2] - H * 0.055).sub(hp);
+  tongue.rotation.x = -0.12;
+  u.head.add(tongue);
+  u.eyes = eyes; u.tongue = tongue;
   // bandana rouge au cou : là où le corps est le plus fin, sous la tête
   let best = null;
   for (let y = 0.52; y <= 0.66; y += 0.02) {   // (sous la mâchoire)
