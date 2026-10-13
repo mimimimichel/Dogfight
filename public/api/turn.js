@@ -3,12 +3,16 @@
 // Fournisseur au choix, réglé dans les variables d'environnement de Vercel :
 //   METERED_DOMAIN + METERED_KEY   (metered.ca, offre gratuite)
 //   CF_TURN_KEY_ID + CF_TURN_TOKEN (Cloudflare Realtime TURN)
+//   TURN_URLS + TURN_USER + TURN_PASS (n'importe quel relais à identifiants fixes ;
+//                                      TURN_URLS séparées par des virgules)
 // Sans réglage : liste vide (le jeu garde ses serveurs par défaut).
 module.exports = async (req, res) => {
   let iceServers = [];
   try {
-    const { METERED_DOMAIN, METERED_KEY, CF_TURN_KEY_ID, CF_TURN_TOKEN } = process.env;
-    if (METERED_DOMAIN && METERED_KEY) {
+    const { METERED_DOMAIN, METERED_KEY, CF_TURN_KEY_ID, CF_TURN_TOKEN, TURN_URLS, TURN_USER, TURN_PASS } = process.env;
+    if (TURN_URLS && TURN_USER && TURN_PASS) {
+      iceServers = [{ urls: TURN_URLS.split(',').map(u => u.trim()).filter(Boolean), username: TURN_USER, credential: TURN_PASS }];
+    } else if (METERED_DOMAIN && METERED_KEY) {
       const r = await fetch(`https://${METERED_DOMAIN}/api/v1/turn/credentials?apiKey=${encodeURIComponent(METERED_KEY)}`);
       if (r.ok) iceServers = await r.json();
     } else if (CF_TURN_KEY_ID && CF_TURN_TOKEN) {
