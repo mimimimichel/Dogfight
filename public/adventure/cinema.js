@@ -92,6 +92,13 @@ export class Cinema {
     if (cam.fov !== fov) { cam.fov = fov; cam.updateProjectionMatrix(); }
   }
 
+  /** Distance de mise au point : ce que la caméra regarde. */
+  focusDist() {
+    if (!this.shot) return 10;
+    const k = Math.min(1, this.t / this.shot.d);
+    return this.game.camera.position.distanceTo(new THREE.Vector3().lerpVectors(this.look, this.lookTo, k * k * (3 - 2 * k)));
+  }
+
   /** Touche ou bouton « Passer ». */
   skip() { this.finish(); }
 

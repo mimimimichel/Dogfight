@@ -2894,6 +2894,8 @@ class Adventure {
     if ((this.mapT = (this.mapT || 0) + 1) % 4 === 0) this.drawMinimap();
     this.showVoices();
     if (this.cine) this.cine.applyCamera();
+    // mise au point sur le duo (ou sur ce que regarde la cinématique)
+    this.post.focus = this.cine ? this.cine.focusDist() : this.camera.position.distanceTo(this.camTarget);
     this.post.render(this.scene, this.camera, this.t, W.SKY.sunDir);
   }
 

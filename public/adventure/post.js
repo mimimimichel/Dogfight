@@ -66,6 +66,9 @@ void main() {
 const FINAL = `precision highp float; varying vec2 vUv;
 uniform sampler2D tScene, tBloom, tShafts; uniform float shafts; uniform vec3 shaftTint; uniform float bloom, exposure, contrast, saturation, vignette, time, grain;
 uniform vec3 shadowTint, highTint; uniform vec2 res;
+#ifdef DOF
+uniform sampler2D tDepth, tBlur; uniform float focus, camNear, camFar, dof;
+#endif
 // courbe de tons Khronos PBR Neutral (comme le rendu d'origine du jeu)
 vec3 neutral(vec3 c) {
   const float startC = 0.8 - 0.04, desat = 0.15;
@@ -78,6 +81,13 @@ vec3 toSRGB(vec3 c) { return mix(c * 12.92, 1.055 * pow(c, vec3(1.0 / 2.4)) - 0.
 float hash(vec2 p) { return fract(sin(dot(p, vec2(12.9898, 78.233))) * 43758.5453); }
 void main() {
   vec3 c = texture2D(tScene, vUv).rgb;
+#ifdef DOF
+  // profondeur de champ : le lointain se brouille doucement, le sujet reste net
+  float d = texture2D(tDepth, vUv).x;
+  float z = camNear * camFar / (camFar - d * (camFar - camNear));
+  float coc = smoothstep(focus * 1.4, focus * 3.6, z) * dof;
+  c = mix(c, texture2D(tBlur, vUv).rgb, coc);
+#endif
   c += texture2D(tBloom, vUv).rgb * bloom;
   c += texture2D(tShafts, vUv).rgb * shaftTint * shafts;
   c = neutral(c * exposure);
@@ -124,7 +134,12 @@ export class Post {
       contrast: { value: g.contrast }, saturation: { value: g.saturation }, vignette: { value: g.vignette },
       shadowTint: { value: new THREE.Vector3(...g.shadowTint) }, highTint: { value: new THREE.Vector3(...g.highTint) },
       res: { value: new THREE.Vector2(1, 1) }, time: { value: 0 }, grain: { value: half ? 0.012 : 0.02 },
+      tDepth: { value: null }, tBlur: { value: null }, focus: { value: 10 }, camNear: { value: 0.1 }, camFar: { value: 1000 }, dof: { value: 0.85 },
     });
+    // profondeur de champ (ordinateur seulement)
+    this.dofOn = quality === 'high' && caps.isWebGL2;
+    if (this.dofOn) this.mFinal.defines = { DOF: 1 };
+    this.focus = 10;
     this.w = 0; this.h = 0;
   }
 
@@ -143,6 +158,11 @@ export class Post {
     // l'image de la scène garde l'anticrénelage (MSAA) du rendu d'origine
     // téléphone : pas d'anticrénelage multi-échantillons (le plus coûteux sur ces puces)
     this.sceneRT = this.rt(w, h, this.r.capabilities.isWebGL2 && this.quality === 'high' ? 4 : 0, true);
+    if (this.dofOn) {
+      this.sceneRT.depthTexture = new THREE.DepthTexture(w, h);
+      this.sceneRT.depthTexture.type = THREE.UnsignedIntType;
+      this.blurA = this.rt(w >> 1, h >> 1); this.blurB = this.rt(w >> 2, h >> 2);
+    }
     if (!this.black) { this.black = this.rt(1, 1); this.blackFresh = true; }
     this.down = []; this.up = [];
     let bw = w >> 1, bh = h >> 1;
@@ -213,6 +233,13 @@ export class Post {
       src = this.up[i];
     }
     const f = this.mFinal.uniforms;
+    if (this.dofOn) {
+      const d = this.mDown.uniforms;
+      d.tMap.value = this.sceneRT.texture; d.texel.value.set(1 / this.w, 1 / this.h); this.pass(this.mDown, this.blurA);
+      d.tMap.value = this.blurA.texture; d.texel.value.set(1 / this.blurA.width, 1 / this.blurA.height); this.pass(this.mDown, this.blurB);
+      f.tDepth.value = this.sceneRT.depthTexture; f.tBlur.value = this.blurB.texture;
+      f.focus.value = this.focus; f.camNear.value = camera.near; f.camFar.value = camera.far;
+    }
     const target = this.grade.shafts === 0 || !this.shaftsOn ? 0 : this.sunOnScreen(camera, sunDir);
     this.vis += (target - this.vis) * 0.06;            // apparition / disparition en douceur
     if (this.vis < 0.003) this.vis = 0;
@@ -238,6 +265,8 @@ export class Post {
     if (this.shaftRT) this.shaftRT.dispose();
     if (this.black) { this.black.dispose(); this.black = null; }
     if (this.shaftPrev) this.shaftPrev.dispose();
+    if (this.blurA) { this.blurA.dispose(); this.blurB.dispose(); this.blurA = this.blurB = null; }
+    if (this.sceneRT && this.sceneRT.depthTexture) this.sceneRT.depthTexture.dispose();
     for (const t of [...(this.down || []), ...(this.up || [])]) t.dispose();
     this.sceneRT = null; this.down = []; this.up = [];
     this.w = this.h = 0;
