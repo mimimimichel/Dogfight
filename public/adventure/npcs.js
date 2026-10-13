@@ -163,7 +163,11 @@ export function buildMamieReal() {
   const bandana = new THREE.Group(); bandana.add(band, tri); bandana.position.set(nc[0], nc[1], nc[2]);
   u.body.add(bandana);
   // elle baisse la tête vers les chiens au lieu de regarder le ciel
-  u.head.rotation.x = 0.3;
-  u.headRestX = 0.3;
+  u.head.rotation.x = 0;
+  u.headRestX = 0;
+  // pattes avant posées au sol (le modèle scanné est un peu penché en arrière : le derrière s'enfonce dans l'herbe)
+  const zs = points('mamie', () => true).map(p => p[2]), zmax = Math.max(...zs), zmin = Math.min(...zs);
+  const paws = points('mamie', (x, y, z) => z > zmax - (zmax - zmin) * 0.3 && y < H * 0.3);
+  if (paws.length) u.body.position.y = -Math.min(...paws.map(p => p[1]));
   return g;
 }
