@@ -1337,7 +1337,11 @@ class Adventure {
     });
 
     // Mamie
-    this.mamie = this.realistic && N.hasNpc('mamie') ? N.buildMamieReal() : M.buildMamie();
+    // (?mamie=scan|debout|dessin pour comparer les modèles)
+    const mq = new URLSearchParams(location.search).get('mamie');
+    this.mamie = mq === 'dessin' ? M.buildMamie()
+      : mq === 'debout' && N.hasNpc('biscotte') ? N.buildMamieStanding()
+        : this.realistic && N.hasNpc('mamie') ? N.buildMamieReal() : M.buildMamie();
     this.mamie.position.set(L.npcs.mamie.x, L.npcs.mamie.y, L.npcs.mamie.z);
     if (this.mamie.userData.rig) this.mamie.scale.multiplyScalar(MAMIE_SCALE);   // un peu plus grande
     this.mamie.rotation.y = Math.atan2(L.START.x - L.npcs.mamie.x, L.START.z - L.npcs.mamie.z);
@@ -3308,7 +3312,7 @@ class Adventure {
       if (L.SPOTS && L.SPOTS.lake) water = near(L.SPOTS.lake.x, L.SPOTS.lake.z, 24) * 0.5;
       wind = 0.3; windP = 0.25; birds = 0.35; owls = 0.04;
     } else if (L.ID === 3) {
-      if (L.FOUNTAIN) water = near(L.FOUNTAIN.x, L.FOUNTAIN.z, 32);
+      if (L.FOUNTAIN) water = near(L.FOUNTAIN.x, L.FOUNTAIN.z, 22) * 0.35;   // la fontaine : discrète (Mamie est juste à côté)
       if (L.PORT_QUAY) waves = Math.max(0, Math.min(1, 1 - (L.PORT_QUAY + 6 - c.z) / 70));
       const P = L.PARK, inPark = P && c.x > P.x0 - 15 && c.x < P.x1 + 15 && c.z > P.z0 - 15 && c.z < P.z1 + 15;
       city = 0.7 * (1 - waves * 0.6) * (inPark ? 0.5 : 1); birds = inPark ? 0.5 : 0.06; gulls = waves * 0.3;

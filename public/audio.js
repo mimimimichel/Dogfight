@@ -279,11 +279,12 @@
       const a = { g, base: 0.2, v: 0, p: -1 };
       const filt = (type, f, q) => { const n = c.createBiquadFilter(); n.type = type; n.frequency.value = f; if (q) n.Q.value = q; return n; };
       if (name === 'water') {          // fontaine, cascade : bruissement clair qui bouillonne
-        const src = this.noiseLoop(), hi = filt('bandpass', 1500, 0.6), lo = filt('lowpass', 420), gh = c.createGain(), gl = c.createGain();
-        gh.gain.value = 0.7; gl.gain.value = 0.5;
+        // (doux : plus de sifflement aigu, surtout un murmure grave)
+        const src = this.noiseLoop(), hi = filt('bandpass', 900, 0.8), lo = filt('lowpass', 380), gh = c.createGain(), gl = c.createGain();
+        gh.gain.value = 0.25; gl.gain.value = 0.6;
         src.connect(hi); hi.connect(gh); gh.connect(g); src.connect(lo); lo.connect(gl); gl.connect(g);
-        this.lfo(0.37, 380, hi.frequency); this.lfo(5.3, 0.18, gh.gain);
-        a.base = 0.32;
+        this.lfo(0.37, 200, hi.frequency); this.lfo(2.1, 0.08, gh.gain);
+        a.base = 0.16;
       } else if (name === 'wind') {    // souffle qui monte et retombe ; p (0..1) : plus fort, plus aigu
         const src = this.noiseLoop(), f = filt('lowpass', 420, 1.2), m = c.createGain();
         m.gain.value = 0.75; src.connect(f); f.connect(m); m.connect(g);
