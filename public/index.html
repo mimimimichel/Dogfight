@@ -244,8 +244,9 @@
             <div class="coop-code" id="coop-show-code">----</div>
             <div class="coop-join">
               <input id="coop-link" readonly>
-              <button class="hbtn cbtn" data-action="coop-copy">Copier le lien</button>
+              <button class="hbtn cbtn go" data-action="coop-copy">📨 Inviter un ami</button>
             </div>
+            <div class="coop-qr" id="coop-qr" aria-label="QR code de ton monde : ton ami le flashe avec son téléphone"></div>
             <p class="coop-status pulse" id="coop-wait-status">Tes amis (jusqu'à 5) peuvent arriver quand ils veulent, même en pleine partie !</p>
             <div class="coop-levels">
               <span>Niveau :</span>
@@ -468,6 +469,7 @@
     (function () { var u = navigator.userAgent; if (/iP(hone|ad|od)/.test(u) || (/Safari/.test(u) && !/Chrome|Chromium|CriOS|FxiOS|Android/.test(u)) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1)) document.documentElement.classList.add('ios-text'); })();
   </script>
   <script src="vendor/peerjs.min.js"></script>
+  <script src="vendor/qrcode.js"></script>
   <script src="p2p.js"></script>
   <script src="coop.js"></script>
   <script src="render.js"></script>

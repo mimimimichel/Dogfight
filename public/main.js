@@ -897,6 +897,11 @@
         $('coop-go').disabled = false;
         const q = new URLSearchParams(location.search).get('peer');
         $('coop-link').value = location.origin + location.pathname + '?coop=' + code + (q ? '&peer=' + q : '');
+        // QR code : l'ami dans la même pièce le flashe avec l'appareil photo
+        try {
+          const qr = window.qrcode(0, 'M'); qr.addData($('coop-link').value); qr.make();
+          $('coop-qr').innerHTML = qr.createSvgTag({ cellSize: 4, margin: 2, scalable: true }) + '<small>Ton ami flashe ce code avec son téléphone</small>';
+        } catch (e) { $('coop-qr').innerHTML = ''; }
         // si un ami arrive avant qu'on ait lancé, on démarre tout de suite
         session.onJoin = () => coopGo();
         // le monde d'un ami : on y entre directement, au niveau où il était
@@ -934,6 +939,9 @@
       },
     });
   }
+
+  // les sauvegardes ne doivent pas être effacées par le navigateur (Safari vide un site non visité depuis 7 jours)
+  try { if (navigator.storage && navigator.storage.persist) navigator.storage.persisted().then((p) => { if (!p) navigator.storage.persist(); }).catch(() => {}); } catch (e) { /* ignore */ }
 
   function playerName() { return (app.name || '').trim() || 'Anonyme'; }
 
@@ -977,11 +985,16 @@
       case 'coop-go': coopGo(); break;
       case 'coop-back': window.AdvCoop.cancel(); coopSession = null; coopInviteCode = ''; coopEditing = false; show('menu'); break;
       case 'coop-copy': {
-        const inp = $('coop-link');
-        inp.select();
-        (navigator.clipboard ? navigator.clipboard.writeText(inp.value) : Promise.reject())
-          .then(() => toast('Lien copié !', 1500))
-          .catch(() => { document.execCommand('copy'); toast('Lien copié !', 1500); });
+        // le partage du téléphone (SMS, WhatsApp…), sinon on copie le lien
+        const inp = $('coop-link'), url = inp.value, code = $('coop-show-code').textContent;
+        const copy = () => {
+          inp.select();
+          (navigator.clipboard ? navigator.clipboard.writeText(url) : Promise.reject())
+            .then(() => toast('Lien copié ! Colle-le dans un message à ton ami.', 2200))
+            .catch(() => { document.execCommand('copy'); toast('Lien copié !', 1500); });
+        };
+        if (navigator.share) navigator.share({ title: 'Matcha & Ainu', text: `Viens jouer avec moi dans mon monde (code ${code}) !`, url }).catch((e) => { if (!e || e.name !== 'AbortError') copy(); });
+        else copy();
         break;
       }
       case 'controls': show('controls'); break;

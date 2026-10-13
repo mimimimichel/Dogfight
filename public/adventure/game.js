@@ -123,6 +123,13 @@ function playerUid() {
 /** Secondes à attendre dans un portail avant de partir (seul : presque tout de suite). */
 const PORTAL_WAIT = (n) => (n > 1 ? 3 : 0.8);   // on ne propose le micro qu'une fois par partie
 
+/** Le prénom de l'enfant (profil « Qui joue ? » ou prénom du jeu à plusieurs), s'il est connu. */
+function kidName() {
+  let n = '';
+  try { n = (JSON.parse(localStorage.getItem('dogfight.profile') || '{}').name || '').trim(); } catch (e) { /* ignore */ }
+  if (!n && window.Profiles) { const c = window.Profiles.current(); if (c && !/^Joueur \d+$/.test(c.name)) n = c.name; }
+  return n.slice(0, 16);
+}
 const medalWord = () => (L.ID === 3 ? 'Trophées' : L.ID === 4 ? 'Étoiles' : 'Médailles');
 const collectWord = (long) => ({ 2: 'Croquettes', 3: long ? 'Pièces d\'or' : 'Pièces', 4: 'Pièces du ciel' })[L.ID] || (long ? 'Os dorés' : 'Os');
 const NEXT_LEVEL = { 1: 'Niveau 2 : la Forêt des Moustaches', 2: 'Niveau 3 : Port-Croquette', 3: 'Niveau 4 : les Îles du Ciel' };
@@ -307,7 +314,7 @@ class Adventure {
           </div>
           <div class="adv-mapcol">
             <div class="adv-map"><canvas width="160" height="160"></canvas><span class="adv-north">N</span></div>
-            <div class="adv-quest"><b>Quête</b><span></span></div>
+            <div class="adv-quest" role="button" aria-label="Où aller ?"><b><i class="qi">🐾</i> Quête</b><span></span><em class="adv-where">🐾 Où aller ?</em></div>
           </div>
         </div>
       </div>
@@ -356,6 +363,7 @@ class Adventure {
       pMatcha: root.querySelector('.p-matcha'),
     };
     root.querySelector('.adv-pause').addEventListener('click', () => this.togglePause());
+    root.querySelector('.adv-quest').addEventListener('click', (e) => { e.stopPropagation(); this.showWay(); });
     this.dom.mic = root.querySelector('.adv-mic');
     this.dom.mic.addEventListener('click', () => this.toggleMic());
     this.dom.micAsk = root.querySelector('.adv-micask');
@@ -373,7 +381,7 @@ class Adventure {
     const bump = (el, cls) => { if (!el) return; el.classList.remove(cls); void el.offsetWidth; el.classList.add(cls); };
     const prev = this.hudPrev || {};
     const hp0 = this.player ? this.me.hearts : MAX_HEARTS;
-    if (prev.bones !== undefined && s.bones.length > prev.bones) bump(this.dom.bones.closest('.adv-count'), 'bump');
+    if (prev.bones !== undefined && s.bones.length > prev.bones) { bump(this.dom.bones.closest('.adv-count'), 'bump'); this.progressAt = this.t; }
     if (prev.medals !== undefined && s.medals.length > prev.medals) bump(this.dom.medals.closest('.adv-count'), 'bump');
     if (prev.hp !== undefined && hp0 < prev.hp) bump(this.dom.hearts, 'hurt');
     if (prev.hp !== undefined && hp0 > prev.hp) bump(this.dom.hearts, 'bump');
@@ -394,8 +402,14 @@ class Adventure {
     if (this.dom.quest.textContent !== q) {
       this.dom.quest.textContent = q;
       const key = q.replace(/[\d:]/g, '');
-      if (prev.quest !== undefined && prev.quest !== key) bump(this.dom.quest.closest('.adv-quest') || this.dom.quest, 'flash');
+      if (prev.quest !== undefined && prev.quest !== key) {
+        bump(this.dom.quest.closest('.adv-quest') || this.dom.quest, 'flash');
+        this.progressAt = this.t;
+        if (this.easy) this.sayQuest();   // les petits : la quête est lue à voix haute
+      }
       this.hudPrev.quest = key;
+      const icon = [[/Mamie/, '👵'], [/Biscotte|chiot/i, '🐶'], [/[Mm]édaille|trophée/i, '🏅'], [/lanterne/i, '🏮'], [/kart|voiture|avion/i, '🏎️'], [/Capitaine|chat/i, '😼'], [/étoile/i, '⭐'], [/mission|livr/i, '📜'], [/bravo/i, '🎉']].find(([re]) => re.test(q));
+      const qi = this.dom.root.querySelector('.adv-quest .qi'); if (qi) qi.textContent = icon ? icon[1] : '🐾';
     }
   }
 
@@ -803,6 +817,29 @@ class Adventure {
       if (d < bd) { bd = d; best = m.def; }
     }
     return best;
+  }
+  /** « Où aller ? » : la quête lue à voix haute et le chemin d'étincelles pendant 12 s. */
+  showWay(auto) {
+    this.guideUntil = this.t + 12;
+    this.progressAt = this.t;
+    const el = this.dom.root.querySelector('.adv-quest');
+    if (el) { el.classList.remove('flash'); void el.offsetWidth; el.classList.add('flash'); }
+    if (!auto) this.sayQuest();
+    else this.banner('Suis les étincelles !', 'Elles montrent où aller', 2000);
+  }
+  /** Lit la quête à voix haute (voix du téléphone). */
+  sayQuest() {
+    try {
+      const S = window.speechSynthesis;
+      if (!S || this.dialog) return;
+      const q = this.dom.quest.textContent.replace(/\((\d+)\/(\d+)\)/, ': $1 sur $2');
+      S.cancel();
+      const u = new SpeechSynthesisUtterance(q);
+      u.lang = 'fr-FR'; u.rate = 0.95; u.pitch = 1.15;
+      const v = S.getVoices().filter(x => /^fr/i.test(x.lang));
+      if (v.length) u.voice = v.find(x => /Amélie|Audrey|Marie|Google français|Thomas/i.test(x.name)) || v[0];
+      S.speak(u);
+    } catch (e) { /* pas de voix sur ce téléphone */ }
   }
   /** Mode Promenade : des étincelles dorées montrent le chemin. */
   renderGuide(dt) {
@@ -1406,7 +1443,7 @@ class Adventure {
     if (this.guest) return;
     for (const c of this.cats) {
       if (!c.dead || c.def.group !== 'roam' || this.t - (c.deadAt || 0) < CAT_RESPAWN) continue;
-      c.dead = false; c.mesh.visible = true; c.pos.copy(c.home); c.stun = 1;
+      c.dead = false; c.fly = null; c.mesh.scale.setScalar(1); c.mesh.rotation.set(0, c.yaw, 0); c.mesh.visible = true; c.pos.copy(c.home); c.stun = 1;
       this.burst(c.pos.x, c.pos.y + 0.6, c.pos.z, 8, 0xd8d8e8, 2.5, 0.4);
     }
     if ((this.worldT = (this.worldT || 0) + 1) % 120) return;   // toutes les 2 secondes
@@ -1661,6 +1698,7 @@ class Adventure {
     this.stepCamera(dt);
     players.forEach((P, i) => this.stepPlayer(dt, inputs[i] || { x: 0, y: 0, wx: 0, wz: 0 }, P, presses[i] || new Set()));
     this.stepCats(dt);
+    if (this.party.size > 1) this.stepRevive(dt);
     this.stepNpcs(dt);
     this.stepCollect(dt);
     this.stepPortals(dt);
@@ -1943,7 +1981,7 @@ class Adventure {
     if (!links.length) { this.coopEvents.length = 0; return; }
     const r = (v) => Math.round(v * 100) / 100;
     const pp = this.puppy, d = this.dialog;
-    const pack = (P) => [P.id, r(P.pos.x), r(P.pos.y), r(P.pos.z), r(P.vel.x), r(P.vel.y), r(P.vel.z), r(P.yaw), (P.grounded ? 1 : 0) | (P.gliding ? 2 : 0),
+    const pack = (P) => [P.id, r(P.pos.x), r(P.pos.y), r(P.pos.z), r(P.vel.x), r(P.vel.y), r(P.vel.z), r(P.yaw), (P.grounded ? 1 : 0) | (P.gliding ? 2 : 0) | (P.down ? 4 : 0),
       r(P.attackT), r(P.dashT), r(P.flipT), r(P.cheerT), r(P.invuln), P.hearts, P.score, r(P.barkT || 0), r(P.trickT || 0)];
     const base = {
       t: 's', time: r(this.t),
@@ -2095,7 +2133,7 @@ class Adventure {
       const P = this.party.get(q[0]);
       if (!P) continue;
       P.vel.set(q[4], q[5], q[6]);
-      P.grounded = !!(q[8] & 1); P.gliding = !!(q[8] & 2);
+      P.grounded = !!(q[8] & 1); P.gliding = !!(q[8] & 2); P.down = !!(q[8] & 4);
       if (q[11] > P.flipT + 0.1 || q[11] === 0) P.flipT = q[11];
       P.attackT = q[9]; P.dashT = q[10]; P.cheerT = q[12]; P.invuln = q[13]; P.hearts = q[14]; P.score = q[15] || 0;
       if ((q[16] || 0) > (P.barkT || 0) + 0.2) this.bubble(P, 'Ouaf !');
@@ -2209,9 +2247,12 @@ class Adventure {
   stepPlayer(dt, input, P, pr) {
     P = P || this.player;
     pr = pr || this.pressed;
+    if (P.down) pr = new Set();
     const ap = pr, mp = pr;
     // Direction souhaitée, relative à la caméra (ou déjà dans le monde, à deux)
-    const [wx, wz] = input.wx !== undefined ? [input.wx, input.wz] : this.worldMove(input.x, input.y);
+    let [wx, wz] = input.wx !== undefined ? [input.wx, input.wz] : this.worldMove(input.x, input.y);
+    // tombé (à plusieurs) : il attend qu'un ami vienne le relever
+    if (P.down) { wx = 0; wz = 0; input = Object.assign({}, input, { jumpHeld: false }); pr = new Set(); }
     const wlen = Math.hypot(wx, wz);
     // en kart (niveau 3) : c'est la ville qui gère la conduite
     if (this.levelLogic && this.levelLogic.playerStep && this.levelLogic.playerStep(P, wx, wz, input.jumpHeld, pr, dt)) return;
@@ -2325,6 +2366,10 @@ class Adventure {
     // Point sûr pour réapparaître
     if (P.grounded && sup.y > 0.4 && !(sup.collider && sup.collider.moving) && this.t - P.lastSafeT > 0.4) {
       P.lastSafe.copy(P.pos); P.lastSafeT = this.t;
+      // point de reprise après un K.O. : un endroit calme, sans chat autour
+      if (!P.ko && this.t - (P.cpT || 0) > 2 && !this.cats.some(c => !c.dead && Math.hypot(c.pos.x - P.pos.x, c.pos.z - P.pos.z) < 9)) {
+        P.checkpoint = { x: P.pos.x, y: P.pos.y, z: P.pos.z, yaw: this.camYaw - Math.PI }; P.cpT = this.t;
+      }
     }
     // Plouf !
     if (P.pos.y < L.WATER_Y - 0.9) {
@@ -2357,7 +2402,7 @@ class Adventure {
 
   hurtPlayer(from, P) {
     P = P || this.player;
-    if (P.invuln > 0) return;
+    if (P.invuln > 0 || P.down) return;
     if (!this.easy) P.hearts--;   // en Promenade, on est juste repoussé
     P.invuln = 1.6;
     const dx = P.pos.x - from.x, dz = P.pos.z - from.z, d = Math.hypot(dx, dz) || 1;
@@ -2369,20 +2414,60 @@ class Adventure {
     if (P.hearts <= 0 && !P.ko) {
       const solo = this.players.length === 1;
       P.ko = true;
-      if (solo) { this.freeze = 1.4; this.fade(true); }
+      // à plusieurs : il tombe sur place, un ami vient le relever (câlin ou « Ouaf ! »)
+      if (!solo && this.players.some(Q => Q !== P && !Q.ko)) {
+        P.down = true; P.downT = 0; P.reviveT = 0;
+        this.bubble(P, 'À l\'aide !');
+        this.banner(`${P.name} est tombé !`, 'Va vite lui faire un câlin (ou aboie à côté de lui) !', 2600);
+        return;
+      }
+      this.respawnKo(P, solo);
+    }
+  }
+
+  /** Va relever les amis tombés : rester à côté d'eux ou aboyer près d'eux. */
+  stepRevive(dt) {
+    for (const P of this.players) {
+      if (!P.down) continue;
+      P.downT += dt;
+      if ((P.downT % 3) < dt) this.bubble(P, 'À l\'aide !');
+      let helper = null;
+      for (const Q of this.players) {
+        if (Q === P || Q.ko) continue;
+        const d = Math.hypot(Q.pos.x - P.pos.x, Q.pos.z - P.pos.z);
+        if (d < 4 && (Q.barkT || 0) > 0.5) { P.reviveT = 9; helper = Q; break; }
+        if (d < 1.9) { P.reviveT += dt; helper = Q; }
+      }
+      if (helper && (this.t * 6 | 0) !== ((this.t - dt) * 6 | 0)) this.burst(P.pos.x, P.pos.y + 1, P.pos.z, 3, 0xff8ab0, 1.5, 0.5);
+      if (P.reviveT >= 1.2) {
+        P.down = false; P.ko = false; P.hearts = MAX_HEARTS; P.invuln = 2; P.vel.set(0, 6, 0); P.grounded = false;
+        this.burst(P.pos.x, P.pos.y + 1, P.pos.z, 20, 0xff6a9a, 4, 0.7);
+        this.sound('reveal');
+        this.banner(`${helper.name} a relevé ${P.name} !`, 'Les amis, c\'est fait pour ça.', 2200);
+        this.updateHud();
+      } else if (P.downT > 20 || !this.players.some(Q => Q !== P && !Q.ko)) {
+        P.down = false;
+        this.respawnKo(P, false);
+      }
+    }
+  }
+
+  respawnKo(P, solo) {
+    if (solo) { this.freeze = 1.4; this.fade(true); }
       setTimeout(() => {
         if (this.disposed) return;
         P.ko = false;
         P.hearts = MAX_HEARTS;
-        const sp = (this.levelLogic && this.levelLogic.respawn(P)) || L.START;
+        // on repart du dernier endroit calme (en mode Défi : du début du niveau)
+        const cp = this.mode !== 'defi' && P.checkpoint;
+        const sp = (this.levelLogic && this.levelLogic.respawn(P)) || cp || L.START;
         P.pos.set(sp.x + (P.kind === 'matcha' ? 1.2 : 0), sp.y, sp.z); P.vel.set(0, 0, 0); P.invuln = 2;
         if (P === this.me) this.camYaw = (sp.yaw === undefined ? Math.PI : sp.yaw) + Math.PI;
         if (P === this.player && this.puppy.state === 'follow') this.puppy.pos.copy(P.pos);
         this.updateHud();
         if (solo) this.fade(false);
-        this.banner('Ouille !', solo ? 'On repart du début, avec tous tes trésors.' : `${P.name} repart du début.`, 2400);
+        this.banner('Ouille !', cp && sp === cp ? (solo ? 'On repart d\'un peu plus loin, avec tous tes trésors.' : `${P.name} repart d'un peu plus loin.`) : (solo ? 'On repart du début, avec tous tes trésors.' : `${P.name} repart du début.`), 2400);
       }, 700);
-    }
   }
 
   // -------------------------------------------------------------------------
@@ -2416,7 +2501,24 @@ class Adventure {
   // -------------------------------------------------------------------------
   stepCats(dt) {
     for (const c of this.cats) {
-      if (c.dead) { c.shadow.visible = false; continue; }
+      if (c.alert) c.alert.visible = !c.dead && (c.warn > 0 || (c.chasing && this.t - c.warnAt < 1));
+      if (c.dead) {
+        c.shadow.visible = false;
+        // le chat touché s'envole en boule de poils, tourne, puis disparaît
+        if (c.fly) {
+          const f = c.fly;
+          f.t += dt; f.vy -= 22 * dt;
+          c.mesh.position.x += f.vx * dt; c.mesh.position.y += f.vy * dt; c.mesh.position.z += f.vz * dt;
+          c.mesh.rotation.x += dt * 14; c.mesh.rotation.z += dt * 9;
+          const k = Math.max(0.2, 1 - f.t * 0.6); c.mesh.scale.setScalar(k);
+          if (f.t > 0.85) {
+            c.fly = null; c.mesh.visible = false; c.mesh.rotation.set(0, c.yaw, 0); c.mesh.scale.setScalar(1);
+            this.burst(c.mesh.position.x, c.mesh.position.y, c.mesh.position.z, 12, 0xffffff, 3, 0.5);
+            this.sound('poof');
+          }
+        }
+        continue;
+      }
       const P = this.nearestPlayer(c.pos);
       c.t -= dt;
       c.stun = Math.max(0, c.stun - dt);
@@ -2426,9 +2528,14 @@ class Adventure {
       const fromHome = Math.hypot(c.pos.x - c.home.x, c.pos.z - c.home.z);
       if (c.stun <= 0 && dist < 9 && Math.abs(P.pos.y - c.pos.y) < 3 && fromHome < 15 && !this.dialog) {
         dir = toP.normalize(); speed = 3.6;
-        // petit miaulement aigu quand un chat repère le duo
-        if (!c.chasing && this.t - (c.lastMeow || -9) > 4) { c.lastMeow = this.t; this.sound('meowHi'); }
+        // il repère le duo : un « ! » au-dessus de la tête, il se ramasse… puis bondit
+        if (!c.chasing) {
+          c.warn = this.easy ? 0.9 : 0.6; c.warnAt = this.t;
+          if (!c.alert) { c.alert = this.makeMark('!', 0xff5a3a); c.alert.scale.set(0.7, 0.7, 1); this.scene.add(c.alert); }
+          if (this.t - (c.lastMeow || -9) > 4) { c.lastMeow = this.t; this.sound('meowHi'); }
+        }
         c.chasing = true;
+        if (c.warn > 0) { c.warn -= dt; speed = 0; c.yaw = lerpAngle(c.yaw, Math.atan2(dir.x, dir.z), Math.min(1, dt * 10)); }
       } else {
         c.chasing = false;
         if (!c.target || c.t <= 0) {
@@ -2439,7 +2546,8 @@ class Adventure {
         const tv = new THREE.Vector3(c.target.x - c.pos.x, 0, c.target.z - c.pos.z);
         if (tv.length() > 0.5) { dir = tv.normalize(); speed = 1.5; }
       }
-      if (dir) {
+      if (c.alert) c.alert.position.set(c.pos.x, c.pos.y + 1.55 + Math.sin(this.t * 12) * 0.05, c.pos.z);
+      if (dir && speed > 0) {
         const nx = c.pos.x + dir.x * speed * dt, nz = c.pos.z + dir.z * speed * dt;
         const h = L.heightAt(nx, nz);
         if (h > 0.5 && Math.abs(h - c.pos.y) < 0.8 && !(L.blockedAt && L.blockedAt(nx, nz))) { c.pos.x = nx; c.pos.z = nz; c.pos.y = h; }
@@ -2463,10 +2571,13 @@ class Adventure {
     if (c.dead) return;
     c.dead = true;
     c.deadAt = this.t;
-    c.mesh.visible = false;
+    // il s'envole, loin du chien qui l'a touché
+    const P = this.nearestPlayer(c.pos), dx = c.pos.x - P.pos.x, dz = c.pos.z - P.pos.z, d = Math.hypot(dx, dz) || 1;
+    c.fly = { vx: dx / d * 7, vy: 9, vz: dz / d * 7, t: 0 };
+    c.mesh.position.copy(c.pos);
     this.burst(c.pos.x, c.pos.y + 0.6, c.pos.z, 18, 0xffffff, 4, 0.6);
     this.burst(c.pos.x, c.pos.y + 0.6, c.pos.z, 8, 0x8a8a9a, 3, 0.5);
-    this.sound('poof');
+    this.kick(0.3, 0.06);
     this.sound('meow');
     if (c.def.group === 'clearing') {
       this.save.cats.push(c.def.id);
@@ -2739,18 +2850,27 @@ class Adventure {
   collectFor(P) {
     const px = P.pos.x, py = P.pos.y + 0.8, pz = P.pos.z;
     const s = this.save;
-    // Os
+    // Os (en chaîne, ils s'attrapent d'un peu plus loin)
+    const reach = (P.chain || 0) >= 3 ? 2.3 : 1.6;
     for (let i = 0; i < L.bones.length; i++) {
       const b = L.bones[i];
       if (this.boneTaken.has(b.id)) continue;
-      if ((b.x - px) ** 2 + (b.y - py) ** 2 + (b.z - pz) ** 2 < 1.6 * 1.6) {
+      if ((b.x - px) ** 2 + (b.y - py) ** 2 + (b.z - pz) ** 2 < reach * reach) {
+        // une ligne d'os ramassée d'affilée : la note monte, et tous les 5 ça scintille
+        P.chain = this.t - (P.chainAt || -9) < 0.75 ? (P.chain || 0) + 1 : 0;
+        P.chainAt = this.t;
         this.boneTaken.add(b.id);
         s.gone[b.id] = Date.now();          // il repoussera plus tard
         P.score = (P.score || 0) + 1;
         if (P === this.player) addToProfile(1);
         if (this.levelLogic && this.levelLogic.onCoin) this.levelLogic.onCoin(P);
         this.burst(b.x, b.y, b.z, 6, 0xffe070, 2.5, 0.35);
-        this.sound('bone', s.bones.length);
+        this.sound('bone', P.chain);
+        if (P.chain && P.chain % 5 === 4) {
+          this.burst(b.x, b.y + 0.4, b.z, 22, 0xfff3a0, 5, 0.8);
+          this.sound('chain');
+          if (P === this.me) this.kick(0.08);
+        }
         const fresh = !s.bones.includes(b.id);
         if (fresh) s.bones.push(b.id);
         if (fresh && s.bones.length % 20 === 0) {
@@ -2805,7 +2925,8 @@ class Adventure {
     for (const Q of this.players) Q.cheerT = 1.4;
     this.freeze = 1.4;
     this.sound('win');
-    this.banner(L.MEDAL_TITLE || 'MÉDAILLE PATOUNE !', `${m.def.label} — ${s.medals.length}/${L.medals.length}`, 2800);
+    const kn = this.party.size > 1 ? '' : kidName();
+    this.banner(L.MEDAL_TITLE || 'MÉDAILLE PATOUNE !', `${kn ? 'Bravo ' + kn + ' ! ' : ''}${m.def.label} — ${s.medals.length}/${L.medals.length}`, 2800);
     const finished = L.FINAL_MEDAL ? s.medals.includes(L.FINAL_MEDAL) : s.medals.length >= L.medals.length;
     if (finished && !s.done) this.endTimer = 1.7;
   }
@@ -2859,7 +2980,14 @@ class Adventure {
       case 'double': s.tone(520, 0.14, { type: 'square', to: 1040, vol: 0.08 }); s.bark('matcha'); break;
       case 'spin': s.swing(true); break;
       case 'dash': s.noise(0.2, { filter: 'bandpass', freq: 800, freqTo: 2400, vol: 0.2 }); break;
-      case 'bone': s.tone(900 + ((n || 0) % 8) * 70, 0.07, { type: 'square', vol: 0.07 }); s.tone(1400 + ((n || 0) % 8) * 70, 0.06, { type: 'square', vol: 0.05, delay: 0.05 }); break;
+      case 'bone': {
+        // gamme pentatonique : une ligne d'os joue une petite mélodie qui monte
+        const PENTA = [0, 2, 4, 7, 9, 12, 14, 16, 19, 21, 24, 26, 28, 31];
+        const f = 784 * Math.pow(2, PENTA[Math.min(PENTA.length - 1, n || 0)] / 12);
+        s.tone(f, 0.08, { type: 'triangle', vol: 0.09 }); s.tone(f * 2, 0.06, { type: 'sine', vol: 0.04, delay: 0.03 });
+        break;
+      }
+      case 'chain': [1, 1.25, 1.5, 2].forEach((k, i) => s.tone(1046 * k, 0.18, { type: 'sine', vol: 0.06, delay: 0.05 + i * 0.05 })); break;
       case 'ball': s.tone(660, 0.1, { vol: 0.1 }); s.tone(990, 0.12, { vol: 0.1, delay: 0.08 }); break;
       case 'heart': s.tone(700, 0.1, { type: 'sine', vol: 0.15 }); s.tone(1050, 0.15, { type: 'sine', vol: 0.15, delay: 0.08 }); break;
       case 'meow': s.meow && s.meow(); break;
@@ -2950,6 +3078,9 @@ class Adventure {
     for (const Q of this.players) {
       if (!Q.mesh) continue;
       if (Q.mesh.userData.ainu) this.renderDuo(Q, dt, t); else this.renderMatcha(Q, dt, t);
+      // tombé : couché sur le côté, petit flottement
+      if (Q.down) { Q.mesh.rotation.z = 1.35; Q.mesh.position.y += 0.15 + Math.sin(t * 3) * 0.08; }
+      else if (Q.mesh.rotation.z === 1.35) Q.mesh.rotation.z = 0;
       if (Q.tag) { Q.tag.visible = this.party.size > 1 && Q.mesh.visible !== false; Q.tag.position.set(Q.pos.x, Q.pos.y + (Q.mesh.userData.ainu ? 2.55 : (Q.mesh.userData.height || 1.1) + 0.65), Q.pos.z); }
     }
 
@@ -3023,7 +3154,10 @@ class Adventure {
     if (this.streamTex) this.streamTex.offset.y = (t * 0.9) % 1;
     if (this.levelLogic) this.levelLogic.render(dt, t);
     if (this.water) this.water.material.uniforms.uTime.value = t;
-    if (this.guide) this.renderGuide(dt);
+    // le chemin d'étincelles : toujours en Promenade, sinon à la demande (ou si on semble perdu)
+    if (this.progressAt === undefined) this.progressAt = this.t;
+    if (!this.guide && !this.guest && this.t - this.progressAt > 75 && !(this.t < (this.guideUntil || 0))) { this.showWay(true); }
+    if (this.guide || this.t < (this.guideUntil || 0)) this.renderGuide(dt);
     for (const p of this.portals || []) {
       p.mat.uniforms.uTime.value = t;
       p.disc.rotation.y = Math.atan2(this.camera.position.x - p.def.x, this.camera.position.z - p.def.z);
@@ -3639,7 +3773,8 @@ class Adventure {
       this.freeze = 0.6;
       setTimeout(() => { if (!this.disposed && !this.dialog) this.talkMamie(true); }, 700);
     } else {
-      this.banner(L.NAME, `${medalWord()} ${this.save.medals.length}/${L.medals.length}`, 2200);
+      const kn = kidName();
+      this.banner(kn ? `Coucou ${kn} !` : L.NAME, kn ? `${L.NAME} · ${medalWord()} ${this.save.medals.length}/${L.medals.length}` : `${medalWord()} ${this.save.medals.length}/${L.medals.length}`, 2400);
     }
   }
 
