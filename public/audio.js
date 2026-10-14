@@ -466,7 +466,7 @@
       return true;
     }
 
-    /** Choisit l'ambiance ('menu', 'adventure', 'adv1'…'adv4', 'boss', 'fight' ou null pour couper). */
+    /** Choisit l'ambiance ('menu', 'adventure', 'adv1'…'adv5', 'boss', 'fight' ou null pour couper). */
     music(theme) {
       if (theme === 'adventure' && this.theme && /^adv\d/.test(this.theme)) return;   // l'ambiance du niveau est déjà là
       this.wantTheme = theme;
@@ -666,6 +666,10 @@
     adv4: { bpm: 92, keys: [64, 62, 67], mode: 'lydian', vol: 0.42, wet: 0.5, lead: 'flute', comp: 'pluck', bassInst: 'bass', swing: 0.08, drums: 'light', sevenths: true, sparkle: true,
       leit: { prog: [0, 5, 1, 4, 0, 5, 1, 0], oct: 12, legato: 1, pont: [0, 0, 1, 4] },
       progs: [[0, 1, 4, 0], [0, 3, 1, 4], [5, 1, 0, 4], [0, 1, 5, 3]] },
+    // neige : clochettes et marimba, un petit air de traîneau qui sautille
+    adv5: { bpm: 108, keys: [65, 67, 62], mode: 'major', vol: 0.42, wet: 0.42, lead: 'mallet', comp: 'pluck', bassInst: 'bass', swing: 0.14, drums: 'light', sevenths: true, sparkle: true,
+      leit: { prog: [0, 3, 4, 0, 5, 1, 4, 0], oct: 12, legato: 0.8 },
+      progs: [[0, 3, 4, 0], [5, 1, 4, 0], [0, 5, 3, 4], [3, 4, 0, 5]] },
     // combat 1 contre 1 : entièrement composé par la machine (graine fixe)
     fight: { bpm: 138, keys: [57, 64, 62], mode: 'minor', vol: 0.38, wet: 0.2, lead: 'mallet', comp: 'pluck', bassInst: 'bass', swing: 0, drums: 'drive', sevenths: false,
       progs: [[0, 5, 2, 6], [0, 3, 6, 4], [5, 6, 0, 0], [0, 6, 5, 6]] },

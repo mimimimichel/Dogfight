@@ -38,6 +38,8 @@ CAST = {
     'Professeur Lunette':  ('upmc', 1, 1.00, 1.16, True, 0.65),
     'Fernand le taxi':     ('upmc', 1, 0.92, 0.95, True, 0.7),
     'Mimi la vendeuse':    ('upmc', 0, 0.95, 1.14, True, 0.7),
+    'Bernard':             ('upmc', 1, 1.12, 0.78, True, 0.65),
+    'Myrtille':            ('siwis', None, 1.08, 1.0, True, 0.7),
 }
 FILES = {'siwis': 'fr_FR-siwis-medium', 'upmc': 'fr_FR-upmc-medium'}
 

@@ -23,6 +23,7 @@ function markVisited(id) {
 import * as F from './forest.js';
 import * as C from './city.js';
 import * as SK from './sky.js';
+import * as SN from './snow.js';
 import { voiceFor } from './voice.js';
 import * as M from './models.js';
 import * as W from './world.js';
@@ -136,8 +137,8 @@ window.kidName = kidName;
 const MAMIE_UPRIGHT = { x: -0.34, z: 0.13, neck: 0.14, head: 0.16 };
 const MAMIE_SCALE = 1.25;
 const medalWord = () => (L.ID === 3 ? 'Trophées' : L.ID === 4 ? 'Étoiles' : 'Médailles');
-const collectWord = (long) => ({ 2: 'Croquettes', 3: long ? 'Pièces d\'or' : 'Pièces', 4: 'Pièces du ciel' })[L.ID] || (long ? 'Os dorés' : 'Os');
-const NEXT_LEVEL = { 1: 'Niveau 2 : la Forêt des Moustaches', 2: 'Niveau 3 : Port-Croquette', 3: 'Niveau 4 : les Îles du Ciel' };
+const collectWord = (long) => ({ 2: 'Croquettes', 3: long ? 'Pièces d\'or' : 'Pièces', 4: 'Pièces du ciel', 5: long ? 'Flocons dorés' : 'Flocons' })[L.ID] || (long ? 'Os dorés' : 'Os');
+const NEXT_LEVEL = { 1: 'Niveau 2 : la Forêt des Moustaches', 2: 'Niveau 3 : Port-Croquette', 3: 'Niveau 4 : les Îles du Ciel', 4: 'Niveau 5 : la Station des Neiges' };
 
 const isChild = (o, root) => { for (let p = o.parent; p; p = p.parent) if (p === root) return true; return false; };
 const clamp = (v, a, b) => (v < a ? a : v > b ? b : v);
@@ -158,6 +159,7 @@ const ICONS = {
   coin: svg('<circle cx="32" cy="32" r="23" fill="#9a6a00"/><circle cx="32" cy="32" r="19" fill="url(#g)"/><circle cx="32" cy="32" r="13" fill="none" stroke="#c88a08" stroke-width="3"/><path d="M32 22v20M27 26h8a3 3 0 0 1 0 6h-6a3 3 0 0 0 0 6h8" fill="none" stroke="#a06a00" stroke-width="3" stroke-linecap="round"/><ellipse cx="24" cy="21" rx="5" ry="3" fill="#fff" opacity=".55"/>'),
   kibble: svg('<g fill="#8a5200"><circle cx="32" cy="32" r="22"/></g><circle cx="32" cy="32" r="18" fill="url(#g)"/><g fill="#c07a08"><circle cx="25" cy="27" r="3"/><circle cx="38" cy="25" r="2.6"/><circle cx="36" cy="38" r="3.2"/><circle cx="24" cy="39" r="2.4"/></g><ellipse cx="25" cy="22" rx="5" ry="3" fill="#fff" opacity=".55"/>'),
   ball: svg('<circle cx="32" cy="32" r="24" fill="url(#t)" stroke="#5a7000" stroke-width="3"/><path d="M12 20c10 6 10 18 0 24M52 20c-10 6-10 18 0 24" fill="none" stroke="#fff" stroke-width="3.5"/>'),
+  flake: svg('<g stroke-linecap="round"><g stroke="#8a5200" stroke-width="11"><path d="M32 6v52M9.5 19l45 26M9.5 45l45-26"/></g><g stroke="url(#g)" stroke-width="6"><path d="M32 6v52M9.5 19l45 26M9.5 45l45-26"/></g><g stroke="#fff3a8" stroke-width="3" fill="none"><path d="M26 10l6 6 6-6M26 54l6-6 6 6"/></g></g><circle cx="32" cy="32" r="6" fill="#fff3a8" stroke="#8a5200" stroke-width="2"/>'),
 };
 
 // ---------------------------------------------------------------------------
@@ -178,7 +180,7 @@ export async function start(opts) {
   const photos = style !== 'toon' ? RT.preloadPhotos((k) => { if (LD) LD.progress(0.35 + k * 0.3, 'Les décors arrivent…'); }, L.ID) : null;
   const ultra = photos && RT.isUltra() ? RT.preloadUltra() : null;
   // personnages non joueurs réalistes (modèles gratuits CC-BY)
-  const npcs = photos ? N.preloadNpcs(L.ID === 3 ? ['mamie', 'mamie2', 'biscotte', 'shiba', 'berger', 'bouledogue'] : ['mamie', 'mamie2', 'biscotte']) : null;
+  const npcs = photos ? N.preloadNpcs(L.ID === 3 ? ['mamie', 'mamie2', 'biscotte', 'shiba', 'berger', 'bouledogue'] : L.ID === 5 ? ['mamie', 'mamie2', 'biscotte', 'shiba', 'bouledogue'] : ['mamie', 'mamie2', 'biscotte']) : null;
   await M.preloadDogs();
   if (photos) await photos;
   if (npcs) await npcs;
@@ -313,7 +315,7 @@ class Adventure {
         </div>
         <div class="adv-right">
           <div class="adv-counts">
-            <div class="adv-count"><img src="${L.ID === 2 ? ICONS.kibble : L.ID >= 3 ? ICONS.coin : ICONS.bone}" alt=""><span id="adv-bones">0</span><small>/100</small></div>
+            <div class="adv-count"><img src="${L.ID === 2 ? ICONS.kibble : L.ID === 5 ? ICONS.flake : L.ID >= 3 ? ICONS.coin : ICONS.bone}" alt=""><span id="adv-bones">0</span><small>/100</small></div>
             <div class="adv-count"><img src="${ICONS.medal}" alt=""><span id="adv-medals">0</span><small>/${L.medals.length}</small></div>
             <div class="adv-count adv-balls hidden"><img src="${ICONS.ball}" alt=""><span id="adv-balls">0</span><small>/5</small></div>
           </div>
@@ -728,16 +730,18 @@ class Adventure {
     const q0 = this.quality;
     const m4 = new THREE.Matrix4(), q = new THREE.Quaternion(), v = new THREE.Vector3(), sv = new THREE.Vector3(), e = new THREE.Euler();
 
-    if (!L.NO_TERRAIN) W.buildTerrain(sc, q0);
-    this.water = L.NO_TERRAIN ? null : W.buildWater(sc, sc.fog);
-    this.grass = W.buildGrass(sc, q0, this.wind);
-    W.buildFlowers(sc, q0);
-    W.buildTrees(sc, q0);
+    // monde enneigé (niveau 5) : sol, sapins et glace sont faits par snow.js
+    const snowy = !!L.SNOW;
+    if (!L.NO_TERRAIN && !snowy) W.buildTerrain(sc, q0);
+    this.water = L.NO_TERRAIN || L.NO_WATER ? null : W.buildWater(sc, sc.fog);
+    this.grass = snowy ? null : W.buildGrass(sc, q0, this.wind);
+    if (!snowy) { W.buildFlowers(sc, q0); W.buildTrees(sc, q0); }
     this.fallTex = this.makeWaterfallTexture();
     this.pedestalBalls = [];
     if (L.ID === 1) this.buildParc();
     else if (L.ID === 3) this.levelLogic = C.buildCity(this);
     else if (L.ID === 4) this.levelLogic = SK.buildSky(this);
+    else if (L.ID === 5) this.levelLogic = SN.buildSnow(this);
     else this.levelLogic = F.buildForest(this, { THREE, M, W, T });
 
     // Nuages et papillons
@@ -746,7 +750,7 @@ class Adventure {
     W.buildRuins(sc);
     W.buildPaths(sc);
     this.crystals = W.buildCrystals(sc);
-    this.butterflies = W.buildButterflies(sc);
+    this.butterflies = snowy ? [] : W.buildButterflies(sc);
 
     this.buildPortals();
 
@@ -773,8 +777,8 @@ class Adventure {
         list.push({ x, z, to: 1 }); break;
       }
     }
-    const NAMES = { 1: 'Le Parc des Toutous', 2: 'La Forêt des Moustaches', 3: 'Port-Croquette', 4: 'Les Îles du Ciel' };
-    const COLS = { 1: [0x3affa0, 0x0a4a3a], 2: [0x4ab0ff, 0x10206a], 3: [0xffb04a, 0x5a2008], 4: [0xc070ff, 0x2a0a5a] };
+    const NAMES = { 1: 'Le Parc des Toutous', 2: 'La Forêt des Moustaches', 3: 'Port-Croquette', 4: 'Les Îles du Ciel', 5: 'La Station des Neiges' };
+    const COLS = { 1: [0x3affa0, 0x0a4a3a], 2: [0x4ab0ff, 0x10206a], 3: [0xffb04a, 0x5a2008], 4: [0xc070ff, 0x2a0a5a], 5: [0xbfeaff, 0x1a4a7a] };
     markVisited(L.ID);
     const visited = visitedLevels();
     this.portals = list.map(p => {
@@ -1267,7 +1271,7 @@ class Adventure {
     this.party = new Map([[0, this.player]]);
 
     // Os dorés (instanciés)
-    this.bonesI = new THREE.InstancedMesh(L.ID === 2 ? F.kibbleGeometry() : L.ID === 3 ? C.coinGeometry() : L.ID === 4 ? SK.starCoinGeometry() : M.boneGeometry(), M.mat(0xffd34d, { metalness: 0.7, roughness: 0.3, emissive: 0x6a4800, emissiveIntensity: 0.6 }), L.bones.length);
+    this.bonesI = new THREE.InstancedMesh(L.ID === 2 ? F.kibbleGeometry() : L.ID === 3 ? C.coinGeometry() : L.ID === 4 ? SK.starCoinGeometry() : L.ID === 5 ? SN.flakeGeometry() : M.boneGeometry(), M.mat(0xffd34d, { metalness: 0.7, roughness: 0.3, emissive: 0x6a4800, emissiveIntensity: 0.6 }), L.bones.length);
     this.boneTaken = new Set(Object.keys(s.gone || {}));
     sc.add(this.bonesI);
     if (L.ID === 1 && this.realistic) this.bonesI.material = M.mat(0xf2dcb4, { metalness: 0.05, roughness: 0.5, emissive: 0x5a3c10, emissiveIntensity: 0.3 });
@@ -2333,9 +2337,11 @@ class Adventure {
       P.vel.x = Math.sin(P.yaw) * DASH_SPEED; P.vel.z = Math.cos(P.yaw) * DASH_SPEED;
       if (this.t % 0.05 < dt) this.burst(P.pos.x, P.pos.y + 0.6, P.pos.z, 2, 0xffffff, 1, 0.25);
     } else {
-      const target = RUN_SPEED * Math.min(1, wlen);
+      // sur la glace (niveau 5) : on prend de l'élan et on patine
+      const ice = P.grounded && L.iceAt && L.iceAt(P.pos.x, P.pos.z, P.pos.y);
+      const target = RUN_SPEED * Math.min(1, wlen) * (ice ? 1.2 : 1);
       const tx = wlen > 0.05 ? wx / wlen * target : 0, tz = wlen > 0.05 ? wz / wlen * target : 0;
-      const acc = (P.grounded ? 55 : 20) * dt;
+      const acc = (P.grounded ? (ice ? (wlen > 0.05 ? 9 : 3.2) : 55) : 20) * dt;
       const dvx = tx - P.vel.x, dvz = tz - P.vel.z, dl = Math.hypot(dvx, dvz);
       if (dl > acc) { P.vel.x += dvx / dl * acc; P.vel.z += dvz / dl * acc; } else { P.vel.x = tx; P.vel.z = tz; }
       if (wlen > 0.1) P.yaw = lerpAngle(P.yaw, Math.atan2(wx, wz), Math.min(1, dt * 14));
@@ -2520,9 +2526,10 @@ class Adventure {
     }
     // Suit doucement le duo quand il court (sauf si on vient de tourner la caméra)
     const speed = Math.hypot(P.vel.x, P.vel.z);
-    if (P.kart) {
-      // en kart : la caméra se replace vite derrière le volant
-      if (this.t - this.lastCamManual > 0.8 && Math.abs(P.kart.speed) > 1) this.camYaw = lerpAngle(this.camYaw, P.kart.yaw + Math.PI, Math.min(1, dt * 3.2));
+    const veh = P.kart || P.ride;
+    if (veh) {
+      // en kart (ou en luge, en télésiège) : la caméra se replace vite derrière
+      if (this.t - this.lastCamManual > 0.8 && Math.abs(veh.speed || 0) > 1) this.camYaw = lerpAngle(this.camYaw, (veh.yaw === undefined ? P.yaw : veh.yaw) + Math.PI, Math.min(1, dt * 3.2));
     } else if (this.camFocus) {
       // combat : la caméra se place derrière le chien, tournée vers le boss
       const f = this.camFocus;
@@ -2604,9 +2611,10 @@ class Adventure {
       }
       // Contact avec le duo
       const dy = P.pos.y - c.pos.y;
-      if (P.kart && dist < 1.9 && dy > -1 && dy < 2) {
-        // en kart : on bouscule les chats si on roule, sinon ils ne peuvent rien
-        if (Math.abs(P.kart.speed) > 3) this.defeatCat(c);
+      const veh = P.kart || P.ride;
+      if (veh && dist < 1.9 && dy > -1 && dy < 2) {
+        // en kart (ou en luge) : on bouscule les chats si on roule, sinon ils ne peuvent rien
+        if (Math.abs(veh.speed || 0) > 3) this.defeatCat(c);
       } else if (dist < 1.25 && dy > -1 && dy < 1.6) {
         if (P.attackT > 0 || P.dashT > 0) this.defeatCat(c);
         else if (P.vel.y < -1 && dy > 0.5) { this.defeatCat(c); P.vel.y = 11; P.jumps = 1; }
@@ -2925,11 +2933,11 @@ class Adventure {
     const sp = Math.hypot(P.vel.x, P.vel.z), step = Math.floor((P.phase || 0) / Math.PI);
     if (step === P.lastStep) return;
     P.lastStep = step;
-    if (!P.grounded || sp < 1.2 || P.kart || !this.sfx || !this.sfx.paw) return;
+    if (!P.grounded || sp < 1.2 || P.kart || P.ride || !this.sfx || !this.sfx.paw) return;
     const sup = this.support(P.pos.x, P.pos.z, P.pos.y + 0.3), k = sup.collider && sup.collider.kind;
     let s = L.SURFACE || 'grass';
     if (P.pos.y < L.WATER_Y + 0.25) s = 'water';
-    else if (k === 'rock' || k === 'stone' || k === 'pad' || k === 'islet') s = 'stone';
+    else if (k === 'rock' || k === 'stone' || k === 'pad' || k === 'islet' || (L.iceAt && L.iceAt(P.pos.x, P.pos.z, P.pos.y))) s = 'stone';
     else if (k && /bridge|branch|trunk|tree|canopy|elevator|plank|wood|deck/.test(k)) s = 'wood';
     else if (!k && W.onPath && W.onPath(P.pos.x, P.pos.z)) s = L.SURFACE === 'snow' ? 'snow' : 'dirt';
     else if (!k && L.ID === 3) s = 'stone';
@@ -3106,7 +3114,7 @@ class Adventure {
   voice(who) {
     const sfx = this.sfx;
     if (!sfx || !sfx.ok) return;
-    const base = { 'Mamie Labrador': 210, Biscotte: 720, Ainu: 330, Matcha: 560, Panneau: 0 }[who] || 300;
+    const base = { 'Mamie Labrador': 210, Biscotte: 720, Ainu: 330, Matcha: 560, Bernard: 170, Myrtille: 400, Panneau: 0 }[who] || 300;
     if (!base) return;
     sfx.tone(base * (0.85 + Math.random() * 0.4), 0.05, { type: 'triangle', vol: 0.07, to: base * (0.7 + Math.random() * 0.6) });
   }
@@ -3320,6 +3328,10 @@ class Adventure {
     } else if (L.ID === 4) {
       const v = this.player ? this.player.vel : null, sp = v ? Math.hypot(v.x, v.y, v.z) : 0;
       wind = 0.6; windP = Math.min(1, 0.3 + sp / 25); birds = 0.06; gulls = 0.08;
+    } else if (L.ID === 5) {
+      // vent de montagne, plus fort en hauteur et en luge
+      const v = this.me ? this.me.vel : null, sp = v ? Math.hypot(v.x, v.z) : 0;
+      wind = 0.32 + Math.min(0.4, Math.max(0, c.y - 12) / 50); windP = Math.min(1, 0.15 + sp / 22); birds = 0.08;
     }
     // moteur : kart ou avion conduit par moi
     const k = this.player && this.player.kart;
@@ -3508,15 +3520,16 @@ class Adventure {
     const ME = this.me;
     // la caméra regarde un peu devant le chien, et ne suit pas chaque saut en hauteur
     const lead = this.camLead || (this.camLead = new THREE.Vector3());
-    const lk = ME.kart ? 0.12 : 0.22;
+    const MV = ME.kart || ME.ride;
+    const lk = MV ? 0.12 : 0.22;
     lead.lerp(v.set(clamp(ME.vel.x * lk, -2.6, 2.6), 0, clamp(ME.vel.z * lk, -2.6, 2.6)), 1 - Math.exp(-dt * 2.5));
-    if (this.camY === undefined || ME.grounded || ME.kart || ME.pos.y < this.camY - 0.4 || ME.pos.y > this.camY + 3.5 || ME.gliding) this.camY = ME.pos.y;
+    if (this.camY === undefined || ME.grounded || MV || ME.pos.y < this.camY - 0.4 || ME.pos.y > this.camY + 3.5 || ME.gliding) this.camY = ME.pos.y;
     this.camYs = this.camYs === undefined ? this.camY : this.camYs + (this.camY - this.camYs) * (1 - Math.exp(-dt * 6));
     if (ME.pos.y < this.camYs - 0.4) this.camYs = ME.pos.y + 0.4;
     const target = v.set(ME.pos.x + lead.x, this.camYs + (ME.kind === 'matcha' ? 1.2 : 1.6), ME.pos.z + lead.z);
     this.camFocus = this.levelLogic && this.levelLogic.camFocus ? this.levelLogic.camFocus() : null;
     if (this.camFocus) target.y += clamp((this.camFocus.y - target.y) * 0.25, 0, 2.5);
-    this.camDist += ((this.camDistOverride || (ME.kart ? 11.5 : this.camFocus ? 12 : 9)) - this.camDist) * Math.min(1, dt * 3);
+    this.camDist += ((this.camDistOverride || (MV ? 11.5 : this.camFocus ? 12 : 9)) - this.camDist) * Math.min(1, dt * 3);
     this.camTarget.lerp(target, 1 - Math.exp(-dt * 10));
     const cp = Math.cos(this.camPitch), sp = Math.sin(this.camPitch);
     const desired = new THREE.Vector3(
@@ -3633,7 +3646,7 @@ class Adventure {
       if (Math.abs(rel) < 1.9) look = clamp(rel, -0.9, 0.9);
     }
     // attente
-    if (speed < 0.3 && P.grounded && !P.attackT && !P.kart) a.still += dt; else { a.still = 0; a.idle = null; }
+    if (speed < 0.3 && P.grounded && !P.attackT && !P.kart && !P.ride) a.still += dt; else { a.still = 0; a.idle = null; }
     if (a.still > 3.5 && !a.idle) { a.idle = ['sniff', 'scratch', 'look', 'shake', 'sniff', 'look'][Math.floor(Math.random() * 6)]; a.idleT = 0; }
     if (a.idle) {
       a.idleT += dt;

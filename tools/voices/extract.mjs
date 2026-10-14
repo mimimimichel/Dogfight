@@ -15,8 +15,8 @@ const walk = require('acorn-walk');
 
 const DIR = path.join(path.dirname(new URL(import.meta.url).pathname), '../../public/adventure');
 const levels = {};
-for (const n of [1, 2, 3, 4]) levels[n] = await import(path.join(DIR, `level${n}.js`));
-const FILES = { 'game.js': 1, 'level1.js': 1, 'level2.js': 2, 'forest.js': 2, 'level3.js': 3, 'cityplay.js': 3, 'city.js': 3, 'level4.js': 4, 'sky.js': 4, 'sky_boss.js': 4, 'story.js': 0 };
+for (const n of [1, 2, 3, 4, 5]) levels[n] = await import(path.join(DIR, `level${n}.js`));
+const FILES = { 'game.js': 1, 'level1.js': 1, 'level2.js': 2, 'forest.js': 2, 'level3.js': 3, 'cityplay.js': 3, 'city.js': 3, 'level4.js': 4, 'sky.js': 4, 'sky_boss.js': 4, 'level5.js': 5, 'snow.js': 5, 'story.js': 0 };
 const KEYS = [{ jump: 'ESPACE', attack: 'J', dash: 'K' }, { jump: 'SAUT', attack: 'ATTAQUE', dash: 'CHARGE' }];
 const NARRATOR = '';
 
