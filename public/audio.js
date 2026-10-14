@@ -227,7 +227,7 @@
     loadBarks() {
       if (this.barkBufs || !this.ctx) return;
       this.barkBufs = {};
-      for (const n of ['bark_big', 'bark_small']) {
+      for (const n of ['bark_big', 'bark_small', 'meow']) {
         fetch(new URL('adventure/assets/sfx/' + n + '.mp3', document.baseURI)).then(r => r.arrayBuffer())
           .then(b => new Promise((res, rej) => this.ctx.decodeAudioData(b, res, rej))).then((buf) => { this.barkBufs[n] = buf; }).catch(() => {});
       }
@@ -393,7 +393,10 @@
     /** Miaulement : voix nasillarde dont la hauteur et le timbre s'ouvrent puis retombent (« mi-a-ou »). */
     meow(pitch) {
       if (!this.ok) return;
-      const c = this.ctx, t = c.currentTime, k = pitch || (0.9 + Math.random() * 0.3), dur = 0.55;
+      const k = pitch || (0.9 + Math.random() * 0.3);
+      // un vrai miaulement enregistré (chat siamois, CC0), un peu accéléré : plus mignon, plus court
+      if (this.sample('meow', 1.15 * k, 0.35)) return;
+      const c = this.ctx, t = c.currentTime, dur = 0.55;
       const o = c.createOscillator(), o2 = c.createOscillator();
       o.type = 'sawtooth'; o2.type = 'triangle';
       const f = (v, at) => { o.frequency.linearRampToValueAtTime(v * k, t + at); o2.frequency.linearRampToValueAtTime(v * k * 2.01, t + at); };

@@ -12,3 +12,8 @@ Notes d'instruments (piano, marimba, célesta, flûte, contrebasse, guitare nylo
 (https://creativecommons.org/licenses/by/3.0/), via le projet midi-js-soundfonts de Benjamin Gleitzman
 (https://github.com/gleitz/midi-js-soundfonts). Notes regroupées par instrument, une note sur trois demi-tons,
 volume harmonisé et ré-encodées en MP3.
+
+## Miaulement (meow.mp3)
+
+« Meow of a Siamese cat » par freemaster2 (freesound.org), via Wikimedia Commons, domaine public (CC0).
+Découpé, filtré et volume harmonisé.
