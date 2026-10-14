@@ -178,7 +178,9 @@ export async function start(opts) {
   const photos = style !== 'toon' ? RT.preloadPhotos((k) => { if (LD) LD.progress(0.35 + k * 0.3, 'Les décors arrivent…'); }, L.ID) : null;
   const ultra = photos && RT.isUltra() ? RT.preloadUltra() : null;
   // personnages non joueurs réalistes (modèles gratuits CC-BY)
-  const npcs = photos ? N.preloadNpcs(L.ID === 3 ? ['mamie', 'mamie2', 'biscotte', 'shiba', 'berger', 'bouledogue'] : ['mamie', 'mamie2', 'biscotte']) : null;
+  // (l'ancienne Mamie assise n'est chargée que si on la demande : ?mamie=assise, 1 Mo de moins sinon)
+  const oldMamie = new URLSearchParams(location.search).get('mamie') === 'assise' ? ['mamie'] : [];
+  const npcs = photos ? N.preloadNpcs(L.ID === 3 ? [...oldMamie, 'mamie2', 'biscotte', 'shiba', 'berger', 'bouledogue'] : [...oldMamie, 'mamie2', 'biscotte']) : null;
   await M.preloadDogs();
   if (photos) await photos;
   if (npcs) await npcs;
