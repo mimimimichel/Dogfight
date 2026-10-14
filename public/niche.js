@@ -69,7 +69,7 @@
         <div class="niche-frames"></div>
         <div class="niche-floor"></div>
         ${s.placed.map((p, i) => { const it = SHOP.find(x => x.id === p.id); return it ? `<div class="niche-item" data-i="${i}" style="left:${p.x}%;top:${p.y}%;font-size:${p.big ? 64 : 46}px">${it.icon}</div>` : ''; }).join('')}
-        <img class="niche-dogs" src="img/duo.png" alt="Ainu et Matcha">
+        <img class="niche-dogs" src="img/duo.webp" alt="Ainu et Matcha">
         <div class="niche-trash" title="Glisse ici pour ranger">🧺 Ranger</div>
       </div>
       <p class="niche-help">Touche un objet pour le poser, puis fais-le glisser où tu veux. Glisse-le sur « Ranger » pour l'enlever.</p>

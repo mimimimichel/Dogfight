@@ -1278,7 +1278,7 @@
 
   // L'écran de chargement du démarrage s'efface quand l'accueil est prêt
   {
-    const img = new Image(); img.src = 'img/duo.png';
+    const img = new Image(); img.src = 'img/duo.webp';
     const ready = Promise.all([new Promise(r => { img.onload = img.onerror = r; }), document.fonts ? document.fonts.ready : null]);
     let gone = false;
     const done = () => { if (gone || app.mode === 'adventure') return; gone = true; if (window.AppLoader) window.AppLoader.hide(); };
