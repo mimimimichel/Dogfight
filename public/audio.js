@@ -138,10 +138,21 @@
       o.stop(t + dur + 0.02);
     }
 
+    /** Une note d'un vrai instrument (si chargé) pour les bruitages mélodiques ; sinon une note de synthèse douce. */
+    note(inst, midi, vol, delay, dur) {
+      if (!this.ok) return;
+      this.loadInst();
+      const t = this.ctx.currentTime + (delay || 0);
+      if (this.instSample({ dry: this.fx || this.master }, inst, midi, t, dur || 0.3, vol, 0)) return;
+      this.pluck(440 * Math.pow(2, (midi - 69) / 12), (dur || 0.3) + 0.15, vol, delay, true);
+    }
+
     /** Une note douce, façon marimba / boîte à musique : son pur + une harmonique qui s'éteint vite. */
-    pluck(freq, dur, vol, delay) {
+    pluck(freq, dur, vol, delay, synthOnly) {
       if (!this.ok) return;
       const c = this.ctx, t = c.currentTime + (delay || 0);
+      // le vrai marimba enregistré quand il est chargé
+      if (!synthOnly && this.instSample({ dry: this.fx || this.master }, 'mallet', 69 + 12 * Math.log2(freq / 440), t, dur, vol * 0.9, 0)) return;
       for (const [mul, v, d] of [[1, 1, dur], [4, 0.18, dur * 0.35], [2, 0.12, dur * 0.6]]) {
         const o = c.createOscillator(), g = c.createGain();
         o.type = 'sine'; o.frequency.value = freq * mul;

@@ -3253,24 +3253,23 @@ class Adventure {
     if (!s || !s.ok) return;
     switch (name) {
       case 'jump': s.tone(300, 0.12, { type: 'triangle', to: 620, vol: 0.12 }); break;
-      case 'double': s.tone(520, 0.14, { type: 'square', to: 1040, vol: 0.08 }); break;
+      case 'double': s.tone(520, 0.14, { type: 'triangle', to: 1040, vol: 0.1 }); break;
       case 'spin': s.swing(true); break;
       case 'dash': s.noise(0.2, { filter: 'bandpass', freq: 800, freqTo: 2400, vol: 0.2 }); break;
       case 'bone': {
         // gamme pentatonique : une ligne d'os joue une petite mélodie qui monte
         const PENTA = [0, 2, 4, 7, 9, 12, 14, 16, 19, 21, 24, 26, 28, 31];
-        const f = 784 * Math.pow(2, PENTA[Math.min(PENTA.length - 1, n || 0)] / 12);
-        s.tone(f, 0.08, { type: 'triangle', vol: 0.09 }); s.tone(f * 2, 0.06, { type: 'sine', vol: 0.04, delay: 0.03 });
+        s.note('bell', 76 + PENTA[Math.min(PENTA.length - 1, n || 0)], 0.11, 0, 0.25);
         break;
       }
-      case 'chain': [1, 1.25, 1.5, 2].forEach((k, i) => s.tone(1046 * k, 0.18, { type: 'sine', vol: 0.06, delay: 0.05 + i * 0.05 })); break;
+      case 'chain': [0, 4, 7, 12].forEach((k, i) => s.note('mallet', 84 + k, 0.09, 0.05 + i * 0.05)); break;
       case 'ball': s.tone(660, 0.1, { vol: 0.1 }); s.tone(990, 0.12, { vol: 0.1, delay: 0.08 }); break;
-      case 'heart': s.tone(700, 0.1, { type: 'sine', vol: 0.15 }); s.tone(1050, 0.15, { type: 'sine', vol: 0.15, delay: 0.08 }); break;
+      case 'heart': s.note('bell', 77, 0.13); s.note('bell', 84, 0.13, 0.08, 0.4); break;
       case 'meow': s.meow && s.meow(); break;
       case 'meowHi': s.meow && s.meow(1.35); break;
       case 'win': s.win(); break;
       case 'boing': s.tone(220, 0.25, { type: 'sine', to: 660, vol: 0.18 }); s.tone(330, 0.2, { type: 'triangle', to: 990, vol: 0.08, delay: 0.05 }); break;
-      case 'lantern': [784, 988, 1175, 1568].forEach((f, i) => s.tone(f, 0.16, { type: 'sine', vol: 0.1, delay: i * 0.06 })); break;
+      case 'lantern': [79, 83, 86, 91].forEach((m, i) => s.note('bell', m, 0.1, i * 0.06, i === 3 ? 0.6 : 0.2)); break;
       case 'switch': s.tone(180, 0.12, { type: 'square', to: 120, vol: 0.12 }); s.tone(520, 0.18, { type: 'triangle', to: 1040, vol: 0.1, delay: 0.1 }); break;
       case 'throw': s.noise(0.15, { filter: 'bandpass', freq: 600, freqTo: 1600, vol: 0.18 }); break;
       case 'bossHit': s.hit(true); s.meow && s.meow(0.8); break;
@@ -3282,7 +3281,7 @@ class Adventure {
       case 'boost': s.noise(0.45, { filter: 'bandpass', freq: 500, freqTo: 2600, vol: 0.25 }); s.tone(180, 0.35, { type: 'sawtooth', to: 520, vol: 0.06 }); break;
       case 'engine': s.tone(90, 0.35, { type: 'sawtooth', to: 160, vol: 0.08 }); s.tone(120, 0.3, { type: 'square', to: 220, vol: 0.04, delay: 0.12 }); break;
       case 'bump': s.noise(0.18, { freq: 500, vol: 0.35 }); s.tone(110, 0.15, { type: 'square', to: 60, vol: 0.12 }); break;
-      case 'cp': s.tone(880, 0.1, { type: 'triangle', vol: 0.13 }); s.tone(1320, 0.14, { type: 'triangle', vol: 0.11, delay: 0.07 }); break;
+      case 'cp': s.note('mallet', 81, 0.13); s.note('mallet', 88, 0.12, 0.07, 0.4); break;
       case 'bark': s.bark('ainu'); break;
       case 'barkM': s.bark('matcha'); break;
       case 'woof':   // le gros « OUAF » : grondement grave + souffle
@@ -3290,8 +3289,8 @@ class Adventure {
         s.noise(0.25, { filter: 'lowpass', freq: 500, freqTo: 100, vol: 0.2 });
         break;
       case 'yip': s.tone(900, 0.06, { type: 'sawtooth', to: 1300, vol: 0.1 }); s.tone(1000, 0.07, { type: 'sawtooth', to: 1400, vol: 0.09, delay: 0.1 }); break;
-      case 'trick': [660, 880, 1100, 1320, 1760].forEach((f, i) => s.tone(f, 0.1, { type: 'triangle', vol: 0.08, delay: i * 0.05 })); break;
-      case 'reveal': [523, 659, 784, 1047].forEach((f, i) => s.tone(f, 0.18, { type: 'triangle', vol: 0.12, delay: i * 0.09 })); break;
+      case 'trick': [76, 81, 85, 88, 93].forEach((m, i) => s.note('mallet', m, 0.09, i * 0.05)); break;
+      case 'reveal': [72, 76, 79, 84].forEach((m, i) => { s.note('bell', m, 0.11, i * 0.09, i === 3 ? 0.8 : 0.3); s.note('piano', m - 12, 0.08, i * 0.09); }); break;
     }
   }
 
