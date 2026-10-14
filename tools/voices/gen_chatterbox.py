@@ -42,6 +42,9 @@ CAST = {
     'Mimi la vendeuse': ('mimi', 0.6, 0.5),
     'Bernard': ('pataud', 0.55, 0.45),
     'Myrtille': ('persane', 0.6, 0.5),
+    'Maître-Nageur Mistral': ('turbo', 0.6, 0.5),
+    'Bébé Phoque': ('biscotte', 0.75, 0.5),
+    'Maman Phoque': ('maire', 0.6, 0.5),
 }
 # les rôles principaux d'abord
 ORDER = ['', 'Mamie Labrador', 'Matcha', 'Ainu', 'Biscotte', 'Capitaine Moustache']
