@@ -203,10 +203,27 @@ function buildDecor(game) {
   const moving = [], chars = [];
   const shadowy = (o) => { o.traverse(k => { if (k.isMesh) { k.castShadow = true; k.receiveShadow = true; } }); return o; };
   const m4 = new THREE.Matrix4(), q = new THREE.Quaternion(), v = new THREE.Vector3(), sv = new THREE.Vector3(), e = new THREE.Euler();
+  // grand monde : le décor est rangé par tuiles de 64 m, cachées quand elles sont loin de la caméra
+  const cull = [], TILE = 64;
+  const tiled = (list, mat, opts) => {
+    opts = opts || {};
+    const buckets = new Map();
+    for (const it of list) { const k = Math.floor(it.x / TILE) + ',' + Math.floor(it.z / TILE); if (!buckets.has(k)) buckets.set(k, []); buckets.get(k).push(it); }
+    for (const [k, items] of buckets) {
+      const [i, j] = k.split(',').map(Number);
+      const mesh = new THREE.Mesh(opts.uv ? mergeUV(items) : M.mergeGeos(items), mat);
+      mesh.castShadow = opts.cast !== false; mesh.receiveShadow = true;
+      if (opts.depth) mesh.customDepthMaterial = opts.depth;
+      if (opts.noOutline) mesh.userData.noOutline = true;
+      sc.add(mesh);
+      cull.push({ obj: mesh, x: (i + 0.5) * TILE, z: (j + 0.5) * TILE, r: TILE * 0.75, far: opts.far });
+    }
+  };
+  const place = (obj, x, z, r, far) => { sc.add(obj); cull.push({ obj, x, z, r: r || 10, far }); return obj; };
 
   // --- Le sable --------------------------------------------------------------------
   {
-    const size = S.HALF * 2, seg = lite ? 150 : 230;
+    const size = S.HALF * 2, seg = lite ? 210 : 320;
     const geo = new THREE.PlaneGeometry(size, size, seg, seg);
     geo.rotateX(-Math.PI / 2);
     const pos = geo.attributes.position;
@@ -221,15 +238,15 @@ function buildDecor(game) {
       const x = pos.getX(i), y = pos.getY(i), z = pos.getZ(i), ny = nrm.getY(i);
       const u = S.fromShore(x, z), n = vnoise(x * 0.18, z * 0.18), n2 = vnoise(x * 0.9 + 5, z * 0.9);
       c.copy(DRY).lerp(DUNE, smooth(24, 40, u) * 0.7).multiplyScalar(0.96 + n * 0.07);
-      c.lerp(PROM, smooth(45, 49, u) * (z < 59 ? 0.85 : 0));
+      c.lerp(PROM, smooth(45, 49, u) * smooth(-28, -12, x) * (z < 171 ? 0.85 : 0));
       c.lerp(WET, (1 - smooth(0.2, 0.7, y)) * smooth(-1.5, -0.2, y));
       c.lerp(UNDER, 1 - smooth(-0.6, -0.1, y));
       c.lerp(DEEP, 1 - smooth(-6, -2.5, y));
       // rochers aux flaques
-      const rocky = smooth(-37, -42, x) * smooth(-3, 0, u) * smooth(23, 17, u) * smooth(0.55, 0.75, y);
+      const rocky = smooth(-92, -100, x) * smooth(-3, 0, u) * smooth(30, 22, u) * smooth(0.55, 0.75, y);
       c.lerp(t.copy(ROCK).lerp(ROCK2, n2), rocky);
       // herbe : falaise du phare, talus du sud, touffes des dunes
-      const grassy = (x > 41.3 && y > 4 ? 1 : 0) + (z > 59.5 ? 1 : 0);
+      const grassy = (x > S.HEAD.x0 + 1.4 && x < S.HEAD.x1 - 0.8 ? smooth(7, 9.5, y) : 0) + (z > 171.5 ? 1 : 0) + (Math.hypot(x - S.GROVE.x, z - S.GROVE.z) < S.GROVE.r * 0.85 ? 0.7 : 0);
       if (grassy) c.lerp(t.copy(GRASS).lerp(GRASS2, n), smooth(0.55, 0.8, ny));
       // faces de falaise : grès clair, en strates
       const band = Math.floor((y + vnoise(x * 0.3, z * 0.3) * 1.2) / 1.5);
@@ -287,16 +304,18 @@ function buildDecor(game) {
       }`,
   });
   {
-    const x0 = -69, x1 = 40, nx = lite ? 90 : 160, uA = -18, uB = 2, nu = lite ? 16 : 26;
+    // un ruban le long de chaque rivage (la Grande Plage et les rochers, la Crique) et un anneau autour de l'île
     const posA = [], uA2 = [], idx = [];
-    for (let j = 0; j <= nu; j++) for (let i = 0; i <= nx; i++) {
-      const x = x0 + (x1 - x0) * i / nx, u = uA + (uB - uA) * j / nu;
-      posA.push(x, S.WATER_Y + 0.03, S.shoreZ(x) + u); uA2.push(u);
-    }
-    for (let j = 0; j < nu; j++) for (let i = 0; i < nx; i++) {
-      const a = j * (nx + 1) + i, b = a + 1, c = a + nx + 1, d = c + 1;
-      idx.push(a, c, b, b, c, d);
-    }
+    const ribbon = (n, nu, pt) => {
+      const base = posA.length / 3;
+      for (let j = 0; j <= nu; j++) for (let i = 0; i <= n; i++) { const u = -18 + 20 * j / nu, p = pt(i / n, u); posA.push(p[0], S.WATER_Y + 0.03, p[1]); uA2.push(u); }
+      for (let j = 0; j < nu; j++) for (let i = 0; i < n; i++) { const a2 = base + j * (n + 1) + i, b = a2 + 1, c = a2 + n + 1, d = c + 1; idx.push(a2, c, b, b, c, d); }
+    };
+    const nu = lite ? 12 : 20;
+    ribbon(lite ? 150 : 260, nu, (k, u) => { const x = -186 + (S.HEAD.x0 - 1 + 186) * k; return [x, S.shoreZ(x) + u]; });
+    ribbon(lite ? 50 : 90, nu, (k, u) => { const x = S.HEAD.x1 + 1 + (187 - S.HEAD.x1 - 1) * k; return [x, S.shoreZ(x) + u]; });
+    const I = S.ISLAND, rr = Math.sqrt(I.top / 0.0133);
+    ribbon(lite ? 40 : 64, nu, (k, u) => { const a2 = k * Math.PI * 2, r = rr - u; return [I.x + Math.cos(a2) * r, I.z + Math.sin(a2) * r]; });
     const g = new THREE.BufferGeometry();
     g.setAttribute('position', new THREE.Float32BufferAttribute(posA, 3));
     g.setAttribute('aU', new THREE.Float32BufferAttribute(uA2, 1));
@@ -320,10 +339,21 @@ function buildDecor(game) {
     }
     // galets au bord des flaques
     const r = rng(91);
-    for (let x = -66; x < -42; x += 3.5) {
+    for (let x = -180; x < -100; x += 4.5) {
       const z = S.shoreZ(x) - 1.5 + r() * 2, s2 = 0.7 + r() * 0.8;
-      list.push({ geo: W.rockGeometry(200 + Math.round(x), s2 * (1 + r() * 0.4), s2 * (0.8 + r() * 0.5), s2), x, y: S.heightAt(x, z) - s2 * 0.25, z, ry: r() * 6 });
+      list.push({ geo: W.rockGeometry(200 + Math.round(-x), s2 * (1 + r() * 0.4), s2 * (0.8 + r() * 0.5), s2), x, y: S.heightAt(x, z) - s2 * 0.25, z, ry: r() * 6 });
     }
+    // la Grotte aux Flaques : un cirque de grands rochers, le promontoire, les rochers pour y grimper
+    const caveList = [];
+    S.caveRocks.forEach((c, i) => {
+      const g = W.rockGeometry(600 + i, c.r * 1.25, (c.h + 1.5) * 0.62, c.r * 1.3);
+      caveList.push({ geo: g, x: c.x, y: c.y + c.h * 0.35, z: c.z, ry: c.a });
+    });
+    for (const st of S.caveSteps.concat([Object.assign({ y: S.heightAt(S.CAVE_TOP.x, S.CAVE_TOP.z) }, S.CAVE_TOP)])) {
+      const h = st.top - st.y, g = W.rockGeometry(700 + Math.round(h * 10), st.r * 1.15, (h + 1) * 0.62, st.r * 1.15), top = W.flattenRockTop(g, 0.25);
+      caveList.push({ geo: g, x: st.x, y: st.top - top, z: st.z });
+    }
+    tiled(list.concat(caveList), W.rockMat(), { far: 260 });
     // les falaises : de gros blocs de grès incrustés dans la paroi (et au pied), pour casser le mur
     const cliffRocks = [];
     const face = (x0, z0, x1, z1, nx, nz, step) => {
@@ -338,27 +368,40 @@ function buildDecor(game) {
         }
       }
     };
-    const st2 = lite ? 6 : 4.5;
-    face(-70.2, -60, -70.2, 60, 1, 0, st2);              // falaise de l'ouest
-    face(40.4, -49, 40.4, 36, -1, 0, st2);               // la falaise du phare, côté plage
-    face(41, -49.8, 84, -49.8, 0, -1, st2);              // la pointe, côté mer
-    face(85.2, -40, 85.2, 60, -1, 0, st2 * 1.6);         // falaise de l'est
-    face(-68, 61, 84, 61, 0, -1, st2 * 1.8);             // talus du sud
+    const st2 = lite ? 6.5 : 4.8, H = S.HEAD;
+    face(-188.2, -60, -188.2, 172, 1, 0, st2);              // falaise de l'ouest
+    face(188.8, -60, 188.8, 172, -1, 0, st2 * 1.4);         // falaise de l'est
+    face(H.x0 + 0.6, H.z0, H.x0 + 0.6, 50, -1, 0, st2);     // la falaise du phare, côté Grande Plage
+    face(H.x1 - 0.2, H.z0, H.x1 - 0.2, 50, 1, 0, st2);      // côté Crique
+    face(H.x0, H.z0 - 0.3, H.x1, H.z0 - 0.3, 0, -1, st2);   // la pointe, côté mer
+    face(-186, 173, 186, 173, 0, -1, st2 * 1.8);            // talus du sud
     const cr = cliffRocks.map((c, i) => ({ geo: sandstoneRock(500 + i, c.s * (1 + r() * 0.5), c.s * (0.7 + r() * 0.4), c.s, lite), x: c.x, y: c.y, z: c.z, ry: r() * 6 }));
-    const cliffMesh = new THREE.Mesh(M.mergeGeos(cr), vmat({ roughness: 0.95, flatShading: true }));
-    cliffMesh.castShadow = cliffMesh.receiveShadow = true;
-    sc.add(cliffMesh);
-    const rocks = new THREE.Mesh(M.mergeGeos(list), W.rockMat());
-    rocks.castShadow = rocks.receiveShadow = true;
-    sc.add(rocks);
+    tiled(cr, vmat({ roughness: 0.95, flatShading: true }), { far: 300 });
+    // quelques rochers sur l'Île aux Mouettes
+    const isl = [];
+    for (let k = 0; k < 5; k++) { const a = k * 1.3 + 0.4, d = 9 + (k % 2) * 3, x = S.ISLAND.x + Math.cos(a) * d, z = S.ISLAND.z + Math.sin(a) * d, s2 = 0.8 + (k % 3) * 0.4; isl.push({ geo: W.rockGeometry(900 + k, s2 * 1.3, s2, s2), x, y: S.heightAt(x, z) - s2 * 0.2, z }); }
+    tiled(isl, W.rockMat(), { far: 300 });
     // flaques : de l'eau claire et brillante dans les creux
     const pm = new THREE.MeshStandardMaterial({ color: 0x6ad8e8, roughness: 0.05, metalness: 0.1, transparent: true, opacity: 0.78, emissive: 0x0a3a4a, emissiveIntensity: 0.3 });
+    const glowPool = new THREE.MeshStandardMaterial({ color: 0x5ae8f0, roughness: 0.05, metalness: 0.1, transparent: true, opacity: 0.85, emissive: 0x1ab8d0, emissiveIntensity: 0.9 });
     for (const p of S.POOLS) {
-      const d = new THREE.Mesh(new THREE.CircleGeometry(p.r * 0.92, 28), pm);
+      const inCave = Math.hypot(p.x - S.CAVE.x, p.z - S.CAVE.z) < S.CAVE.r;
+      const d = new THREE.Mesh(new THREE.CircleGeometry(p.r * 0.92, 28), inCave ? glowPool : pm);
       d.rotation.x = -Math.PI / 2; d.position.set(p.x, S.heightAt(p.x, p.z) + 0.32, p.z); d.renderOrder = 2;
       d.userData.noOutline = true;
-      sc.add(d);
+      place(d, p.x, p.z, p.r, 200);
     }
+    // les flaques qui brillent dans la grotte, et des étoiles de mer collées aux rochers
+    const stars = [];
+    for (let k = 0; k < 7; k++) {
+      const a = k * 0.9 + 0.7, d = S.CAVE.r * 0.55, x = S.CAVE.x + Math.cos(a) * d, z = S.CAVE.z + Math.sin(a) * d;
+      const st = new THREE.CylinderGeometry(0.35, 0.35, 0.08, 5); stars.push({ geo: paint(st, [0xff7a4a, 0xff5a8a, 0xffb03a][k % 3]), x, y: S.heightAt(x, z) + 0.05, z, ry: k });
+      const glow = new THREE.Mesh(new THREE.CircleGeometry(0.5 + (k % 3) * 0.2, 16), glowPool);
+      glow.rotation.x = -Math.PI / 2; glow.position.set(x + 1.2, S.heightAt(x + 1.2, z + 0.8) + 0.06, z + 0.8); glow.userData.noOutline = true;
+      place(glow, x, z, 2, 200);
+    }
+    tiled(stars, vmat({ roughness: 0.6 }), { cast: false });
+
   }
 
   // --- Le ponton et le bateau de Barnabé -----------------------------------------------
@@ -396,7 +439,7 @@ function buildDecor(game) {
   const sails = [];
   {
     const sailMat = M.mat(0xfafaf4, { side: THREE.DoubleSide, roughness: 0.7 });
-    for (const [x, z, c, s] of [[-30, -120, 0xe04848, 1.4], [40, -150, 0x3a8ae0, 1.8], [-90, -95, 0xf0b020, 1.2], [110, -110, 0x40b060, 1.5]]) {
+    for (const [x, z, c, s] of [[-70, -190, 0xe04848, 1.6], [60, -210, 0x3a8ae0, 1.9], [-160, -150, 0xf0b020, 1.4], [160, -160, 0x40b060, 1.6], [10, -170, 0xff7ab0, 1.3]]) {
       const g = new THREE.Group();
       const hull = new THREE.Mesh(new THREE.CylinderGeometry(0.9, 0.6, 4.4, 10, 1, false, 0, Math.PI), M.mat(c));
       hull.rotation.set(Math.PI / 2, Math.PI / 2, 0); hull.scale.set(1, 1, 0.7);
@@ -484,7 +527,7 @@ function buildDecor(game) {
     sc.add(fm);
     // drapeaux des chats sur les grandes tours
     const fTex = catFlagTex(), flags = [];
-    for (const t of S.fortTowers.filter(q => q.big).concat([{ x: S.KEEP.x, z: S.KEEP.z, y: S.KEEP.y, h: S.KEEP.top - S.KEEP.y }])) {
+    for (const t of S.fortTowers.filter(q => q.big && !S.FORT_FLAGS.some(f => Math.hypot(f.x - q.x, f.z - q.z) < 0.1)).concat([{ x: S.KEEP.x, z: S.KEEP.z, y: S.KEEP.y, h: S.KEEP.top - S.KEEP.y }])) {
       const pole = new THREE.Mesh(new THREE.CylinderGeometry(0.04, 0.04, 1.6, 5), M.mat(0x6a4a30)); pole.position.set(t.x, t.y + t.h + 0.8, t.z);
       const cloth = new THREE.Mesh(new THREE.PlaneGeometry(0.9, 0.5, 6, 1), new THREE.MeshStandardMaterial({ map: fTex, side: THREE.DoubleSide, roughness: 0.8 }));
       cloth.geometry.translate(0.45, 0, 0); cloth.position.set(t.x + 0.04, t.y + t.h + 1.35, t.z);
@@ -501,7 +544,7 @@ function buildDecor(game) {
     const cap = buildCaptain(); cap.scale.setScalar(1.25);
     cap.position.set(S.KEEP.x, S.KEEP.top, S.KEEP.z); cap.rotation.y = 0;
     sc.add(cap); chars.push(cap); moving.push(cap);
-    Object.assign(fort, { flags, cap });
+    Object.assign(fort, { flags, cap, flagTex: fTex });
   }
 
   // --- Palmiers -----------------------------------------------------------------------
@@ -538,11 +581,9 @@ function buildDecor(game) {
       }
       for (let i = 0; i < 3; i++) { const a = i * 2.1; nutGeos.push({ geo: paint(new THREE.SphereGeometry(0.17, 8, 6), 0x6a4a28), x: top[0] + Math.cos(a) * 0.25, y: top[1] - 0.25, z: top[2] + Math.sin(a) * 0.25 }); }
     });
-    const trunks = new THREE.Mesh(M.mergeGeos(trunkGeos.concat(nutGeos)), vmat({ roughness: 0.9 }));
-    const fronds = new THREE.Mesh(mergeUV(frondGeos), new THREE.MeshStandardMaterial({ vertexColors: true, map: frondTex(), alphaTest: 0.4, side: THREE.DoubleSide, roughness: 0.75 }));
-    fronds.customDepthMaterial = new THREE.MeshDepthMaterial({ depthPacking: THREE.RGBADepthPacking, map: fronds.material.map, alphaTest: 0.4 });
-    trunks.castShadow = fronds.castShadow = true; trunks.receiveShadow = fronds.receiveShadow = true;
-    sc.add(trunks, fronds);
+    tiled(trunkGeos.concat(nutGeos), vmat({ roughness: 0.9 }));
+    const fm = new THREE.MeshStandardMaterial({ vertexColors: true, map: frondTex(), alphaTest: 0.4, side: THREE.DoubleSide, roughness: 0.75 });
+    tiled(frondGeos, fm, { uv: true, depth: new THREE.MeshDepthMaterial({ depthPacking: THREE.RGBADepthPacking, map: fm.map, alphaTest: 0.4 }) });
   }
 
   // --- Parasols, serviettes, cabines --------------------------------------------------
@@ -578,9 +619,53 @@ function buildDecor(game) {
       const door = new THREE.BoxGeometry(1.0, 1.8, 0.08);
       hutGeos.push({ geo: paint(door, 0xf6eedc), x: h.x, y: h.y + 0.95, z: h.z - 1.12 });
     }
-    const huts = new THREE.Mesh(M.mergeGeos(hutGeos), vmat({ roughness: 0.7 }));
-    huts.castShadow = huts.receiveShadow = true;
-    sc.add(huts);
+    // les maisons du village : murs colorés, toit, porte, fenêtres et volets
+    for (const h of S.houses) {
+      const ca = Math.cos(h.rot), sa = Math.sin(h.rot), P = (dx, dz) => ({ x: h.x + ca * dx + sa * dz, z: h.z - sa * dx + ca * dz });
+      hutGeos.push({ geo: paint(new THREE.BoxGeometry(h.w, 4.2, h.d), h.color), x: h.x, y: h.y + 2.1, z: h.z, ry: h.rot });
+      const roof = new THREE.CylinderGeometry(0.01, 1, 1, 4, 1); roof.rotateY(Math.PI / 4); roof.scale(h.w * 0.78, 2.2, h.d * 0.78);
+      hutGeos.push({ geo: paint(roof, h.roof), x: h.x, y: h.y + 5.3, z: h.z, ry: h.rot });
+      for (const sd of [-1, 1]) {
+        const door = P(0, sd * (h.d / 2 + 0.03));
+        if (sd < 0) hutGeos.push({ geo: paint(new THREE.BoxGeometry(1.2, 2.2, 0.08), 0x8a5a30), x: door.x, y: h.y + 1.1, z: door.z, ry: h.rot });
+        for (const wx of [-2.2, 2.2]) {
+          const wp = P(wx, sd * (h.d / 2 + 0.03));
+          hutGeos.push({ geo: paint(new THREE.BoxGeometry(1.1, 1.1, 0.08), 0x4a7ab0), x: wp.x, y: h.y + 2.4, z: wp.z, ry: h.rot });
+          for (const vx of [-0.75, 0.75]) { const vp = P(wx + vx, sd * (h.d / 2 + 0.05)); hutGeos.push({ geo: paint(new THREE.BoxGeometry(0.4, 1.2, 0.06), h.roof), x: vp.x, y: h.y + 2.4, z: vp.z, ry: h.rot }); }
+        }
+      }
+    }
+    // le glacier de Gino : un comptoir, un parasol rayé et un grand cornet
+    {
+      const I = S.ICECREAM;
+      hutGeos.push({ geo: paint(new THREE.BoxGeometry(3.2, 1.1, 1.4), 0xffffff), x: I.x, y: I.y + 0.55, z: I.z + 1.4 });
+      hutGeos.push({ geo: paint(new THREE.BoxGeometry(3.3, 0.12, 1.5), 0xff7ab0), x: I.x, y: I.y + 1.15, z: I.z + 1.4 });
+      for (let k = 0; k < 5; k++) hutGeos.push({ geo: paint(new THREE.SphereGeometry(0.2, 10, 8), [0xff9ac8, 0xfff0c0, 0x8a5a30, 0x9ae0a0, 0xffd23a][k]), x: I.x - 1.2 + k * 0.6, y: I.y + 1.3, z: I.z + 1.4 });
+      const cone = new THREE.ConeGeometry(0.55, 1.6, 12); cone.rotateX(Math.PI);
+      hutGeos.push({ geo: paint(cone, 0xe0a050), x: I.x - 1.9, y: I.y + 2.6, z: I.z + 2.2 });
+      hutGeos.push({ geo: paint(new THREE.SphereGeometry(0.6, 14, 10), 0xff9ac8), x: I.x - 1.9, y: I.y + 3.6, z: I.z + 2.2 });
+      hutGeos.push({ geo: paint(new THREE.CylinderGeometry(0.08, 0.08, 2.4, 6), 0xdddddd), x: I.x - 1.9, y: I.y + 1.2, z: I.z + 2.2 });
+      const umb = new THREE.ConeGeometry(2.2, 0.8, 12, 1, true);
+      hutGeos.push({ geo: paint(umb, (cc, x, y, z) => cc.set(Math.floor((Math.atan2(z, x) + 3.2) * 12 / 6.28) % 2 ? 0xffffff : 0xff7ab0)), x: I.x + 0.6, y: I.y + 3.1, z: I.z + 2.0 });
+      hutGeos.push({ geo: paint(new THREE.CylinderGeometry(0.06, 0.06, 3, 6), 0xdddddd), x: I.x + 0.6, y: I.y + 1.5, z: I.z + 2.0 });
+    }
+    // le chamboule-tout : un comptoir rayé, un auvent, des fanions
+    {
+      const C = S.CANS;
+      hutGeos.push({ geo: paint(new THREE.BoxGeometry(5, 1.0, 1.0), (cc, x) => cc.set(Math.floor(x * 1.2 + 9) % 2 ? 0xe04848 : 0xffffff)), x: C.x, y: C.y + 0.5, z: C.z - 1.6 });
+      hutGeos.push({ geo: paint(new THREE.BoxGeometry(5.6, 0.15, 2.4), 0x3a8ae0), x: C.x, y: C.y + 3.2, z: C.z - 2.2 });
+      for (const sx of [-2.6, 2.6]) hutGeos.push({ geo: paint(new THREE.CylinderGeometry(0.08, 0.08, 3.2, 6), 0xffffff), x: C.x + sx, y: C.y + 1.6, z: C.z - 1.2 });
+      hutGeos.push({ geo: paint(new THREE.BoxGeometry(5, 2.6, 0.12), 0xf6e8c8), x: C.x, y: C.y + 1.3, z: C.z - 3.3 });
+    }
+    // guirlande de fanions au-dessus de la place
+    {
+      const V = S.VILLAGE, cols = [0xe04848, 0xffd23a, 0x3a8ae0, 0x40b060, 0xff7ab0];
+      for (const [ax, az, bx, bz] of [[V.x - 12, V.z - 10, V.x + 12, V.z - 10], [V.x - 12, V.z + 10, V.x + 12, V.z + 10]]) {
+        for (let k = 0; k <= 14; k++) { const t = k / 14, x = ax + (bx - ax) * t, z = az + (bz - az) * t, y = S.heightAt(x, z) + 5.4 - Math.sin(t * Math.PI) * 0.9; const tri = new THREE.ConeGeometry(0.25, 0.5, 3); tri.rotateX(Math.PI); hutGeos.push({ geo: paint(tri, cols[k % 5]), x, y, z }); }
+        for (const [x, z] of [[ax, az], [bx, bz]]) hutGeos.push({ geo: paint(new THREE.CylinderGeometry(0.1, 0.12, 6, 6), 0xf4f4f4), x, y: S.heightAt(x, z) + 3, z });
+      }
+    }
+    tiled(hutGeos, vmat({ roughness: 0.7 }));
     // passerelles en bois sur les dunes
     const walkGeos = [];
     for (const [[ax, az], [bx, bz]] of S.BOARDWALKS) {
@@ -591,9 +676,7 @@ function buildDecor(game) {
         walkGeos.push({ geo: paint(pl, (cc) => cc.set(0xc49a68).multiplyScalar(0.88 + hash2(i, ax) * 0.2)), x, y: S.heightAt(x, z) + 0.05, z });
       }
     }
-    const walks = new THREE.Mesh(M.mergeGeos(walkGeos), vmat({ roughness: 0.9 }));
-    walks.receiveShadow = true; walks.userData.noOutline = true;
-    sc.add(walks);
+    tiled(walkGeos, vmat({ roughness: 0.9 }), { cast: false, noOutline: true });
   }
 
   // --- Poste de secours et râtelier des planches ---------------------------------------
@@ -616,14 +699,57 @@ function buildDecor(game) {
     sc.add(shadowy(rack));
     // bouées de la course (rouges et blanches, avec un fanion)
     const buoyGeos = [];
-    for (const b of S.RACE.buoys.slice(0, -1)) {
-      buoyGeos.push({ geo: paint(new THREE.SphereGeometry(0.55, 14, 10), (cc, x, y) => cc.set(y > 0.1 ? 0xffffff : 0xe83a3a)), x: b.x, y: S.WATER_Y + 0.15, z: b.z });
+    const buoy = (b, flag, low) => {
+      buoyGeos.push({ geo: paint(new THREE.SphereGeometry(0.55, 14, 10), (cc, x, y) => cc.set(y > 0.1 ? 0xffffff : low)), x: b.x, y: S.WATER_Y + 0.15, z: b.z });
       buoyGeos.push({ geo: paint(new THREE.CylinderGeometry(0.03, 0.03, 1.4, 4), 0x444444), x: b.x, y: S.WATER_Y + 1.0, z: b.z });
-      buoyGeos.push({ geo: paint(new THREE.PlaneGeometry(0.5, 0.32), 0xffd23a), x: b.x + 0.25, y: S.WATER_Y + 1.5, z: b.z });
-    }
+      buoyGeos.push({ geo: paint(new THREE.PlaneGeometry(0.5, 0.32), flag), x: b.x + 0.25, y: S.WATER_Y + 1.5, z: b.z });
+    };
+    for (const b of S.RACE.buoys.slice(0, -1)) buoy(b, 0xffd23a, 0xe83a3a);
+    for (const b of S.LESSON) buoy(b, 0x5ad85a, 0x2a9a3a);
+    for (const [x, z] of S.ISLAND_ROUTE) buoy({ x, z }, 0xff8a2a, 0xff8a2a);
     const buoys = new THREE.Mesh(M.mergeGeos(buoyGeos), vmat({ roughness: 0.5, side: THREE.DoubleSide }));
     sc.add(buoys); moving.push(buoys);
     fort.buoys = buoys;
+  }
+
+  // --- L'Épave, dans la Crique ------------------------------------------------------------
+  const wreck = {};
+  {
+    const Wk = S.WRECK, g = new THREE.Group(), wood = 0x7a5232, dark = 0x4a321e;
+    const plank = (cc, x, y, z) => cc.set(wood).multiplyScalar(0.8 + 0.25 * (Math.floor((y + 3) * 2.5) % 2) + hash2(Math.floor(z * 2), 3) * 0.12);
+    // la coque : des membrures (côtes) et des bordés, éventrée à tribord
+    const geos = [];
+    for (let f = -8; f <= 8; f += 1.0) {
+      const half = Wk.w / 2 - 0.3 * Math.abs(f) / 8 * 2.2, hgt = 3.2 + (f < -4 ? 1.5 : 0);
+      for (const sd of [-1, 1]) {
+        if (sd === 1 && f >= -2 && f <= 2) continue;                       // la brèche
+        geos.push({ geo: paint(new THREE.BoxGeometry(0.3, hgt, 1.05), plank), x: sd * half, y: hgt / 2, z: f });
+      }
+      if (Math.abs(f % 2) < 0.01) geos.push({ geo: paint(new THREE.BoxGeometry(Wk.w, 0.3, 0.35), dark), x: 0, y: 0.15, z: f });
+    }
+    geos.push({ geo: paint(new THREE.ConeGeometry(Wk.w / 2, 3, 4, 1), plank), x: 0, y: 1.6, z: 9.3, rx: Math.PI / 2, ry: Math.PI / 4, sx: 0.8 });
+    // le pont arrière, la cabine du capitaine, des tonneaux, des caisses
+    geos.push({ geo: paint(new THREE.BoxGeometry(Wk.w - 0.4, 0.4, 5.4), plank), x: 0, y: 4.5, z: -5.5 });
+    geos.push({ geo: paint(new THREE.BoxGeometry(2.4, 1.6, 1.8), dark), x: 0, y: 5.5, z: -7.6 });
+    const g2 = new THREE.Mesh(M.mergeGeos(geos), vmat({ roughness: 0.92 }));
+    g2.castShadow = g2.receiveShadow = true;
+    g.add(g2);
+    // le mât cassé, sa hune, le drapeau de pirate en lambeaux
+    const mastTop = Wk.nest.top - Wk.y;
+    const mast = new THREE.Mesh(new THREE.CylinderGeometry(0.28, 0.36, mastTop, 10), M.mat(0x6a4a2a)); mast.position.set(1.5 * 0, mastTop / 2, 1.5);
+    const nest = new THREE.Mesh(new THREE.CylinderGeometry(1.5, 1.3, 0.4, 14), M.mat(0x8a5a32)); nest.position.set(0, mastTop - 0.2, 1.5);
+    const rag = new THREE.Mesh(new THREE.PlaneGeometry(1.4, 0.9, 4, 1), M.mat(0x2a2a2a, { side: THREE.DoubleSide })); rag.position.set(0.75, mastTop + 1.2, 1.5);
+    const ragPole = new THREE.Mesh(new THREE.CylinderGeometry(0.04, 0.04, 1.8, 5), M.mat(0x6a4a2a)); ragPole.position.set(0, mastTop + 0.9, 1.5);
+    g.add(mast, nest, rag, ragPole);
+    g.position.set(Wk.x, Wk.y - 0.3, Wk.z); g.rotation.set(0, Wk.yaw, -0.08);
+    place(shadowy(g), Wk.x, Wk.z, 14, 320);
+    // les caisses et les tonneaux pour monter (positions exactes des obstacles)
+    const props = [];
+    for (const st of Wk.steps) props.push({ geo: paint(new THREE.BoxGeometry(1.6, st.top - Wk.y + 0.5, 1.6), 0xa87a48), x: st.x, y: (st.top + Wk.y - 0.5) / 2, z: st.z, ry: Wk.yaw });
+    for (const b of Wk.barrels) props.push({ geo: paint(new THREE.CylinderGeometry(0.75, 0.7, 1.4, 12), (cc, x, y) => cc.set(Math.abs(y) > 0.45 ? 0x3a3a3a : 0x8a5a32)), x: b.x, y: b.top - 0.7, z: b.z });
+    const pm2 = new THREE.Mesh(M.mergeGeos(props), vmat({ roughness: 0.85 }));
+    place(shadowy(pm2), Wk.x, Wk.z, 14, 320);
+    Object.assign(wreck, { rag });
   }
 
   // --- Mouettes ---------------------------------------------------------------------------
@@ -646,9 +772,9 @@ function buildDecor(game) {
       return g;
     };
     const r = rng(55);
-    for (let i = 0; i < (lite ? 6 : 9); i++) {
+    for (let i = 0; i < (lite ? 8 : 14); i++) {
       const gm = mk();
-      gm.userData.fly = { cx: -40 + r() * 90, cz: -30 + r() * 40, R: 8 + r() * 14, y: 9 + r() * 10, w: (0.25 + r() * 0.2) * (r() < 0.5 ? -1 : 1), a: r() * 6 };
+      gm.userData.fly = { cx: -150 + r() * 300, cz: -120 + r() * 140, R: 8 + r() * 16, y: 9 + r() * 12, w: (0.25 + r() * 0.2) * (r() < 0.5 ? -1 : 1), a: r() * 6 };
       sc.add(gm); gulls.push(gm); moving.push(gm);
     }
     // quelques-unes posées sur les poteaux du ponton (elles s'envolent si on approche)
@@ -674,10 +800,10 @@ function buildDecor(game) {
       halo.rotation.x = -Math.PI / 2; halo.position.y = 0.06; halo.userData.noOutline = true;
       g.add(pole, ball, cloth, halo);
       g.position.set(c.x, c.y, c.z); g.rotation.y = Math.PI * 0.5;
-      sc.add(shadowy(g));
+      place(shadowy(g), c.x, c.z, 4);
       flags.push({ g, cloth, halo, base: cloth.geometry.attributes.position.array.slice(), raise: 0, raisedAt: -9 });
     }
   }
 
-  return { moving, chars, lh, fort, gulls, flags, sails, boat, surfMat, real };
+  return { moving, chars, lh, fort, gulls, flags, sails, boat, surfMat, real, cull, wreck, place, paint };
 }

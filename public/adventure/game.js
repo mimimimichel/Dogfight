@@ -186,7 +186,7 @@ export async function start(opts) {
   // personnages non joueurs réalistes (modèles gratuits CC-BY)
   // (l'ancienne Mamie assise n'est chargée que si on la demande : ?mamie=assise, 1 Mo de moins sinon)
   const oldMamie = new URLSearchParams(location.search).get('mamie') === 'assise' ? ['mamie'] : [];
-  const npcs = photos ? N.preloadNpcs(L.ID === 3 ? [...oldMamie, 'mamie2', 'biscotte', 'shiba', 'berger', 'bouledogue'] : L.ID === 5 ? [...oldMamie, 'mamie2', 'biscotte', 'shiba', 'bouledogue'] : L.ID === 6 ? [...oldMamie, 'mamie2', 'biscotte', 'berger', 'bouledogue'] : [...oldMamie, 'mamie2', 'biscotte']) : null;
+  const npcs = photos ? N.preloadNpcs(L.ID === 3 ? [...oldMamie, 'mamie2', 'biscotte', 'shiba', 'berger', 'bouledogue'] : L.ID === 5 ? [...oldMamie, 'mamie2', 'biscotte', 'shiba', 'bouledogue'] : L.ID === 6 ? [...oldMamie, 'mamie2', 'biscotte', 'shiba', 'berger', 'bouledogue'] : [...oldMamie, 'mamie2', 'biscotte']) : null;
   await M.preloadDogs();
   if (photos) await photos;
   if (npcs) await npcs;
