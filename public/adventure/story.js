@@ -117,6 +117,8 @@ export function storyShots(game, L) {
       cap: 'Bonne chance pour me suivre là-haut, les cabots !', duo: ['Matcha', 'Accroche-toi, Ainu : on va sauter de nuage en nuage !'] },
     5: { title: 'La Station des Neiges', fly: 'Pour les vacances, Mamie emmène toute la bande à la Station des Neiges, chez sa vieille amie Myrtille. Mais devinez qui est arrivé avant eux…',
       cap: 'Miaou-ha-ha ! J\'ai caché les médailles de la station. Venez me les reprendre… en jouant !', duo: ['Matcha', 'De la neige partout ! Ainu, on fait une bataille de boules de neige ?'] },
+    6: { title: 'La Plage aux Coquillages', fly: 'Pour fêter l\'été, toute la bande file à la Plage aux Coquillages. Mais les chats de la Capitaine Moustache y ont bâti un fort de sable… et ils ont plein de farces en tête !',
+      cap: 'Miaou-ha-ha ! Cette plage est à nous : le sable, les vagues et tous les coquillages !', duo: ['Matcha', 'Des vagues, du sable et des trésors à creuser… Ainu, à nous la plage !'] },
   };
   const ch = chapters[L.ID];
   if (!ch) return null;

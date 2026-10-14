@@ -480,7 +480,7 @@
       return true;
     }
 
-    /** Choisit l'ambiance ('menu', 'adventure', 'adv1'…'adv5', 'boss', 'fight' ou null pour couper). */
+    /** Choisit l'ambiance ('menu', 'adventure', 'adv1'…'adv8', 'boss', 'fight' ou null pour couper). */
     music(theme) {
       if (theme === 'adventure' && this.theme && /^adv\d/.test(this.theme)) return;   // l'ambiance du niveau est déjà là
       this.wantTheme = theme;
@@ -729,6 +729,18 @@
     adv5: { bpm: 108, keys: [65, 67, 62], mode: 'major', vol: 0.42, wet: 0.42, lead: 'mallet', comp: 'pluck', bassInst: 'bass', swing: 0.14, drums: 'light', sevenths: true, sparkle: true,
       leit: { prog: [0, 3, 4, 0, 5, 1, 4, 0], oct: 12, legato: 0.8 },
       progs: [[0, 3, 4, 0], [5, 1, 4, 0], [0, 5, 3, 4], [3, 4, 0, 5]] },
+    // plage : guitare nylon qui balance, façon calypso, beaucoup d'air
+    adv6: { bpm: 104, keys: [67, 65, 62], mode: 'major', vol: 0.42, wet: 0.36, lead: 'pluck', comp: 'mallet', bassInst: 'bass', swing: 0.2, drums: 'groove', sevenths: true, sparkle: true,
+      leit: { prog: [0, 4, 3, 4, 0, 5, 4, 0], oct: 12, swing8: 0.5, legato: 0.7 },
+      progs: [[0, 3, 4, 0], [0, 4, 5, 4], [3, 4, 0, 5], [0, 5, 3, 4]] },
+    // ferme : air de campagne, flûte et guitare, ça trotte
+    adv7: { bpm: 116, keys: [62, 67, 64], mode: 'major', vol: 0.42, wet: 0.3, lead: 'flute', comp: 'pluck', bassInst: 'bass', swing: 0.06, drums: 'light', sevenths: false, sparkle: false,
+      leit: { prog: [0, 3, 4, 0, 0, 3, 4, 0], oct: 12, legato: 0.75 },
+      progs: [[0, 3, 4, 0], [0, 4, 0, 4], [3, 0, 4, 0], [0, 5, 3, 4]] },
+    // château des chats : piano malicieux en dorien, pas qui se faufilent
+    adv8: { bpm: 94, keys: [62, 64, 57], mode: 'dorian', vol: 0.42, wet: 0.4, lead: 'piano', comp: 'pluck', bassInst: 'bass', swing: 0.16, drums: 'brush', sevenths: true, sparkle: true,
+      leit: { prog: [0, 3, 6, 4, 0, 3, 4, 0], oct: 12, swing8: 0.4, legato: 0.6 },
+      progs: [[0, 3, 0, 6], [0, 6, 3, 4], [3, 6, 0, 4], [0, 2, 3, 6]] },
     // combat 1 contre 1 : entièrement composé par la machine (graine fixe)
     fight: { bpm: 138, keys: [57, 64, 62], mode: 'minor', vol: 0.38, wet: 0.2, lead: 'mallet', comp: 'pluck', bassInst: 'bass', swing: 0, drums: 'drive', sevenths: false,
       progs: [[0, 5, 2, 6], [0, 3, 6, 4], [5, 6, 0, 0], [0, 6, 5, 6]] },
