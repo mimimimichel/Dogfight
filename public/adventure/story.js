@@ -5,6 +5,8 @@
  * L'histoire : la Capitaine Moustache et ses chats bandits volent les cinq
  * Médailles Patounes du Parc des Toutous. Ainu et Matcha la poursuivent dans
  * la Forêt des Moustaches, puis à Port-Croquette, et jusqu'aux Îles du Ciel.
+ * Puis, devenue copine (mais toujours farceuse), elle les attend pour jouer à
+ * la Station des Neiges.
  */
 import * as THREE from '../vendor/three.module.min.js';
 import * as M from './models.js';
@@ -113,6 +115,8 @@ export function storyShots(game, L) {
       cap: 'Miaou-ha-ha ! En ville, personne ne rattrape mon bolide !', duo: ['Ainu', 'Ouaf ! Des karts… et même des avions ?!'] },
     4: { title: 'Les Îles du Ciel', fly: 'Pour leur échapper une dernière fois, la Capitaine s\'est envolée en montgolfière vers les Îles du Ciel.',
       cap: 'Bonne chance pour me suivre là-haut, les cabots !', duo: ['Matcha', 'Accroche-toi, Ainu : on va sauter de nuage en nuage !'] },
+    5: { title: 'La Station des Neiges', fly: 'Pour les vacances, Mamie emmène toute la bande à la Station des Neiges, chez sa vieille amie Myrtille. Mais devinez qui est arrivé avant eux…',
+      cap: 'Miaou-ha-ha ! J\'ai caché les médailles de la station. Venez me les reprendre… en jouant !', duo: ['Matcha', 'De la neige partout ! Ainu, on fait une bataille de boules de neige ?'] },
   };
   const ch = chapters[L.ID];
   if (!ch) return null;

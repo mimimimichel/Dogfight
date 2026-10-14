@@ -24,7 +24,8 @@ export function buildSeasons(game, opts) {
   const parts = [];
 
   // --- ce qui tombe du ciel, dans une boîte qui suit la caméra -------------------------
-  const kind = mo.season === 'hiver' ? 'snow' : mo.season === 'automne' ? 'leaves' : mo.season === 'printemps' ? 'petals' : null;
+  // (à la Station des Neiges, il neige toute l'année)
+  const kind = opts && opts.L && opts.L.SNOW ? 'snow' : mo.season === 'hiver' ? 'snow' : mo.season === 'automne' ? 'leaves' : mo.season === 'printemps' ? 'petals' : null;
   let fall = null;
   if (kind && !(opts && opts.noFall)) {
     const N = lite ? (kind === 'snow' ? 260 : 70) : (kind === 'snow' ? 600 : 160), R = 26, H = 18;

@@ -40,6 +40,8 @@ CAST = {
     'Professeur Lunette': ('lunette', 0.55, 0.5),
     'Fernand le taxi': ('fernand', 0.55, 0.5),
     'Mimi la vendeuse': ('mimi', 0.6, 0.5),
+    'Bernard': ('pataud', 0.55, 0.45),
+    'Myrtille': ('persane', 0.6, 0.5),
 }
 # les rôles principaux d'abord
 ORDER = ['', 'Mamie Labrador', 'Matcha', 'Ainu', 'Biscotte', 'Capitaine Moustache']

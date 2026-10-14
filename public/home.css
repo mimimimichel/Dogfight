@@ -304,6 +304,9 @@ html.ios-text .hbtn.small, html.ios-text .hbtn.lvpick:not(.active), html.ios-tex
 .level-card.l4 { background: radial-gradient(circle at 78% 20%, #fff6c0 0 9%, transparent 10%), linear-gradient(180deg, #4a90f0 0%, #9ac8ff 55%, #ffd8e0 100%); }
 .level-card.l4::before { right: 22px; top: 70px; width: 64px; height: 26px; border-radius: 50% 50% 40% 40%; background: #7ad058; border: 3px solid #2a1408; box-shadow: inset 0 -8px 0 #b08a70; }
 .level-card.l4::after { right: 104px; top: 46px; width: 40px; height: 18px; border-radius: 50% 50% 40% 40%; background: #7ad058; border: 3px solid #2a1408; }
+.level-card.l5 { background: radial-gradient(circle at 80% 18%, #fffbe0 0 8%, transparent 9%), linear-gradient(180deg, #4a8ae8 0%, #a8d4ff 52%, #f4f8ff 52% 100%); }
+.level-card.l5::before { right: 26px; top: 40px; width: 0; height: 0; border-radius: 0; border-left: 34px solid transparent; border-right: 34px solid transparent; border-bottom: 62px solid #2f6a46; filter: drop-shadow(0 -3px 0 #2a1408); }
+.level-card.l5::after { right: 96px; top: 66px; width: 28px; height: 28px; background: #ffffff; border: 3px solid #2a1408; box-shadow: 0 26px 0 6px #ffffff, 0 26px 0 9px #2a1408; }
 .level-cards { flex-wrap: wrap; }
 
 /* Choix du mode (tous les âges) */
@@ -316,6 +319,15 @@ html.ios-text .hbtn.small, html.ios-text .hbtn.lvpick:not(.active), html.ios-tex
 #screen-levels .coop-card { gap: 10px; padding: 14px 20px; }
 #screen-levels .level-card .lv-num { font-size: 40px; }
 #screen-levels .level-card b { font-size: 20px; }
+/* 5 mondes sur un téléphone : des cartes plus serrées */
+@media (max-width: 900px) {
+  #screen-levels .level-cards { gap: 8px; }
+  #screen-levels .level-card { padding: 10px 10px; border-radius: 20px; }
+  #screen-levels .level-card b { font-size: 16px; }
+  #screen-levels .level-card small { font-size: 11px; padding: 2px 6px; }
+  #screen-levels .level-card .lv-num { font-size: 30px; left: 10px; top: 6px; }
+  #screen-levels .level-card.l5::after { display: none; }
+}
 
 /* ------------------------------------------------------------------------
    Transitions entre les écrans : fondu, puis les cartes et boutons arrivent
@@ -354,12 +366,13 @@ html.ios-text .hbtn.small, html.ios-text .hbtn.lvpick:not(.active), html.ios-tex
 .album-total .ring { width: 74px; height: 74px; border-radius: 50%; display: grid; place-items: center; flex: none;
   background: conic-gradient(#ffb020 var(--p, 0%), rgba(42, 20, 8, 0.18) 0); border: 3px solid #2a1408; box-shadow: 0 4px 0 #2a1408; }
 .album-total .ring b { width: 54px; height: 54px; border-radius: 50%; display: grid; place-items: center; background: #fff8e0; font-size: 18px; }
-.album-worlds { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; width: 100%; }
+.album-worlds { display: grid; grid-template-columns: repeat(5, 1fr); gap: 10px; width: 100%; }
 .album-world { position: relative; border: 3px solid #2a1408; border-radius: 18px; box-shadow: 0 5px 0 #2a1408; padding: 10px 10px 12px; color: #fff; font-family: var(--hf); text-align: left; min-height: 150px; }
 .album-world.l1 { background: linear-gradient(170deg, #5ab4ff, #3a8a2a); }
 .album-world.l2 { background: linear-gradient(170deg, #ff9a6a, #2f7c2c); }
 .album-world.l3 { background: linear-gradient(170deg, #5ab4ff, #1a5ab0); }
 .album-world.l4 { background: linear-gradient(170deg, #4a90f0, #d890b8); }
+.album-world.l5 { background: linear-gradient(170deg, #4a8ae8, #8ab8e0 60%, #c8dcf0); }
 .album-world.new { filter: grayscale(0.75) brightness(0.85); }
 .album-world h4 { margin: 0 0 6px; padding-right: 44px; font-size: 16px; line-height: 1.05; -webkit-text-stroke: 4px #2a1408; paint-order: stroke fill; }
 .album-world .pct { position: absolute; right: 8px; top: 6px; font-size: 20px; font-weight: 700; color: #ffd23a; -webkit-text-stroke: 5px #2a1408; paint-order: stroke fill; }
@@ -482,3 +495,5 @@ html.ios-text .hbtn.small, html.ios-text .hbtn.lvpick:not(.active), html.ios-tex
 .level-cards .level-card.l3 { background-image: linear-gradient(180deg, transparent 40%, rgba(20, 10, 4, 0.55)), url(img/levels/l3.jpg); }
 .level-cards .level-card.l4 { background-image: linear-gradient(180deg, transparent 40%, rgba(20, 10, 4, 0.55)), url(img/levels/l4.jpg); }
 .level-cards .level-card.l1::before, .level-cards .level-card.l1::after, .level-cards .level-card.l2::before, .level-cards .level-card.l2::after, .level-cards .level-card.l3::before, .level-cards .level-card.l3::after, .level-cards .level-card.l4::before, .level-cards .level-card.l4::after { display: none; }
+.level-cards .level-card.l5 { background-size: cover; background-position: center; background-image: linear-gradient(180deg, transparent 40%, rgba(20, 10, 4, 0.55)), url(img/levels/l5.jpg); }
+.level-cards .level-card.l5::before, .level-cards .level-card.l5::after { display: none; }
