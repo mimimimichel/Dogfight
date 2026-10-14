@@ -23,6 +23,7 @@ function markVisited(id) {
 import * as F from './forest.js';
 import * as C from './city.js';
 import * as SK from './sky.js';
+import * as BE from './beach.js';
 import { voiceFor } from './voice.js';
 import * as M from './models.js';
 import * as W from './world.js';
@@ -136,8 +137,12 @@ window.kidName = kidName;
 const MAMIE_UPRIGHT = { x: -0.34, z: 0.13, neck: 0.14, head: 0.16 };
 const MAMIE_SCALE = 1.25;
 const medalWord = () => (L.ID === 3 ? 'Trophées' : L.ID === 4 ? 'Étoiles' : 'Médailles');
-const collectWord = (long) => ({ 2: 'Croquettes', 3: long ? 'Pièces d\'or' : 'Pièces', 4: 'Pièces du ciel' })[L.ID] || (long ? 'Os dorés' : 'Os');
+const collectWord = (long) => ({ 2: 'Croquettes', 3: long ? 'Pièces d\'or' : 'Pièces', 4: 'Pièces du ciel', 6: 'Coquillages' })[L.ID] || (long ? 'Os dorés' : 'Os');
 const NEXT_LEVEL = { 1: 'Niveau 2 : la Forêt des Moustaches', 2: 'Niveau 3 : Port-Croquette', 3: 'Niveau 4 : les Îles du Ciel' };
+// LEVEL-CHAIN: la Plage aux Coquillages (niveau 6) vient après le niveau 5. Tant que le niveau 5 n'est pas là,
+// elle s'ouvre après le niveau 4 : à l'intégration, remplacer par NEXT_LEVEL[5] = '…6…' et NEXT_ID[5] = 6.
+NEXT_LEVEL[4] = 'Niveau 6 : la Plage aux Coquillages';
+const NEXT_ID = { 4: 6 };   // niveau suivant quand ce n'est pas simplement L.ID + 1
 
 const isChild = (o, root) => { for (let p = o.parent; p; p = p.parent) if (p === root) return true; return false; };
 const clamp = (v, a, b) => (v < a ? a : v > b ? b : v);
@@ -158,6 +163,7 @@ const ICONS = {
   coin: svg('<circle cx="32" cy="32" r="23" fill="#9a6a00"/><circle cx="32" cy="32" r="19" fill="url(#g)"/><circle cx="32" cy="32" r="13" fill="none" stroke="#c88a08" stroke-width="3"/><path d="M32 22v20M27 26h8a3 3 0 0 1 0 6h-6a3 3 0 0 0 0 6h8" fill="none" stroke="#a06a00" stroke-width="3" stroke-linecap="round"/><ellipse cx="24" cy="21" rx="5" ry="3" fill="#fff" opacity=".55"/>'),
   kibble: svg('<g fill="#8a5200"><circle cx="32" cy="32" r="22"/></g><circle cx="32" cy="32" r="18" fill="url(#g)"/><g fill="#c07a08"><circle cx="25" cy="27" r="3"/><circle cx="38" cy="25" r="2.6"/><circle cx="36" cy="38" r="3.2"/><circle cx="24" cy="39" r="2.4"/></g><ellipse cx="25" cy="22" rx="5" ry="3" fill="#fff" opacity=".55"/>'),
   ball: svg('<circle cx="32" cy="32" r="24" fill="url(#t)" stroke="#5a7000" stroke-width="3"/><path d="M12 20c10 6 10 18 0 24M52 20c-10 6-10 18 0 24" fill="none" stroke="#fff" stroke-width="3.5"/>'),
+  shell: svg('<path d="M32 56 14 50 10 40c-4-12 4-28 22-30 18 2 26 18 22 30l-4 10z" fill="#ffd8c8" stroke="#8a3a2a" stroke-width="3" stroke-linejoin="round"/><path d="M32 54 32 14M32 54 20 18M32 54 44 18M32 54 13 30M32 54 51 30" stroke="#e88a7a" stroke-width="2.5" fill="none"/><path d="M24 56h16l-3 5H27z" fill="#ffb8a8" stroke="#8a3a2a" stroke-width="2.5"/>'),
 };
 
 // ---------------------------------------------------------------------------
@@ -180,7 +186,7 @@ export async function start(opts) {
   // personnages non joueurs réalistes (modèles gratuits CC-BY)
   // (l'ancienne Mamie assise n'est chargée que si on la demande : ?mamie=assise, 1 Mo de moins sinon)
   const oldMamie = new URLSearchParams(location.search).get('mamie') === 'assise' ? ['mamie'] : [];
-  const npcs = photos ? N.preloadNpcs(L.ID === 3 ? [...oldMamie, 'mamie2', 'biscotte', 'shiba', 'berger', 'bouledogue'] : [...oldMamie, 'mamie2', 'biscotte']) : null;
+  const npcs = photos ? N.preloadNpcs(L.ID === 3 ? [...oldMamie, 'mamie2', 'biscotte', 'shiba', 'berger', 'bouledogue'] : L.ID === 6 ? [...oldMamie, 'mamie2', 'biscotte', 'berger', 'bouledogue'] : [...oldMamie, 'mamie2', 'biscotte']) : null;
   await M.preloadDogs();
   if (photos) await photos;
   if (npcs) await npcs;
@@ -315,7 +321,7 @@ class Adventure {
         </div>
         <div class="adv-right">
           <div class="adv-counts">
-            <div class="adv-count"><img src="${L.ID === 2 ? ICONS.kibble : L.ID >= 3 ? ICONS.coin : ICONS.bone}" alt=""><span id="adv-bones">0</span><small>/100</small></div>
+            <div class="adv-count"><img src="${L.ID === 2 ? ICONS.kibble : L.ID === 6 ? ICONS.shell : L.ID >= 3 ? ICONS.coin : ICONS.bone}" alt=""><span id="adv-bones">0</span><small>/100</small></div>
             <div class="adv-count"><img src="${ICONS.medal}" alt=""><span id="adv-medals">0</span><small>/${L.medals.length}</small></div>
             <div class="adv-count adv-balls hidden"><img src="${ICONS.ball}" alt=""><span id="adv-balls">0</span><small>/5</small></div>
           </div>
@@ -740,6 +746,7 @@ class Adventure {
     if (L.ID === 1) this.buildParc();
     else if (L.ID === 3) this.levelLogic = C.buildCity(this);
     else if (L.ID === 4) this.levelLogic = SK.buildSky(this);
+    else if (L.ID === 6) this.levelLogic = BE.buildBeach(this);
     else this.levelLogic = F.buildForest(this, { THREE, M, W, T });
 
     // Nuages et papillons
@@ -777,6 +784,7 @@ class Adventure {
     }
     const NAMES = { 1: 'Le Parc des Toutous', 2: 'La Forêt des Moustaches', 3: 'Port-Croquette', 4: 'Les Îles du Ciel' };
     const COLS = { 1: [0x3affa0, 0x0a4a3a], 2: [0x4ab0ff, 0x10206a], 3: [0xffb04a, 0x5a2008], 4: [0xc070ff, 0x2a0a5a] };
+    NAMES[6] = 'La Plage aux Coquillages'; COLS[6] = [0x4ae0e0, 0x0a4a5a];
     markVisited(L.ID);
     const visited = visitedLevels();
     this.portals = list.map(p => {
@@ -1269,10 +1277,11 @@ class Adventure {
     this.party = new Map([[0, this.player]]);
 
     // Os dorés (instanciés)
-    this.bonesI = new THREE.InstancedMesh(L.ID === 2 ? F.kibbleGeometry() : L.ID === 3 ? C.coinGeometry() : L.ID === 4 ? SK.starCoinGeometry() : M.boneGeometry(), M.mat(0xffd34d, { metalness: 0.7, roughness: 0.3, emissive: 0x6a4800, emissiveIntensity: 0.6 }), L.bones.length);
+    this.bonesI = new THREE.InstancedMesh(L.ID === 2 ? F.kibbleGeometry() : L.ID === 3 ? C.coinGeometry() : L.ID === 4 ? SK.starCoinGeometry() : L.ID === 6 ? BE.shellGeometry() : M.boneGeometry(), M.mat(0xffd34d, { metalness: 0.7, roughness: 0.3, emissive: 0x6a4800, emissiveIntensity: 0.6 }), L.bones.length);
     this.boneTaken = new Set(Object.keys(s.gone || {}));
     sc.add(this.bonesI);
     if (L.ID === 1 && this.realistic) this.bonesI.material = M.mat(0xf2dcb4, { metalness: 0.05, roughness: 0.5, emissive: 0x5a3c10, emissiveIntensity: 0.3 });
+    if (L.ID === 6) this.bonesI.material = M.mat(0xffc8b4, { metalness: 0.35, roughness: 0.3, emissive: 0x7a3020, emissiveIntensity: 0.45 });   // coquillages nacrés
     // halo doré autour de chaque trésor (on les repère de loin)
     {
       const n = L.bones.length, gp = new THREE.BufferGeometry();
@@ -3321,6 +3330,10 @@ class Adventure {
     } else if (L.ID === 4) {
       const v = this.player ? this.player.vel : null, sp = v ? Math.hypot(v.x, v.y, v.z) : 0;
       wind = 0.6; windP = Math.min(1, 0.3 + sp / 25); birds = 0.06; gulls = 0.08;
+    } else if (L.ID === 6) {
+      // la plage : le ressac (plus fort près de l'eau), le vent du large, les mouettes
+      waves = L.fromShore ? Math.max(0.25, Math.min(1, 1 - (L.fromShore(c.x, c.z) - 4) / 50)) : 0.6;
+      wind = 0.25 + Math.min(0.35, Math.max(0, c.y - 8) / 30); windP = 0.2; birds = 0.1; gulls = 0.45;
     }
     // moteur : kart ou avion conduit par moi
     const k = this.player && this.player.kart;
@@ -4099,7 +4112,7 @@ class Adventure {
         this.dispose(true);
         start({ sfx: this.sfx, onExit: this.onExit, coopHost: this.hostSession, level: L.ID });
         break;
-      case 'next': this.switchLevel(L.ID + 1); break;
+      case 'next': this.switchLevel(NEXT_ID[L.ID] || L.ID + 1); break;
       case 'quit': this.dispose(); this.onExit(); break;
       case 'lost': this.dispose(); this.onExit(); break;
     }

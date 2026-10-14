@@ -113,6 +113,8 @@ export function storyShots(game, L) {
       cap: 'Miaou-ha-ha ! En ville, personne ne rattrape mon bolide !', duo: ['Ainu', 'Ouaf ! Des karts… et même des avions ?!'] },
     4: { title: 'Les Îles du Ciel', fly: 'Pour leur échapper une dernière fois, la Capitaine s\'est envolée en montgolfière vers les Îles du Ciel.',
       cap: 'Bonne chance pour me suivre là-haut, les cabots !', duo: ['Matcha', 'Accroche-toi, Ainu : on va sauter de nuage en nuage !'] },
+    6: { title: 'La Plage aux Coquillages', fly: 'Pour fêter l\'été, toute la bande file à la Plage aux Coquillages. Mais les chats de la Capitaine Moustache y ont bâti un fort de sable… et ils ont plein de farces en tête !',
+      cap: 'Miaou-ha-ha ! Cette plage est à nous : le sable, les vagues et tous les coquillages !', duo: ['Matcha', 'Des vagues, du sable et des trésors à creuser… Ainu, à nous la plage !'] },
   };
   const ch = chapters[L.ID];
   if (!ch) return null;

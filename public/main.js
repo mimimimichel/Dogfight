@@ -180,6 +180,10 @@
     });
     const best = s4 && s4.sky && s4.sky.best;
     $('lv4-prog').textContent = started(s4) ? `Étoiles ${(s4.medals || []).filter(m => m !== 'm_goal').length}/5${best ? ` · record ${Math.floor(best / 60)}:${String(best % 60).padStart(2, '0')}` : ''}` : 'Nouveau !';
+    // niveau 6 : la Plage aux Coquillages
+    const s6 = levelSave(6);
+    $('lv6-prog').textContent = prog(s6, 'Coquillages');
+    $('lv6-bar').style.setProperty('--p', (s6 ? Math.round((Math.min((s6.medals || []).length, 5) / 5 * 0.7 + Math.min((s6.bones || []).length, 100) / 100 * 0.3) * 100) : 0) + '%');
   }
   // ---------------------------------------------------------------------------
   // « Qui joue ? » : un joueur = sa propre progression (profiles.js)
@@ -251,14 +255,16 @@
       { n: 'Les Îles du Ciel', med: 6, medName: 'Étoiles + Trophée', col: 'Pièces', s: S[3],
         extra: S[3] && S[3].sky && S[3].sky.best ? `Record ${Math.floor(S[3].sky.best / 60)}:${String(Math.round(S[3].sky.best) % 60).padStart(2, '0')}` : '' },
     ];
+    const S6 = levelSave(6);
+    W.push({ id: 6, n: 'La Plage aux Coquillages', med: 5, medName: 'Médailles', col: 'Coquillages', s: S6, extra: S6 && S6.beach && S6.beach.raceBest ? `Bodyboard ${S6.beach.raceBest.toFixed(1)} s` : '' });
     let got = 0, all = 0;
     $('album-worlds').innerHTML = W.map((w, i) => {
       const m = count(w.s, 'medals'), b = count(w.s, 'bones');
       const pct = Math.round((Math.min(m, w.med) / w.med * 0.7 + Math.min(b, 100) / 100 * 0.3) * 100);
       got += Math.min(m, w.med) * 4 + Math.min(b, 100) / 100 * 10; all += w.med * 4 + 10;
       const dots = Array.from({ length: w.med }, (_, k) => `<i class="${k < m ? 'on' : ''}"></i>`).join('');
-      return `<div class="album-world l${i + 1}${w.s && w.s.intro ? '' : ' new'}" style="--i:${i}">
-        <span class="pct">${pct}%</span><h4>${i + 1}. ${w.n}</h4>
+      return `<div class="album-world l${w.id || i + 1}${w.s && w.s.intro ? '' : ' new'}" style="--i:${i}">
+        <span class="pct">${pct}%</span><h4>${w.id || i + 1}. ${w.n}</h4>
         <div class="row">${w.medName} ${Math.min(m, w.med)}/${w.med}</div><div class="dots">${dots}</div>
         <div class="row">${w.col} ${b}/100 <span class="bar" style="--p:${b}%"><i></i></span></div>
         ${w.extra ? `<span class="tag">${w.extra}</span>` : (w.s && w.s.intro ? '' : '<span class="tag">Pas encore visité</span>')}
@@ -270,7 +276,7 @@
     const ranks = [[0, 'Chiot curieux'], [10, 'Petit explorateur'], [30, 'Renifleur de pistes'], [50, 'Toutou aventurier'], [75, 'Héros du parc'], [95, 'Toutous légendaires']];
     $('album-rank').textContent = ranks.filter(r => total >= r[0]).pop()[1];
     const medTotal = W.reduce((a, w) => a + Math.min(count(w.s, 'medals'), w.med), 0);
-    $('album-sum').textContent = `${medTotal}/28 récompenses · ${W.reduce((a, w) => a + count(w.s, 'bones'), 0)}/400 trésors`;
+    $('album-sum').textContent = `${medTotal}/${W.reduce((a, w) => a + w.med, 0)} récompenses · ${W.reduce((a, w) => a + count(w.s, 'bones'), 0)}/${W.length * 100} trésors`;
     const anyBones100 = W.some(w => count(w.s, 'bones') >= 100);
     const stars = S[3] ? (S[3].medals || []).filter(x => x !== 'm_goal').length : 0;
     const badges = [
@@ -287,6 +293,9 @@
       ['🏆', 'Trophée du Ciel', has(S[3], 'm_goal')],
       ['⭐', 'Toutes les étoiles', stars >= 5],
       ['⏱️', 'Plus rapide que le vent', !!(S[3] && S[3].sky && S[3].sky.best && S[3].sky.best < 300)],
+      ['🐚', 'Chercheurs de trésor', has(S6, 'm_chest')],
+      ['🦭', 'Amis des phoques', has(S6, 'm_seal')],
+      ['🏄', 'Rois de la glisse', has(S6, 'm_race')],
       ['🦴', 'Grand collectionneur', anyBones100],
       ['👑', 'Toutous légendaires', total >= 95],
     ];
@@ -830,7 +839,7 @@
     if (document.activeElement && document.activeElement.blur) document.activeElement.blur();
     app.mode = 'adventure';
     show('adventure');
-    const LV = { 1: ['Le Parc des Toutous', 'Niveau 1'], 2: ['La Forêt des Moustaches', 'Niveau 2'], 3: ['Port-Croquette', 'Niveau 3 · la grande ville'], 4: ['Les Îles du Ciel', 'Niveau 4 · parcours à plusieurs'] }[level || 1] || ['Aventure', ''];
+    const LV = { 1: ['Le Parc des Toutous', 'Niveau 1'], 2: ['La Forêt des Moustaches', 'Niveau 2'], 3: ['Port-Croquette', 'Niveau 3 · la grande ville'], 4: ['Les Îles du Ciel', 'Niveau 4 · parcours à plusieurs'], 6: ['La Plage aux Coquillages', 'Niveau 6 · creuser et surfer'] }[level || 1] || ['Aventure', ''];
     if (window.AppLoader) { window.AppLoader.show(LV[0], coop ? 'On rejoint le monde de ton ami…' : LV[1]); window.AppLoader.progress(0.12, 'Chargement de l\'aventure…'); }
     import('./adventure/game.js').then((mod) => {
       adventureLoading = false;
@@ -1006,6 +1015,7 @@
       case 'level-2': startAdventure(null, null, 2); break;
       case 'level-3': startAdventure(null, null, 3); break;
       case 'level-4': startAdventure(null, null, 4); break;
+      case 'level-6': startAdventure(null, null, 6); break;
       case 'mode-promenade': case 'mode-aventure': case 'mode-defi':
         try { localStorage.setItem('dogfight.mode', a.slice(5)); } catch (e) { /* ignore */ }
         renderModes();
