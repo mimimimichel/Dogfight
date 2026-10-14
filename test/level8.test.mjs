@@ -105,8 +105,9 @@ test('100 poissons dorés, aucun dans un obstacle, tous au-dessus du sol', () =>
   assert.strictEqual(new Set(L.bones.map(b => b.id)).size, 100);
   for (const b of L.bones) {
     for (const c of L.colliders) if (!c.off && !c.moving && c.kind !== 'tree' && L.inside(c, b.x, b.z, 0) && b.y > c.y0 && b.y < c.y1 - 0.2) assert.fail(`poisson ${b.id} dans un obstacle (${c.kind})`);
-    assert.ok(b.y > L.heightAt(b.x, b.z) + 0.5 && b.y < L.supportAt(b.x, b.z, 99, 0).y + 2.5, `poisson ${b.id} à portée`);
-    assert.ok(L.heightAt(b.x, b.z) > 1, `poisson ${b.id} pas dans l'eau`);
+    const g = L.supportAt(b.x, b.z, b.y, 0).y;
+    assert.ok(b.y > g + 0.5 && b.y < g + 2.5, `poisson ${b.id} à portée`);
+    assert.ok(L.supportAt(b.x, b.z, b.y, 0).y > 0, `poisson ${b.id} au-dessus d'un sol (ou d'un nénuphar)`);
   }
   // chaque partie du château en a
   const zones = [[L.COURT, 15], [L.HALL, 12], [L.GARDEN, 12], [L.THRONE, 6]];
@@ -128,6 +129,48 @@ test('les chats ne traversent pas les murs, et le jeu de chat reste dans la sall
   const Z = L.TAG_ZONE, T = L.THRONE;
   assert.ok(Z.x0 > T.x0 && Z.x1 < T.x1 && Z.z0 > T.z0 && Z.z1 < T.z1);
   for (let x = Z.x0; x <= Z.x1; x += 1) for (let z = Z.z0; z <= Z.z1; z += 1) assert.strictEqual(L.heightAt(x, z), L.TOP);
+});
+
+test('le Labyrinthe de Haies : un vrai labyrinthe, trop haut pour sauter, le Grelot tout au fond', () => {
+  const M = L.MAZE;
+  assert.strictEqual(L.mazeCells.length, M.cols * M.rows);
+  assert.ok(L.mazeCells.every(m => m.dist >= 0), 'toutes les cases sont reliées à l\'entrée');
+  assert.ok(L.mazeGoal.dist >= 15, `le Grelot est loin : ${L.mazeGoal.dist} cases`);
+  assert.ok(M.hedge - STEP > H2, 'les haies sont plus hautes qu\'un double saut');
+  for (const m of L.mazeCells) assert.ok(Math.abs(L.heightAt(m.x, m.z) - M.y) < 0.05, 'sol plat');
+  const g = L.SOUVENIRS.find(v => v.id === 'grelot');
+  assert.ok(Math.hypot(g.x - L.mazeGoal.x, g.z - L.mazeGoal.z) < 0.1);
+  // l'entrée est ouverte vers le château, au bord ouest
+  const e = L.mazeCells.find(m => m.c === L.MAZE_ENTRY.c && m.r === L.MAZE_ENTRY.r);
+  assert.ok(e.open.w && !L.hedges.some(h => L.inside(h, M.x0, e.z, 0.3)));
+  assert.ok(L.bones.filter(b => L._inRect(L.MAZE_RECT, b.x, b.z)).length >= 8, 'des poissons dans les recoins');
+});
+
+test('le Lac aux Nénuphars : de feuille en feuille jusqu\'à l\'île', () => {
+  const K = L.LAKE;
+  assert.ok(L.heightAt(K.x + K.rx * 0.6, K.z) < -1, 'de l\'eau profonde');
+  assert.ok(L.heightAt(K.x, K.z) > 1.5, 'l\'île hors de l\'eau');
+  const ls = L.lilies;
+  for (const l of ls) assert.ok(L.heightAt(l.x, l.z) < -1 && L.supportAt(l.x, l.z, l.top + 0.3, 0).y === l.top, 'nénuphar sur l\'eau');
+  for (let i = 0; i + 1 < ls.length; i++) { const g = Math.hypot(ls[i].x - ls[i + 1].x, ls[i].z - ls[i + 1].z) - ls[i].r - ls[i + 1].r; assert.ok(g > 0.3 && g < reach(0, false) * 0.4, `feuille ${i} → ${i + 1} : ${g.toFixed(1)} m`); }
+  const last = ls[ls.length - 1], gi = Math.hypot(last.x - K.x, last.z - K.z) - last.r - K.isle;
+  assert.ok(gi < reach(L.heightAt(K.x, K.z) - last.top, false) * 0.5, 'dernière feuille → île');
+  // depuis la berge, la première feuille est à un saut
+  const a = Math.atan2(ls[0].z - K.z, ls[0].x - K.x);
+  let f = 1; while (L.heightAt(K.x + Math.cos(a) * K.rx * f, K.z + Math.sin(a) * K.rz * f) < 1.5) f += 0.02;
+  const sx = K.x + Math.cos(a) * K.rx * f, sz = K.z + Math.sin(a) * K.rz * f;
+  assert.ok(Math.hypot(sx - ls[0].x, sz - ls[0].z) - ls[0].r < reach(ls[0].top - L.heightAt(sx, sz), false) * 0.5, 'berge → première feuille');
+  // sans les feuilles, l'île est trop loin d'un simple saut (en planant longtemps avec Ainu… pourquoi pas !)
+  assert.ok(Math.hypot(sx - K.x, sz - K.z) - K.isle > reach(0, false) * 1.2);
+});
+
+test('la cachette secrète : fermée par le mur fissuré, la Boîte à musique dedans', () => {
+  assert.ok(!L.CRACK.off && L.CRACK.solid && L.CRACK.y1 - L.FLOOR - STEP > H2);
+  const b = L.SOUVENIRS.find(v => v.id === 'boite'), H = L.HIDEOUT;
+  assert.ok(L._inRect(H, b.x, b.z));
+  for (const w of L.walls) if (w.look !== 'crack' && L._inRect({ x0: H.x0 - 0.5, x1: H.x1 + 0.5, z0: H.z0 - 0.5, z1: H.z1 + 0.5 }, w.c.x, w.c.z) && w.c.y1 > L.FLOOR + 1) assert.ok(w.c.y1 - L.FLOOR - STEP > H2, 'murs de la cachette trop hauts');
+  assert.strictEqual(L.SOUVENIRS.length, 3);
+  for (const v of L.SOUVENIRS) assert.ok(v.y - L.supportAt(v.x, v.z, v.y, 0).y < 1.8 && v.y > L.supportAt(v.x, v.z, v.y, 0).y + 0.5, v.id);
 });
 
 console.log(passed + ' tests réussis');

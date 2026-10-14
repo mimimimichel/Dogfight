@@ -196,6 +196,18 @@ function bannerTexture(bg) {
     x.fillStyle = '#5a3010'; x.beginPath(); x.arc(w / 2 + 20, 106, 3, 0, 7); x.fill();
   });
 }
+function hedgeTexture() {
+  return canvasTex(128, 128, (x, w, h) => {
+    const r = rng(61);
+    x.fillStyle = '#b8d8a0'; x.fillRect(0, 0, w, h);
+    for (let i = 0; i < 520; i++) {
+      const v = 0.75 + r() * 0.35;
+      x.fillStyle = `rgba(${Math.round(150 * v)},${Math.round(215 * v)},${Math.round(120 * v)},0.9)`;
+      x.beginPath(); x.ellipse(r() * w, r() * h, 4 + r() * 4, 2.5 + r() * 2, r() * 3, 0, 7); x.fill();
+    }
+    for (let i = 0; i < 160; i++) { x.fillStyle = 'rgba(30,70,20,0.35)'; x.fillRect(r() * w, r() * h, 3, 3); }
+  });
+}
 function carpetTexture() {
   return canvasTex(64, 128, (x, w, h) => {
     x.fillStyle = '#c83848'; x.fillRect(0, 0, w, h);
@@ -260,6 +272,7 @@ export function buildCastle(game) {
   const stone = [], roofs = [], paint = [], soft = [], wood = [], sisal = [], gold = [];
   const WALL_COL = { wall: 0xfbead2, inner: 0xf8e2d6, keep: 0xf0dcc2, parapet: 0xfbead2, throne: 0xfff0e2 };
   for (const { c, look } of S.walls) {
+    if (look === 'crack') continue;                      // (le mur fissuré est à part : il tombe)
     const h = c.y1 - c.y0, col = WALL_COL[look] || 0xfbead2;
     stone.push({ geo: boxGeo(c.w, h, c.d, 3), x: c.x, y: c.y0 + h / 2, z: c.z, color: col });
     // socle moussu au ras de l'eau (murs extérieurs)
@@ -284,12 +297,12 @@ export function buildCastle(game) {
   for (const z of [-14, -34]) stone.push({ geo: boxGeo(5, S.FLOOR + 5.5 - (FL + 4.6), 1.6, 3), x: 0, y: (FL + 4.6 + FL + 5.5) / 2, z, color: 0xf8e2d6 });
   // la salle du trône est ouverte sur la terrasse : une colonnade et sa grande poutre
   for (const x of S.THRONE_COLS) {
-    stone.push({ geo: cylGeo(0.55, 0.62, 4.9, 14, 2), x, y: TOPY + 1.95, z: -54.6, color: 0xfff0e2 });
+    stone.push({ geo: cylGeo(0.55, 0.62, 6.9, 14, 2), x, y: TOPY + 2.95, z: -54.6, color: 0xfff0e2 });
     stone.push({ geo: boxGeo(1.5, 0.4, 1.5, 2), x, y: TOPY - 0.3, z: -54.6, color: 0xf0dcc2 });
-    stone.push({ geo: boxGeo(1.4, 0.35, 1.4, 2), x, y: TOPY + 4.3, z: -54.6, color: 0xf0dcc2 });
+    stone.push({ geo: boxGeo(1.4, 0.35, 1.4, 2), x, y: TOPY + 6.3, z: -54.6, color: 0xf0dcc2 });
   }
-  stone.push({ geo: boxGeo(28.4, 0.7, 1.2, 3), x: 0, y: TOPY + 4.8, z: -54.6, color: 0xfbead2 });
-  for (let i = 0; i < 14; i++) stone.push({ geo: boxGeo(0.95, 0.8, 1.0, 3), x: -13.2 + i * (26.4 / 13), y: TOPY + 5.55, z: -54.6, color: 0xfbead2 });
+  stone.push({ geo: boxGeo(28.4, 0.7, 1.2, 3), x: 0, y: TOPY + 6.8, z: -54.6, color: 0xfbead2 });
+  for (let i = 0; i < 14; i++) stone.push({ geo: boxGeo(0.95, 0.8, 1.0, 3), x: -13.2 + i * (26.4 / 13), y: TOPY + 7.55, z: -54.6, color: 0xfbead2 });
   // tours : fût de pierre, couronne de créneaux, toit pointu ou oreilles de chat
   const ROOF_COLS = [0xf08ab0, 0xb090e0, 0xf09a78, 0x8ab0f0];
   S.TOWERS.forEach((T, i) => {
@@ -526,6 +539,94 @@ export function buildCastle(game) {
   bunting(-13.2, -56, 13.2, -69, TOPY + 4.3, 1.4, 22, partyDeco);
   bunting(13.2, -56, -13.2, -69, TOPY + 4.3, 1.4, 22, partyDeco);
 
+  // --- le Labyrinthe de Haies : haies taillées, boules de buis aux coins, arche fleurie à l'entrée -----
+  const hedgeParts = [];
+  {
+    const r = rng(5150);
+    for (const c of S.hedges) {
+      const h = c.y1 - c.y0;
+      hedgeParts.push({ geo: boxGeo(c.w + 0.1, h, c.d + 0.1, 1.6), x: c.x, y: c.y0 + h / 2, z: c.z, color: new THREE.Color(0x4c9a38).lerp(new THREE.Color(0x6ab848), r() * 0.6).getHex() });
+      // fleurs roses accrochées ici et là
+      if (r() < 0.45) hedgeParts.push({ geo: new THREE.IcosahedronGeometry(0.28, 0), x: c.x + (c.w > c.d ? (r() - 0.5) * c.w * 0.8 : (r() < 0.5 ? -1 : 1) * (c.w / 2 + 0.06)), y: c.y0 + 2 + r() * 2.5, z: c.z + (c.d > c.w ? (r() - 0.5) * c.d * 0.8 : (r() < 0.5 ? -1 : 1) * (c.d / 2 + 0.06)), color: [0xff8ab8, 0xffffff, 0xffd23a][Math.floor(r() * 3)] });
+    }
+    const Mz = S.MAZE;
+    for (let c = 0; c <= Mz.cols; c++) for (let rr = 0; rr <= Mz.rows; rr++) {
+      const x = Mz.x0 + c * Mz.cell, z = Mz.z0 + rr * Mz.cell;
+      if (!S.hedges.some(hd => S.inside(hd, x, z, 0.05))) continue;
+      hedgeParts.push({ geo: new THREE.IcosahedronGeometry(0.75, 1), x, y: Mz.y + Mz.hedge + 0.35, z, color: 0x5aa840 });
+    }
+    const hedgeMat = new THREE.MeshStandardMaterial({ map: hedgeTexture(), vertexColors: true, roughness: 0.95 });
+    addMesh(mergeUV(hedgeParts), hedgeMat);
+    // arche fleurie à l'entrée
+    const ez = Mz.z0 + (S.MAZE_ENTRY.r + 0.5) * Mz.cell, ex = Mz.x0;
+    const arch = new THREE.TorusGeometry(2.4, 0.35, 8, 20, Math.PI);
+    paint.push({ geo: arch, x: ex - 0.2, y: Mz.y + 3.3, z: ez, ry: Math.PI / 2, color: 0x4c9a38 });
+    for (let i = 0; i < 9; i++) { const a = i / 8 * Math.PI; soft.push({ geo: new THREE.SphereGeometry(0.22, 8, 6), x: ex - 0.2, y: Mz.y + 3.3 + Math.sin(a) * 2.4, z: ez + Math.cos(a) * 2.4, color: i % 2 ? 0xff8ab8 : 0xffffff }); }
+    // le petit kiosque du Grelot, au fond
+    const G = S.mazeGoal;
+    stone.push({ geo: cylGeo(1.3, 1.5, 0.5, 18, 2), x: G.x, y: Mz.y + 0.25, z: G.z, color: 0xf4e4cc });
+  }
+  // --- le Lac aux Nénuphars : feuilles, roseaux, l'île et son kiosque -------------------------------
+  const lilyMeshes = [];
+  {
+    const leafMat = M.mat(0x4caa48, { roughness: 0.6 });
+    S.lilies.forEach((l, i) => {
+      const g = new THREE.Group();
+      const leaf = new THREE.Mesh(new THREE.CylinderGeometry(l.r, l.r * 0.95, 0.14, 24, 1, false, 0.35, Math.PI * 2 - 0.35), leafMat);
+      leaf.position.y = -0.07; leaf.receiveShadow = true; g.add(leaf);
+      if (i % 2 === 0) { const fl = new THREE.Mesh(new THREE.ConeGeometry(0.22, 0.35, 6), M.mat(0xff9ac8, { roughness: 0.6 })); fl.position.set(l.r * 0.45, 0.15, l.r * 0.3); g.add(fl); }
+      g.position.set(l.x, l.top, l.z); g.rotation.y = i * 1.7;
+      sc.add(g); lilyMeshes.push({ g, l, ph: i * 1.3 });
+    });
+    const L0 = S.LAKE;
+    for (let i = 0; i < 26; i++) {
+      const a = i / 26 * Math.PI * 2 + Math.sin(i) * 0.1, f = 1.02 + (i % 3) * 0.03;
+      const x = L0.x + Math.cos(a) * L0.rx * f, z = L0.z + Math.sin(a) * L0.rz * f;
+      if (Math.hypot(x - S.lilies[0].x, z - S.lilies[0].z) < 4) continue;
+      for (let k = 0; k < 3; k++) paint.push({ geo: new THREE.CylinderGeometry(0.04, 0.06, 1.4 + k * 0.3, 4), x: x + k * 0.2, y: 0.5 + k * 0.15, z: z + (k - 1) * 0.18, rz: (k - 1) * 0.15, color: 0x6a8a3a });
+    }
+    // l'île : un petit kiosque à toit rose (la Plume y est posée)
+    for (let k = 0; k < 6; k++) { const a = k / 6 * Math.PI * 2; paint.push({ geo: new THREE.CylinderGeometry(0.1, 0.1, 2.6, 6), x: L0.x + Math.cos(a) * 2.2, y: 2.3 + 1.3, z: L0.z + Math.sin(a) * 2.2, color: 0xfff4e4 }); }
+    roofs.push({ geo: new THREE.ConeGeometry(2.9, 1.6, 6), x: L0.x, y: 2.3 + 3.4, z: L0.z, color: 0xf08ab0 });
+    stone.push({ geo: cylGeo(0.5, 0.6, 0.9, 12, 2), x: L0.x, y: 2.3 + 0.35, z: L0.z, color: 0xf4e4cc });
+  }
+  // --- le mur fissuré de la cachette (il tombe au grand « Ouaf ! ») ------------------------------------
+  let crackMesh = null;
+  {
+    const c = S.CRACK, h = c.y1 - c.y0;
+    const parts = [{ geo: boxGeo(c.w, h, c.d, 3), x: c.x, y: c.y0 + h / 2, z: c.z, color: 0xe8d0b4 }];
+    const r = rng(77);
+    for (const side of [-1, 1]) for (let k = 0; k < 7; k++) {
+      // fissures en zigzag, bien visibles des deux côtés
+      parts.push({ geo: new THREE.BoxGeometry(0.06, 0.9 + r() * 0.6, 0.12), x: c.x + side * (c.w / 2 + 0.02), y: FL + 0.8 + k * 0.62, z: c.z - 1 + Math.sin(k * 1.9) * 1.1, rx: (r() - 0.5) * 1.2, color: 0x5a4030 });
+    }
+    crackMesh = new THREE.Mesh(mergeUV(parts), stoneMat);
+    crackMesh.castShadow = true; crackMesh.receiveShadow = true;
+    sc.add(crackMesh);
+  }
+  // --- les trois souvenirs de la Capitaine -----------------------------------------------------------
+  const souvenirs = S.SOUVENIRS.map((v) => {
+    const g = new THREE.Group();
+    if (v.id === 'grelot') {
+      const bell = new THREE.Mesh(new THREE.SphereGeometry(0.42, 18, 14), goldMat); g.add(bell);
+      const slot = new THREE.Mesh(new THREE.BoxGeometry(0.5, 0.06, 0.12), M.mat(0x3a2a10)); slot.position.set(0, -0.12, 0.38); g.add(slot);
+      const ring = new THREE.Mesh(new THREE.TorusGeometry(0.14, 0.05, 6, 14), goldMat); ring.position.y = 0.48; g.add(ring);
+      const bow = new THREE.Mesh(new THREE.TorusGeometry(0.5, 0.07, 6, 20), M.mat(0xe83a5a)); bow.rotation.x = Math.PI / 2; bow.position.y = 0.15; g.add(bow);
+    } else if (v.id === 'plume') {
+      const f = new THREE.Mesh(new THREE.SphereGeometry(0.5, 14, 10), M.mat(0xe04a6a, { roughness: 0.7 })); f.scale.set(0.3, 1.15, 0.1); f.rotation.z = 0.4; g.add(f);
+      const q = new THREE.Mesh(new THREE.CylinderGeometry(0.025, 0.025, 1.2, 5), M.mat(0xfff4e4)); q.rotation.z = 0.4; g.add(q);
+    } else {
+      const b = new THREE.Mesh(new THREE.BoxGeometry(0.8, 0.5, 0.55), M.mat(0x7a4ad8, { roughness: 0.6 })); g.add(b);
+      const lid = new THREE.Mesh(new THREE.BoxGeometry(0.86, 0.12, 0.6), goldMat); lid.position.y = 0.3; g.add(lid);
+      const key = new THREE.Mesh(new THREE.TorusGeometry(0.12, 0.035, 6, 12), goldMat); key.position.set(0.48, 0, 0); key.rotation.y = Math.PI / 2; g.add(key);
+    }
+    const glowS = new THREE.Sprite(new THREE.SpriteMaterial({ map: M.glowTexture(), color: 0xff9ad8, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending }));
+    glowS.scale.set(2.6, 2.6, 1); g.add(glowS);
+    g.position.set(v.x, v.y, v.z);
+    sc.add(g); moving.push(g);
+    return { def: v, g };
+  });
+
   // tout le décor fixe, fusionné par matière
   addMesh(mergeUV(stone), stoneMat);
   addMesh(mergeUV(roofs), roofMat);
@@ -727,6 +828,7 @@ export function buildCastle(game) {
     S.bridgeCol.off = !k.bridge; S.gateCol.off = !!k.bridge;
     S.DOOR1.off = !!k.wall;
     S.CAT_PILE.off = !!k.laser || !st.pileOn;
+    S.CRACK.off = !!k.crack;
   }
   applyColliders();
 
@@ -833,6 +935,15 @@ export function buildCastle(game) {
   }
   // le « Ouaf ! » fait rouler les pelotes et sursauter les chats qui dorment
   function onBark(P) {
+    const k = cs();
+    // le mur fissuré de la cour : CRAC !
+    const CR = S.CRACK;
+    if (!k.crack && Math.abs(P.pos.x - CR.x) < 5 && Math.abs(P.pos.z - CR.z) < 5 && P.pos.y < FL + 2.5) {
+      k.crack = true; game.persist(); applyColliders();
+      for (let i = 0; i < 4; i++) game.burst(CR.x, FL + 1 + i * 1.3, CR.z + (i - 1.5) * 1.6, 18, i % 2 ? 0xe8d0b4 : 0xffffff, 5, 0.8);
+      game.sound('crate'); game.sound('reveal'); game.kick(0.4, 0.08);
+      game.banner('CRAC ! Le mur s\'écroule…', 'Une cachette secrète ! On y entend une petite musique…', 3000);
+    }
     for (const b of balls) {
       if (b.slot) continue;
       const dx = b.x - P.pos.x, dz = b.z - P.pos.z, d = Math.hypot(dx, dz);
@@ -854,17 +965,44 @@ export function buildCastle(game) {
     game.banner('On joue à chat !', `Touchez la Capitaine ${S.TAGS} fois !`, 2600);
     game.updateHud();
   }
+  // les trois souvenirs : il faut les rapporter avant qu'elle accepte de jouer
+  const souvCount = () => (cs().souv || []).length;
+  const missing = () => S.SOUVENIRS.filter(v => !(cs().souv || []).includes(v.id));
+  const WHERE = {
+    grelot: { who: 'Pompon', text: 'Psst… le Grelot d\'Or tinte tout au fond du Labyrinthe de Haies, à l\'est du château.' },
+    plume: { who: 'Pompon', text: 'Psst… la Plume s\'est envolée sur l\'île du Lac aux Nénuphars, à l\'ouest. Sautez de feuille en feuille !' },
+    boite: { who: 'Pompon', text: 'Psst… la Boîte à musique joue derrière le mur fissuré de la cour. Un grand « Ouaf ! » et il tombera !' },
+  };
+  const THANKS = [
+    { who: 'Capitaine Moustache', text: 'Mon Grelot… ma Plume… ma Boîte à musique ! Vous les avez tous retrouvés !' },
+    { who: 'Capitaine Moustache', text: 'Personne n\'avait jamais fait ça pour moi…' },
+    { who: 'Matcha', text: 'Alors maintenant, on joue ! On joue à chat : c\'est toi le chat… si on t\'attrape trois fois, tu as perdu !' },
+    { who: 'Capitaine Moustache', text: 'Miaou-ha-ha ! Personne n\'attrape la Capitaine Moustache ! Essayez donc !' },
+  ];
+  function giveBack() {
+    C.ph = 'talk';
+    game.say(THANKS, () => { cs().given = true; game.persist(); startTag(); });
+  }
   function meetCaptain() {
     C.ph = 'talk';
     const k = cs();
     const lines = [
       { who: 'Capitaine Moustache', text: 'Qui ose entrer dans MA salle du trône ? Ah… c\'est vous, les cabots.' },
       { who: 'Pompon', text: 'C\'est moi qui les ai invités, Tata ! Ils sont venus pour jouer avec toi !' },
-      { who: 'Capitaine Moustache', text: 'Jouer ? Moi ? Je suis une capitaine, pas un chaton !' },
-      { who: 'Matcha', text: 'Alors on fait un jeu de capitaine : on joue à chat ! C\'est toi le chat… si on t\'attrape trois fois, tu as perdu !' },
-      { who: 'Capitaine Moustache', text: 'Miaou-ha-ha ! Personne n\'attrape la Capitaine Moustache ! Essayez donc !' },
     ];
-    game.say(lines, () => { k.met = true; game.persist(); startTag(); });
+    if (souvCount() >= S.SOUVENIRS.length) { game.say(lines.concat(THANKS), () => { k.met = true; k.given = true; game.persist(); startTag(); }); return; }
+    lines.push(
+      { who: 'Capitaine Moustache', text: 'Jouer ? Je n\'ai pas le cœur à jouer. Mes trois souvenirs ont disparu…' },
+      { who: 'Capitaine Moustache', text: 'Mon Grelot d\'Or, la Plume de mon chapeau et ma Boîte à musique. Les chatons farceurs les ont cachés, dehors et dans le château !' },
+      { who: 'Pompon', text: 'Le Grelot tinte au milieu du labyrinthe, à l\'est… et la Plume s\'est envolée sur l\'île du lac, à l\'ouest !' },
+      { who: 'Pompon', text: 'Et la Boîte à musique ? On l\'entend jouer derrière un mur fissuré, dans la cour…' },
+      { who: 'Matcha', text: 'On va tout retrouver, Capitaine ! Promis !' },
+    );
+    game.say(lines, () => {
+      k.met = true; game.persist(); C.ph = 'throne';
+      game.banner('Trois souvenirs à retrouver !', `Il en manque ${missing().length} : demandez à Pompon où chercher`, 3200);
+      game.updateHud();
+    });
   }
   function tagged(P) {
     const k = cs();
@@ -910,10 +1048,14 @@ export function buildCastle(game) {
     const k = cs(), players = game.players;
     const inside = players.filter(inThrone);
     C.inv = Math.max(0, C.inv - dt); C.boost = Math.max(0, C.boost - dt); C.hop = Math.max(0, C.hop - dt);
+    const entered = inside.length > 0 && !st.wasInside;
+    st.wasInside = inside.length > 0;
     if (C.ph === 'throne') {
-      if (inside.length && !game.dialog && !game.cine) {
+      if (entered && !game.dialog && !game.cine) {
         if (!k.met) meetCaptain();
-        else startTag();
+        else if (k.given) startTag();
+        else if (souvCount() >= S.SOUVENIRS.length) giveBack();
+        else game.banner('La Capitaine attend ses souvenirs', `Encore ${missing().length} à retrouver (${souvCount()}/${S.SOUVENIRS.length})`, 2600);
       }
       return;
     }
@@ -990,13 +1132,25 @@ export function buildCastle(game) {
       const t = game.t, players = game.players, k = cs();
       for (const P of players) {
         // drapeaux
-        for (const c of S.CHECKPOINTS) if (c.id > st.cp && Math.hypot(P.pos.x - c.x, P.pos.z - c.z) < 4.5 && Math.abs(P.pos.y - c.y) < 3) reachCheckpoint(c.id);
+        for (const c of S.CHECKPOINTS) if (c.id > st.cp && Math.hypot(P.pos.x - c.x, P.pos.z - c.z) < 6 && Math.abs(P.pos.y - c.y) < 3) reachCheckpoint(c.id);
         // aboiement
         const prev = st.barkT.get(P) || 0, now = P.barkT || 0;
         if (now > prev + 0.3) onBark(P);
         st.barkT.set(P, now);
       }
       stepBalls(dt);
+      // les souvenirs de la Capitaine
+      for (const v of S.SOUVENIRS) {
+        if ((k.souv || []).includes(v.id)) continue;
+        if (players.some(q => !q.ko && Math.hypot(q.pos.x - v.x, q.pos.y + 0.8 - v.y, q.pos.z - v.z) < 1.9)) {
+          (k.souv = k.souv || []).push(v.id); game.persist();
+          game.sound('win'); game.burst(v.x, v.y, v.z, 30, 0xff9ad8, 5, 0.9); game.burst(v.x, v.y, v.z, 14, 0xffffff, 4, 0.7);
+          for (const q of players) q.cheerT = 1.2;
+          const n = k.souv.length, all = n >= S.SOUVENIRS.length;
+          game.banner(`Un souvenir de la Capitaine ! ${n}/${S.SOUVENIRS.length}`, all ? 'Les trois ! Vite, rapportez-les à la salle du trône !' : `Vous avez trouvé ${v.name}.`, 3000);
+          game.updateHud();
+        }
+      }
       // 1. les pattes dorées du pont-levis
       const pressed = S.PLATES.map(p => players.some(q => onPad(q, p.x, p.z, p.y)) || balls.some(b => b.slot === p.id));
       pressed.forEach((on, i) => { if (on && !st.plates[i]) game.sound('switch'); });
@@ -1055,6 +1209,12 @@ export function buildCastle(game) {
         if (me.pos.y < FL + 1) return { x: S.catTree[0].x, y: S.catTree[0].top, z: S.catTree[0].z };
         return { x: 0, y: TOPY, z: -53.4 };
       }
+      if (!k.party && k.met && !k.given && souvCount() < S.SOUVENIRS.length) {
+        // le souvenir manquant le plus proche (pour la Boîte, d'abord le mur fissuré)
+        let best = null, bd = 1e9;
+        for (const v of missing()) { const T = v.id === 'boite' && !k.crack ? { x: S.CRACK.x + 1.5, y: FL, z: S.CRACK.z } : v; const d = Math.hypot(T.x - me.pos.x, T.z - me.pos.z); if (d < bd) { bd = d; best = T; } }
+        return best;
+      }
       if (!k.party) return C.ph === 'tag' ? { x: C.x, y: C.y, z: C.z } : { x: 0, y: TOPY, z: -60 };
       const g = S.medals.find(m => m.id === S.FINAL_MEDAL);
       return save().medals.includes(g.id) ? null : g;
@@ -1083,6 +1243,7 @@ export function buildCastle(game) {
       if (!k.laser) return 'Réveille les chats avec le point rouge';
       if (st.cp < 4) return 'Grimpe en haut de l\'Arbre à Chats';
       if (C.ph === 'tag') return `On joue à chat ! Touche la Capitaine (${k.tags || 0}/${S.TAGS})`;
+      if (!k.party && k.met && !k.given) return souvCount() >= S.SOUVENIRS.length ? 'Rapporte les trois souvenirs à la Capitaine !' : `Retrouve les souvenirs de la Capitaine (${souvCount()}/${S.SOUVENIRS.length})`;
       if (!k.party) return 'Va voir la Capitaine dans la salle du trône';
       if (!s.medals.includes(S.FINAL_MEDAL)) return 'Prends la Couronne de l\'Amitié sur le trône !';
       return `Le château est en fête ! Trésors ${n}/${S.medals.length}`;
@@ -1094,6 +1255,7 @@ export function buildCastle(game) {
       else if (!k.wall) out.push([S.WALL_SWITCH.x, S.WALL_SWITCH.z, '#ffb020', 2.4, true]);
       else if (!k.laser) out.push([S.LASER_BUTTON.x, S.LASER_BUTTON.z, '#ff3a4a', 2.4, true]);
       if (C.ph === 'tag') out.push([C.x, C.z, '#ff5a8a', 2.8, true]);
+      if (k.met && !k.given) for (const v of missing()) out.push([v.id === 'boite' && !k.crack ? S.CRACK.x : v.x, v.id === 'boite' && !k.crack ? S.CRACK.z : v.z, '#ff9ad8', 2.6, true]);
       return out;
     },
     extraCandidates() {
@@ -1104,7 +1266,12 @@ export function buildCastle(game) {
     interact(n) {
       const k = cs();
       if (n.act === 'cap') {
-        if (C.ph === 'throne') { startTag(); return; }
+        if (C.ph === 'throne') {
+          if (k.given) { startTag(); return; }
+          if (souvCount() >= S.SOUVENIRS.length) { giveBack(); return; }
+          game.say([{ who: 'Capitaine Moustache', text: 'Mes souvenirs… Il m\'en manque encore. Pompon sait peut-être où chercher.' }]);
+          return;
+        }
         game.say([{ who: 'Capitaine Moustache', text: 'Merci d\'être venus, les toutous. Revenez jouer à chat quand vous voulez !' }]);
         return;
       }
@@ -1128,6 +1295,12 @@ export function buildCastle(game) {
         4: 'Tata est dans la salle du trône. Elle a l\'air fâchée… mais je crois qu\'elle a surtout envie de jouer.',
         5: 'Merci, les toutous ! C\'est la plus belle fête du monde !',
       };
+      if (k.met && !k.given && !k.party) {
+        const miss = missing();
+        if (!miss.length) { game.say([{ who: 'Pompon', text: 'Tu as les trois souvenirs ! Vite, à la salle du trône : Tata va être si contente !' }]); return; }
+        game.say(miss.map(v => WHERE[v.id]));
+        return;
+      }
       game.say([{ who: 'Pompon', text: hints[sg] }]);
     },
     snapshot() {
@@ -1139,6 +1312,7 @@ export function buildCastle(game) {
         c: hallCats.map(c => [r(c.x), r(c.z), r(c.yaw), c.hop > 0 ? 1 : 0]),
         cap: [['throne', 'talk', 'tag', 'party'].indexOf(C.ph), r(C.x), r(C.z), r(C.y), r(C.yaw), C.hop > 0 ? 1 : 0],
         p: st.plates.map(Number), w: st.wallOn ? 1 : 0, bt: st.btn ? 1 : 0, pile: st.pileOn ? 1 : 0,
+        sv: (k.souv || []).slice(), cr: k.crack ? 1 : 0, gv: k.given ? 1 : 0,
       };
     },
     apply(x) {
@@ -1156,6 +1330,7 @@ export function buildCastle(game) {
       const ph = ['throne', 'talk', 'tag', 'party'][x.cap[0]] || 'throne';
       if (ph === 'tag' && C.ph !== 'tag' && game.sfx) game.sfx.music('adv3');
       C.ph = ph; [, C.x, C.z, C.y, C.yaw] = x.cap; if (x.cap[5]) C.hop = Math.max(C.hop, 0.2);
+      k.souv = (x.sv || []).slice(); k.crack = !!x.cr; k.given = !!x.gv;
       st.plates = x.p.map(Boolean); st.wallOn = !!x.w; st.btn = !!x.bt; st.pileOn = !!x.pile;
       applyColliders();
       stepPompon();
@@ -1181,6 +1356,7 @@ export function buildCastle(game) {
       game.say([
         { who: 'Mamie Labrador', text: `Vous avez ${n} trésor${n > 1 ? 's' : ''} sur 5. La Capitaine vous attend tout en haut du donjon.` },
         { who: 'Mamie Labrador', text: 'Astuce : quand on est coincé, Pompon a toujours une idée. Allez lui parler !' },
+        { who: 'Mamie Labrador', text: 'Et promenez-vous autour du château : il y a un labyrinthe à l\'est, un lac à l\'ouest… et plein de poissons dorés cachés !' },
       ]);
     },
     endLines() {
@@ -1200,6 +1376,12 @@ export function buildCastle(game) {
     },
     render(dt, t) {
       const k = cs();
+      crackMesh.visible = !k.crack;
+      for (const v of souvenirs) {
+        v.g.visible = !(k.souv || []).includes(v.def.id);
+        if (v.g.visible) { v.g.rotation.y = t * 1.6; v.g.position.y = v.def.y + Math.sin(t * 2.2) * 0.15; }
+      }
+      for (const lm of lilyMeshes) lm.g.position.y = lm.l.top + Math.sin(t * 1.3 + lm.ph) * 0.03;
       // pont-levis
       st.bridgeK += ((k.bridge ? 1 : 0) - st.bridgeK) * Math.min(1, dt * 1.6);
       bridgePivot.rotation.x = -Math.PI / 2 * (1 - st.bridgeK);
