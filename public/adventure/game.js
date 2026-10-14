@@ -3996,11 +3996,13 @@ class Adventure {
     } else if (kind === 'credits') {
       html = `<h2>Crédits</h2>
         <div class="adv-stats adv-credits">Modèles 3D gratuits (licence CC BY 4.0, Sketchfab) :<br>
-        Mamie Labrador : « Ella of Golden House » par 3dfascination<br>
+        Mamie Labrador : modèle offert par la famille (ancienne version : « Ella of Golden House » par 3dfascination)<br>
         Biscotte : « Retriever » par doinspire<br>
         Habitants : « Doge » par kitsuneko_3d, « Riley » par lopuh22721, « Bulldog Puppy » par doinspire<br>
         Matières, ciel, arbres et fougères scannés : Poly Haven (CC0)<br>
-        Voix : synthèse vocale Chatterbox (Resemble AI, MIT), d'après des lecteurs du corpus Multilingual LibriSpeech (CC BY 4.0)</div>
+        Voix : synthèse vocale Chatterbox (Resemble AI, MIT), d'après des lecteurs du corpus Multilingual LibriSpeech (CC BY 4.0)<br>
+        Aboiements : Amada44, Wikimedia Commons (CC BY-SA 3.0)<br>
+        Instruments de la musique : banque FluidR3_GM de Frank Wen (CC BY 3.0)</div>
         <button class="btn primary" data-a="settings">Retour</button>`;
     } else if (kind === 'continue') {
       html = `<h2>${L.NAME}</h2>

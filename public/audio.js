@@ -471,6 +471,7 @@
       if (theme === 'adventure' && this.theme && /^adv\d/.test(this.theme)) return;   // l'ambiance du niveau est déjà là
       this.wantTheme = theme;
       if (!this.ctx) return; // démarrera au premier contact (unlock)
+      this.loadInst();
       if (this.theme === theme) return;
       this.theme = theme;
       this.intensity = null; this.composer = null;
@@ -519,8 +520,43 @@
       this.musicTimer = setInterval(tick, 200);
     }
 
-    /** Une note d'instrument (1 à 2 oscillateurs). inst : 'piano', 'mallet', 'flute', 'bass', 'pad', 'pluck', 'bell'. */
+    /**
+     * Vrais instruments enregistrés (banque FluidR3_GM, CC BY 3.0, voir CREDITS.md) :
+     * un fichier par instrument, une note toutes les 3 demi-tons, 2 s chacune.
+     * Chargés en douceur au lancement de la musique ; en attendant, on joue les sons de synthèse.
+     */
+    loadInst() {
+      if (this.instBufs || !this.ctx) return;
+      this.instBufs = {};
+      for (const k of Object.keys(INST_SPRITES)) {
+        fetch(new URL('adventure/assets/sfx/inst/' + k + '.mp3', document.baseURI)).then(r => r.arrayBuffer())
+          .then(b => new Promise((res, rej) => this.ctx.decodeAudioData(b, res, rej))).then((buf) => { this.instBufs[k] = buf; }).catch(() => {});
+      }
+    }
+    instSample(out, inst, midi, t, dur, vol, rev) {
+      const sp = INST_SPRITES[inst], buf = this.instBufs && this.instBufs[inst];
+      if (!sp || !buf) return false;
+      const c = this.ctx;
+      const i = Math.max(0, Math.min(sp.n - 1, Math.round((midi - sp.lo) / 3)));
+      const src = c.createBufferSource(), g = c.createGain();
+      src.buffer = buf; src.playbackRate.value = Math.pow(2, (midi - (sp.lo + i * 3)) / 12);
+      g.connect(out.dry);
+      if (rev) { const r = c.createGain(); r.gain.value = rev; g.connect(r); r.connect(out.wet); }
+      src.connect(g);
+      const peak = vol * sp.k, held = sp.held ? Math.min(dur, 1.7) : Math.min(1.8, Math.max(dur, 0.25));
+      const end = t + held + sp.rel;
+      g.gain.setValueAtTime(0.0001, t);
+      g.gain.exponentialRampToValueAtTime(peak, t + sp.a);
+      g.gain.setValueAtTime(peak, t + held);
+      g.gain.exponentialRampToValueAtTime(0.0001, end);
+      src.start(t, i * 2.0, Math.min(1.98, (end - t) * src.playbackRate.value + 0.02));
+      src.onended = () => { try { g.disconnect(); } catch (e) { /* ignore */ } };
+      return true;
+    }
+
+    /** Une note d'instrument (échantillon enregistré, ou 1 à 2 oscillateurs). inst : 'piano', 'mallet', 'flute', 'bass', 'pad', 'pluck', 'bell'. */
     inst(out, inst, midi, t, dur, vol, rev) {
+      if (this.instSample(out, inst, midi, t, dur, vol, rev)) return;
       const c = this.ctx, f = 440 * Math.pow(2, (midi - 69) / 12);
       const g = c.createGain();
       g.connect(out.dry);
@@ -557,7 +593,7 @@
         osc('triangle', f, 1);
         env(0.01, vol, 0.45, 0.45, 0.12);
       } else if (inst === 'pluck') {  // guitare / pizzicato
-        osc('triangle', f, 1); osc('square', f, 0.12);
+        osc('triangle', f, 1); osc('sine', f * 2, 0.15);
         env(0.004, vol, 0.3, 0.08, 0.15);
       } else {                        // 'pad' : nappe chaude
         osc('triangle', f, 1); osc('sine', f * 1.003, 0.7);
@@ -593,6 +629,15 @@
   // ---------------------------------------------------------------------------
   // Le compositeur
   // ---------------------------------------------------------------------------
+  // instruments enregistrés : première note (midi), nombre de notes, gain, attaque, relâche, tenu (flûte, basse)
+  const INST_SPRITES = {
+    piano: { lo: 36, n: 21, k: 1.8, a: 0.004, rel: 0.35 },
+    mallet: { lo: 48, n: 17, k: 1.6, a: 0.003, rel: 0.2 },
+    bell: { lo: 60, n: 14, k: 1.5, a: 0.003, rel: 0.4 },
+    flute: { lo: 57, n: 14, k: 4.5, a: 0.05, rel: 0.25, held: true },
+    bass: { lo: 28, n: 13, k: 1.6, a: 0.01, rel: 0.15, held: true },
+    pluck: { lo: 40, n: 15, k: 1.8, a: 0.003, rel: 0.2 },
+  };
   const SCALES = { major: [0, 2, 4, 5, 7, 9, 11], dorian: [0, 2, 3, 5, 7, 9, 10], minor: [0, 2, 3, 5, 7, 8, 10], lydian: [0, 2, 4, 6, 7, 9, 11] };
 
   /**
