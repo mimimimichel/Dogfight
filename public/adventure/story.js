@@ -113,6 +113,8 @@ export function storyShots(game, L) {
       cap: 'Miaou-ha-ha ! En ville, personne ne rattrape mon bolide !', duo: ['Ainu', 'Ouaf ! Des karts… et même des avions ?!'] },
     4: { title: 'Les Îles du Ciel', fly: 'Pour leur échapper une dernière fois, la Capitaine s\'est envolée en montgolfière vers les Îles du Ciel.',
       cap: 'Bonne chance pour me suivre là-haut, les cabots !', duo: ['Matcha', 'Accroche-toi, Ainu : on va sauter de nuage en nuage !'] },
+    8: { title: 'Le Château des Chats', fly: 'Une lettre est arrivée au Parc, signée d\'une toute petite patte : « Venez vite au Château des Chats ! » C\'est Pompon, le neveu de la Capitaine Moustache.',
+      cap: 'Un château plein de jeux… et personne pour jouer avec moi. Hmpf ! Je n\'ai besoin de personne !', duo: ['Matcha', 'Un château avec des oreilles de chat ? Allons voir, Ainu !'] },
   };
   const ch = chapters[L.ID];
   if (!ch) return null;

@@ -156,6 +156,15 @@
     }
   }
 
+  /**
+   * LEVEL-CHAIN: le Château des Chats (niveau 8) s'ouvre quand le niveau d'avant est fini.
+   * Dans cette branche, c'est le niveau 4 (Trophée du Ciel) ; une fois les niveaux 5 à 7 ajoutés,
+   * mettre ici le niveau 7 (la Ferme de Papi Berger) et sa médaille finale.
+   */
+  function level8Open() {
+    const prev = levelSave(4), own = levelSave(8);
+    return !!(prev && prev.medals && prev.medals.includes('m_goal')) || !!(own && own.intro);
+  }
   /** Progression sauvegardée d'un niveau de l'aventure (ou null). */
   function levelSave(n) {
     try { return JSON.parse(localStorage.getItem('dogfight.aventure.niveau' + n + (n === 3 ? 'b' : '')) || 'null'); } catch (e) { return null; }
@@ -180,6 +189,11 @@
     });
     const best = s4 && s4.sky && s4.sky.best;
     $('lv4-prog').textContent = started(s4) ? `Étoiles ${(s4.medals || []).filter(m => m !== 'm_goal').length}/5${best ? ` · record ${Math.floor(best / 60)}:${String(best % 60).padStart(2, '0')}` : ''}` : 'Nouveau !';
+    // Niveau 8 : le Château des Chats (ouvert une fois le niveau d'avant fini)
+    const s8 = levelSave(8), open8 = level8Open();
+    $('lv8-prog').textContent = !open8 ? '🔒 Finis d\'abord les Îles du Ciel' : started(s8) ? `Trésors ${medals(s8)}/5 · Poissons ${(s8.bones || []).length}/100` : 'Nouveau !';
+    $('lv8-bar').style.setProperty('--p', (s8 ? Math.round((Math.min(medals(s8), 5) / 5 * 0.7 + Math.min((s8.bones || []).length, 100) / 100 * 0.3) * 100) : 0) + '%');
+    const c8 = document.querySelector('.level-card.l8'); if (c8) c8.classList.toggle('locked', !open8);
   }
   // ---------------------------------------------------------------------------
   // « Qui joue ? » : un joueur = sa propre progression (profiles.js)
@@ -241,7 +255,7 @@
 
   /** « Mon aventure » : progression des quatre mondes, rang et badges. */
   function renderAlbum() {
-    const S = [1, 2, 3, 4].map(levelSave);
+    const S = [1, 2, 3, 4].map(levelSave), S8 = levelSave(8);
     const has = (s, id) => !!(s && s.medals && s.medals.includes(id));
     const count = (s, k) => (s && s[k] ? s[k].length : 0);
     const W = [
@@ -250,6 +264,7 @@
       { n: 'Port-Croquette', med: 12, medName: 'Trophées', col: 'Pièces', s: S[2], extra: has(S[2], 'm_boss') ? 'Ville sauvée !' : '' },
       { n: 'Les Îles du Ciel', med: 6, medName: 'Étoiles + Trophée', col: 'Pièces', s: S[3],
         extra: S[3] && S[3].sky && S[3].sky.best ? `Record ${Math.floor(S[3].sky.best / 60)}:${String(Math.round(S[3].sky.best) % 60).padStart(2, '0')}` : '' },
+      { id: 8, n: 'Le Château des Chats', med: 5, medName: 'Trésors', col: 'Poissons', s: S8, extra: S8 && S8.castle && S8.castle.party ? 'Fête au château !' : '' },
     ];
     let got = 0, all = 0;
     $('album-worlds').innerHTML = W.map((w, i) => {
@@ -257,8 +272,8 @@
       const pct = Math.round((Math.min(m, w.med) / w.med * 0.7 + Math.min(b, 100) / 100 * 0.3) * 100);
       got += Math.min(m, w.med) * 4 + Math.min(b, 100) / 100 * 10; all += w.med * 4 + 10;
       const dots = Array.from({ length: w.med }, (_, k) => `<i class="${k < m ? 'on' : ''}"></i>`).join('');
-      return `<div class="album-world l${i + 1}${w.s && w.s.intro ? '' : ' new'}" style="--i:${i}">
-        <span class="pct">${pct}%</span><h4>${i + 1}. ${w.n}</h4>
+      return `<div class="album-world l${w.id || i + 1}${w.s && w.s.intro ? '' : ' new'}" style="--i:${i}">
+        <span class="pct">${pct}%</span><h4>${w.id || i + 1}. ${w.n}</h4>
         <div class="row">${w.medName} ${Math.min(m, w.med)}/${w.med}</div><div class="dots">${dots}</div>
         <div class="row">${w.col} ${b}/100 <span class="bar" style="--p:${b}%"><i></i></span></div>
         ${w.extra ? `<span class="tag">${w.extra}</span>` : (w.s && w.s.intro ? '' : '<span class="tag">Pas encore visité</span>')}
@@ -270,7 +285,7 @@
     const ranks = [[0, 'Chiot curieux'], [10, 'Petit explorateur'], [30, 'Renifleur de pistes'], [50, 'Toutou aventurier'], [75, 'Héros du parc'], [95, 'Toutous légendaires']];
     $('album-rank').textContent = ranks.filter(r => total >= r[0]).pop()[1];
     const medTotal = W.reduce((a, w) => a + Math.min(count(w.s, 'medals'), w.med), 0);
-    $('album-sum').textContent = `${medTotal}/28 récompenses · ${W.reduce((a, w) => a + count(w.s, 'bones'), 0)}/400 trésors`;
+    $('album-sum').textContent = `${medTotal}/${W.reduce((a, w) => a + w.med, 0)} récompenses · ${W.reduce((a, w) => a + count(w.s, 'bones'), 0)}/${W.length * 100} trésors`;
     const anyBones100 = W.some(w => count(w.s, 'bones') >= 100);
     const stars = S[3] ? (S[3].medals || []).filter(x => x !== 'm_goal').length : 0;
     const badges = [
@@ -287,6 +302,8 @@
       ['🏆', 'Trophée du Ciel', has(S[3], 'm_goal')],
       ['⭐', 'Toutes les étoiles', stars >= 5],
       ['⏱️', 'Plus rapide que le vent', !!(S[3] && S[3].sky && S[3].sky.best && S[3].sky.best < 300)],
+      ['🧶', 'Pousseurs de pelotes', has(S8, 'm_wall')],
+      ['🏰', 'Amis de la Capitaine', has(S8, 'm_goal')],
       ['🦴', 'Grand collectionneur', anyBones100],
       ['👑', 'Toutous légendaires', total >= 95],
     ];
@@ -830,7 +847,7 @@
     if (document.activeElement && document.activeElement.blur) document.activeElement.blur();
     app.mode = 'adventure';
     show('adventure');
-    const LV = { 1: ['Le Parc des Toutous', 'Niveau 1'], 2: ['La Forêt des Moustaches', 'Niveau 2'], 3: ['Port-Croquette', 'Niveau 3 · la grande ville'], 4: ['Les Îles du Ciel', 'Niveau 4 · parcours à plusieurs'] }[level || 1] || ['Aventure', ''];
+    const LV = { 1: ['Le Parc des Toutous', 'Niveau 1'], 2: ['La Forêt des Moustaches', 'Niveau 2'], 3: ['Port-Croquette', 'Niveau 3 · la grande ville'], 4: ['Les Îles du Ciel', 'Niveau 4 · parcours à plusieurs'], 8: ['Le Château des Chats', 'Niveau 8 · le grand final'] }[level || 1] || ['Aventure', ''];
     if (window.AppLoader) { window.AppLoader.show(LV[0], coop ? 'On rejoint le monde de ton ami…' : LV[1]); window.AppLoader.progress(0.12, 'Chargement de l\'aventure…'); }
     import('./adventure/game.js').then((mod) => {
       adventureLoading = false;
@@ -1006,11 +1023,12 @@
       case 'level-2': startAdventure(null, null, 2); break;
       case 'level-3': startAdventure(null, null, 3); break;
       case 'level-4': startAdventure(null, null, 4); break;
+      case 'level-8': if (level8Open()) startAdventure(null, null, 8); else toast('🔒 Le Château des Chats s\'ouvre quand les Îles du Ciel sont finies !', 2800); break;
       case 'mode-promenade': case 'mode-aventure': case 'mode-defi':
         try { localStorage.setItem('dogfight.mode', a.slice(5)); } catch (e) { /* ignore */ }
         renderModes();
         break;
-      case 'coop-lv-1': case 'coop-lv-2': case 'coop-lv-3': case 'coop-lv-4': {
+      case 'coop-lv-1': case 'coop-lv-2': case 'coop-lv-3': case 'coop-lv-4': case 'coop-lv-8': {
         coopLevel = +a.slice(-1);
         for (const b of document.querySelectorAll('.lvpick')) b.classList.toggle('active', b.dataset.action === a);
         if (coopSession) coopSession.level = coopLevel;

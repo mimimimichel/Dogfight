@@ -23,6 +23,7 @@ function markVisited(id) {
 import * as F from './forest.js';
 import * as C from './city.js';
 import * as SK from './sky.js';
+import * as CA from './castle.js';
 import { voiceFor } from './voice.js';
 import * as M from './models.js';
 import * as W from './world.js';
@@ -135,9 +136,11 @@ window.kidName = kidName;
 // Mamie (modèle scanné) : redressement du buste (radians) et taille
 const MAMIE_UPRIGHT = { x: -0.34, z: 0.13, neck: 0.14, head: 0.16 };
 const MAMIE_SCALE = 1.25;
-const medalWord = () => (L.ID === 3 ? 'Trophées' : L.ID === 4 ? 'Étoiles' : 'Médailles');
-const collectWord = (long) => ({ 2: 'Croquettes', 3: long ? 'Pièces d\'or' : 'Pièces', 4: 'Pièces du ciel' })[L.ID] || (long ? 'Os dorés' : 'Os');
+const medalWord = () => (L.ID === 3 ? 'Trophées' : L.ID === 4 ? 'Étoiles' : L.ID === 8 ? 'Trésors' : 'Médailles');
+const collectWord = (long) => ({ 2: 'Croquettes', 3: long ? 'Pièces d\'or' : 'Pièces', 4: 'Pièces du ciel', 8: 'Poissons d\'or' })[L.ID] || (long ? 'Os dorés' : 'Os');
 const NEXT_LEVEL = { 1: 'Niveau 2 : la Forêt des Moustaches', 2: 'Niveau 3 : Port-Croquette', 3: 'Niveau 4 : les Îles du Ciel' };
+// LEVEL-CHAIN: le Château des Chats (8) vient après la Ferme de Papi Berger (7) ; bouton « suivant » de 7 vers 8 (switchLevel(L.ID + 1))
+NEXT_LEVEL[7] = 'Niveau 8 : le Château des Chats';
 
 const isChild = (o, root) => { for (let p = o.parent; p; p = p.parent) if (p === root) return true; return false; };
 const clamp = (v, a, b) => (v < a ? a : v > b ? b : v);
@@ -157,6 +160,7 @@ const ICONS = {
   heartEmpty: svg('<path d="M32 56 9 33a13 13 0 0 1 23-17 13 13 0 0 1 23 17z" fill="rgba(0,0,0,.28)" stroke="rgba(255,255,255,.75)" stroke-width="3" stroke-linejoin="round"/>'),
   coin: svg('<circle cx="32" cy="32" r="23" fill="#9a6a00"/><circle cx="32" cy="32" r="19" fill="url(#g)"/><circle cx="32" cy="32" r="13" fill="none" stroke="#c88a08" stroke-width="3"/><path d="M32 22v20M27 26h8a3 3 0 0 1 0 6h-6a3 3 0 0 0 0 6h8" fill="none" stroke="#a06a00" stroke-width="3" stroke-linecap="round"/><ellipse cx="24" cy="21" rx="5" ry="3" fill="#fff" opacity=".55"/>'),
   kibble: svg('<g fill="#8a5200"><circle cx="32" cy="32" r="22"/></g><circle cx="32" cy="32" r="18" fill="url(#g)"/><g fill="#c07a08"><circle cx="25" cy="27" r="3"/><circle cx="38" cy="25" r="2.6"/><circle cx="36" cy="38" r="3.2"/><circle cx="24" cy="39" r="2.4"/></g><ellipse cx="25" cy="22" rx="5" ry="3" fill="#fff" opacity=".55"/>'),
+  fish: svg('<g transform="rotate(-20 32 32)"><path d="M56 32c-6-10-20-14-32-8l-12-9v34l12-9c12 6 26 2 32-8z" fill="url(#g)" stroke="#8a5200" stroke-width="3" stroke-linejoin="round"/><circle cx="45" cy="29" r="3" fill="#5a3000"/><path d="M30 24c3 5 3 11 0 16" fill="none" stroke="#c07a08" stroke-width="2.5"/></g>'),
   ball: svg('<circle cx="32" cy="32" r="24" fill="url(#t)" stroke="#5a7000" stroke-width="3"/><path d="M12 20c10 6 10 18 0 24M52 20c-10 6-10 18 0 24" fill="none" stroke="#fff" stroke-width="3.5"/>'),
 };
 
@@ -171,7 +175,7 @@ export async function start(opts) {
     LD.progress(0.35, 'Les chiens se préparent…');
   }
   W.applySky(L.SKY);
-  if (opts.sfx) opts.sfx.music('adv' + L.ID);     // l'ambiance musicale du niveau
+  if (opts.sfx) opts.sfx.music(L.MUSIC || 'adv' + L.ID);     // l'ambiance musicale du niveau
   let style = null;
   try { style = localStorage.getItem('dogfight.style'); } catch (e) { /* ignore */ }
   // rendu réaliste : matières photographiées et ciel (chargés une seule fois)
@@ -180,7 +184,7 @@ export async function start(opts) {
   // personnages non joueurs réalistes (modèles gratuits CC-BY)
   // (l'ancienne Mamie assise n'est chargée que si on la demande : ?mamie=assise, 1 Mo de moins sinon)
   const oldMamie = new URLSearchParams(location.search).get('mamie') === 'assise' ? ['mamie'] : [];
-  const npcs = photos ? N.preloadNpcs(L.ID === 3 ? [...oldMamie, 'mamie2', 'biscotte', 'shiba', 'berger', 'bouledogue'] : [...oldMamie, 'mamie2', 'biscotte']) : null;
+  const npcs = photos ? N.preloadNpcs(L.ID === 3 || L.ID === 8 ? [...oldMamie, 'mamie2', 'biscotte', 'shiba', 'berger', 'bouledogue'] : [...oldMamie, 'mamie2', 'biscotte']) : null;
   await M.preloadDogs();
   if (photos) await photos;
   if (npcs) await npcs;
@@ -315,7 +319,7 @@ class Adventure {
         </div>
         <div class="adv-right">
           <div class="adv-counts">
-            <div class="adv-count"><img src="${L.ID === 2 ? ICONS.kibble : L.ID >= 3 ? ICONS.coin : ICONS.bone}" alt=""><span id="adv-bones">0</span><small>/100</small></div>
+            <div class="adv-count"><img src="${L.ID === 2 ? ICONS.kibble : L.ID === 8 ? ICONS.fish : L.ID >= 3 ? ICONS.coin : ICONS.bone}" alt=""><span id="adv-bones">0</span><small>/100</small></div>
             <div class="adv-count"><img src="${ICONS.medal}" alt=""><span id="adv-medals">0</span><small>/${L.medals.length}</small></div>
             <div class="adv-count adv-balls hidden"><img src="${ICONS.ball}" alt=""><span id="adv-balls">0</span><small>/5</small></div>
           </div>
@@ -740,6 +744,7 @@ class Adventure {
     if (L.ID === 1) this.buildParc();
     else if (L.ID === 3) this.levelLogic = C.buildCity(this);
     else if (L.ID === 4) this.levelLogic = SK.buildSky(this);
+    else if (L.ID === 8) this.levelLogic = CA.buildCastle(this);
     else this.levelLogic = F.buildForest(this, { THREE, M, W, T });
 
     // Nuages et papillons
@@ -775,8 +780,8 @@ class Adventure {
         list.push({ x, z, to: 1 }); break;
       }
     }
-    const NAMES = { 1: 'Le Parc des Toutous', 2: 'La Forêt des Moustaches', 3: 'Port-Croquette', 4: 'Les Îles du Ciel' };
-    const COLS = { 1: [0x3affa0, 0x0a4a3a], 2: [0x4ab0ff, 0x10206a], 3: [0xffb04a, 0x5a2008], 4: [0xc070ff, 0x2a0a5a] };
+    const NAMES = { 1: 'Le Parc des Toutous', 2: 'La Forêt des Moustaches', 3: 'Port-Croquette', 4: 'Les Îles du Ciel', 8: 'Le Château des Chats' };
+    const COLS = { 1: [0x3affa0, 0x0a4a3a], 2: [0x4ab0ff, 0x10206a], 3: [0xffb04a, 0x5a2008], 4: [0xc070ff, 0x2a0a5a], 8: [0xff7ab0, 0x5a0a2a] };
     markVisited(L.ID);
     const visited = visitedLevels();
     this.portals = list.map(p => {
@@ -1269,7 +1274,7 @@ class Adventure {
     this.party = new Map([[0, this.player]]);
 
     // Os dorés (instanciés)
-    this.bonesI = new THREE.InstancedMesh(L.ID === 2 ? F.kibbleGeometry() : L.ID === 3 ? C.coinGeometry() : L.ID === 4 ? SK.starCoinGeometry() : M.boneGeometry(), M.mat(0xffd34d, { metalness: 0.7, roughness: 0.3, emissive: 0x6a4800, emissiveIntensity: 0.6 }), L.bones.length);
+    this.bonesI = new THREE.InstancedMesh(L.ID === 2 ? F.kibbleGeometry() : L.ID === 3 ? C.coinGeometry() : L.ID === 4 ? SK.starCoinGeometry() : L.ID === 8 ? CA.fishGeometry() : M.boneGeometry(), M.mat(0xffd34d, { metalness: 0.7, roughness: 0.3, emissive: 0x6a4800, emissiveIntensity: 0.6 }), L.bones.length);
     this.boneTaken = new Set(Object.keys(s.gone || {}));
     sc.add(this.bonesI);
     if (L.ID === 1 && this.realistic) this.bonesI.material = M.mat(0xf2dcb4, { metalness: 0.05, roughness: 0.5, emissive: 0x5a3c10, emissiveIntensity: 0.3 });
@@ -3108,7 +3113,7 @@ class Adventure {
   voice(who) {
     const sfx = this.sfx;
     if (!sfx || !sfx.ok) return;
-    const base = { 'Mamie Labrador': 210, Biscotte: 720, Ainu: 330, Matcha: 560, Panneau: 0 }[who] || 300;
+    const base = { 'Mamie Labrador': 210, Biscotte: 720, Ainu: 330, Matcha: 560, Pompon: 820, Panneau: 0 }[who] || 300;
     if (!base) return;
     sfx.tone(base * (0.85 + Math.random() * 0.4), 0.05, { type: 'triangle', vol: 0.07, to: base * (0.7 + Math.random() * 0.6) });
   }
@@ -3321,6 +3326,9 @@ class Adventure {
     } else if (L.ID === 4) {
       const v = this.player ? this.player.vel : null, sp = v ? Math.hypot(v.x, v.y, v.z) : 0;
       wind = 0.6; windP = Math.min(1, 0.3 + sp / 25); birds = 0.06; gulls = 0.08;
+    } else if (L.ID === 8) {
+      if (L.MOAT) water = Math.max(0, 1 - Math.max(0, Math.abs(c.z - (L.MOAT.z1 - 3)) - 4) / 30) * 0.35;   // les douves, devant le pont-levis
+      wind = c.y > 12 ? 0.35 : 0.2; windP = 0.15; birds = c.z > 12 ? 0.45 : 0.15; gulls = 0.03;
     }
     // moteur : kart ou avion conduit par moi
     const k = this.player && this.player.kart;

@@ -482,3 +482,10 @@ html.ios-text .hbtn.small, html.ios-text .hbtn.lvpick:not(.active), html.ios-tex
 .level-cards .level-card.l3 { background-image: linear-gradient(180deg, transparent 40%, rgba(20, 10, 4, 0.55)), url(img/levels/l3.jpg); }
 .level-cards .level-card.l4 { background-image: linear-gradient(180deg, transparent 40%, rgba(20, 10, 4, 0.55)), url(img/levels/l4.jpg); }
 .level-cards .level-card.l1::before, .level-cards .level-card.l1::after, .level-cards .level-card.l2::before, .level-cards .level-card.l2::after, .level-cards .level-card.l3::before, .level-cards .level-card.l3::after, .level-cards .level-card.l4::before, .level-cards .level-card.l4::after { display: none; }
+
+/* Niveau 8 : le Château des Chats */
+.level-card.l8 { background: radial-gradient(circle at 80% 20%, #fff6c0 0 9%, transparent 10%), linear-gradient(180deg, #4a7ad8 0%, #ffd2a8 60%, #7ed058 60%); }
+.level-cards .level-card.l8 { background-size: cover; background-position: center; background-image: linear-gradient(180deg, transparent 40%, rgba(20, 10, 4, 0.55)), url(img/levels/l8.jpg); }
+.level-card.l8.locked { filter: grayscale(0.8) brightness(0.8); }
+.level-card.l8.locked small { background: rgba(42, 20, 8, 0.85); }
+.album-world.l8 { background: linear-gradient(170deg, #f08ab0, #7a4ad8); }
