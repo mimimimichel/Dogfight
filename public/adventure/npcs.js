@@ -146,6 +146,7 @@ export function buildMamieStanding() {
     }
     o.geometry.setAttribute('color', new THREE.BufferAttribute(col, 3));
     o.material.vertexColors = true; o.material.color.set(0xffffff); o.material.roughness = 0.92; o.material.metalness = 0;
+    o.material.emissive.set(0x7a4818); o.material.emissiveIntensity = 0.45;   // (un peu de lumière propre : jamais toute sombre à contre-jour, sur la neige ou la plage)
     o.material.needsUpdate = true;
   });
   // pelage : petites mèches (texture dessinée) projetées sur trois axes, le modèle n'ayant pas d'UV utilisables
