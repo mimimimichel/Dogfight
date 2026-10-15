@@ -54,6 +54,11 @@ CAST = {
     'Pingo': ('zazou', 0.75, 0.5),
     'Pompon': ('matcha', 0.7, 0.5),
     'Gaston': ('fernand', 0.65, 0.5),
+    'Nimbus': ('barnabe', 0.6, 0.5),
+    'Zéphyr': ('zazou', 0.7, 0.5),
+    'Mamie Floconne': ('mamie', 0.6, 0.45),
+    'Pipou': ('biscotte', 0.8, 0.5),
+    'Brindille': ('persane', 0.7, 0.5),
 }
 # les rôles principaux d'abord
 ORDER = ['', 'Mamie Labrador', 'Matcha', 'Ainu', 'Biscotte', 'Capitaine Moustache']
