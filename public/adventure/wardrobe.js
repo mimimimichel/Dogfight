@@ -9,7 +9,7 @@ import * as M from './models.js';
 import { buildShopHat } from './citykit.js';
 
 const KEY = 'dogfight.wardrobe';
-const LEVEL_KEYS = ['dogfight.aventure.niveau1', 'dogfight.aventure.niveau2', 'dogfight.aventure.niveau3b', 'dogfight.aventure.niveau4', 'dogfight.aventure.niveau5', 'dogfight.aventure.niveau6'];
+const LEVEL_KEYS = ['dogfight.aventure.niveau1', 'dogfight.aventure.niveau2', 'dogfight.aventure.niveau3b', 'dogfight.aventure.niveau4', 'dogfight.aventure.niveau5', 'dogfight.aventure.niveau6', 'dogfight.aventure.niveau8'];
 
 /** need : nombre de récompenses pour débloquer ; shop : s'achète à Port-Croquette. */
 export const ITEMS = [

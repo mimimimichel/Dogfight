@@ -119,6 +119,8 @@ export function storyShots(game, L) {
       cap: 'Miaou-ha-ha ! J\'ai caché les médailles de la station. Venez me les reprendre… en jouant !', duo: ['Matcha', 'De la neige partout ! Ainu, on fait une bataille de boules de neige ?'] },
     6: { title: 'La Plage aux Coquillages', fly: 'Pour fêter l\'été, toute la bande file à la Plage aux Coquillages. Mais les chats de la Capitaine Moustache y ont bâti un fort de sable… et ils ont plein de farces en tête !',
       cap: 'Miaou-ha-ha ! Cette plage est à nous : le sable, les vagues et tous les coquillages !', duo: ['Matcha', 'Des vagues, du sable et des trésors à creuser… Ainu, à nous la plage !'] },
+    8: { title: 'Le Château des Chats', fly: 'Une lettre est arrivée au Parc, signée d\'une toute petite patte : « Venez vite au Château des Chats ! » C\'est Pompon, le neveu de la Capitaine Moustache.',
+      cap: 'Un château plein de jeux… et personne pour jouer avec moi. Hmpf ! Je n\'ai besoin de personne !', duo: ['Matcha', 'Un château avec des oreilles de chat ? Allons voir, Ainu !'] },
   };
   const ch = chapters[L.ID];
   if (!ch) return null;
