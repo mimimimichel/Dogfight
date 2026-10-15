@@ -45,6 +45,14 @@ CAST = {
     'Maître-Nageur Mistral': ('turbo', 0.6, 0.5),
     'Bébé Phoque': ('biscotte', 0.75, 0.5),
     'Maman Phoque': ('maire', 0.6, 0.5),
+    'Caramel': ('biscotte', 0.8, 0.5),
+    'Gardienne Perle': ('maire', 0.55, 0.5),
+    'Gino le glacier': ('bruno', 0.7, 0.5),
+    'Maman Pingouin': ('persane', 0.6, 0.5),
+    'Margot la vache': ('rita', 0.6, 0.45),
+    'Papi Berger': ('loup', 0.55, 0.45),
+    'Pingo': ('zazou', 0.75, 0.5),
+    'Pompon': ('matcha', 0.7, 0.5),
 }
 # les rôles principaux d'abord
 ORDER = ['', 'Mamie Labrador', 'Matcha', 'Ainu', 'Biscotte', 'Capitaine Moustache']
