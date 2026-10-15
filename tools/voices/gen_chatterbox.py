@@ -54,6 +54,19 @@ CAST = {
     'Pingo': ('zazou', 0.75, 0.5),
     'Pompon': ('matcha', 0.7, 0.5),
     'Gaston': ('fernand', 0.65, 0.5),
+    # Station des Neiges : les habitants de la couche de vie (level5life.js)
+    'Gaspard le déneigeur': ('bruno', 0.6, 0.5),
+    'Lulu la patineuse': ('rita', 0.7, 0.5),
+    'Tino le patineur': ('zazou', 0.7, 0.5),
+    'Firmin le pêcheur': ('loup', 0.5, 0.45),
+    'Moniteur Flocon': ('turbo', 0.6, 0.5),
+    'Praline': ('biscotte', 0.8, 0.5),
+    'Noisette': ('filou', 0.75, 0.5),
+    'Chouquette': ('biscotte', 0.75, 0.5),
+    'Olga la sculptrice': ('maire', 0.55, 0.5),
+    'Marcel des marrons': ('fernand', 0.65, 0.5),
+    'Monsieur Bonhomme': ('lunette', 0.6, 0.5),
+    'Le Yéti': ('pataud', 0.45, 0.45),
 }
 # les rôles principaux d'abord
 ORDER = ['', 'Mamie Labrador', 'Matcha', 'Ainu', 'Biscotte', 'Capitaine Moustache']

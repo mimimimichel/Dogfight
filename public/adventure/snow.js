@@ -13,6 +13,8 @@ import * as W from './world.js';
 import * as N from './npcs.js';
 import * as RT from './realtex.js';
 import { buildCaptain } from './forest.js';
+import { buildLife } from './life.js';
+import * as LIFE from './level5life.js';
 
 const clamp = (v, a, b) => (v < a ? a : v > b ? b : v);
 const lerpAngle = (a, b, t) => { const d = ((b - a + Math.PI) % (Math.PI * 2) + Math.PI * 2) % (Math.PI * 2) - Math.PI; return a + d * t; };
@@ -910,6 +912,31 @@ export function buildSnow(game) {
   const balls = new THREE.InstancedMesh(new THREE.IcosahedronGeometry(0.2, 1), std({ color: 0xffffff, roughness: 0.8, map: snowTex }), SB_MAX);
   balls.frustumCulled = false; balls.castShadow = true; sc.add(balls); moving.push(balls);
 
+  // --- la couche de vie : bêtes, objets, défis éclair, habitants, cachettes (life.js) ---------
+  const life = buildLife(game, { L: S, plan: LIFE.PLAN, palette: LIFE.PALETTE, lines: LIFE.LINES, allDoneText: 'Une aurore boréale danse au-dessus du sommet !' });
+  // l'aurore boréale au-dessus du sommet (plus vive quand tous les défis éclair sont réussis)
+  const aurora = (() => {
+    const geo = new THREE.PlaneGeometry(180, 34, 48, 1), p = geo.attributes.position;
+    for (let i = 0; i < p.count; i++) { const x = p.getX(i); p.setZ(i, Math.sin(x * 0.045) * 22 + Math.sin(x * 0.11) * 6); }
+    const mat = new THREE.ShaderMaterial({
+      uniforms: { uT: { value: 0 }, uK: { value: 0.5 } },
+      vertexShader: 'varying vec2 vUv; void main(){ vUv = uv; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }',
+      fragmentShader: `uniform float uT, uK; varying vec2 vUv;
+        void main() {
+          float w = sin(vUv.x * 18.0 + uT * 0.7) * 0.5 + 0.5, w2 = sin(vUv.x * 41.0 - uT * 1.3) * 0.5 + 0.5;
+          float band = smoothstep(0.0, 0.35, vUv.y) * smoothstep(1.0, 0.45, vUv.y) * (0.55 + 0.45 * w * w2);
+          vec3 col = mix(vec3(0.2, 1.0, 0.6), vec3(0.7, 0.4, 1.0), smoothstep(0.35, 0.95, vUv.y) + 0.2 * w);
+          gl_FragColor = vec4(col * band * uK, band * uK);
+        }`,
+      transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, side: THREE.DoubleSide,
+    });
+    const m = new THREE.Mesh(geo, mat);
+    m.position.set(S.MOUNTAIN.x, S.SUMMIT_Y + 46, S.MOUNTAIN.z - 40); m.rotation.x = -0.25;
+    m.userData.noOutline = true; m.frustumCulled = false;
+    sc.add(m);
+    return m;
+  })();
+
   // =============================================================================================
   // État et règles
   // =============================================================================================
@@ -1459,7 +1486,7 @@ export function buildSnow(game) {
 
   // =============================================================================================
   const logic = {
-    moving, chars,
+    moving, chars, life,
     playerStep(P, wx, wz, jumpHeld, pr, dt, input) {
       const R = P.ride;
       if (!R) return false;
@@ -1481,8 +1508,8 @@ export function buildSnow(game) {
       if (!Q.ride) return undefined;
       return Q.ride.kind === 'sled' ? { kind: 'lv', act: 'exit', label: 'DESCENDRE', x: Q.pos.x, z: Q.pos.z, y: Q.pos.y } : null;
     },
-    extraCandidates() {
-      const out = [];
+    extraCandidates(Q) {
+      const out = Q ? life.candidates(Q) : [];
       const R = S.SLED_RACK, B0 = LIFT.base;
       out.push({ kind: 'lv', act: 'sled', label: 'LUGE', x: R.x, z: R.z, y: R.y });
       out.push({ kind: 'lv', act: 'sled', label: 'LUGE', x: S.SLED_START.x, z: S.SLED_START.z, y: S.heightAt(S.SLED_START.x, S.SLED_START.z) });
@@ -1492,6 +1519,7 @@ export function buildSnow(game) {
       return out;
     },
     interact(n, P) {
+      if (n.life) { life.interact(n, P); return; }
       if (n.act === 'sled') startSled(P);
       else if (n.act === 'lift') startLift(P);
       else if (n.act === 'exit') endRide(P, 3);
@@ -1532,6 +1560,7 @@ export function buildSnow(game) {
       stepBaby(dt);
       stepRolls(dt);
       stepRace(dt);
+      life.step(dt);
     },
     reveal() {
       const s = save(), k = snow();
@@ -1588,6 +1617,7 @@ export function buildSnow(game) {
       const s = save(), k = snow();
       if (!s.intro) return 'Parle à Mamie Labrador';
       if (['throw', 'wait', 'tired', 'hop'].includes(B.phase)) return `Bataille de boules de neige ! Attrapez la Capitaine (${B.hp} fois)`;
+      const lq = life.questText(); if (lq) return lq;
       if (st.race) return st.race.cd > 0 ? 'Course contre Pingo : attention…' : `Course contre Pingo : plot ${Math.min(st.race.next + 1, S.RINK_CONES.length * S.RINK_LAPS)}/${S.RINK_CONES.length * S.RINK_LAPS}`;
       const me = game.me;
       if (me && me.ride && me.ride.kind === 'sled') { const g = me.ride.gates ? me.ride.gates.size : 0; return `Grande Glissade : portes ${g}/${S.GATES_NEEDED} · ⏱ ${Math.floor(game.t - (me.ride.t0 || game.t))} s`; }
@@ -1608,6 +1638,7 @@ export function buildSnow(game) {
       if (st.baby.s !== 'home') out.push([st.baby.x, st.baby.z, '#2a2a3a', 2.6]);
       for (const b of st.rolls) out.push([b.x, b.z, '#ffffff', 2.4]);
       out.push([S.GARDEN.x, S.GARDEN.z, '#9ad0ff', 3]);
+      for (const m of life.marks()) out.push(m);
       return out;
     },
     snapshot() {
@@ -1621,6 +1652,7 @@ export function buildSnow(game) {
         by: [Bb.s, r(Bb.x), r(Bb.y), r(Bb.z), r(Bb.yaw)],
         rl: st.rolls.map(b => [b.id, r(b.x), r(b.y), r(b.z), r(b.r), r(b.rot)]),
         rc: R ? [r(R.cd), r(R.t), R.next, r(R.pu), R.racer] : 0,
+        lf: life.snapshot(),
       };
     },
     apply(x) {
@@ -1642,6 +1674,7 @@ export function buildSnow(game) {
       if (x.by) { const Bb = st.baby; Bb.s = x.by[0]; Bb.x = x.by[1]; Bb.y = x.by[2]; Bb.z = x.by[3]; Bb.yaw = x.by[4]; }
       if (x.rl) st.rolls = x.rl.map(d => ({ id: d[0], x: d[1], y: d[2], z: d[3], r: d[4], rot: d[5] }));
       st.race = x.rc ? { cd: x.rc[0], t: x.rc[1], next: x.rc[2], pu: x.rc[3], racer: x.rc[4], last: 0 } : null;
+      life.apply(x.lf);
       const open = !!snow().fort || medalsWithout('m_fort') >= S.FORT_MEDALS;
       if (open !== S.FORT_GATE.off) setGate(open);
     },
@@ -1857,6 +1890,13 @@ export function buildSnow(game) {
         f.halo.material.opacity = since < 1.5 ? (1 - since / 1.5) * 0.8 : (f.def.id === st.cp ? 0.22 + Math.sin(t * 3) * 0.08 : 0);
         f.halo.scale.setScalar(since < 1.5 ? 1 + since * 2 : 1);
       });
+      life.render(dt, t);
+      {
+        const done = save().life && save().life.defis ? save().life.defis.length : 0;
+        aurora.material.uniforms.uT.value = t;
+        const dS = Math.hypot(cam.x - S.MOUNTAIN.x, cam.z - S.MOUNTAIN.z);
+        aurora.material.uniforms.uK.value = (done >= LIFE.PLAN.defis.length ? 0.9 : 0.25 + 0.25 * done / LIFE.PLAN.defis.length) * (0.45 + 0.55 * smooth(160, 60, dS));
+      }
       if (fortFlag) { const arr = fortFlag.geometry.attributes.position.array, base = fortFlag.userData.base; for (let j = 0; j < arr.length; j += 3) arr[j + 2] = Math.sin(base[j] * 3 - t * 5) * 0.12 * base[j]; fortFlag.geometry.attributes.position.needsUpdate = true; }
       // la Capitaine
       cap.visible = !(B.inv > 0 && Math.floor(t * 14) % 2 === 0);
