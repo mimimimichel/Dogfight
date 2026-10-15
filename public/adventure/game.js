@@ -1727,7 +1727,7 @@ class Adventure {
       const r = this.remoteIn.get(P.id) || { mx: 0, mz: 0, h: false, pressed: new Set() };
       // plus de nouvelles depuis un moment (réseau qui coince) : son chien s'arrête au lieu d'avancer tout seul
       if (r.at && performance.now() - r.at > 450) { r.mx = 0; r.mz = 0; r.h = false; }
-      inputs.push({ wx: r.mx, wz: r.mz, jumpHeld: r.h });
+      inputs.push({ wx: r.mx, wz: r.mz, jumpHeld: r.h, sx: r.sx || 0, sy: r.sy || 0 });
       presses.push(new Set(r.pressed));
       for (const a of r.pressed) this.pressed.add(a);   // n'importe qui fait avancer les dialogues
       r.pressed.clear();
@@ -1919,6 +1919,8 @@ class Adventure {
       const l = Math.hypot(m.mx, m.mz) || 1;
       r.mx = l > 1 ? m.mx / l : +m.mx || 0; r.mz = l > 1 ? m.mz / l : +m.mz || 0;
       r.h = !!m.h;
+      // la manette telle quelle (luge : gauche / droite par rapport au véhicule)
+      r.sx = Math.max(-1, Math.min(1, +m.sx || 0)); r.sy = Math.max(-1, Math.min(1, +m.sy || 0));
       for (const a of m.p || []) if (['jump', 'attack', 'dash', 'talk', 'bark', 'trick'].includes(a)) r.pressed.add(a);
     }
   }
@@ -2136,9 +2138,9 @@ class Adventure {
     const [mx, mz] = this.worldMove(input.x, input.y);
     const p = [...this.pressed]; this.pressed.clear();
     const ls = this.lastSent, now = performance.now();
-    if (p.length || Math.abs(mx - ls.mx) > 0.04 || Math.abs(mz - ls.mz) > 0.04 || input.jumpHeld !== ls.h || now - ls.at > 120) {
-      this.coop.link.send({ t: 'in', mx: Math.round(mx * 100) / 100, mz: Math.round(mz * 100) / 100, h: input.jumpHeld, p });
-      Object.assign(ls, { mx, mz, h: input.jumpHeld, at: now });
+    if (p.length || Math.abs(mx - ls.mx) > 0.04 || Math.abs(mz - ls.mz) > 0.04 || Math.abs(input.x - (ls.sx || 0)) > 0.04 || input.jumpHeld !== ls.h || now - ls.at > 120) {
+      this.coop.link.send({ t: 'in', mx: Math.round(mx * 100) / 100, mz: Math.round(mz * 100) / 100, h: input.jumpHeld, p, sx: Math.round(input.x * 100) / 100, sy: Math.round(input.y * 100) / 100 });
+      Object.assign(ls, { mx, mz, h: input.jumpHeld, at: now, sx: input.x, sy: input.y });
     }
     const s = this.snap;
     for (const P of this.players) for (const k of ['attackT', 'dashT', 'flipT', 'cheerT', 'invuln']) P[k] = Math.max(0, P[k] - dt);
@@ -2296,7 +2298,7 @@ class Adventure {
     if (P.down) { wx = 0; wz = 0; input = Object.assign({}, input, { jumpHeld: false }); pr = new Set(); }
     const wlen = Math.hypot(wx, wz);
     // en kart (niveau 3) : c'est la ville qui gère la conduite
-    if (this.levelLogic && this.levelLogic.playerStep && this.levelLogic.playerStep(P, wx, wz, input.jumpHeld, pr, dt)) return;
+    if (this.levelLogic && this.levelLogic.playerStep && this.levelLogic.playerStep(P, wx, wz, input.jumpHeld, pr, dt, input)) return;
 
     P.invuln = Math.max(0, P.invuln - dt);
     P.dashCd = Math.max(0, P.dashCd - dt);
@@ -2542,7 +2544,7 @@ class Adventure {
     const veh = P.kart || P.ride;
     if (veh) {
       // en kart (ou en luge, en télésiège) : la caméra se replace vite derrière
-      if (this.t - this.lastCamManual > 0.8 && Math.abs(veh.speed || 0) > 1) this.camYaw = lerpAngle(this.camYaw, (veh.yaw === undefined ? P.yaw : veh.yaw) + Math.PI, Math.min(1, dt * 3.2));
+      if (this.t - this.lastCamManual > 0.8 && Math.abs(veh.speed || 0) > 1) this.camYaw = lerpAngle(this.camYaw, (veh.yaw === undefined ? P.yaw : veh.yaw) + Math.PI, Math.min(1, dt * (veh.camRate || 3.2)));
     } else if (this.camFocus) {
       // combat : la caméra se place derrière le chien, tournée vers le boss
       const f = this.camFocus;
