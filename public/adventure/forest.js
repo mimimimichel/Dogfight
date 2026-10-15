@@ -12,6 +12,7 @@ import * as W from './world.js';
 import * as RT from './realtex.js';
 import * as K from './farmkit.js';
 import * as FK from './forestkit.js';
+import { buildLife, ICON_ACORN } from './forestlife.js';
 
 const clamp = (v, a, b) => (v < a ? a : v > b ? b : v);
 const lerpAngle = (a, b, t) => { const d = ((b - a + Math.PI) % (Math.PI * 2) + Math.PI * 2) % (Math.PI * 2) - Math.PI; return a + d * t; };
@@ -210,6 +211,7 @@ function forestSounds(game) {
     croak: () => go((s) => { s.noise(0.12, { filter: 'bandpass', freq: 380, vol: 0.25 }); s.tone(140, 0.18, { type: 'square', to: 110, vol: 0.06 }); s.noise(0.12, { filter: 'bandpass', freq: 360, vol: 0.2, delay: 0.2 }); }),
     pick: () => go((s) => { s.noise(0.2, { filter: 'bandpass', freq: 2600, freqTo: 1400, vol: 0.14 }); s.note && s.note('mallet', 81, 0.08, 0.06, 0.2); s.note && s.note('mallet', 86, 0.08, 0.14, 0.25); }),
     plop: () => go((s) => { s.tone(300, 0.12, { type: 'sine', to: 700, vol: 0.12 }); s.noise(0.15, { filter: 'lowpass', freq: 900, vol: 0.15, delay: 0.05 }); }),
+    rustle: () => go((s) => { s.noise(0.35, { filter: 'bandpass', freq: 2800, freqTo: 1400, vol: 0.14 }); }),
     chime: () => go((s) => { if (s.note) [84, 88, 91, 96, 100].forEach((m, i) => s.note('bell', m, 0.12, i * 0.09, 0.5)); }),
   };
 }
@@ -252,6 +254,7 @@ export function buildForest(game) {
     };
     hud.berries = chip(ICON_BERRY, S.BERRIES_NEEDED);
     hud.owlets = chip(ICON_OWL, S.OWLETS.length);
+    hud.acorns = chip(ICON_ACORN, S.ACORNS_NEEDED);
   }
 
   // =============================================================================
@@ -1181,6 +1184,7 @@ export function buildForest(game) {
   const bushFull = (b) => !forest().pot.includes(b.id) && !carried().has(b.id);
   const potCount = () => forest().pot.length;
 
+  let life = null;
   function updateChips() {
     const f = forest(), me = meF(), on = save().intro;
     const nB = potCount() + ((me && me.berries) ? me.berries.length : 0);
@@ -1188,6 +1192,7 @@ export function buildForest(game) {
     hud.owlets.classList.toggle('hidden', !on || save().medals.includes('m_owl') || !(f.owlets.length > 0 || owlets.some(o => o.state === 'follow') || f.met.includes('hulotte')));
     const set = (el, n) => { const sp = el.querySelector('span'); if (sp.textContent !== String(n)) { sp.textContent = n; el.classList.remove('bump'); void el.offsetWidth; el.classList.add('bump'); } };
     set(hud.berries, Math.min(S.BERRIES_NEEDED, nB)); set(hud.owlets, f.owlets.length);
+    if (life) { const nA = life.acorns(); hud.acorns.classList.toggle('hidden', !on || !!f.pistache || !(nA > 0 || f.met.includes('pistache'))); set(hud.acorns, nA); }
   }
 
   function refreshLanterns() {
@@ -1232,6 +1237,8 @@ export function buildForest(game) {
 
   // --- les amis de la forêt -----------------------------------------------------
   function met(id) { const f = forest(); if (!f.met.includes(id)) { f.met.push(id); game.persist(); } }
+  // la vie de la forêt (bêtes, tas de feuilles, buissons, fleurs, glands, Lapinou, Mélodie)
+  life = buildLife(game, { snd, forest, area, met, updateChips: () => updateChips() });
   function talkNoisette() {
     const f = forest(), n = S.BERRIES_NEEDED - potCount();
     if (f.feast) {
@@ -1279,14 +1286,16 @@ export function buildForest(game) {
   function talkPistache() {
     const n = lookoutsLeft();
     met('pistache');
+    const extra = life.pistacheLines();
     if (n > 0) {
       game.say([
         { who: 'Pistache l\'écureuil', text: 'Salut ! Moi, c\'est Pistache. Bienvenue dans les cabanes des écureuils !' },
         { who: 'Pistache l\'écureuil', text: `${n === 3 ? 'Trois chats guetteurs se sont installés' : `Il reste ${n} chat${n > 1 ? 's' : ''} guetteur${n > 1 ? 's' : ''}`} sur nos cabanes. Ils nous lancent des glands sur la tête !` },
         { who: 'Pistache l\'écureuil', text: 'Suivez les ponts de cordes et chassez-les… Et ne regardez pas trop en bas !' },
-      ]);
+        ...extra,
+      ], () => life.pistacheDone());
     } else {
-      game.say([{ who: 'Pistache l\'écureuil', text: 'Merci ! Les cabanes sont de nouveau à nous. Il y a une lanterne tout au bout, sur la dernière cabane !' }]);
+      game.say([{ who: 'Pistache l\'écureuil', text: 'Merci ! Les cabanes sont de nouveau à nous. Il y a une lanterne tout au bout, sur la dernière cabane !' }, ...extra], () => life.pistacheDone());
     }
   }
   function talkGaston() {
@@ -1613,9 +1622,10 @@ export function buildForest(game) {
         { kind: 'lv', act: 'hulotte', label: 'PARLER', x: S.HULOTTE.x, z: S.HULOTTE.z, y: S.HULOTTE.y },
       ];
       if (!onRaft(Q)) { const gp = gaston.getWorldPosition(new THREE.Vector3()); out.push({ kind: 'lv', act: 'gaston', label: 'PARLER', x: gp.x, z: gp.z, y: gp.y }); }
-      return out;
+      return out.concat(life.candidates(Q));
     },
-    interact(n) {
+    interact(n, P) {
+      if (life.interact(n, P || game.me)) return;
       if (n.act === 'noisette') talkNoisette();
       else if (n.act === 'pistache') talkPistache();
       else if (n.act === 'hulotte') talkHulotte();
@@ -1655,6 +1665,7 @@ export function buildForest(game) {
         if (game.t > 1) { game.banner('Tous les chats bandits ont filé !', 'Une Médaille Patoune est apparue au campement, près du feu !', 3200); }
       }
       stepRaft(dt);
+      life.step(dt);
       stepOwlets(dt);
       stepBerries();
       // le rond de fées
@@ -1735,6 +1746,7 @@ export function buildForest(game) {
       for (const o of owlets) if (o.state !== 'home') out.push([o.x, o.z, '#ffffff', 2.6]);
       if (!f.feast && f.met.includes('noisette')) for (const b of S.BUSHES) if (bushFull(b)) out.push([b.x, b.z, '#c05ad8', 2.2]);
       out.push([RC.x, RC.z, '#a0703e', 2.4]);
+      out.push(...life.marks());
       if (!f.met.includes('noisette')) out.push([S.FRIENDS.noisette.x, S.FRIENDS.noisette.z, '#8ad0ff', 3.2]);
       if (!f.met.includes('hulotte')) out.push([S.HULOTTE.x, S.HULOTTE.z, '#8ad0ff', 3.2]);
       return out;
@@ -1749,6 +1761,7 @@ export function buildForest(game) {
         r: [r(R.s), R.moving ? 1 : 0],
         o: owlets.map(o => [o.state, o.follow, r(o.x), r(o.y), r(o.z), r(o.yaw)]),
         pb: players().map(P => [P.id, (P.berries || []).slice()]),
+        lf: life.snapshot(),
       };
     },
     apply(x) {
@@ -1761,6 +1774,7 @@ export function buildForest(game) {
       st.yarns = x.y.map(([a, b, c]) => ({ x: a, y: b, z: c }));
       if (x.r) { R.s += (x.r[0] - R.s) * 0.5; if (Math.abs(x.r[0] - R.s) > 4) R.s = x.r[0]; R.moving = !!x.r[1]; const p = S.riverAt(R.s); RC.x = p.x; RC.z = p.z; R.yaw = Math.atan2(p.tx, p.tz); }
       if (x.o) x.o.forEach(([state, fol, ox, oy, oz, oyaw], i) => { const o = owlets[i]; if (!o) return; o.state = state; o.follow = fol; o.x += (ox - o.x) * 0.5; o.y += (oy - o.y) * 0.5; o.z += (oz - o.z) * 0.5; o.yaw = oyaw; });
+      life.apply(x.lf);
       if (x.pb) for (const [id, list] of x.pb) { const P = game.party.get(id); if (P) P.berries = list; }
     },
     talkMamie(first) {
@@ -1773,6 +1787,7 @@ export function buildForest(game) {
           { who: 'Mamie Labrador', text: 'La forêt est immense. Son repaire est tout au nord, de l\'autre côté de la rivière… mais la porte ne s\'ouvre qu\'avec 4 Médailles Patounes.' },
           { who: 'Mamie Labrador', text: 'Les habitants de la forêt ont besoin d\'aide : Noisette la hérissonne, au village de l\'ouest, et Mère Hulotte, sur le Rocher du Hibou.' },
           { who: 'Mamie Labrador', text: `Et les 6 lanternes de la forêt sont éteintes : allumez-les avec un coup de queue (${k.attack}).` },
+          { who: 'Mamie Labrador', text: 'Et ouvrez grand les yeux : la forêt est pleine de petites bêtes, de fleurs qui aiment qu\'on leur aboie dessus, et de glands cachés partout !' },
           { who: 'Ainu', text: 'Ouaf ! On y va, Matcha !' },
           { who: 'Matcha', text: 'Et on ramasse toutes les croquettes dorées au passage !' },
         ], () => { s.intro = true; game.persist(); game.banner(S.NAME, 'Aidez les amis de la forêt et trouvez 4 médailles !', 2800); game.updateHud(); updateChips(); });
@@ -1811,6 +1826,7 @@ export function buildForest(game) {
     render(dt, t) {
       const cam = game.camera.position, s = save();
       if (game.guest && Math.floor(t * 4) !== Math.floor((t - dt) * 4)) updateChips();   // (l'invité ne fait pas tourner step)
+      life.render(dt, t);
       // décor lointain caché (la forêt est grande)
       const far = lite ? 140 : 205;
       for (const c of cull) c.obj.visible = Math.hypot(c.x - cam.x, c.z - cam.z) < far + c.r;

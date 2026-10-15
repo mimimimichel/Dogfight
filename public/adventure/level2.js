@@ -122,6 +122,8 @@ export function riverAt(s) {
 // l'Îlot aux Roseaux : un petit élargissement de la rivière, l'îlot au bord du courant
 export const POND = { x: 60, z: -19, r: 11 };
 export const ISLET = { x: 60, z: -18.8, r: 4.2, top: 1.1 };
+// la Mare aux Nénuphars (on y saute de feuille en feuille jusqu'au grand nénuphar)
+export const LILY_POND = { x: -38, z: 40, r: 8 };
 
 /** Hauteur du terrain (sans les obstacles). */
 export function heightAt(x, z) {
@@ -157,6 +159,10 @@ export function heightAt(x, z) {
     h = Math.min(h, h * (1 - kp) + RIVER_BED * kp);
     const ki = 1 - smooth(ISLET.r - 0.8, ISLET.r + 0.6, len(x - ISLET.x, z - ISLET.z));
     h = h * (1 - ki) + ISLET.top * ki;
+  }
+  {
+    const kl = 1 - smooth(LILY_POND.r - 3, LILY_POND.r + 0.5, len(x - LILY_POND.x, z - LILY_POND.z));
+    if (kl > 0) h = Math.min(h, h * (1 - kl) + (RIVER_BED + 0.6) * kl);
   }
   // le lac du Rocher du Hibou
   h -= gauss(x, z, SPOTS.lake.x, SPOTS.lake.z, 11, 6.5);
@@ -656,6 +662,31 @@ export const CRYSTALS = [[-4.5, 49.5, 0x3ee8d8], [4.5, 40.5, 0xb070ff], [-58, -2
 
 export const ruins = [];
 
+// ---------------------------------------------------------------------------
+// Coins de jeu : nénuphars, troncs couchés à traverser
+// ---------------------------------------------------------------------------
+export const LILIES = [];
+{
+  const P = LILY_POND;
+  [[5.5, 0.3], [3.5, -0.9], [1.5, 0.8]].forEach(([dx, dz], i) => {
+    const l = { x: P.x + dx, z: P.z + dz, r: 0.95, top: 0.22 + (i % 2) * 0.06 };
+    l.col = cyl(l.x, l.z, l.r, RIVER_BED, l.top, { kind: 'lily' });
+    LILIES.push(l);
+  });
+  const big = { x: P.x - 1.6, z: P.z + 0.2, r: 1.8, top: 0.3, big: true };
+  big.col = cyl(big.x, big.z, big.r, RIVER_BED, big.top, { kind: 'lily' });
+  LILIES.push(big);
+}
+export const LILY_TREASURE = { x: LILIES[LILIES.length - 1].x, z: LILIES[LILIES.length - 1].z, y: LILIES[LILIES.length - 1].top };
+/** Troncs couchés, creux : on passe dedans (un gland caché au milieu). */
+export const LOG_TUNNELS = [[-27.5, 76.4, -0.767, 0.642], [12.1, -67.9, 0.133, -0.991], [42.3, 64.4, 0.971, 0.239]].map(([x, z, dx, dz], i) => {
+  const t = { id: 't' + i, x, z, y: heightAt(x, z), yaw: Math.atan2(dx, dz), len: 6, r: 1.35, dx, dz };
+  const px = dz, pz = -dx;
+  for (let o = -t.len / 2 + 0.4; o <= t.len / 2 - 0.3; o += 0.9) for (const sd of [-1, 1]) cyl(x + dx * o + px * sd * 1.6, z + dz * o + pz * sd * 1.6, 0.42, t.y - 0.5, t.y + 2.4, { kind: 'rock', log: true });
+  return t;
+});
+indexAll();
+
 // Arbres (forêt dense, partout)
 export const trees = [];
 {
@@ -664,6 +695,8 @@ export const trees = [];
   const keep = [[SPOTS.camp, 17], [SPOTS.arena, 16], [SPOTS.altar, 12], [SPOTS.tower, 10], [SPOTS.mamie, 8], [SPOTS.spawn, 10], [STUMP, 9], [SWITCH, 5],
     [SPOTS.village, 18], [GLADE, 14], [HOLLOW, 9], [SPOTS.treehouses, 24], [FAIRY, 6], [POND, 14], [PLATEAU, PLATEAU.r + 5], [SPOTS.beachRock, 8]];
   BERRY_PATCHES.forEach(p => keep.push([p, 8]));
+  keep.push([LILY_POND, LILY_POND.r + 4]);
+  for (const t of LOG_TUNNELS) keep.push([t, 5]);
   const tgrid = new Map(), tk = (x, z) => Math.floor(x / 8) + ',' + Math.floor(z / 8);
   const tooClose = (x, z, d) => {
     for (let i = -1; i <= 1; i++) for (let j = -1; j <= 1; j++) {
@@ -711,6 +744,88 @@ export const trees = [];
   for (const t of trees) cyl(t.x, t.z, 0.55 * t.s, t.y - 1, t.y + t.h, { kind: 'tree' });
   indexAll();
 }
+
+// ---------------------------------------------------------------------------
+// La vie de la forêt : on croise quelque chose toutes les quelques secondes
+//   bêtes qui réagissent au chien (écureuils, oiseaux, lapins, hérissons, grenouilles),
+//   tas de feuilles à fouiller, buissons à secouer, fleurs qui s'ouvrent quand on aboie
+//   (des glands sont cachés dedans : Pistache l'écureuil en veut 10).
+// ---------------------------------------------------------------------------
+export const LIFE = { squirrel: [], birds: [], rabbit: [], hedgehog: [], frog: [], pile: [], shrub: [], flowers: [] };
+export const ACORNS = [];                 // { id, x, z, in: 'pile' | 'shrub' | 'log' | 'lily' }
+export const ACORNS_NEEDED = 10;
+{
+  let seed = 4242;
+  const rnd = () => (seed = (seed * 16807) % 2147483647) / 2147483647;
+  const all2 = [];
+  const free = (x, z, r) => {
+    const h = heightAt(x, z);
+    if (h < 1.3 || h > 6) return false;
+    if (near(x, z, r + 0.6).some(c => !c.off && c.kind !== 'leaf' && inside(c, x, z, r))) return false;
+    if (all2.some(p => Math.hypot(p.x - x, p.z - z) < 4)) return false;
+    if (bones.some(b => Math.hypot(b.x - x, b.z - z) < 1.6)) return false;
+    if (Math.hypot(x - SPOTS.arena.x, z - SPOTS.arena.z) < 13 || Math.hypot(x - SPOTS.spawn.x, z - SPOTS.spawn.z) < 5) return false;
+    if (Math.hypot(x - HOLLOW.x, z - HOLLOW.z) < HOLLOW.r + 1.5 || Math.hypot(x - SPOTS.camp.x, z - SPOTS.camp.z) < 11) return false;
+    return true;
+  };
+  const add = (type, x, z) => { const o = { id: type[0] + LIFE[type].length, x, z, y: heightAt(x, z) }; LIFE[type].push(o); all2.push(o); return o; };
+  // le long des chemins : un petit quelque chose tous les 9 m environ, d'un côté puis de l'autre
+  const cycle = ['pile', 'squirrel', 'flowers', 'birds', 'shrub', 'rabbit', 'pile', 'flowers', 'hedgehog', 'birds', 'shrub', 'squirrel'];
+  let k = 0, side = 1;
+  for (const [[ax, az], [bx, bz]] of PATHS) {
+    const L0 = Math.hypot(bx - ax, bz - az), ux = (bx - ax) / L0, uz = (bz - az) / L0;
+    for (let o = 4; o < L0 - 2; o += 9) {
+      side = -side;
+      for (const off of [3.6, 5.2, 7]) {
+        const x = ax + ux * o - uz * side * off, z = az + uz * o + ux * side * off;
+        if (!free(x, z, 1.2)) continue;
+        add(cycle[k++ % cycle.length], x, z);
+        break;
+      }
+    }
+  }
+  // dans les bois, loin des chemins : une case de 22 m, une petite surprise
+  for (let gx = -165; gx < 165; gx += 19) for (let gz = -165; gz < 165; gz += 19) {
+    for (let t = 0; t < 6; t++) {
+      const x = gx + rnd() * 19, z = gz + rnd() * 19;
+      if (Math.hypot(x, z) > 158 || !free(x, z, 1.2) || all2.some(p => Math.hypot(p.x - x, p.z - z) < 8)) continue;
+      add(cycle[k++ % cycle.length], x, z);
+      break;
+    }
+  }
+  // des grenouilles au bord de la rivière et des mares
+  for (let s0 = 20; s0 < RIVER[RIVER.length - 1].s - 30; s0 += 17) {
+    const p = riverAt(s0);
+    for (const sd of [-1, 1]) {
+      const d = riverW(s0) + 1.6, x = p.x - p.tz * sd * d, z = p.z + p.tx * sd * d;
+      if ((s0 / 17 + (sd > 0 ? 1 : 0)) % 2 < 1) continue;
+      const h = heightAt(x, z);
+      if (h > 0.25 && h < 2.6 && !near(x, z, 1).some(c => !c.off && inside(c, x, z, 0.8))) { const f = { id: 'f' + LIFE.frog.length, x, z, y: h, wx: p.x, wz: p.z }; LIFE.frog.push(f); }
+    }
+  }
+  for (const l of LILIES) LIFE.frog.push({ id: 'f' + LIFE.frog.length, x: l.x + 0.3, z: l.z - 0.2, y: l.top, wx: l.x, wz: l.z + 2, onLily: true });
+  // les glands : dans un tas de feuilles sur trois, un buisson sur quatre, les troncs couchés et le grand nénuphar
+  LIFE.pile.forEach((p, i) => { if (i % 3 === 1) ACORNS.push({ id: 'a' + ACORNS.length, x: p.x, z: p.z, in: 'pile', ref: p.id }); });
+  LIFE.shrub.forEach((p, i) => { if (i % 4 === 2) ACORNS.push({ id: 'a' + ACORNS.length, x: p.x, z: p.z, in: 'shrub', ref: p.id }); });
+  for (const t of LOG_TUNNELS) ACORNS.push({ id: 'a' + ACORNS.length, x: t.x, z: t.z, in: 'log', ref: t.id });
+  for (let i = 0; i < 3; i++) ACORNS.push({ id: 'a' + ACORNS.length, x: LILY_TREASURE.x, z: LILY_TREASURE.z, in: 'lily', ref: 'lily' });
+}
+
+// La course contre Lapinou (sur le grand chemin, du sud vers l'autel)
+export const RACE = { start: { x: 3.2, z: 104 }, finish: { x: 3.2, z: 64 }, speed: 6.6, easySpeed: 5.2 };
+RACE.start.y = heightAt(RACE.start.x, RACE.start.z); RACE.finish.y = heightAt(RACE.finish.x, RACE.finish.z);
+// Les carillons de Mélodie la mésange, autour du Bosquet des Lucioles
+export const CHIMES = [[-11, 3], [12, -5], [4, 13], [-6, -13]].map(([dx, dz], i) => {
+  const x = GLADE.x + dx, z = GLADE.z + dz, c = { id: 'ch' + i, x, z, y: heightAt(x, z), note: [72, 76, 79, 84][i] };
+  cyl(x, z, 0.25, c.y - 0.5, c.y + 2.6, { kind: 'rock' });
+  return c;
+});
+export const MELODIE = { x: GLADE.x - 3, z: GLADE.z + 3.5 };
+MELODIE.y = heightAt(MELODIE.x, MELODIE.z);
+// les cadeaux de Lapinou (la course) et de Mélodie (les carillons) : un gland chacun
+ACORNS.push({ id: 'a' + ACORNS.length, x: RACE.finish.x, z: RACE.finish.z, in: 'race', ref: 'race' });
+ACORNS.push({ id: 'a' + ACORNS.length, x: MELODIE.x, z: MELODIE.z, in: 'melodie', ref: 'melodie' });
+indexAll();
 
 /** Mini-carte : le plateau, le tronc creux, le village, le bosquet. */
 export function mapColor(x, z) {

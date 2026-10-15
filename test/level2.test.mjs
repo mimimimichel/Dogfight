@@ -213,4 +213,33 @@ test('aucun arbre sur les chemins, la rivière, les lanternes ou les grands lieu
   }
 });
 
+test('une forêt pleine de vie : jamais plus de 15 m sans rien, sur les chemins comme dans les bois', () => {
+  const pts = [].concat(...Object.values(L.LIFE), L.bones, L.lanterns, L.BUSHES, L.crates, L.signs, L.CHIMES, L.LOG_TUNNELS, L.bouncers);
+  const gap = (x, z) => { let b = 1e9; for (const p of pts) b = Math.min(b, Math.hypot(p.x - x, p.z - z)); return b; };
+  for (const [[ax, az], [bx, bz]] of L.PATHS) {
+    const l = Math.hypot(bx - ax, bz - az);
+    for (let o = 0; o <= l; o += 2) assert.ok(gap(ax + (bx - ax) * o / l, az + (bz - az) * o / l) < 10, 'chemin vide');
+  }
+  let n = 0, empty = 0;
+  for (let x = -150; x <= 150; x += 6) for (let z = -150; z <= 150; z += 6) { if (Math.hypot(x, z) > 150 || L.heightAt(x, z) < 1) continue; n++; if (gap(x, z) > 15) empty++; }
+  assert.ok(empty / n < 0.03, `${empty}/${n} coins vides`);
+  for (const k of ['squirrel', 'birds', 'rabbit', 'hedgehog', 'pile', 'shrub', 'flowers']) assert.ok(L.LIFE[k].length >= 20, k);
+  assert.ok(L.LIFE.frog.length >= 10);
+});
+
+test('glands pour Pistache : assez de cachettes, et des défis (course, carillons, nénuphars) qui en donnent', () => {
+  assert.ok(L.ACORNS.length >= L.ACORNS_NEEDED * 2);
+  assert.strictEqual(new Set(L.ACORNS.map(a => a.id)).size, L.ACORNS.length);
+  for (const k of ['pile', 'shrub', 'log', 'lily', 'race', 'melodie']) assert.ok(L.ACORNS.some(a => a.in === k), k);
+  // la course suit le grand chemin (aucun arbre dessus)
+  const R = L.RACE;
+  for (let k = 0; k <= 20; k++) { const x = R.start.x + (R.finish.x - R.start.x) * k / 20, z = R.start.z + (R.finish.z - R.start.z) * k / 20; assert.strictEqual(L.colliders.filter(c => (c.solid || c.kind === 'tree' || c.kind === 'rock') && L.inside(c, x, z, 0.3)).length, 0, 'obstacle sur la piste'); }
+  // les nénuphars : des petits sauts depuis la rive
+  const LI = L.LILIES;
+  for (let i = 1; i < LI.length; i++) assert.ok(Math.hypot(LI[i].x - LI[i - 1].x, LI[i].z - LI[i - 1].z) - LI[i].r - LI[i - 1].r < 1.2);
+  for (const l of LI) assert.ok(L.inWater(l.x, l.z), 'nénuphar sur l\'eau');
+  // les troncs couchés : on passe dedans
+  for (const t of L.LOG_TUNNELS) for (let o = -t.len / 2; o <= t.len / 2; o += 0.5) assert.strictEqual(L.colliders.filter(c => c.log && L.inside(c, t.x + t.dx * o, t.z + t.dz * o, 0.4)).length, 0, 'tronc bouché');
+});
+
 console.log(`\n${passed} test(s) réussi(s)`);
