@@ -744,7 +744,7 @@ class Adventure {
     if (!L.NO_TERRAIN && !snowy) W.buildTerrain(sc, q0);
     this.water = L.NO_TERRAIN || L.NO_WATER ? null : W.buildWater(sc, sc.fog);
     this.grass = snowy ? null : W.buildGrass(sc, q0, this.wind);
-    if (!snowy) { W.buildFlowers(sc, q0); W.buildTrees(sc, q0); }
+    if (!snowy) { W.buildFlowers(sc, q0); if (!L.OWN_TREES) W.buildTrees(sc, q0); }   // (OWN_TREES : le niveau dessine ses arbres lui-même, par quartiers)
     this.fallTex = this.makeWaterfallTexture();
     this.pedestalBalls = [];
     if (L.ID === 1) this.buildParc();
@@ -3332,6 +3332,7 @@ class Adventure {
       wind = 0.25; windP = 0.1; birds = 0.5;
     } else if (L.ID === 2) {
       if (L.SPOTS && L.SPOTS.lake) water = near(L.SPOTS.lake.x, L.SPOTS.lake.z, 24) * 0.5;
+      if (L.riverInfo) water = Math.max(water, Math.max(0, 1 - L.riverInfo(c.x, c.z).d / 28) ** 1.6 * 0.45);   // la rivière
       wind = 0.3; windP = 0.25; birds = 0.35; owls = 0.04;
     } else if (L.ID === 3) {
       if (L.FOUNTAIN) water = near(L.FOUNTAIN.x, L.FOUNTAIN.z, 22) * 0.35;   // la fontaine : discrète (Mamie est juste à côté)
