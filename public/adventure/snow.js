@@ -1,8 +1,10 @@
 /*
  * Matcha & Ainu — Niveau 5 « La Station des Neiges » : décor et règles du niveau
- * (sol enneigé, sapins, village de chalets, lac gelé, télésiège, Grande Glissade
- * en luge, Cascade Gelée, Fort Moustache et sa bataille de boules de neige,
- * Bernard le sauveteur et Myrtille, l'amie de Mamie). Le moteur commun est dans game.js.
+ * (sol enneigé, sapins, village de chalets, patinoire et course contre Pingo, jardin des
+ * bonshommes de neige, rivière et lac gelés, pingouins, renard, Crevasse de Cristal,
+ * Cascade Gelée, télésiège, Grande Glissade en luge pilotable, Fort Moustache et sa
+ * bataille de boules de neige, Bernard le sauveteur et Myrtille, l'amie de Mamie).
+ * Le moteur commun est dans game.js.
  */
 import * as THREE from '../vendor/three.module.min.js';
 import { L } from './current.js';
@@ -226,20 +228,89 @@ function flagTexture() {
   });
 }
 
+/** Pingouin : corps noir, ventre blanc, bec et pattes orange. */
+function buildPenguin(scale, extra) {
+  const g = new THREE.Group();
+  const black = M.mat(0x23262e, { roughness: 0.6 }), white = M.mat(0xf6f6f2, { roughness: 0.7 }), orange = M.mat(0xf0962a, { roughness: 0.5 });
+  const body = new THREE.Group(); g.add(body);
+  const back = new THREE.Mesh(new THREE.SphereGeometry(0.42, 16, 12), black); back.scale.set(1, 1.35, 0.9); back.position.y = 0.6; body.add(back);
+  const belly = new THREE.Mesh(new THREE.SphereGeometry(0.36, 16, 12), white); belly.scale.set(0.95, 1.25, 0.7); belly.position.set(0, 0.56, 0.14); body.add(belly);
+  const head = new THREE.Group(); head.position.y = 1.15; body.add(head);
+  const skull = new THREE.Mesh(new THREE.SphereGeometry(0.28, 16, 12), black); head.add(skull);
+  const face = new THREE.Mesh(new THREE.SphereGeometry(0.22, 14, 10), white); face.scale.set(1, 0.85, 0.6); face.position.set(0, -0.03, 0.12); head.add(face);
+  const beak = new THREE.Mesh(new THREE.ConeGeometry(0.07, 0.22, 8), orange); beak.rotation.x = Math.PI / 2; beak.position.set(0, -0.04, 0.32); head.add(beak);
+  for (const sx of [-1, 1]) {
+    const eye = new THREE.Mesh(new THREE.SphereGeometry(0.045, 8, 6), M.mat(0x111111, { roughness: 0.2 })); eye.position.set(sx * 0.1, 0.05, 0.24); head.add(eye);
+    const shine = new THREE.Mesh(new THREE.SphereGeometry(0.015, 6, 4), M.mat(0xffffff)); shine.position.set(sx * 0.1 + 0.015, 0.07, 0.28); head.add(shine);
+  }
+  const wings = [-1, 1].map(sx => {
+    const w = new THREE.Group(); w.position.set(sx * 0.4, 0.82, 0); body.add(w);
+    const f = new THREE.Mesh(new THREE.SphereGeometry(0.16, 10, 8), black); f.scale.set(0.35, 1.6, 0.8); f.position.y = -0.22; w.add(f);
+    return w;
+  });
+  const feet = [-1, 1].map(sx => { const f = new THREE.Mesh(new THREE.SphereGeometry(0.1, 8, 6), orange); f.scale.set(1, 0.4, 1.6); f.position.set(sx * 0.15, 0.03, 0.08); g.add(f); return f; });
+  if (extra === 'scarf') { const s = new THREE.Mesh(new THREE.TorusGeometry(0.27, 0.07, 8, 18), M.mat(0xe0303a, { roughness: 1 })); s.rotation.x = Math.PI / 2; s.position.y = 0.92; body.add(s); }
+  if (extra === 'bow') { const b = new THREE.Mesh(new THREE.TorusGeometry(0.08, 0.035, 6, 12), M.mat(0xff6ab0)); b.position.set(0.12, 0.24, 0.05); b.rotation.y = Math.PI / 2; head.add(b); }
+  g.scale.setScalar(scale);
+  g.traverse(o => { if (o.isMesh) o.castShadow = true; });
+  g.userData = { body, head, wings, feet, height: 1.45 * scale, mhead: head };
+  return g;
+}
+/** Renard roux : museau pointu, oreilles noires, grosse queue au bout blanc. */
+function buildFox() {
+  const g = new THREE.Group();
+  const red = M.mat(0xd8641e, { roughness: 0.8 }), white = M.mat(0xfaf2e6, { roughness: 0.8 }), dark = M.mat(0x2a1a14, { roughness: 0.7 });
+  const body = new THREE.Mesh(new THREE.CapsuleGeometry(0.26, 0.6, 6, 12), red); body.rotation.x = Math.PI / 2; body.position.y = 0.55; g.add(body);
+  const chest = new THREE.Mesh(new THREE.SphereGeometry(0.22, 12, 10), white); chest.position.set(0, 0.52, 0.34); chest.scale.set(1, 1.1, 0.8); g.add(chest);
+  const head = new THREE.Group(); head.position.set(0, 0.86, 0.5); g.add(head);
+  const skull = new THREE.Mesh(new THREE.SphereGeometry(0.22, 14, 10), red); head.add(skull);
+  const snout = new THREE.Mesh(new THREE.ConeGeometry(0.12, 0.34, 10), white); snout.rotation.x = Math.PI / 2; snout.position.set(0, -0.05, 0.26); head.add(snout);
+  const nose = new THREE.Mesh(new THREE.SphereGeometry(0.04, 8, 6), dark); nose.position.set(0, -0.05, 0.43); head.add(nose);
+  for (const sx of [-1, 1]) {
+    const ear = new THREE.Mesh(new THREE.ConeGeometry(0.09, 0.24, 6), dark); ear.position.set(sx * 0.12, 0.22, -0.02); ear.rotation.z = -sx * 0.25; head.add(ear);
+    const eye = new THREE.Mesh(new THREE.SphereGeometry(0.035, 8, 6), dark); eye.position.set(sx * 0.09, 0.05, 0.17); head.add(eye);
+  }
+  const tail = new THREE.Group(); tail.position.set(0, 0.62, -0.5); g.add(tail);
+  const brush = new THREE.Mesh(new THREE.SphereGeometry(0.2, 12, 10), red); brush.scale.set(1, 1, 2.6); brush.position.set(0, 0.08, -0.42); tail.add(brush);
+  const tip = new THREE.Mesh(new THREE.SphereGeometry(0.13, 10, 8), white); tip.position.set(0, 0.1, -0.92); tail.add(tip);
+  const legs = [[-0.13, 0.3], [0.13, 0.3], [-0.13, -0.3], [0.13, -0.3]].map(([x, z]) => {
+    const l = new THREE.Group(); l.position.set(x, 0.42, z); g.add(l);
+    const m = new THREE.Mesh(new THREE.CapsuleGeometry(0.06, 0.28, 4, 8), dark); m.position.y = -0.2; l.add(m);
+    return l;
+  });
+  g.traverse(o => { if (o.isMesh) o.castShadow = true; });
+  g.userData = { head, tail, legs, height: 1.1 };
+  return g;
+}
+/** Boule de neige (bonhomme) : une sphère un peu bosselée. */
+function snowballGeo() {
+  const g = new THREE.IcosahedronGeometry(1, 3), p = g.attributes.position;
+  for (let i = 0; i < p.count; i++) { const k = 1 + Math.sin(p.getX(i) * 7 + p.getY(i) * 5) * 0.03; p.setXYZ(i, p.getX(i) * k, p.getY(i) * k, p.getZ(i) * k); }
+  g.computeVertexNormals();
+  return g;
+}
+
 // ===========================================================================
 export function buildSnow(game) {
   const sc = game.scene, S = L, lite = game.lite;
   const moving = [], chars = [];
   const save = () => game.save;
-  const snow = () => { const s = save(); if (!s.snow) s.snow = {}; const k = s.snow; if (!k.bonnets) k.bonnets = []; if (!k.flags) k.flags = []; if (k.cp === undefined) k.cp = 0; return k; };
+  const snow = () => {
+    const s = save(); if (!s.snow) s.snow = {}; const k = s.snow;
+    if (!k.bonnets) k.bonnets = []; if (!k.flags) k.flags = []; if (!k.placed) k.placed = []; if (k.cp === undefined) k.cp = 0;
+    return k;
+  };
   const std = (o) => new THREE.MeshStandardMaterial(Object.assign({ roughness: 0.9 }, o || {}));
   const real = W.LOOK.real;
   const snowTex = snowTexture();
   const snowNormal = real ? RT.normalFor(snowTex, 1.2) : null;
+  // décor par quartier : on le cache quand on est loin (le monde est grand)
+  const cull = [];
+  const area = (x, z, r) => { const g = new THREE.Group(); sc.add(g); cull.push({ obj: g, x, z, r: r || 30 }); return g; };
 
   // --- le sol enneigé ------------------------------------------------------------------
   {
-    const size = S.WORLD, seg = lite ? 150 : 240;
+    const size = S.WORLD, seg = lite ? 210 : 320;
     const geo = new THREE.PlaneGeometry(size, size, seg, seg);
     geo.rotateX(-Math.PI / 2);
     const pos = geo.attributes.position;
@@ -263,7 +334,7 @@ export function buildSnow(game) {
       c.lerp(PATH, (1 - smooth(1.2, 2.6, pathD(x, z))) * 0.7);
       const ri = S.runInfo(x, z);
       c.lerp(RUNC, (1 - smooth(1.5, S.RUN_W, ri.d)) * 0.6);
-      c.lerp(n > 0 ? ROCK : ROCK2, smooth(0.66, 0.42, ny) * smooth(9, 18, pos.getY(i)) * (0.65 + 0.35 * n));
+      c.lerp(n > 0 ? ROCK : ROCK2, smooth(0.66, 0.42, ny) * smooth(9, 18, pos.getY(i) - 2) * (0.65 + 0.35 * n));
       if (S.iceAt(x, z)) c.copy(DEEP);
       col[i * 3] = c.r; col[i * 3 + 1] = c.g; col[i * 3 + 2] = c.b;
     }
@@ -276,49 +347,78 @@ export function buildSnow(game) {
     sc.add(m);
   }
 
-  // --- la glace : le lac et la mare de la cascade ----------------------------------------
-  const iceMat = std({ map: iceTexture(), color: 0xd4ecfa, roughness: 0.12, metalness: 0.05, transparent: true, opacity: 0.94 });
+  // --- la glace : lac, rivière, patinoire, mare de la cascade ---------------------------------
+  const iceMat = std({ map: iceTexture(), color: 0xd4ecfa, roughness: 0.12, metalness: 0.05 });
+  const flatUV = (g, k) => { const uv = g.attributes.uv, p = g.attributes.position; for (let i = 0; i < uv.count; i++) uv.setXY(i, p.getX(i) / k, p.getZ(i) / k); return g; };
   {
     const LK = S.LAKE;
-    const g = new THREE.RingGeometry(LK.islet - 0.2, LK.r + 0.6, 72, 2); g.rotateX(-Math.PI / 2);
-    const uv = g.attributes.uv, p = g.attributes.position;
-    for (let i = 0; i < uv.count; i++) uv.setXY(i, p.getX(i) / 18 + 0.5, p.getZ(i) / 18 + 0.5);
-    const lake = new THREE.Mesh(g, iceMat); lake.position.set(LK.x, LK.y + 0.015, LK.z); lake.receiveShadow = true;
-    sc.add(lake);
+    const lake = new THREE.Mesh(flatUV(new THREE.RingGeometry(LK.islet - 0.2, LK.r + 0.6, 72, 2).rotateX(-Math.PI / 2), 18), iceMat);
+    lake.position.set(LK.x, LK.y + 0.015, LK.z); lake.receiveShadow = true; sc.add(lake);
     const FP = S.FALLS_POOL;
-    const pool = new THREE.Mesh(new THREE.CircleGeometry(FP.r + 0.3, 32).rotateX(-Math.PI / 2), iceMat);
-    pool.position.set(FP.x, S.heightAt(FP.x, FP.z) + 0.02, FP.z); pool.receiveShadow = true;
-    sc.add(pool);
+    const pool = new THREE.Mesh(flatUV(new THREE.CircleGeometry(FP.r + 0.3, 32).rotateX(-Math.PI / 2), 18), iceMat);
+    pool.position.set(FP.x, S.heightAt(FP.x, FP.z) + 0.02, FP.z); pool.receiveShadow = true; sc.add(pool);
+    const RK = S.RINK;
+    const rink = new THREE.Mesh(flatUV(new THREE.CircleGeometry(1, 48).rotateX(-Math.PI / 2), 1 / 18), iceMat);
+    rink.scale.set(RK.rx + 0.3, 1, RK.rz + 0.3); rink.position.set(RK.x, RK.y + 0.02, RK.z); rink.receiveShadow = true; sc.add(rink);
+    // la rivière gelée : un ruban de glace qui suit son lit
+    const R = S.RIVER, pos = [], uvs = [], idx = [];
+    R.pts.forEach((p, i) => {
+      const q = R.pts[Math.min(i + 1, R.pts.length - 1)], o = R.pts[Math.max(i - 1, 0)];
+      let dx = q.x - o.x, dz = q.z - o.z; const l = Math.hypot(dx, dz) || 1; dx /= l; dz /= l;
+      const y = S.riverY(p.s) + 0.03, w = S.RIVER_W + 0.4;
+      pos.push(p.x + dz * w, y, p.z - dx * w, p.x - dz * w, y, p.z + dx * w);
+      uvs.push(0, p.s / 9, 1, p.s / 9);
+      if (i) { const a = (i - 1) * 2; idx.push(a, a + 2, a + 1, a + 1, a + 2, a + 3); }
+    });
+    const rg = new THREE.BufferGeometry();
+    rg.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3)); rg.setAttribute('uv', new THREE.Float32BufferAttribute(uvs, 2)); rg.setIndex(idx); rg.computeVertexNormals();
+    const river = new THREE.Mesh(rg, iceMat); river.receiveShadow = true; sc.add(river);
+    // ponts de bois
+    const parts = [];
+    for (const b of S.BRIDGES) {
+      const g = area(b.x, b.z, 12);
+      const deck = new THREE.Mesh(new THREE.BoxGeometry(b.len, 0.3, 3.2), M.mat(0xa0703e, { roughness: 0.85 }));
+      deck.position.set(b.x, b.y - 0.15, b.z); deck.rotation.y = b.yaw; deck.castShadow = deck.receiveShadow = true; g.add(deck);
+      const snowTop = new THREE.Mesh(new THREE.BoxGeometry(b.len - 0.4, 0.06, 2.6), M.mat(0xf4f8ff, { roughness: 0.9 }));
+      snowTop.position.set(b.x, b.y + 0.02, b.z); snowTop.rotation.y = b.yaw; g.add(snowTop);
+      const sx = Math.cos(b.yaw), sz = -Math.sin(b.yaw), fx = Math.sin(b.yaw), fz = Math.cos(b.yaw);
+      for (const sd of [-1, 1]) for (let k = -b.len / 2 + 0.5; k <= b.len / 2 - 0.4; k += 2.2) parts.push({ geo: paint(new THREE.CylinderGeometry(0.08, 0.1, 1.1, 6), 0x7a5030), x: b.x + sx * k + fx * sd * 1.5, y: b.y + 0.5, z: b.z + sz * k + fz * sd * 1.5 });
+      for (const sd of [-1, 1]) parts.push({ geo: paint(new THREE.BoxGeometry(b.len, 0.12, 0.12), 0x7a5030), x: b.x + fx * sd * 1.5, y: b.y + 1.0, z: b.z + fz * sd * 1.5, ry: b.yaw });
+    }
+    if (parts.length) { const m = new THREE.Mesh(merge(parts), std({ vertexColors: true })); m.castShadow = true; sc.add(m); }
   }
 
-  // --- sapins ------------------------------------------------------------------------------
+  // --- sapins (par quartiers : les quartiers hors de l'écran ne sont pas dessinés) ------------
   {
     const geo = pineGeometry(lite);
     const mat = std({ vertexColors: true, roughness: 0.92 });
-    const r = rng(9), m4 = new THREE.Matrix4(), q = new THREE.Quaternion(), e = new THREE.Euler(), v = new THREE.Vector3(), s = new THREE.Vector3();
+    const r = rng(9), m4 = new THREE.Matrix4(), q = new THREE.Quaternion(), e = new THREE.Euler(), v = new THREE.Vector3(), s = new THREE.Vector3(), c = new THREE.Color();
     const deco = [];
-    // sapins des montagnes tout autour (décor)
     let guard = 0;
-    const want = lite ? 70 : 170;
-    while (deco.length < want && guard++ < 6000) {
-      const x = (r() - 0.5) * 236, z = (r() - 0.5) * 236;
+    const want = lite ? 110 : 260;
+    while (deco.length < want && guard++ < 9000) {
+      const x = (r() - 0.5) * 416, z = (r() - 0.5) * 416;
       const e4 = Math.pow(x ** 4 + z ** 4, 0.25);
-      if (e4 < 99 || e4 > 117) continue;
+      if (e4 < 193 || e4 > 208) continue;
       const h = S.heightAt(x, z);
       if (Math.abs(S.heightAt(x + 1.5, z) - h) + Math.abs(S.heightAt(x, z + 1.5) - h) > 3.2) continue;
       deco.push({ x, z, y: h, s: 0.9 + r() * 0.8, k: 1 });
     }
     const all = S.trees.map(t => ({ x: t.x, z: t.z, y: t.y, s: t.s, k: t.h / 7 / t.s })).concat(deco);
-    const inst = new THREE.InstancedMesh(geo, mat, all.length);
-    const c = new THREE.Color();
-    all.forEach((t, i) => {
-      m4.compose(v.set(t.x, t.y - 0.25, t.z), q.setFromEuler(e.set(0, r() * 6.28, (r() - 0.5) * 0.06)), s.set(t.s, t.s * (t.k || 1) * (0.9 + r() * 0.25), t.s));
-      inst.setMatrixAt(i, m4);
-      inst.setColorAt(i, c.setScalar(0.9 + r() * 0.15));
-    });
-    inst.castShadow = true; inst.receiveShadow = true;
-    if (lite) inst.userData.noOutline = true;
-    sc.add(inst);
+    const CH = 70, chunks = new Map();
+    for (const t of all) { const key = Math.floor(t.x / CH) + ',' + Math.floor(t.z / CH); if (!chunks.has(key)) chunks.set(key, []); chunks.get(key).push(t); }
+    for (const list of chunks.values()) {
+      const inst = new THREE.InstancedMesh(geo, mat, list.length);
+      list.forEach((t, i) => {
+        m4.compose(v.set(t.x, t.y - 0.25, t.z), q.setFromEuler(e.set(0, r() * 6.28, (r() - 0.5) * 0.06)), s.set(t.s, t.s * (t.k || 1) * (0.9 + r() * 0.25), t.s));
+        inst.setMatrixAt(i, m4);
+        inst.setColorAt(i, c.setScalar(0.9 + r() * 0.15));
+      });
+      inst.computeBoundingSphere();
+      inst.castShadow = true; inst.receiveShadow = true;
+      if (lite) inst.userData.noOutline = true;
+      sc.add(inst);
+    }
   }
 
   // --- le village : chalets, grand sapin, lampadaires ---------------------------------------
@@ -502,22 +602,47 @@ export function buildSnow(game) {
   chairs.castShadow = true; chairs.frustumCulled = false;
   sc.add(chairs); moving.push(chairs);
 
-  // --- la Grande Glissade : portes, départ, arrivée, luges ------------------------------------
+  // --- la Grande Glissade : portes, tunnel, départ, arrivée, luges ------------------------------------
   {
     const parts = [];
-    const RUN = S.RUN;
-    for (let i = 1; i < RUN.length - 1; i++) {
-      const [x, z] = RUN[i], [px, pz] = RUN[i - 1], [nx, nz] = RUN[i + 1];
-      const dx = nx - px, dz = nz - pz, l = Math.hypot(dx, dz), sx = dz / l, sz = -dx / l;
+    S.GATES.forEach((gt, i) => {
+      const sx = gt.dz, sz = -gt.dx;
       const col = i % 2 ? 0xe83a3a : 0x3a7ae8;
       for (const sd of [-1, 1]) {
-        const ox = x + sx * sd * (S.RUN_W + 1), oz = z + sz * sd * (S.RUN_W + 1), y = S.heightAt(ox, oz);
-        parts.push({ geo: paint(new THREE.CylinderGeometry(0.06, 0.06, 2.2, 6), 0xf4f4f4), x: ox, y: y + 1.1, z: oz });
-        parts.push({ geo: paint(new THREE.BoxGeometry(0.9, 0.6, 0.04), col), x: ox - sx * sd * 0.45, y: y + 1.85, z: oz - sz * sd * 0.45, ry: Math.atan2(sx, sz) + Math.PI / 2 });
+        const ox = gt.x + sx * sd * gt.half, oz = gt.z + sz * sd * gt.half, y = S.heightAt(ox, oz);
+        parts.push({ geo: paint(new THREE.CylinderGeometry(0.07, 0.07, 2.4, 6), 0xf4f4f4), x: ox, y: y + 1.2, z: oz });
+        parts.push({ geo: paint(new THREE.BoxGeometry(1.0, 0.7, 0.05), col), x: ox - sx * sd * 0.5, y: y + 2.0, z: oz - sz * sd * 0.5, ry: Math.atan2(sx, sz) + Math.PI / 2 });
       }
+    });
+    // petits fanions orange le long des bords (on voit bien la piste de loin)
+    for (const r of S.RUNS) for (let s = 6; s < r.total; s += 9) {
+      const p = r.at(s);
+      for (const sd of [-1, 1]) { const ox = p.x + p.dz * sd * (S.RUN_W + 2.2), oz = p.z - p.dx * sd * (S.RUN_W + 2.2); parts.push({ geo: paint(new THREE.ConeGeometry(0.12, 0.9, 5), 0xff8a2a), x: ox, y: S.heightAt(ox, oz) + 0.4, z: oz }); }
     }
-    // barrières de neige au bord de la piste (petits fanions orange)
     const pm = new THREE.Mesh(merge(parts), std({ vertexColors: true, roughness: 0.6 })); pm.castShadow = true; sc.add(pm);
+    // le tunnel de neige
+    {
+      const T = S.TUNNEL, Rr = S.RUN_W + 2.2, pos = [], idx = [], cols = [];
+      const N = 12, steps = Math.ceil((T.s1 - T.s0) / 1.2);
+      for (let i = 0; i <= steps; i++) {
+        const p = S.RUN.at(T.s0 + (T.s1 - T.s0) * i / steps), nx = p.dz, nz = -p.dx, y0 = S.heightAt(p.x, p.z) - 1;
+        for (let j = 0; j <= N; j++) {
+          const a = Math.PI * j / N;
+          pos.push(p.x + nx * Math.cos(a) * Rr, y0 + Math.sin(a) * 5.4, p.z + nz * Math.cos(a) * Rr);
+          const k = 0.92 + 0.08 * Math.sin(j * 1.7 + i);
+          cols.push(0.9 * k, 0.94 * k, 1.0 * k);
+          if (i && j) { const a0 = (i - 1) * (N + 1) + j - 1, a1 = i * (N + 1) + j - 1; idx.push(a0, a1, a0 + 1, a0 + 1, a1, a1 + 1); }
+        }
+      }
+      const g = new THREE.BufferGeometry();
+      g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3)); g.setAttribute('color', new THREE.Float32BufferAttribute(cols, 3)); g.setIndex(idx); g.computeVertexNormals();
+      const tm = new THREE.Mesh(g, std({ vertexColors: true, side: THREE.DoubleSide, map: snowTex }));
+      tm.castShadow = true; tm.receiveShadow = true; sc.add(tm);
+      // des glaçons à l'entrée et à la sortie
+      const ic = [];
+      for (const s of [T.s0, T.s1]) { const p = S.RUN.at(s); for (let j = 1; j < 8; j++) { const a = Math.PI * j / 8, len = 0.5 + (j % 3) * 0.3; ic.push({ geo: new THREE.ConeGeometry(0.12, len, 5), x: p.x + p.dz * Math.cos(a) * (Rr - 0.2), y: S.heightAt(p.x, p.z) - 1 + Math.sin(a) * 5.2 - len / 2, z: p.z - p.dx * Math.cos(a) * (Rr - 0.2), rx: Math.PI }); } }
+      sc.add(new THREE.Mesh(merge(ic), new THREE.MeshStandardMaterial({ color: 0xc8ecff, roughness: 0.1, emissive: 0x3a7ab0, emissiveIntensity: 0.2 })));
+    }
     const arch = (x, z, yaw, label, opts) => {
       const g = new THREE.Group(), y = S.heightAt(x, z);
       for (const sd of [-1, 1]) { const p = new THREE.Mesh(new THREE.CylinderGeometry(0.2, 0.25, 4, 8), M.mat(0x3a7ae8, { roughness: 0.5 })); p.position.set(sd * (S.RUN_W + 0.5), 2, 0); p.castShadow = true; g.add(p); }
@@ -527,10 +652,10 @@ export function buildSnow(game) {
       sc.add(g);
       return g;
     };
-    const d0 = S.runInfo(S.SLED_START.x, S.SLED_START.z).dir;
-    arch(S.RUN[0][0] + d0[0] * 3, S.RUN[0][1] + d0[1] * 3, Math.atan2(d0[0], d0[1]), 'DÉPART', { bg: '#2a6ad0' });
-    const dl = S.runInfo(S.FINISH.x, S.FINISH.z).dir;
-    arch(S.FINISH.x, S.FINISH.z, Math.atan2(dl[0], dl[1]), 'ARRIVÉE', { bg: '#d03a3a', checker: true, size: 56 });
+    const d0 = S.RUN.at(S.SLED_START.s + 4);
+    arch(d0.x, d0.z, Math.atan2(d0.dx, d0.dz), 'DÉPART', { bg: '#2a6ad0' });
+    const dl = S.RUN.at(S.RUN.total - 3);
+    arch(dl.x, dl.z, Math.atan2(dl.dx, dl.dz), 'ARRIVÉE', { bg: '#d03a3a', checker: true, size: 56 });
     // les luges du sommet, appuyées contre un râtelier
     const R = S.SLED_RACK;
     const rack = new THREE.Mesh(new THREE.BoxGeometry(2.6, 0.12, 0.12), M.mat(0x7a5030)); rack.position.set(R.x, R.y + 1.1, R.z); sc.add(rack);
@@ -577,6 +702,28 @@ export function buildSnow(game) {
     if (rocks.length) { const rm = new THREE.Mesh(merge(rocks), std({ vertexColors: true, flatShading: true })); rm.castShadow = true; sc.add(rm); }
   }
 
+  // --- la Crevasse de Cristal ---------------------------------------------------------------------
+  {
+    const g = area(S.CREVASSE.x, S.CREVASSE.z, 30);
+    const walls = [], caps = [];
+    for (const c of S.CREVASSE_WALLS) {
+      const h = c.y1 - c.y0;
+      walls.push({ geo: new THREE.BoxGeometry(c.w, h, c.d, 2, 3, 2), x: c.x, y: c.y0 + h / 2, z: c.z });
+      caps.push({ geo: paint(new THREE.BoxGeometry(c.w + 0.3, 0.3, c.d + 0.3), 0xf4f8ff), x: c.x, y: c.y1 + 0.1, z: c.z });
+    }
+    const ice = new THREE.MeshStandardMaterial({ color: 0x9ad4f4, roughness: 0.15, metalness: 0.05, emissive: 0x1a5a90, emissiveIntensity: 0.25 });
+    const wm = new THREE.Mesh(merge(walls), ice); wm.castShadow = wm.receiveShadow = true; g.add(wm);
+    g.add(new THREE.Mesh(merge(caps), std({ vertexColors: true })));
+    const cr = [], r = rng(61);
+    for (let i = 0; i < 14; i++) {
+      const c = S.CREVASSE_WALLS[i % S.CREVASSE_WALLS.length], sd = r() < 0.5 ? -1 : 1;
+      const x = c.x + (c.w > c.d ? (r() - 0.5) * c.w : sd * (c.w / 2 + 0.3)), z = c.z + (c.w > c.d ? sd * (c.d / 2 + 0.3) : (r() - 0.5) * c.d);
+      cr.push({ geo: paint(new THREE.OctahedronGeometry(0.35, 0), [0x8af0ff, 0xc08aff, 0x8affd8][i % 3]), x, y: S.CREVASSE.y + 0.8 + r() * 3, z, sy: 2, rz: (r() - 0.5) });
+    }
+    const cm = new THREE.Mesh(merge(cr), new THREE.MeshBasicMaterial({ vertexColors: true }));
+    cm.userData.noOutline = true; g.add(cm);
+    for (let i = 0; i < 4; i++) { const s = glowSprite([0x8af0ff, 0xc08aff][i % 2], 4, 0.4); s.position.set(S.CREVASSE.x + [0, 10, 10, 2][i], S.CREVASSE.y + 2, S.CREVASSE.z + [8, 2, -9, -17][i]); g.add(s); }
+  }
   // --- le Fort Moustache ----------------------------------------------------------------------
   const FORT = S.FORT;
   let fortFlag = null;
@@ -613,6 +760,17 @@ export function buildSnow(game) {
     fortFlag.userData.base = fg.attributes.position.array.slice();
   }
 
+  // la porte de neige du fort (elle s'enfonce quand on a assez de médailles)
+  const gateMesh = new THREE.Group();
+  {
+    const G = S.FORT_GATE;
+    const door = new THREE.Mesh(new THREE.BoxGeometry(G.w + 0.2, G.y1 - G.y0, G.d), std({ color: 0xe8f0fa, map: snowTex }));
+    door.position.y = (G.y1 - G.y0) / 2; door.castShadow = true; gateMesh.add(door);
+    const paw = new THREE.Mesh(new THREE.CircleGeometry(0.8, 24), new THREE.MeshStandardMaterial({ map: canvasTex(128, 128, (x) => { x.fillStyle = '#ff6ab0'; x.beginPath(); x.arc(64, 64, 62, 0, 7); x.fill(); x.fillStyle = '#fff'; x.font = '700 64px Fredoka, Arial'; x.textAlign = 'center'; x.textBaseline = 'middle'; x.fillText(String(S.FORT_MEDALS), 64, 70); }), transparent: true }));
+    paw.position.set(0, 2.6, G.d / 2 + 0.02); gateMesh.add(paw);
+    gateMesh.position.set(G.x, G.y0 + 1, G.z);
+    sc.add(gateMesh);
+  }
   // --- drapeaux (points de reprise) -------------------------------------------------------------
   const flagTex = flagTexture();
   const flags = S.CHECKPOINTS.map((c) => {
@@ -636,10 +794,49 @@ export function buildSnow(game) {
   const folks = {};
   for (const id in S.FOLKS) {
     const f = S.FOLKS[id];
-    const m = id === 'bernard' ? buildBernard() : buildMyrtille();
+    const m = id === 'bernard' ? buildBernard() : id === 'myrtille' ? buildMyrtille() : id === 'pingo' ? buildPenguin(1.15, 'scarf') : buildPenguin(1.35, 'bow');
     m.position.set(f.x, f.y, f.z); m.rotation.y = f.yaw;
     sc.add(m); chars.push(m);
     folks[id] = { m, def: f, mark: game.makeMark(id === 'bernard' ? '!' : '?', id === 'bernard' ? 0xff9a2a : 0x8ad0ff) };
+  }
+  // le village des pingouins : igloos, petits pingouins
+  const penguins = [];
+  {
+    const g = area(S.SPOTS.igloos.x, S.SPOTS.igloos.z, 26);
+    const blocks = canvasTex(256, 128, (x, w, h) => { x.fillStyle = '#f4f8ff'; x.fillRect(0, 0, w, h); x.strokeStyle = '#b8cce4'; x.lineWidth = 3; for (let j = 0; j < 4; j++) { x.beginPath(); x.moveTo(0, j * 32); x.lineTo(w, j * 32); x.stroke(); for (let i = 0; i < 8; i++) { const px = i * 32 + (j % 2) * 16; x.beginPath(); x.moveTo(px, j * 32); x.lineTo(px, j * 32 + 32); x.stroke(); } } });
+    blocks.wrapS = THREE.RepeatWrapping; blocks.repeat.set(3, 1);
+    const im = std({ map: blocks, roughness: 0.8 });
+    for (const ig of S.IGLOOS) {
+      const dome = new THREE.Mesh(new THREE.SphereGeometry(ig.r, 24, 12, 0, Math.PI * 2, 0, Math.PI / 2), im);
+      dome.scale.y = 0.85; dome.position.set(ig.x, ig.y - 0.05, ig.z); dome.castShadow = dome.receiveShadow = true; g.add(dome);
+      const door = new THREE.Mesh(new THREE.CylinderGeometry(0.9, 0.9, 1.6, 12, 1, false, 0, Math.PI), im); door.rotation.set(0, 0, Math.PI / 2); door.rotation.order = 'ZYX';
+      const tun = new THREE.Mesh(new THREE.SphereGeometry(0.95, 12, 8, 0, Math.PI * 2, 0, Math.PI / 2), im); tun.scale.set(1, 1, 1.5);
+      const a = Math.atan2(S.LAKE.x - ig.x, S.LAKE.z - ig.z);
+      tun.position.set(ig.x + Math.sin(a) * ig.r * 0.92, ig.y, ig.z + Math.cos(a) * ig.r * 0.92); tun.rotation.y = a; g.add(tun);
+      const hole = new THREE.Mesh(new THREE.CircleGeometry(0.55, 16, 0, Math.PI), new THREE.MeshBasicMaterial({ color: 0x1a2a3a }));
+      hole.position.set(ig.x + Math.sin(a) * (ig.r * 0.92 + 1.38), ig.y + 0.02, ig.z + Math.cos(a) * (ig.r * 0.92 + 1.38)); hole.rotation.y = a; g.add(hole);
+      void door;
+    }
+    for (let i = 0; i < 3; i++) {
+      const p = buildPenguin(0.65 + i * 0.08);
+      const x = S.SPOTS.igloos.x - 6 + i * 4, z = S.SPOTS.igloos.z - 9 + (i % 2) * 2;
+      p.position.set(x, S.heightAt(x, z), z); sc.add(p); chars.push(p); moving.push(p);
+      penguins.push({ m: p, x, z, ph: i * 2.1 });
+    }
+  }
+  // le bébé pingouin (perdu sur le lac gelé)
+  const baby = buildPenguin(0.5);
+  sc.add(baby); chars.push(baby); moving.push(baby);
+  const babyMark = game.makeMark('!', 0xff9a2a);
+  // le renard et sa tanière
+  const fox = buildFox();
+  sc.add(fox); chars.push(fox); moving.push(fox);
+  {
+    const D = S.DEN, g = area(D.x, D.z, 16);
+    const rock = new THREE.Mesh(new THREE.IcosahedronGeometry(2.4, 1), std({ color: 0x8a8a94, flatShading: true }));
+    rock.scale.set(1, 0.8, 1); rock.position.set(D.x - 3, D.y + 0.6, D.z - 2.5); rock.castShadow = true; g.add(rock);
+    const cap2 = new THREE.Mesh(new THREE.SphereGeometry(2.1, 16, 8, 0, Math.PI * 2, 0, Math.PI / 3), std({ color: 0xf4f8ff })); cap2.position.set(D.x - 3, D.y + 1.2, D.z - 2.5); g.add(cap2);
+    const holeD = new THREE.Mesh(new THREE.CircleGeometry(0.7, 16), new THREE.MeshBasicMaterial({ color: 0x1a1410 })); holeD.position.set(D.x - 1.3, D.y + 0.5, D.z - 1.2); holeD.rotation.y = 0.8; g.add(holeD);
   }
   // la Capitaine Moustache, en écharpe et bonnet, dans son fort
   const cap = buildCaptain();
@@ -652,6 +849,54 @@ export function buildSnow(game) {
   cap.scale.setScalar(1.25);
   sc.add(cap); chars.push(cap); moving.push(cap);
   const capShadow = game.makeShadow(1.0);
+
+  // --- le jardin des bonshommes de neige ---------------------------------------------------------------
+  const ballGeo = snowballGeo();
+  const ballMat = std({ color: 0xf6f9ff, map: snowTex, roughness: 0.85 });
+  const rollers = S.SNOWBALLS.map(b => { const m = new THREE.Mesh(ballGeo, ballMat); m.castShadow = true; sc.add(m); moving.push(m); return { def: b, m }; });
+  const snowman = new THREE.Group();
+  {
+    const G = S.GARDEN;
+    const base = new THREE.Mesh(new THREE.CylinderGeometry(G.r, G.r + 0.4, 0.3, 24), std({ color: 0xdfe8f4 })); base.position.y = 0.1; snowman.add(base);
+    const ring = new THREE.Mesh(new THREE.TorusGeometry(G.r, 0.08, 6, 32), new THREE.MeshBasicMaterial({ color: 0xffd23a, transparent: true, opacity: 0.6 })); ring.rotation.x = Math.PI / 2; ring.position.y = 0.3; snowman.add(ring);
+    snowman.userData.ring = ring;
+    const parts = [];
+    for (let i = 0; i < 3; i++) { const m = new THREE.Mesh(ballGeo, ballMat); m.castShadow = true; m.visible = false; snowman.add(m); parts.push(m); }
+    snowman.userData.parts = parts;
+    const face = new THREE.Group(); face.visible = false; snowman.add(face);
+    const coal = M.mat(0x1a1a1e);
+    for (const sx of [-1, 1]) { const e = new THREE.Mesh(new THREE.SphereGeometry(0.08, 8, 6), coal); e.position.set(sx * 0.22, 0.15, 0.6); face.add(e); }
+    for (let i = 0; i < 5; i++) { const b = new THREE.Mesh(new THREE.SphereGeometry(0.05, 6, 4), coal); const a = -0.6 + i * 0.3; b.position.set(Math.sin(a) * 0.38, -0.2 - Math.cos(a) * 0.08, 0.55); face.add(b); }
+    const hat = new THREE.Mesh(new THREE.CylinderGeometry(0.38, 0.38, 0.6, 16), M.mat(0x2a2430)); hat.position.y = 0.85; face.add(hat);
+    const brim = new THREE.Mesh(new THREE.CylinderGeometry(0.6, 0.6, 0.06, 18), M.mat(0x2a2430)); brim.position.y = 0.56; face.add(brim);
+    const scarf = new THREE.Mesh(new THREE.TorusGeometry(0.55, 0.12, 8, 20), M.mat(0xe0303a, { roughness: 1 })); scarf.rotation.x = Math.PI / 2; scarf.position.y = -0.62; face.add(scarf);
+    const nose = new THREE.Mesh(new THREE.ConeGeometry(0.09, 0.55, 8), M.mat(0xf07a1a)); nose.rotation.x = Math.PI / 2; nose.position.set(0, 0, 0.9); nose.visible = false; face.add(nose);
+    for (const sx of [-1, 1]) { const arm = new THREE.Mesh(new THREE.CylinderGeometry(0.04, 0.05, 1.5, 5), M.mat(0x5a3a24)); arm.position.set(sx * 1.4, -1.0, 0); arm.rotation.z = sx * 1.0; face.add(arm); }
+    snowman.userData.face = face; snowman.userData.nose = nose;
+    snowman.position.set(G.x, S.heightAt(G.x, G.z), G.z);
+    sc.add(snowman);
+  }
+  // --- la patinoire : bancs de neige, plots, podium ------------------------------------------------------
+  const cones = [];
+  {
+    const RK = S.RINK, g = area(RK.x, RK.z, 26);
+    const bank = new THREE.Mesh(new THREE.TorusGeometry(1, 0.06, 6, 48), std({ color: 0xf4f8ff, map: snowTex }));
+    bank.rotation.x = Math.PI / 2; bank.scale.set(RK.rx + 0.8, RK.rz + 0.8, 8); bank.position.set(RK.x, RK.y + 0.05, RK.z); g.add(bank);
+    for (const c of S.RINK_CONES) {
+      const m = new THREE.Group();
+      const cone = new THREE.Mesh(new THREE.ConeGeometry(0.3, 0.8, 10), M.mat(0xff7a1a, { roughness: 0.5 })); cone.position.y = 0.4; m.add(cone);
+      const band = new THREE.Mesh(new THREE.CylinderGeometry(0.19, 0.23, 0.14, 10), M.mat(0xffffff)); band.position.y = 0.42; m.add(band);
+      const glow = new THREE.Mesh(new THREE.RingGeometry(0.7, 1.0, 24), new THREE.MeshBasicMaterial({ color: 0xffe070, transparent: true, opacity: 0, depthWrite: false }));
+      glow.rotation.x = -Math.PI / 2; glow.position.y = 0.04; glow.userData.noOutline = true; m.add(glow);
+      m.position.set(c.x, RK.y, c.z); g.add(m);
+      cones.push({ def: c, m, glow });
+    }
+    const P = S.RINK_PODIUM;
+    const pod = new THREE.Mesh(new THREE.BoxGeometry(2.4, P.h, 1.8), M.mat(0xffc830, { metalness: 0.4, roughness: 0.4 })); pod.position.set(P.x, P.y + P.h / 2, P.z); pod.castShadow = true; g.add(pod);
+    const sign = new THREE.Mesh(new THREE.PlaneGeometry(5, 1.2), new THREE.MeshStandardMaterial({ map: textTex('Patinoire', { bg: '#2a6ad0', size: 64 }), side: THREE.DoubleSide }));
+    sign.position.set(RK.x, RK.y + 3.4, RK.z - RK.rz - 1.5); g.add(sign);
+    for (const sd of [-1, 1]) { const p = new THREE.Mesh(new THREE.CylinderGeometry(0.08, 0.1, 3.4, 6), M.mat(0x3a3a44)); p.position.set(RK.x + sd * 2.4, RK.y + 1.7, RK.z - RK.rz - 1.5); g.add(p); }
+  }
 
   // --- bonnets, boules de neige --------------------------------------------------------------------
   const bonnets = S.BONNETS.map(b => {
@@ -669,12 +914,30 @@ export function buildSnow(game) {
   // État et règles
   // =============================================================================================
   const st = {
-    cp: snow().cp, sb: [], lastThrow: 0, iceTold: false, liftTold: false,
+    cp: snow().cp, sb: [], lastThrow: 0, iceTold: false, liftTold: false, gateHintT: -9, ballHintT: -9,
     boss: { phase: 'idle', x: FORT.x, y: FORT.y, z: FORT.z - 4, yaw: 0, hp: 3, t: 0, throws: 0, inv: 0, hop: null },
+    fox: { s: 'sit', x: S.DEN.x, z: S.DEN.z, y: S.DEN.y, yaw: 0, tx: 0, tz: 0, ph: 0 },
+    baby: { s: 'lost', x: S.BABY.x, z: S.BABY.z, y: S.BABY.y, yaw: 0, ph: 0, who: -1 },
+    rolls: [],
+    race: null,
+    gateK: 0,
   };
   const B = st.boss;
   const near = (x, z) => game.nearestPlayer({ x, z });
   const headY = (P) => P.pos.y + (P.mesh && P.mesh.userData.ainu ? 1.2 : 0.8);
+  const medalsWithout = (id) => save().medals.filter(m => m !== id).length;
+  function resetRolls() {
+    const k = snow();
+    st.rolls = S.SNOWBALLS.filter(b => !k.placed.includes(b.id)).map(b => ({ id: b.id, x: b.x, z: b.z, r: 0.45, y: S.heightAt(b.x, b.z) + 0.45, rot: 0 }));
+  }
+  resetRolls();
+  /** Où est le bonnet (celui du renard tombe là où le renard l'a lâché). */
+  function bonnetAt(b) {
+    const k = snow();
+    if (b.fox && k.foxAt) return { x: k.foxAt[0], z: k.foxAt[1], y: S.heightAt(k.foxAt[0], k.foxAt[1]) };
+    return b;
+  }
+  const bonnetAvail = (b) => { const k = snow(); return b.fox ? !!k.foxDrop : b.race ? !!k.raceWon : true; };
 
   function reachFlag(c) {
     const k = snow();
@@ -682,72 +945,119 @@ export function buildSnow(game) {
     if (k.cp !== c.id) { k.cp = c.id; st.cp = c.id; game.persist(); }
   }
 
-  // --- luge ---------------------------------------------------------------------------------------
+  // --- luge : une vraie glisse, qu'on dirige comme un kart ---------------------------------------
+  const SLED = { G: 22, TURN: 1.9, GRIP: 5.5, MAXV: 12 };
   function startSled(P) {
     if (P.ride) return;
-    const s0 = S.SLED_START, c = S.runAt(s0.s);
+    const s0 = S.SLED_START;
     P.attackT = 0; P.dashT = 0;
-    P.pos.set(c.x, S.heightAt(c.x, c.z), c.z); P.yaw = Math.atan2(c.dx, c.dz); P.vel.set(0, 0, 0);
-    // la luge suit la piste (s : distance parcourue, u : écart sur le côté)
-    P.ride = { kind: 'sled', s: s0.s, u: 0, uv: 0, yaw: P.yaw, speed: 5, vy: 0, air: false, t0: game.t };
+    P.pos.set(s0.x, S.heightAt(s0.x, s0.z), s0.z); P.yaw = s0.yaw; P.vel.set(0, 0, 0);
+    P.ride = { kind: 'sled', vx: Math.sin(s0.yaw) * 3, vz: Math.cos(s0.yaw) * 3, vy: 0, air: false, yaw: s0.yaw, speed: 3, t0: game.t, gates: new Set(), side: {}, stuck: 0, camRate: 7, fromTop: true };
     game.sound('dash');
-    if (!snow().sledTip) { snow().sledTip = 1; game.persist(); const k = game.controlsHelp(); game.banner('Attention… Glissade !', `Penchez-vous à gauche ou à droite · ${k.jump} : petit saut`, 3200); }
+    if (!snow().sledTip) { snow().sledTip = 1; game.persist(); const k = game.controlsHelp(); game.banner('Attention… Glissade !', `Gauche / droite : tourner · en arrière : freiner · ${k.jump} : petit saut`, 4000); }
   }
   function endRide(P, vy) {
     const R = P.ride;
     if (!R) return;
     P.ride = null;
-    P.vel.set(Math.sin(P.yaw) * Math.min(R.speed || 0, 6), vy === undefined ? 3 : vy, Math.cos(P.yaw) * Math.min(R.speed || 0, 6));
+    const sp = Math.min(R.speed || 0, 6);
+    P.vel.set(Math.sin(P.yaw) * sp, vy === undefined ? 3 : vy, Math.cos(P.yaw) * sp);
     P.grounded = false; P.jumps = 1;
     if (P.mesh) { P.mesh.rotation.x = 0; P.mesh.rotation.z = 0; }
   }
   function finishSled(P) {
-    const R = P.ride, k = snow(), tm = game.t - R.t0;
+    const R = P.ride, k = snow(), tm = game.t - R.t0, n = R.gates.size;
     endRide(P, 4);
     game.sound('win');
     for (let i = 0; i < 3; i++) game.burst(S.FINISH.x + (i - 1) * 3, S.heightAt(S.FINISH.x, S.FINISH.z) + 3.5, S.FINISH.z, 16, [0xff5a6a, 0xffd23a, 0x5ac8ff][i], 4.5, 0.9);
-    const best = !k.best || tm < k.best;
-    if (best) k.best = Math.round(tm * 10) / 10;
-    const first = !k.sled;
-    k.sled = true; game.persist();
-    P.cheerT = 1.4;
     const t = (Math.round(tm * 10) / 10).toFixed(1).replace('.', ',');
-    if (first) { game.updateMedalVisibility(); game.banner('Bravo, quelle glissade !', `Une médaille brille sous l'arche d'arrivée ! (${t} s)`, 3200); game.sound('reveal'); }
-    else game.banner(`Descente : ${t} s`, best ? 'Nouveau record !' : `Record : ${String(k.best).replace('.', ',')} s`, 2400);
+    k.runs = (k.runs | 0) + 1;
+    P.cheerT = 1.4;
+    if (n >= S.GATES_NEEDED) {
+      const best = !k.best || tm < k.best;
+      if (best) k.best = Math.round(tm * 10) / 10;
+      const first = !k.sled;
+      k.sled = true; game.persist();
+      if (first) { game.updateMedalVisibility(); game.banner('Bravo, quelle glissade !', `${n} portes en ${t} s : une médaille brille sous l'arche d'arrivée !`, 3600); game.sound('reveal'); }
+      else game.banner(`Descente : ${t} s · ${n} portes`, best ? 'Nouveau record !' : `Record : ${String(k.best).replace('.', ',')} s`, 2600);
+    } else {
+      game.persist();
+      game.banner(`Arrivée ! ${n} porte${n > 1 ? 's' : ''} sur ${S.GATES_NEEDED}`, `Pour la médaille, passez entre au moins ${S.GATES_NEEDED} paires de fanions. Le télésiège vous remonte !`, 4200);
+    }
   }
-  function stepSled(P, R, wx, wz, pr, dt) {
+  /** sx : -1 gauche … +1 droite ; sy : -1 en avant … +1 en arrière (relatif à la luge). */
+  function stepSled(P, R, sx, sy, pr, dt) {
     const frozen = game.dialog || game.freeze > 0;
-    if (frozen) { wx = 0; wz = 0; }
-    const c = S.runAt(R.s), nx = c.dz, nz = -c.dx;            // n : à gauche de la piste (vu de derrière)
-    // pente le long de la piste : ça accélère dans les descentes
-    const f = S.runAt(R.s + 1.5), b = S.runAt(R.s - 1.5);
-    const dh = (S.heightAt(f.x, f.z) - S.heightAt(b.x, b.z)) / 3;
-    R.speed += (-dh * 22 - 0.35 - 0.012 * R.speed * R.speed) * dt;
-    // tirer en arrière : on freine
-    const fwd = wx * c.dx + wz * c.dz, lat = wx * nx + wz * nz;
-    if (fwd < -0.5 && Math.abs(lat) < 0.5) R.speed -= 7 * dt;
-    R.speed = clamp(R.speed, R.s < S.RUN_TOTAL - 12 ? 3 : 1.5, 17);
-    // se pencher : on glisse vers le côté
-    const lim = S.RUN_W - 0.7;
-    R.uv += (clamp(lat, -1, 1) * 7.5 - R.uv) * Math.min(1, dt * 5);
-    R.u += R.uv * dt;
-    if (Math.abs(R.u) > lim) { R.u = Math.sign(R.u) * lim; if (Math.abs(R.uv) > 4) game.burst(P.pos.x, P.pos.y + 0.3, P.pos.z, 5, 0xffffff, 2, 0.35); R.uv = 0; }
-    R.s += R.speed * dt;
-    const p = S.runAt(R.s), qx = p.dz, qz = -p.dx;
-    P.pos.x = p.x + qx * R.u; P.pos.z = p.z + qz * R.u;
+    if (frozen) { sx = 0; sy = 0; }
+    const x = P.pos.x, z = P.pos.z, e = 0.6;
+    const gx = (S.heightAt(x + e, z) - S.heightAt(x - e, z)) / (2 * e), gz = (S.heightAt(x, z + e) - S.heightAt(x, z - e)) / (2 * e);
+    // tourner (même à l'arrêt, un peu)
+    const sp0 = Math.hypot(R.vx, R.vz);
+    P.yaw -= clamp(sx, -1, 1) * SLED.TURN * (sp0 > 2 ? 1 : 0.6) * dt;
+    const fx = Math.sin(P.yaw), fz = Math.cos(P.yaw), rx = Math.cos(P.yaw), rz = -Math.sin(P.yaw);
+    let vF = R.vx * fx + R.vz * fz, vS = R.vx * rx + R.vz * rz;
+    if (!R.air) {
+      // la pente tire la luge
+      vF += -(gx * fx + gz * fz) * SLED.G * dt;
+      vS += -(gx * rx + gz * rz) * SLED.G * dt;
+      // les patins accrochent : la glissade de côté se change (en partie) en vitesse vers l'avant
+      const vS2 = vS * Math.exp(-SLED.GRIP * dt);
+      vF += Math.sign(vF || 1) * (Math.abs(vS) - Math.abs(vS2)) * 0.6;
+      vS = vS2;
+      // frottements : peu sur la piste damée, beaucoup dans la poudreuse
+      const off = smooth(S.RUN_W + 0.5, S.RUN_W + 4, S.runInfo(x, z).d);
+      const fr = (0.3 + off * 4.5) + 0.009 * vF * vF;
+      vF -= Math.sign(vF) * Math.min(Math.abs(vF), fr * dt);
+      if (sy > 0.4) vF -= Math.sign(vF) * Math.min(Math.abs(vF), 8 * sy * dt);       // freiner
+      if (sy < -0.4 && vF < 3.5) vF += 3 * dt;                                          // pousser avec les pattes
+    }
+    vF = clamp(vF, -3, SLED.MAXV);
+    R.vx = fx * vF + rx * vS; R.vz = fz * vF + rz * vS;
+    R.speed = Math.hypot(R.vx, R.vz); R.yaw = P.yaw;
+    // déplacement et chocs
+    const next = { x: x + R.vx * dt, z: z + R.vz * dt };
+    if (S.heightAt(next.x, next.z) > P.pos.y + 1.2) { R.vx *= -0.3; R.vz *= -0.3; next.x = x; next.z = z; game.sound('bump'); }
+    const bx = next.x, bz = next.z;
+    game.pushOut(next, P.pos.y, 0.6);
+    const ox = next.x - bx, oz = next.z - bz, ol = Math.hypot(ox, oz);
+    if (ol > 0.01) {
+      const nx = ox / ol, nz = oz / ol, vn = R.vx * nx + R.vz * nz;
+      if (vn < 0) { R.vx -= 1.4 * vn * nx; R.vz -= 1.4 * vn * nz; }
+      if (R.speed > 3) { R.vx *= 0.6; R.vz *= 0.6; game.sound('bump'); game.burst(next.x, P.pos.y + 0.5, next.z, 8, 0xffffff, 3, 0.4); }
+    }
+    P.pos.x = next.x; P.pos.z = next.z;
+    // vertical : on colle à la neige, sauf si elle tombe plus vite que nous (bosse, tremplin)
     const ground = game.support(P.pos.x, P.pos.z, P.pos.y + 0.6).y;
     if (pr.has('jump') && !R.air && !frozen) { R.vy = 7.5; R.air = true; game.sound('jump'); }
+    else if (!R.air) {
+      const free = P.pos.y + R.vy * dt - 15 * dt * dt;
+      if (ground < free - 0.06 && R.speed > 6) R.air = true;
+      else { R.vy = clamp((ground - P.pos.y) / dt, -14, 14); P.pos.y = ground; }
+    }
     if (R.air) {
       R.vy -= 30 * dt; P.pos.y += R.vy * dt;
-      if (P.pos.y <= ground) { P.pos.y = ground; R.air = false; R.vy = 0; game.burst(P.pos.x, ground + 0.2, P.pos.z, 8, 0xffffff, 2.5, 0.4); }
-    } else P.pos.y = ground;
-    const base = Math.atan2(p.dx, p.dz);
-    P.yaw = base + Math.atan2(R.uv, Math.max(R.speed, 2)) * 0.8;   // (le cap augmente vers n)
-    R.yaw = base;
-    P.vel.set(p.dx * R.speed + qx * R.uv, R.air ? R.vy : 0, p.dz * R.speed + qz * R.uv);
+      if (P.pos.y <= ground) { P.pos.y = ground; R.air = false; R.vy = 0; game.burst(P.pos.x, ground + 0.2, P.pos.z, 8, 0xffffff, 2.5, 0.4); if (R.speed > 9) game.sound('poof'); }
+    }
+    P.vel.set(R.vx, R.air ? R.vy : 0, R.vz);
     P.grounded = !R.air;
+    // portes : on compte celles qu'on traverse entre les fanions
+    for (const g of S.GATES) {
+      if (Math.abs(g.x - P.pos.x) > 14 || Math.abs(g.z - P.pos.z) > 14 || R.gates.has(g.id)) continue;
+      const along = (P.pos.x - g.x) * g.dx + (P.pos.z - g.z) * g.dz, lat = (P.pos.x - g.x) * g.dz - (P.pos.z - g.z) * g.dx;
+      const prev = R.side[g.id];
+      R.side[g.id] = along;
+      if (prev !== undefined && prev < 0 && along >= 0 && Math.abs(lat) <= g.half) {
+        R.gates.add(g.id);
+        game.sound('cp');
+        game.burst(g.x, P.pos.y + 1.5, g.z, 14, 0xffe070, 3.5, 0.6);
+        if (P === game.me) game.localBanner(`Porte ${R.gates.size}`, R.gates.size === S.GATES_NEEDED ? 'Assez pour la médaille : jusqu\'en bas !' : '', 900);
+      }
+    }
     // arrivée
-    if (R.s >= S.RUN_TOTAL - 0.5) finishSled(P);
+    if (R.fromTop && Math.hypot(P.pos.x - S.FINISH.x, P.pos.z - S.FINISH.z) < S.FINISH.r) { finishSled(P); return; }
+    // coincé (dans la poudreuse, contre un sapin…) : on descend de la luge
+    R.stuck = R.speed < 0.7 && !R.air && Math.abs(sy) < 0.4 ? R.stuck + dt : 0;
+    if (R.stuck > 3.5) { endRide(P, 2); if (P === game.me) game.localBanner('La luge s\'est arrêtée', 'Remontez au sommet par le télésiège pour une nouvelle descente', 2400); }
   }
 
   // --- télésiège -----------------------------------------------------------------------------------
@@ -833,6 +1143,8 @@ export function buildSnow(game) {
 
   // --- la bataille du Fort Moustache ---------------------------------------------------------------------
   function bossReset() { Object.assign(B, { phase: 'idle', x: FORT.x, z: FORT.z - 4, y: FORT.y, hp: 3, t: 0, throws: 0, inv: 0, hop: null }); }
+  function setGate(open) { S.FORT_GATE.off = !!open; }
+  setGate(snow().fort || medalsWithout('m_fort') >= S.FORT_MEDALS);
   function stepBoss(dt) {
     if (snow().fort) { if (B.phase !== 'friend' && B.phase !== 'won') { B.phase = 'friend'; B.x = FORT.x + 2.5; B.z = FORT.z - 4; B.y = FORT.y; } }
     const p = near(B.x, B.z);
@@ -843,7 +1155,7 @@ export function buildSnow(game) {
     if (B.phase === 'friend' || B.phase === 'won') { B.yaw = lerpAngle(B.yaw, Math.atan2(p.pos.x - B.x, p.pos.z - B.z), dt * 3); return; }
     if (B.phase === 'idle') {
       B.yaw = lerpAngle(B.yaw, Math.atan2(p.pos.x - B.x, p.pos.z - B.z), dt * 3);
-      if (inFort && !game.dialog && save().intro) {
+      if (inFort && !game.dialog && save().intro && S.FORT_GATE.off) {
         B.phase = 'intro';
         game.say([
           { who: 'Capitaine Moustache', text: 'Miaou-ha-ha ! Les voilà, mes chiens préférés ! Bienvenue au Fort Moustache !' },
@@ -874,14 +1186,12 @@ export function buildSnow(game) {
       B.x = h.x0 + (h.x1 - h.x0) * k; B.z = h.z0 + (h.z1 - h.z0) * k; B.y = FORT.y + Math.sin(k * Math.PI) * 3.5;
       if (k >= 1) { B.y = FORT.y; B.phase = 'throw'; B.t = 0.8; B.throws = 0; }
     }
-    // les chiens qui l'attrapent (seulement quand elle souffle)
     for (const q of game.players) {
       if (B.phase === 'hop') break;
       const d = Math.hypot(q.pos.x - B.x, q.pos.z - B.z), dy = q.pos.y - B.y;
       if (d < 2.3 && dy > -1 && dy < 3) {
         const attacking = q.attackT > 0 || q.dashT > 0 || (q.vel.y < -1 && dy > 1.0) || (q.barkT || 0) > 0.55;
         if (B.phase === 'tired' && attacking && B.inv <= 0) { hitBoss(q); break; }
-        // sinon : elle esquive en riant (et pousse gentiment)
         if (d < 1.4 && B.phase !== 'tired') { const l = d || 1; q.vel.x += (q.pos.x - B.x) / l * 3; q.vel.z += (q.pos.z - B.z) / l * 3; }
       }
     }
@@ -912,25 +1222,170 @@ export function buildSnow(game) {
     B.phase = 'hop'; B.hop = { t: 0, T: 0.9, x0: B.x, z0: B.z, x1: FORT.x + Math.cos(a) * r, z1: FORT.z + Math.sin(a) * r };
   }
 
+  // --- le renard ---------------------------------------------------------------------------------------
+  function stepFox(dt) {
+    const F = st.fox, k = snow(), D = S.DEN;
+    F.ph += dt;
+    if (k.foxDrop) { F.s = 'calm'; }
+    const p = near(F.x, F.z), d = Math.hypot(p.pos.x - F.x, p.pos.z - F.z);
+    // un gros « Ouaf ! » tout près : il sursaute et lâche le bonnet
+    if (!k.foxDrop) for (const q of game.players) {
+      if ((q.barkT || 0) > 0.6 && Math.hypot(q.pos.x - F.x, q.pos.z - F.z) < 11) {
+        k.foxDrop = true; k.foxAt = [Math.round(F.x * 10) / 10, Math.round(F.z * 10) / 10]; game.persist();
+        F.s = 'calm';
+        game.sound('reveal'); game.burst(F.x, F.y + 1, F.z, 18, 0x40c060, 4, 0.7);
+        game.banner('Le renard a eu peur !', 'Il a lâché le bonnet vert : ramassez-le !', 3000);
+        break;
+      }
+    }
+    if (F.s === 'calm') { F.yaw = lerpAngle(F.yaw, Math.atan2(p.pos.x - F.x, p.pos.z - F.z), dt * 3); return; }
+    if (F.s === 'sit' && d < 8) {
+      // il file plus loin dans la forêt (en gardant son bonnet)
+      const a = Math.atan2(F.x - p.pos.x, F.z - p.pos.z) + (Math.random() - 0.5) * 1.6, r = 12 + Math.random() * 8;
+      F.tx = D.x + Math.sin(a) * r; F.tz = D.z + Math.cos(a) * r; F.s = 'run';
+      if (!st.foxTold && p === game.me) { st.foxTold = true; game.banner('Un renard !', 'Il a un bonnet vert dans la gueule… et il est rapide !', 2600); }
+    }
+    if (F.s === 'run') {
+      const dx = F.tx - F.x, dz = F.tz - F.z, l = Math.hypot(dx, dz);
+      if (l < 0.6) { F.s = 'sit'; return; }
+      const sp = 7.5 * dt, nx = F.x + dx / l * sp, nz = F.z + dz / l * sp;
+      if (S.blockedAt(nx, nz) || Math.abs(S.heightAt(nx, nz) - F.y) > 1) { F.s = 'sit'; return; }
+      F.x = nx; F.z = nz; F.y = S.heightAt(nx, nz); F.yaw = Math.atan2(dx, dz);
+    }
+  }
+  // --- le bébé pingouin ----------------------------------------------------------------------------------
+  function stepBaby(dt) {
+    const Bb = st.baby, k = snow(), mom = S.FOLKS.maman;
+    Bb.ph += dt;
+    if (k.baby === 'home') { Bb.s = 'home'; Bb.x = mom.x + 1.4; Bb.z = mom.z + 1.6; Bb.y = mom.y; return; }
+    const free = logic.reveal().m_lake;
+    if (Bb.s === 'lost' && free) { Bb.s = 'free'; game.banner('Le bébé pingouin est libre !', 'Allez le chercher sur l\'îlot, au milieu du lac', 2800); game.sound('reveal'); }
+    if (Bb.s === 'free') {
+      const p = near(Bb.x, Bb.z);
+      if (Math.hypot(p.pos.x - Bb.x, p.pos.z - Bb.z) < 2.6 && Math.abs(p.pos.y - Bb.y) < 2) { Bb.s = 'follow'; Bb.who = p.id || 0; game.banner('Piou piou !', 'Le bébé pingouin vous suit : ramenez-le à sa maman, au village des pingouins', 3000); }
+    }
+    if (Bb.s === 'follow') {
+      const P = game.party.get(Bb.who) || game.player;
+      const tx = P.pos.x - Math.sin(P.yaw) * 1.6, tz = P.pos.z - Math.cos(P.yaw) * 1.6;
+      const dx = tx - Bb.x, dz = tz - Bb.z, d = Math.hypot(dx, dz);
+      if (d > 25) { Bb.x = tx; Bb.z = tz; }
+      else if (d > 0.4) { const sp = Math.min(d * 3, 11) * dt; Bb.x += dx / d * sp; Bb.z += dz / d * sp; Bb.yaw = lerpAngle(Bb.yaw, Math.atan2(dx, dz), Math.min(1, dt * 10)); }
+      Bb.y += (game.support(Bb.x, Bb.z, Math.max(Bb.y, P.pos.y) + 0.5).y - Bb.y) * Math.min(1, dt * 12);
+      if (Math.hypot(Bb.x - mom.x, Bb.z - mom.z) < 7) {
+        k.baby = 'home'; game.persist(); Bb.s = 'home';
+        game.updateMedalVisibility(); game.sound('reveal');
+        game.say([
+          { who: 'Maman Pingouin', text: 'Mon petit Pipo ! Tu es revenu ! Merci, merci, les toutous !' },
+          { who: 'Maman Pingouin', text: 'Prenez cette médaille : on l\'avait trouvée dans la neige. Elle est à vous !' },
+        ], () => game.banner('Le bébé pingouin est rentré !', 'Une Médaille des Neiges brille devant les igloos', 2800));
+      }
+    }
+  }
+  // --- les boules du bonhomme de neige ---------------------------------------------------------------------
+  function stepRolls(dt) {
+    const k = snow(), G = S.GARDEN;
+    for (const b of st.rolls) {
+      for (const P of game.players) {
+        if (P.ride || !P.grounded) continue;
+        const dx = b.x - P.pos.x, dz = b.z - P.pos.z, d = Math.hypot(dx, dz), sp = Math.hypot(P.vel.x, P.vel.z);
+        if (d > b.r + 0.75 || sp < 1 || Math.abs(P.pos.y - (b.y - b.r)) > 1.5) continue;
+        // on la pousse dans le sens de la course : elle roule et grossit
+        const nx = dx / (d || 1), nz = dz / (d || 1), push = Math.max(0, P.vel.x * nx + P.vel.z * nz);
+        const p = { x: P.pos.x + nx * (b.r + 0.76) + nx * push * dt, z: P.pos.z + nz * (b.r + 0.76) + nz * push * dt };
+        game.pushOut(p, b.y - b.r, b.r * 0.8);
+        if (S.heightAt(p.x, p.z) > b.y - b.r + 0.9) continue;
+        const moved = Math.hypot(p.x - b.x, p.z - b.z);
+        b.x = p.x; b.z = p.z; b.rot += moved / b.r;
+        b.r = Math.min(1.35, b.r + moved * 0.016);
+        b.y = S.heightAt(b.x, b.z) + b.r;
+        if (!st.rollTold && P === game.me) { st.rollTold = true; game.banner('Elle roule… et elle grossit !', 'Poussez-la jusqu\'au jardin des bonshommes', 2400); }
+      }
+      // arrivée au jardin
+      if (Math.hypot(b.x - G.x, b.z - G.z) < G.r + b.r * 0.6) {
+        if (b.r < 0.8) { if (game.t - st.ballHintT > 4) { st.ballHintT = game.t; game.banner('Encore trop petite !', 'Faites-la rouler un peu plus loin dans la neige pour qu\'elle grossisse', 2400); } }
+        else {
+          k.placed.push(b.id); game.persist();
+          b.done = true;
+          game.sound('reveal'); game.burst(G.x, S.heightAt(G.x, G.z) + 2, G.z, 22, 0xffffff, 4, 0.7);
+          game.banner(`Bonhomme de neige : ${k.placed.length}/3`, k.placed.length < 3 ? 'Encore une boule !' : 'Il lui manque un nez… Myrtille a peut-être une carotte !', 3000);
+        }
+      }
+    }
+    st.rolls = st.rolls.filter(b => !b.done);
+    // une boule égarée revient à sa place quand personne n'est près
+    if ((st.rollT = (st.rollT || 0) + dt) > 5) {
+      st.rollT = 0;
+      for (const b of st.rolls) { const d0 = S.SNOWBALLS.find(q => q.id === b.id); if (game.players.every(P => Math.hypot(P.pos.x - b.x, P.pos.z - b.z) > 70) && Math.hypot(b.x - d0.x, b.z - d0.z) > 3) Object.assign(b, { x: d0.x, z: d0.z, r: 0.45, y: S.heightAt(d0.x, d0.z) + 0.45 }); }
+    }
+    // la carotte
+    if (k.placed.length >= 3 && k.carrot === 'have' && game.players.some(P => Math.hypot(P.pos.x - G.x, P.pos.z - G.z) < 4.5)) {
+      k.carrot = 'placed'; k.snowman = true; game.persist();
+      game.updateMedalVisibility(); game.sound('reveal');
+      game.burst(G.x, S.heightAt(G.x, G.z) + 3.5, G.z, 30, 0xffa040, 4, 0.8);
+      game.banner('Le bonhomme de neige est fini !', 'Avec son nez en carotte. Une médaille brille à côté de lui !', 3200);
+    }
+  }
+  // --- la course de patinage contre Pingo ----------------------------------------------------------------
+  const PINGO_PATH = (u) => { const a = Math.PI / 2 + (u % 1) * Math.PI * 2; return { x: S.RINK.x + Math.cos(a) * (S.RINK.rx - 5), z: S.RINK.z + Math.sin(a) * (S.RINK.rz - 3.6), a }; };
+  const PERIM = (() => { let l = 0; for (let i = 0; i < 64; i++) { const a = PINGO_PATH(i / 64), b = PINGO_PATH((i + 1) / 64); l += Math.hypot(b.x - a.x, b.z - a.z); } return l; })();
+  function startRace(P) {
+    if (st.race) return;
+    st.race = { racer: P.id || 0, cd: 3, t: 0, next: 0, pu: 0, last: 3 };
+    game.banner('3…', 'Passez près de chaque plot orange, dans l\'ordre, deux tours !', 1200);
+  }
+  function stepRace(dt) {
+    const R = st.race;
+    if (!R) return;
+    const P = game.party.get(R.racer) || game.player, k = snow(), N = S.RINK_CONES.length, total = N * S.RINK_LAPS;
+    if (R.cd > 0) {
+      R.cd -= dt;
+      const c = Math.ceil(R.cd);
+      if (c !== R.last && c > 0) { R.last = c; game.banner(c + '…', '', 800); game.sound('switch'); }
+      if (R.cd <= 0) { game.banner('Partez !', 'Plot après plot, deux tours', 1200); game.sound('reveal'); }
+      return;
+    }
+    R.t += dt;
+    const v = game.easy ? 3.5 : game.mode === 'defi' ? 5.2 : 4.0;
+    R.pu += v * dt / PERIM;
+    const c = S.RINK_CONES[R.next % N];
+    if (Math.hypot(P.pos.x - c.x, P.pos.z - c.z) < 3.2) { R.next++; game.sound('cp'); cones[c.i].hit = game.t; }
+    if (R.next >= total) {
+      const tm = Math.round(R.t * 10) / 10, first = !k.raceWon, best = !k.raceBest || tm < k.raceBest;
+      k.raceWon = true; if (best) k.raceBest = tm; game.persist();
+      st.race = null;
+      game.sound('win'); P.cheerT = 1.4;
+      game.banner(first ? 'Vous avez battu Pingo !' : `Victoire en ${String(tm).replace('.', ',')} s`, first ? 'Il vous offre un bonnet violet, sur le podium !' : best ? 'Nouveau record !' : `Record : ${String(k.raceBest).replace('.', ',')} s`, 3200);
+      return;
+    }
+    if (R.pu >= S.RINK_LAPS || Math.hypot(P.pos.x - S.RINK.x, P.pos.z - S.RINK.z) > 40) {
+      st.race = null;
+      game.banner('Pingo a gagné !', 'Parlez-lui pour une revanche. Astuce : prenez de l\'élan, et lâchez tout dans les virages !', 3600);
+    }
+  }
+
   // --- dialogues ------------------------------------------------------------------------------------
   function talkBernard() {
-    const k = snow(), n = k.bonnets.length;
+    const k = snow(), n = k.bonnets.length, total = S.BONNETS.length;
     if (!k.metBernard) {
       game.say([
         { who: 'Bernard', text: 'Wouf ! Bonjour, les petits ! Je suis Bernard, le sauveteur de la montagne.' },
         { who: 'Bernard', text: 'Si quelqu\'un a froid ou se perd dans la neige, j\'arrive avec mon tonnelet de chocolat chaud !' },
         { who: 'Matcha', text: 'Du chocolat ? Moi, j\'ai un peu froid aux pattes…' },
-        { who: 'Bernard', text: 'Ha ha ! Dites, vous pourriez m\'aider ? Le vent a emporté les trois bonnets à pompon des chiots de l\'école de ski.' },
-        { who: 'Bernard', text: 'Un rouge sur l\'îlot du lac gelé, un bleu sur un bloc de la Cascade Gelée, et un jaune sur le toit de la gare du télésiège.' },
+        { who: 'Bernard', text: 'Ha ha ! Dites, vous pourriez m\'aider ? La tempête a emporté les cinq bonnets à pompon des chiots de l\'école de ski.' },
+        { who: 'Bernard', text: 'Ils sont éparpillés dans toute la station : en haut de la Cascade Gelée, au fond de la Crevasse de Cristal, sur la gare du télésiège…' },
+        { who: 'Bernard', text: 'Et on raconte qu\'un renard en a chipé un, et que Pingo, à la patinoire, en garde un pour le champion de patinage !' },
         { who: 'Ainu', text: 'Ouaf ! On les retrouve, promis !' },
-        { who: 'Bernard', text: 'Et pour redescendre, prenez une luge, juste là : c\'est la Grande Glissade ! Penchez-vous pour tourner.' },
+        { who: 'Bernard', text: 'Et pour redescendre, prenez une luge, juste là : c\'est la Grande Glissade ! Passez entre les fanions, il y a une médaille à gagner.' },
       ], () => { k.metBernard = true; game.persist(); game.updateHud(); });
       return;
     }
-    if (n >= S.BONNETS.length) {
-      game.say([{ who: 'Bernard', text: save().medals.includes('m_bonnets') ? 'Merci, les petits ! Et n\'oubliez pas : une bonne glissade, ça réchauffe !' : 'Les trois bonnets ! Les chiots de l\'école de ski vont être tout contents. Tenez, cette médaille est pour vous !' }]);
+    if (n >= total && !k.bonnetsGiven) {
+      game.say([
+        { who: 'Bernard', text: 'Les cinq bonnets ! Les chiots de l\'école de ski vont être tout contents. Tenez, cette médaille est pour vous !' },
+      ], () => { k.bonnetsGiven = true; game.persist(); game.updateMedalVisibility(); game.sound('reveal'); game.banner('Merci, Bernard !', 'Une Médaille des Neiges brille à côté de lui', 2600); });
       return;
     }
+    if (k.bonnetsGiven) { game.say([{ who: 'Bernard', text: 'Merci, les petits ! Et n\'oubliez pas : une bonne glissade, ça réchauffe !' }]); return; }
     const left = S.BONNETS.filter(b => !k.bonnets.includes(b.id));
     game.say([
       { who: 'Bernard', text: `Encore ${left.length} bonnet${left.length > 1 ? 's' : ''} à retrouver. Courage, les petits !` },
@@ -946,7 +1401,15 @@ export function buildSnow(game) {
         { who: 'Myrtille', text: 'Ici, c\'est mon chalet-chocolat. Quand vous aurez trouvé les cinq médailles, je vous prépare une grande fête avec du chocolat chaud !' },
         { who: 'Biscotte', text: 'Avec de la crème fouettée ?' },
         { who: 'Myrtille', text: 'Avec plein de crème fouettée !' },
+        { who: 'Myrtille', text: 'Et si vous passez au jardin des bonshommes, juste à côté : poussez les grosses boules de neige, elles grossissent en roulant !' },
       ], () => { k.metMyrtille = true; game.persist(); });
+      return;
+    }
+    if (k.placed.length >= 3 && !k.carrot) {
+      game.say([
+        { who: 'Myrtille', text: 'Votre bonhomme de neige n\'a pas de nez ? Tenez, une belle carotte toute fraîche !' },
+        { who: 'Matcha', text: 'Merci Myrtille ! On court la lui mettre !' },
+      ], () => { k.carrot = 'have'; game.persist(); game.banner('Une carotte !', 'Apportez-la au bonhomme de neige, au jardin', 2400); });
       return;
     }
     if (s.medals.length >= S.medals.length) { game.say([{ who: 'Myrtille', text: 'Le chocolat est prêt ! Merci d\'avoir rendu la joie à toute la station.' }]); return; }
@@ -955,15 +1418,38 @@ export function buildSnow(game) {
       'Les blocs de la Cascade Gelée sont hauts : sautez deux fois pour monter !',
       'Le télésiège part de la gare au toit plat, au nord du village. Tout là-haut, il y a des luges !',
       'La Capitaine adore les boules de neige. Quand elle est essoufflée, c\'est le moment de l\'attraper !',
+      'Le renard de la forêt a peur des gros « Ouaf ! ». Mais il faut l\'approcher sans qu\'il file…',
+      'La rivière gelée traverse toute la station : on peut la descendre en glissant, jusqu\'au lac !',
     ];
     k.tip = ((k.tip | 0) + 1) % tips.length;
     game.say([{ who: 'Myrtille', text: tips[k.tip] }]);
+  }
+  function talkPingo(P) {
+    const k = snow();
+    if (st.race) return;
+    if (!k.metPingo) {
+      game.say([
+        { who: 'Pingo', text: 'Coin coin ! Moi, c\'est Pingo, le roi de la patinoire !' },
+        { who: 'Pingo', text: 'Une course ? Deux tours, en passant près de chaque plot orange. Si vous me battez, je vous donne mon bonnet violet !' },
+        { who: 'Ainu', text: 'Ouaf ! Prêts !' },
+      ], () => { k.metPingo = true; game.persist(); startRace(P); });
+      return;
+    }
+    game.say([{ who: 'Pingo', text: k.raceWon ? 'Coin ! Une revanche ? Cette fois, je vais plus vite !' : 'Coin coin ! On recommence ? Prenez bien vos virages !' }], () => startRace(P));
+  }
+  function talkMaman() {
+    const k = snow();
+    if (k.baby === 'home') { game.say([{ who: 'Maman Pingouin', text: 'Pipo ne quitte plus les igloos. Merci encore, les toutous !' }]); return; }
+    game.say([
+      { who: 'Maman Pingouin', text: 'Oh, des chiens ! Aidez-moi, je vous en prie : mon bébé Pipo s\'est perdu sur le lac gelé.' },
+      { who: 'Maman Pingouin', text: 'Les chats farceurs patinent tout autour de lui, et il n\'ose plus bouger ! Faites-les partir, et ramenez-le-moi.' },
+    ], () => { k.metMaman = true; game.persist(); });
   }
 
   // =============================================================================================
   const logic = {
     moving, chars,
-    playerStep(P, wx, wz, jumpHeld, pr, dt) {
+    playerStep(P, wx, wz, jumpHeld, pr, dt, input) {
       const R = P.ride;
       if (!R) return false;
       P.invuln = Math.max(0, P.invuln - dt);
@@ -971,7 +1457,12 @@ export function buildSnow(game) {
       P.flipT = 0; P.attackT = 0; P.dashT = 0;
       if (R.kind === 'sled') {
         if (pr.has('talk') && !game.dialog) { pr.delete('talk'); endRide(P, 3); return true; }
-        stepSled(P, R, wx, wz, pr, dt);
+        // la manette, telle quelle (gauche / droite par rapport à la luge) ; sinon, d'après la direction
+        let sx, sy;
+        if (input && input.x !== undefined && input.wx === undefined) { sx = input.x; sy = input.y; }
+        else if (input && input.sx !== undefined) { sx = input.sx; sy = input.sy; }
+        else { sx = wx * -Math.cos(P.yaw) + wz * Math.sin(P.yaw); sy = -(wx * Math.sin(P.yaw) + wz * Math.cos(P.yaw)); }
+        stepSled(P, R, sx || 0, sy || 0, pr, dt);
       } else stepLift(P, R, dt);
       return true;
     },
@@ -985,7 +1476,7 @@ export function buildSnow(game) {
       out.push({ kind: 'lv', act: 'sled', label: 'LUGE', x: R.x, z: R.z, y: R.y });
       out.push({ kind: 'lv', act: 'sled', label: 'LUGE', x: S.SLED_START.x, z: S.SLED_START.z, y: S.heightAt(S.SLED_START.x, S.SLED_START.z) });
       out.push({ kind: 'lv', act: 'lift', label: 'TÉLÉSIÈGE', x: B0.x, z: B0.z, y: B0.y });
-      for (const id in folks) { const f = folks[id].def; out.push({ kind: 'lv', act: 'talk', id, label: 'PARLER', x: f.x, z: f.z, y: f.y }); }
+      for (const id in folks) { const f = folks[id].def; out.push({ kind: 'lv', act: 'talk', id, label: id === 'pingo' && !st.race ? 'COURSE' : 'PARLER', x: f.x, z: f.z, y: f.y }); }
       if (B.phase === 'friend') out.push({ kind: 'lv', act: 'talk', id: 'cap', label: 'PARLER', x: B.x, z: B.z, y: B.y });
       return out;
     },
@@ -995,40 +1486,50 @@ export function buildSnow(game) {
       else if (n.act === 'exit') endRide(P, 3);
       else if (n.id === 'bernard') talkBernard();
       else if (n.id === 'myrtille') talkMyrtille();
+      else if (n.id === 'pingo') talkPingo(P);
+      else if (n.id === 'maman') talkMaman();
       else if (n.id === 'cap') game.say([{ who: 'Capitaine Moustache', text: 'Je rends tout, promis. Bon… presque tout. Je garde une boule de neige, pour plus tard !' }]);
     },
     step(dt) {
       const players = game.players, k = snow();
       for (const P of players) {
-        // drapeaux
-        for (const c of S.CHECKPOINTS) if (Math.hypot(P.pos.x - c.x, P.pos.z - c.z) < 3.5 && Math.abs(P.pos.y - c.y) < 3 && (k.cp !== c.id || !k.flags.includes(c.id))) reachFlag(c);
-        // bonnets
+        for (const c of S.CHECKPOINTS) if (Math.abs(P.pos.x - c.x) < 4 && Math.abs(P.pos.z - c.z) < 4 && Math.hypot(P.pos.x - c.x, P.pos.z - c.z) < 3.5 && Math.abs(P.pos.y - c.y) < 3 && (k.cp !== c.id || !k.flags.includes(c.id))) reachFlag(c);
         for (const b of S.BONNETS) {
-          if (k.bonnets.includes(b.id)) continue;
-          if (Math.hypot(P.pos.x - b.x, P.pos.z - b.z) < 1.5 && Math.abs(P.pos.y + 0.6 - (b.y + 0.8)) < 1.6) {
+          if (k.bonnets.includes(b.id) || !bonnetAvail(b)) continue;
+          const at = bonnetAt(b);
+          if (Math.hypot(P.pos.x - at.x, P.pos.z - at.z) < 1.6 && Math.abs(P.pos.y + 0.6 - (at.y + 0.8)) < 1.6) {
             k.bonnets.push(b.id); game.persist();
-            game.burst(b.x, b.y + 0.8, b.z, 20, b.col, 4, 0.7);
+            game.burst(at.x, at.y + 0.8, at.z, 20, b.col, 4, 0.7);
             game.sound('ball');
-            if (k.bonnets.length >= S.BONNETS.length) {
-              game.updateMedalVisibility(); game.sound('reveal');
-              game.banner('Les 3 bonnets !', 'Une médaille brille près de Bernard, au sommet de la montagne !', 3200);
-            } else game.banner(`Bonnet à pompon ${k.bonnets.length}/${S.BONNETS.length}`, k.metBernard ? 'Encore un, et Bernard sera content !' : 'C\'est à l\'école de ski : Bernard le cherche, au sommet !', 2000);
+            if (k.bonnets.length >= S.BONNETS.length) { game.sound('reveal'); game.banner('Les 5 bonnets !', 'Rapportez-les à Bernard, au sommet de la montagne', 3200); }
+            else game.banner(`Bonnet à pompon ${k.bonnets.length}/${S.BONNETS.length}`, k.metBernard ? 'Bernard sera content !' : 'C\'est à l\'école de ski : Bernard le cherche, au sommet !', 2000);
           }
         }
-        // sur la glace : la première fois, on explique
         if (!st.iceTold && P === game.me && P.grounded && S.iceAt(P.pos.x, P.pos.z, P.pos.y)) { st.iceTold = true; game.banner('Ça glisse !', 'Sur la glace, on patine : prenez de l\'élan et glissez !', 2600); }
+      }
+      // la porte du fort
+      const open = !!k.fort || medalsWithout('m_fort') >= S.FORT_MEDALS;
+      if (open !== S.FORT_GATE.off) { setGate(open); if (open) { game.banner('Le Fort Moustache est ouvert !', 'La Capitaine vous attend pour la bataille, tout au nord-est', 3000); game.sound('reveal'); } }
+      if (!open && players.some(P => Math.hypot(P.pos.x - S.FORT_GATE.x, P.pos.z - S.FORT_GATE.z) < 4) && game.t - st.gateHintT > 6) {
+        st.gateHintT = game.t;
+        game.banner('La porte est fermée', `Il faut ${S.FORT_MEDALS} Médailles des Neiges pour entrer (vous en avez ${medalsWithout('m_fort')})`, 2600);
       }
       catThrows();
       stepBalls(dt);
       stepBoss(dt);
+      stepFox(dt);
+      stepBaby(dt);
+      stepRolls(dt);
+      stepRace(dt);
     },
     reveal() {
       const s = save(), k = snow();
       return {
         m_lake: S.cats.filter(c => c.group === 'clearing').every(c => s.cats.includes(c.id)),
-        m_bonnets: k.bonnets.length >= S.BONNETS.length,
+        m_bonnets: !!k.bonnetsGiven,
         m_sled: !!k.sled,
-        m_falls: true,
+        m_penguins: k.baby === 'home',
+        m_snowman: !!k.snowman,
         m_fort: !!k.fort,
       };
     },
@@ -1037,38 +1538,52 @@ export function buildSnow(game) {
       st.cp = k.cp;
       flags.forEach((f) => { f.raise = k.flags.includes(f.def.id) || f.def.id === 0 ? 1 : 0; });
       if (k.fort && B.phase !== 'won') { B.phase = 'friend'; }
+      st.rolls = st.rolls.filter(b => !k.placed.includes(b.id));
     },
     respawn(P) {
       if (P.ride) endRide(P, 0);
       if (B.phase !== 'idle' && B.phase !== 'friend' && B.phase !== 'won' && Math.hypot(P.pos.x - FORT.x, P.pos.z - FORT.z) < FORT.r + 6) {
         bossReset();
-        return { x: FORT.x, y: S.heightAt(FORT.x, FORT.z + FORT.r + 5), z: FORT.z + FORT.r + 5, yaw: Math.PI };
+        return { x: FORT.x, y: S.heightAt(FORT.x, FORT.z + FORT.r + 7), z: FORT.z + FORT.r + 7, yaw: Math.PI };
       }
       if (game.mode === 'defi') { const c = S.CHECKPOINTS[st.cp] || S.CHECKPOINTS[0]; return { x: c.x, y: c.y + 0.2, z: c.z + 1.5 }; }
       return null;
     },
     guideTarget(me) {
-      const s = save(), k = snow();
-      const cands = [];
+      const s = save(), k = snow(), cands = [];
       const has = (id) => s.medals.includes(id);
       for (const m of game.medals) if (m.mesh.visible) cands.push(m.def);
-      if (!has('m_lake') && !this.reveal().m_lake) for (const c of game.cats) if (!c.dead && c.def.group === 'clearing') cands.push({ x: c.pos.x, y: c.pos.y, z: c.pos.z });
-      if (!has('m_bonnets') && k.metBernard) for (const b of S.BONNETS) if (!k.bonnets.includes(b.id)) cands.push(b);
-      if (!k.metBernard && !has('m_bonnets')) cands.push(S.FOLKS.bernard);
-      if (!k.sled) cands.push(me.pos.y > 20 ? { x: S.SLED_RACK.x, y: S.SLED_RACK.y, z: S.SLED_RACK.z } : LIFT.base);
-      if (!k.fort) cands.push({ x: FORT.x, y: FORT.y, z: FORT.z });
+      if (!has('m_penguins')) {
+        if (st.baby.s === 'follow') return { x: S.FOLKS.maman.x, y: S.FOLKS.maman.y, z: S.FOLKS.maman.z };
+        if (st.baby.s === 'free') cands.push(st.baby);
+        else for (const c of game.cats) if (!c.dead && c.def.group === 'clearing') cands.push({ x: c.pos.x, y: c.pos.y, z: c.pos.z });
+      }
+      if (!has('m_bonnets')) {
+        if (!k.metBernard || k.bonnets.length >= S.BONNETS.length) cands.push(S.FOLKS.bernard);
+        else for (const b of S.BONNETS) if (!k.bonnets.includes(b.id)) cands.push(b.fox && !k.foxDrop ? st.fox : b.race && !k.raceWon ? S.FOLKS.pingo : bonnetAt(b));
+      }
+      if (!has('m_snowman')) {
+        if (k.placed.length >= 3) cands.push(k.carrot === 'have' ? S.GARDEN : S.FOLKS.myrtille);
+        else for (const b of st.rolls) cands.push(b);
+      }
+      if (!k.sled) cands.push(me.pos.y > 40 ? { x: S.SLED_RACK.x, y: S.SLED_RACK.y, z: S.SLED_RACK.z } : LIFT.base);
+      if (!k.fort) cands.push(S.FORT_GATE.off ? { x: FORT.x, y: FORT.y, z: FORT.z } : null);
       let best = null, bd = Infinity;
-      for (const c of cands) { const d = Math.hypot(c.x - me.pos.x, c.z - me.pos.z); if (d < bd) { bd = d; best = c; } }
-      return best ? { x: best.x, y: best.y, z: best.z } : null;
+      for (const c of cands) { if (!c) continue; const d = Math.hypot(c.x - me.pos.x, c.z - me.pos.z); if (d < bd) { bd = d; best = c; } }
+      return best ? { x: best.x, y: best.y === undefined ? S.heightAt(best.x, best.z) : best.y, z: best.z } : null;
     },
     camFocus() { return ['throw', 'wait', 'tired', 'hop'].includes(B.phase) ? { x: B.x, y: B.y + 1, z: B.z } : null; },
     questText() {
       const s = save(), k = snow();
       if (!s.intro) return 'Parle à Mamie Labrador';
       if (['throw', 'wait', 'tired', 'hop'].includes(B.phase)) return `Bataille de boules de neige ! Attrapez la Capitaine (${B.hp} fois)`;
+      if (st.race) return st.race.cd > 0 ? 'Course contre Pingo : attention…' : `Course contre Pingo : plot ${Math.min(st.race.next + 1, S.RINK_CONES.length * S.RINK_LAPS)}/${S.RINK_CONES.length * S.RINK_LAPS}`;
+      const me = game.me;
+      if (me && me.ride && me.ride.kind === 'sled') { const g = me.ride.gates ? me.ride.gates.size : 0; return `Grande Glissade : portes ${g}/${S.GATES_NEEDED} · ⏱ ${Math.floor(game.t - (me.ride.t0 || game.t))} s`; }
+      if (st.baby.s === 'follow') return 'Ramenez le bébé pingouin à sa maman (village des pingouins)';
       const n = s.medals.length, tot = S.medals.length;
       if (n >= tot) return `Station en fête ! Médailles ${n}/${tot}`;
-      const extra = k.metBernard && k.bonnets.length < S.BONNETS.length ? ` · Bonnets ${k.bonnets.length}/${S.BONNETS.length}` : '';
+      const extra = k.metBernard && !k.bonnetsGiven ? ` · Bonnets ${k.bonnets.length}/${S.BONNETS.length}` : '';
       return `Médailles des Neiges ${n}/${tot}${extra}`;
     },
     minimapMarks() {
@@ -1077,17 +1592,24 @@ export function buildSnow(game) {
       out.push([LIFT.base.x, LIFT.base.z, '#3a8ae0', 3]);
       out.push([S.SLED_RACK.x, S.SLED_RACK.z, '#e8402e', 3]);
       for (const id in folks) out.push([folks[id].def.x, folks[id].def.z, '#ff9a2a', 3.2, id === 'bernard' && !k.metBernard]);
-      if (k.metBernard) for (const b of S.BONNETS) if (!k.bonnets.includes(b.id)) out.push([b.x, b.z, '#' + b.col.toString(16).padStart(6, '0'), 3, true]);
+      if (k.metBernard) for (const b of S.BONNETS) if (!k.bonnets.includes(b.id) && bonnetAvail(b)) { const at = bonnetAt(b); out.push([at.x, at.z, '#' + b.col.toString(16).padStart(6, '0'), 3, true]); }
       if (!k.fort) out.push([FORT.x, FORT.z, '#ff6ab0', 3.6]);
+      if (st.baby.s !== 'home') out.push([st.baby.x, st.baby.z, '#2a2a3a', 2.6]);
+      for (const b of st.rolls) out.push([b.x, b.z, '#ffffff', 2.4]);
+      out.push([S.GARDEN.x, S.GARDEN.z, '#9ad0ff', 3]);
       return out;
     },
     snapshot() {
-      const r = (v) => Math.round(v * 100) / 100;
+      const r = (v) => Math.round(v * 100) / 100, F = st.fox, Bb = st.baby, R = st.race;
       return {
         cp: st.cp,
-        rd: game.players.filter(P => P.ride).map(P => [P.id, P.ride.kind === 'sled' ? 1 : 2, r(P.ride.speed || 0), P.ride.slot || 0, P.ride.air ? 1 : 0]),
+        rd: game.players.filter(P => P.ride).map(P => [P.id, P.ride.kind === 'sled' ? 1 : 2, r(P.ride.speed || 0), P.ride.slot || 0, P.ride.air ? 1 : 0, P.ride.gates ? P.ride.gates.size : 0]),
         sb: st.sb.map(b => [r(b.x), r(b.y), r(b.z), r(b.vx), r(b.vy), r(b.vz), b.big ? 1 : 0]),
         b: [B.phase, r(B.x), r(B.y), r(B.z), r(B.yaw), B.hp, r(B.inv)],
+        fx: [F.s, r(F.x), r(F.y), r(F.z), r(F.yaw)],
+        by: [Bb.s, r(Bb.x), r(Bb.y), r(Bb.z), r(Bb.yaw)],
+        rl: st.rolls.map(b => [b.id, r(b.x), r(b.y), r(b.z), r(b.r), r(b.rot)]),
+        rc: R ? [r(R.cd), r(R.t), R.next, r(R.pu), R.racer] : 0,
       };
     },
     apply(x) {
@@ -1096,16 +1618,24 @@ export function buildSnow(game) {
       for (const P of game.players) {
         const d = rides.get(P.id);
         if (!d) { if (P.ride) { P.ride = null; if (P.mesh) { P.mesh.rotation.x = 0; P.mesh.rotation.z = 0; } } continue; }
-        P.ride = P.ride && P.ride.kind === (d[1] === 1 ? 'sled' : 'lift') ? P.ride : { kind: d[1] === 1 ? 'sled' : 'lift' };
+        const kind = d[1] === 1 ? 'sled' : 'lift';
+        P.ride = P.ride && P.ride.kind === kind ? P.ride : { kind, gates: new Set(), t0: game.t, camRate: 7 };
         P.ride.speed = d[2]; P.ride.slot = d[3]; P.ride.air = !!d[4]; P.ride.yaw = P.yaw;
+        if (kind === 'sled') { while (P.ride.gates.size < d[5]) P.ride.gates.add(P.ride.gates.size); }
       }
       st.sb = x.sb.map(d => ({ x: d[0], y: d[1], z: d[2], vx: d[3], vy: d[4], vz: d[5], big: !!d[6], t: 0 }));
       const [ph, bx, by, bz, yaw, hp, inv] = x.b;
       B.phase = ph; B.hp = hp; B.yaw = yaw; B.inv = inv;
       B.x += (bx - B.x) * 0.5; B.y += (by - B.y) * 0.5; B.z += (bz - B.z) * 0.5;
+      if (x.fx) { const F = st.fox; F.s = x.fx[0]; F.x = x.fx[1]; F.y = x.fx[2]; F.z = x.fx[3]; F.yaw = x.fx[4]; }
+      if (x.by) { const Bb = st.baby; Bb.s = x.by[0]; Bb.x = x.by[1]; Bb.y = x.by[2]; Bb.z = x.by[3]; Bb.yaw = x.by[4]; }
+      if (x.rl) st.rolls = x.rl.map(d => ({ id: d[0], x: d[1], y: d[2], z: d[3], r: d[4], rot: d[5] }));
+      st.race = x.rc ? { cd: x.rc[0], t: x.rc[1], next: x.rc[2], pu: x.rc[3], racer: x.rc[4], last: 0 } : null;
+      const open = !!snow().fort || medalsWithout('m_fort') >= S.FORT_MEDALS;
+      if (open !== S.FORT_GATE.off) setGate(open);
     },
     talkMamie(first) {
-      const s = save(), k = game.controlsHelp();
+      const s = save();
       if (first || !s.intro) {
         game.say([
           { who: 'Mamie Labrador', text: 'Bienvenue à la Station des Neiges, mes toutous ! Regardez-moi toute cette neige !' },
@@ -1114,21 +1644,20 @@ export function buildSnow(game) {
           { who: 'Mamie Labrador', text: 'Mais la Capitaine Moustache n\'a pas pu s\'en empêcher : avec ses chats farceurs, elle a caché les cinq Médailles des Neiges de la station !' },
           { who: 'Matcha', text: 'Encore elle ! Je croyais qu\'elle était notre copine, maintenant ?' },
           { who: 'Mamie Labrador', text: 'Oh, elle n\'est pas méchante : elle veut jouer. Elle vous attend dans son fort de neige, pour une grande bataille de boules de neige !' },
-          { who: 'Mamie Labrador', text: 'Sur le lac gelé, ça glisse : prenez de l\'élan, puis lâchez tout pour patiner. Et un bon « Ouaf ! » fait détaler les chats.' },
+          { who: 'Mamie Labrador', text: 'La station est grande : la patinoire, le jardin des bonshommes, la rivière gelée, le lac et les pingouins, la forêt… Allez parler à tout le monde !' },
           { who: 'Mamie Labrador', text: `Le télésiège monte au sommet : approchez-vous et appuyez sur ${game.isTouch ? 'TÉLÉSIÈGE' : 'F'}. De là-haut, une luge, et c'est la Grande Glissade !` },
           { who: 'Ainu', text: 'Ouaf ! De la luge ! On y va, Matcha !' },
-        ], () => { s.intro = true; game.persist(); game.banner(S.NAME, 'Trouvez les 5 Médailles des Neiges !', 2800); game.updateHud(); });
-        void k;
+        ], () => { s.intro = true; game.persist(); game.banner(S.NAME, 'Explorez la station et trouvez les 5 Médailles des Neiges !', 3000); game.updateHud(); });
         return;
       }
       if (s.medals.length >= S.medals.length) { game.say([{ who: 'Mamie Labrador', text: 'Bravo, mes toutous ! Toute la station est en fête. Il reste peut-être des flocons dorés à trouver…' }]); return; }
-      const kk = snow(), rv = this.reveal();
+      const kk = snow();
       const hints = {
-        m_lake: rv.m_lake ? 'Les chats du lac ont filé ! Leur médaille brille sur l\'îlot, au milieu de la glace.' : 'Des chats patinent sur le lac gelé, à l\'est. Faites-les détaler !',
-        m_bonnets: kk.metBernard ? 'Bernard cherche encore des bonnets à pompon. Regardez sur la carte !' : 'Bernard, le sauveteur, attend au sommet de la montagne. Il a besoin d\'aide !',
-        m_sled: 'Prenez une luge au sommet, et descendez la Grande Glissade jusqu\'à l\'arrivée !',
-        m_falls: 'À l\'ouest, la Cascade Gelée : grimpez de bloc de glace en bloc de glace jusqu\'en haut !',
-        m_fort: 'Le Fort Moustache est au nord-est, derrière le lac. La Capitaine vous attend pour la bataille !',
+        m_penguins: st.baby.s === 'follow' ? 'Le bébé pingouin vous suit : ramenez-le au village des pingouins, près du lac !' : 'Au village des pingouins, à l\'est, une maman pingouin a perdu son bébé. Allez la voir !',
+        m_bonnets: kk.metBernard ? `Bernard cherche ses bonnets à pompon : vous en avez ${kk.bonnets.length} sur 5. Regardez sur la carte !` : 'Bernard, le sauveteur, attend au sommet de la montagne. Il a besoin d\'aide !',
+        m_sled: 'Prenez une luge au sommet, et descendez la Grande Glissade en passant entre les fanions !',
+        m_snowman: kk.placed.length >= 3 ? 'Votre bonhomme de neige n\'a pas de nez : demandez une carotte à Myrtille !' : 'Au jardin des bonshommes, à l\'est du village, poussez les grosses boules de neige : elles grossissent en roulant !',
+        m_fort: S.FORT_GATE.off ? 'Le Fort Moustache est ouvert, tout au nord-est. La Capitaine vous attend pour la bataille !' : `Le Fort Moustache, tout au nord-est, ne s'ouvre qu'avec ${S.FORT_MEDALS} médailles.`,
       };
       const left = S.medals.filter(m => !s.medals.includes(m.id)).map(m => hints[m.id]).filter(Boolean);
       game.say([{ who: 'Mamie Labrador', text: `Vous avez ${s.medals.length} médaille${s.medals.length > 1 ? 's' : ''} sur 5.` }, ...left.slice(0, 2).map(t => ({ who: 'Mamie Labrador', text: t }))]);
@@ -1139,6 +1668,7 @@ export function buildSnow(game) {
         { who: 'Mamie Labrador', text: 'Les cinq Médailles des Neiges ! La station est en fête grâce à vous !' },
         { who: 'Myrtille', text: 'Le chocolat chaud est servi ! Avec plein de crème fouettée, comme promis.' },
         { who: 'Bernard', text: 'Et un tonnelet de plus pour les héros de la montagne ! Wouf !' },
+        { who: 'Pingo', text: 'Coin coin ! Et une course de patinage pour fêter ça !' },
         { who: 'Capitaine Moustache', text: '…Je peux en avoir aussi ? Moi aussi, j\'ai froid aux moustaches.' },
         { who: 'Mamie Labrador', text: 'Bien sûr ! Ici, tout le monde a sa tasse. Même les chats farceurs.' },
         { who: 'Biscotte', text: 'Demain, on refait la Grande Glissade tous ensemble !' },
@@ -1149,6 +1679,9 @@ export function buildSnow(game) {
     },
     render(dt, t) {
       const me = game.me, k = snow(), cam = game.camera.position;
+      // le bandeau de quête suit la descente (portes, chrono) : on le rafraîchit quand il change
+      if ((st.hudT = (st.hudT || 0) + dt) > 0.25) { st.hudT = 0; const q = logic.questText(); if (q !== st.hudQ) { st.hudQ = q; game.updateHud(); } }
+      for (const c of cull) c.obj.visible = Math.hypot(c.x - cam.x, c.z - cam.z) < (lite ? 200 : 260) + c.r;
       // sièges du télésiège qui tournent en boucle
       const m4 = this._m4 || (this._m4 = new THREE.Matrix4()), q = this._q || (this._q = new THREE.Quaternion()), v = this._v || (this._v = new THREE.Vector3()), one = this._one || (this._one = new THREE.Vector3(1, 1, 1)), zero = new THREE.Vector3(0, 0, 0), e = this._e || (this._e = new THREE.Euler());
       const loop = S.LIFT_LEN * 2;
@@ -1185,16 +1718,19 @@ export function buildSnow(game) {
         if (!R || R.kind !== 'sled') continue;
         const sl = sledFor(si++);
         const e2 = 0.6, gf = (S.heightAt(P.pos.x + Math.sin(P.yaw) * e2, P.pos.z + Math.cos(P.yaw) * e2) - S.heightAt(P.pos.x - Math.sin(P.yaw) * e2, P.pos.z - Math.cos(P.yaw) * e2)) / (2 * e2);
-        const pitch = R.air ? -0.1 : -Math.atan(gf);
-        sl.visible = true; sl.position.set(P.pos.x, P.pos.y + 0.02, P.pos.z); sl.rotation.set(pitch, P.yaw, 0, 'YXZ');
+        const gs = (S.heightAt(P.pos.x + Math.cos(P.yaw) * e2, P.pos.z - Math.sin(P.yaw) * e2) - S.heightAt(P.pos.x - Math.cos(P.yaw) * e2, P.pos.z + Math.sin(P.yaw) * e2)) / (2 * e2);
+        const pitch = R.air ? -0.1 : -Math.atan(gf), roll = R.air ? 0 : Math.atan(gs) * 0.8;
+        // la luge se penche dans les virages
+        R.lean = (R.lean || 0) + ((((R.yaw || P.yaw) - (R.prevYaw === undefined ? P.yaw : R.prevYaw)) / Math.max(dt, 1e-3)) * -0.12 - (R.lean || 0)) * Math.min(1, dt * 8);
+        R.prevYaw = P.yaw;
+        sl.visible = true; sl.position.set(P.pos.x, P.pos.y + 0.02, P.pos.z); sl.rotation.set(pitch, P.yaw, roll + clamp(R.lean, -0.3, 0.3), 'YXZ');
         if (P.mesh) {
           const u = P.mesh.userData;
-          P.mesh.position.set(P.pos.x, P.pos.y + 0.3, P.pos.z); P.mesh.rotation.set(pitch, P.yaw, 0, 'YXZ');
+          P.mesh.position.set(P.pos.x, P.pos.y + 0.3, P.pos.z); P.mesh.rotation.set(pitch, P.yaw, roll + clamp(R.lean, -0.3, 0.3) * 1.4, 'YXZ');
           if (u.legs) u.legs.forEach((l, i) => { l.rotation.x = i < 2 ? -1.0 : 1.2; });
           if (u.ainu) { u.ainu.position.y = -0.1; u.ainu.rotation.x = 0; u.ainu.rotation.z = 0; }
           if (u.tail) u.tail.rotation.set(-0.6, Math.sin(t * 10) * 0.3, 0);
         }
-        // poudreuse qui vole
         if ((R.speed || 0) > 4 && !R.air && Math.random() < dt * (R.speed * 2.5)) {
           const b = -0.9;
           game.spawnParticle(P.pos.x + Math.sin(P.yaw) * b + (Math.random() - 0.5) * 0.8, P.pos.y + 0.15, P.pos.z + Math.cos(P.yaw) * b + (Math.random() - 0.5) * 0.8,
@@ -1202,15 +1738,12 @@ export function buildSnow(game) {
         }
       }
       for (let i = si; i < sledPool.length; i++) sledPool[i].visible = false;
-      // patins sur la glace : copeaux de glace
       for (const P of game.players) {
         if (P.ride || !P.grounded) continue;
         const sp = Math.hypot(P.vel.x, P.vel.z);
         if (sp > 3 && S.iceAt(P.pos.x, P.pos.z, P.pos.y) && Math.random() < dt * 12) game.spawnParticle(P.pos.x, P.pos.y + 0.1, P.pos.z, -P.vel.x * 0.1, 0.8, -P.vel.z * 0.1, 0xe0f4ff, 0.18, 0.4, 3);
-        // dans la neige poudreuse : de petites bouffées
         else if (sp > 6 && Math.random() < dt * 5) game.spawnParticle(P.pos.x - Math.sin(P.yaw) * 0.5, P.pos.y + 0.1, P.pos.z - Math.cos(P.yaw) * 0.5, (Math.random() - 0.5), 0.9, (Math.random() - 0.5), 0xffffff, 0.3, 0.5, 2);
       }
-      // boules de neige (chez les amis, on prolonge la trajectoire reçue)
       if (game.guest) for (const b of st.sb) { b.vy -= 14 * dt; b.x += b.vx * dt; b.y += b.vy * dt; b.z += b.vz * dt; }
       for (let i = 0; i < SB_MAX; i++) {
         const b = st.sb[i];
@@ -1219,25 +1752,79 @@ export function buildSnow(game) {
         balls.setMatrixAt(i, m4);
       }
       balls.instanceMatrix.needsUpdate = true;
-      // chats qui lancent : petit bond
       for (const c of game.cats) if (!c.dead && c.throwAnim && t - c.throwAnim < 0.35) { const a = (t - c.throwAnim) / 0.35; c.mesh.position.y += Math.sin(a * Math.PI) * 0.35; c.mesh.userData.head.rotation.x = -Math.sin(a * Math.PI) * 0.4; }
       // bonnets
       for (const b of bonnets) {
-        const got = k.bonnets.includes(b.def.id);
-        b.g.visible = !got;
-        if (!got) { b.g.position.y = b.def.y + 0.8 + Math.sin(t * 2.5 + b.def.x) * 0.15; b.g.rotation.y = t * 1.6; }
+        const got = k.bonnets.includes(b.def.id), av = bonnetAvail(b.def);
+        b.g.visible = !got && av;
+        if (b.g.visible) { const at = bonnetAt(b.def); b.g.position.set(at.x, at.y + 0.8 + Math.sin(t * 2.5 + at.x) * 0.15, at.z); b.g.rotation.y = t * 1.6; }
       }
       // habitants
       for (const id in folks) {
         const f = folks[id], u = f.m.userData, d = f.def;
         const dd = Math.hypot(me.pos.x - d.x, me.pos.z - d.z);
+        f.m.visible = dd < 200;
         const look = dd < 8 ? Math.atan2(me.pos.x - d.x, me.pos.z - d.z) : d.yaw;
         f.m.rotation.y = lerpAngle(f.m.rotation.y, look, Math.min(1, dt * 3));
         if (u.mtail) u.mtail.rotation.y = Math.sin(t * 7 + d.x) * 0.5;
         if (u.mhead) u.mhead.rotation.x = Math.sin(t * 2 + d.z) * 0.06;
-        f.mark.visible = save().intro && (id === 'bernard' ? !k.metBernard : !k.metMyrtille);
+        if (u.wings) u.wings.forEach((w, i) => { w.rotation.z = (i ? -1 : 1) * (0.15 + Math.max(0, Math.sin(t * 6)) * (dd < 6 ? 0.5 : 0.1)); });
+        const want = id === 'bernard' ? !k.metBernard || (k.bonnets.length >= S.BONNETS.length && !k.bonnetsGiven) : id === 'myrtille' ? !k.metMyrtille || (k.placed.length >= 3 && !k.carrot) : id === 'pingo' ? !k.raceWon && !st.race : k.baby !== 'home' && !k.metMaman;
+        f.mark.visible = save().intro && want && dd < 200;
         f.mark.position.set(d.x, d.y + (u.height || 1.6) + 1.2 + Math.sin(t * 4) * 0.1, d.z);
       }
+      // Pingo : à sa place, ou en pleine course
+      {
+        const pf = folks.pingo, R = st.race;
+        if (R && R.cd <= 0) { const p = PINGO_PATH(R.pu), p2 = PINGO_PATH(R.pu + 0.01); pf.m.position.set(p.x, S.RINK.y, p.z); pf.m.rotation.y = Math.atan2(p2.x - p.x, p2.z - p.z); pf.m.rotation.z = Math.sin(t * 8) * 0.12; }
+        else { pf.m.position.set(pf.def.x, pf.def.y, pf.def.z); pf.m.rotation.z = 0; }
+        for (const c of cones) {
+          const next = R && R.cd <= 0 && S.RINK_CONES[R.next % S.RINK_CONES.length] === c.def;
+          c.glow.material.opacity = next ? 0.5 + Math.sin(t * 8) * 0.25 : c.hit && t - c.hit < 0.6 ? 0.8 * (1 - (t - c.hit) / 0.6) : 0;
+        }
+      }
+      // petits pingouins qui se dandinent
+      for (const p of penguins) { const u = p.m.userData; p.m.rotation.z = Math.sin(t * 3 + p.ph) * 0.12; p.m.rotation.y = Math.sin(t * 0.4 + p.ph) * 1.2; u.wings.forEach((w, i) => { w.rotation.z = (i ? -1 : 1) * (0.2 + Math.max(0, Math.sin(t * 5 + p.ph)) * 0.4); }); }
+      // le bébé pingouin
+      {
+        const Bb = st.baby, u = baby.userData;
+        baby.position.set(Bb.x, Bb.y, Bb.z); baby.rotation.y = Bb.s === 'lost' ? Math.sin(t * 0.8) * 0.6 : Bb.yaw;
+        baby.rotation.z = Bb.s === 'lost' ? Math.sin(t * 20) * 0.05 : Bb.s === 'follow' ? Math.sin(t * 9) * 0.15 : Math.sin(t * 3) * 0.08;
+        u.wings.forEach((w, i) => { w.rotation.z = (i ? -1 : 1) * (Bb.s === 'free' ? 0.3 + Math.abs(Math.sin(t * 10)) * 0.8 : 0.15); });
+        babyMark.visible = Bb.s === 'free' && Math.hypot(Bb.x - cam.x, Bb.z - cam.z) < 160;
+        babyMark.position.set(Bb.x, Bb.y + 1.6 + Math.sin(t * 4) * 0.1, Bb.z);
+        if (Bb.s === 'lost' && Math.random() < dt * 0.6 && Math.hypot(Bb.x - cam.x, Bb.z - cam.z) < 40) game.spawnParticle(Bb.x, Bb.y + 0.9, Bb.z, 0, 0.6, 0, 0xbfe8ff, 0.2, 0.8, 0);
+      }
+      // le renard
+      {
+        const F = st.fox, u = fox.userData, running = F.s === 'run';
+        fox.position.set(F.x, F.y, F.z); fox.rotation.y = F.yaw;
+        u.legs.forEach((l, i) => { l.rotation.x = running ? Math.sin(t * 16 + (i % 3 ? Math.PI : 0)) * 0.9 : 0; });
+        u.tail.rotation.y = Math.sin(t * (F.s === 'calm' ? 8 : 3)) * (F.s === 'calm' ? 0.6 : 0.25);
+        u.head.rotation.x = F.s === 'sit' ? Math.sin(t * 1.5) * 0.08 : 0;
+        if (!k.foxDrop) { if (!fox.userData.carry) { const c = buildBonnet(0x40c060); c.scale.setScalar(0.6); c.position.set(0, -0.1, 0.42); c.rotation.x = 1.2; u.head.add(c); fox.userData.carry = c; } }
+        else if (fox.userData.carry) { u.head.remove(fox.userData.carry); fox.userData.carry = null; }
+      }
+      // les boules du bonhomme qui roulent, et le bonhomme qui se construit
+      {
+        const vis = new Set();
+        st.rolls.forEach((b) => { const r = rollers.find(q => q.def.id === b.id); if (!r) return; vis.add(r); r.m.visible = true; r.m.position.set(b.x, b.y, b.z); r.m.scale.setScalar(b.r); r.m.rotation.x = b.rot; });
+        for (const r of rollers) if (!vis.has(r)) r.m.visible = false;
+        const u = snowman.userData, n = Math.min(3, k.placed.length);
+        let y = 0.2;
+        u.parts.forEach((m, i) => {
+          m.visible = i < n;
+          const R = S.SNOWMAN_SIZES[i];
+          if (m.visible) { m.scale.setScalar(R); m.position.y = y + R * 0.9; y += R * 1.75; }
+        });
+        u.face.visible = n >= 3;
+        if (n >= 3) { const R = S.SNOWMAN_SIZES[2]; u.face.position.y = u.parts[2].position.y; u.face.scale.setScalar(R / 0.7); }
+        u.nose.visible = !!k.snowman;
+        u.ring.material.opacity = n < 3 ? 0.4 + Math.sin(t * 4) * 0.25 : k.snowman ? 0 : 0.3;
+      }
+      // la porte du fort s'enfonce
+      st.gateK += ((S.FORT_GATE.off ? 1 : 0) - st.gateK) * Math.min(1, dt * 1.5);
+      gateMesh.position.y = S.FORT_GATE.y0 + 1 - st.gateK * 5.5; gateMesh.visible = st.gateK < 0.98;
       // cheminées qui fument, tasses qui fument
       if (Math.random() < dt * 6) {
         const c = chimneys[Math.floor(Math.random() * chimneys.length)];
@@ -1274,6 +1861,12 @@ export function buildSnow(game) {
   };
 
   // état initial d'après la sauvegarde
+  {
+    const k = snow();
+    if (k.baby === 'home') st.baby.s = 'home';
+    else if (logic.reveal().m_lake) st.baby.s = 'free';
+    if (k.foxDrop) st.fox.s = 'calm';
+  }
   logic.applySave();
   return logic;
 }
