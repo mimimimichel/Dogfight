@@ -174,6 +174,35 @@ function cloudGeometry(rad, seed) {
   return M.mergeGeos(parts.map(g => ({ geo: paint(g, (c, x, y) => c.set(0xffffff).lerp(new THREE.Color(0xd8d0f0), clamp(-y * 0.9, 0, 1))) })));
 }
 
+/** Nuage-mouton : un nuage tout rond avec une tête noire, des oreilles et de petites pattes. */
+function sheepModel(rad, seed, standing) {
+  const g = new THREE.Group();
+  const wool = new THREE.Mesh(cloudGeometry(rad, seed), new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 1, emissive: 0xffffff, emissiveIntensity: 0.14 }));
+  wool.castShadow = true; g.add(wool);
+  const dark = 0x3a3238;
+  const parts = [
+    { geo: paint(new THREE.SphereGeometry(rad * 0.32, 12, 10), dark), y: -0.35, z: rad * 0.95, sz: 1.15 },
+    ...[-1, 1].map(sx => ({ geo: paint(new THREE.SphereGeometry(rad * 0.13, 8, 6), dark), x: sx * rad * 0.3, y: -0.2, z: rad * 0.95, sx: 1.6, sy: 0.6, sz: 0.8 })),
+    ...[-1, 1].map(sx => ({ geo: paint(new THREE.SphereGeometry(rad * 0.07, 8, 6), 0xffffff), x: sx * rad * 0.12, y: -0.25, z: rad * 1.26 })),
+    ...[-1, 1].map(sx => ({ geo: paint(new THREE.SphereGeometry(rad * 0.035, 6, 4), 0x111111), x: sx * rad * 0.12, y: -0.25, z: rad * 1.31 })),
+    ...[[-1, -1], [1, -1], [-1, 1], [1, 1]].map(([sx, sz]) => ({ geo: paint(new THREE.CylinderGeometry(rad * 0.08, rad * 0.06, standing ? rad * 0.5 : rad * 0.3, 6), dark), x: sx * rad * 0.38, y: standing ? -0.7 - rad * 0.25 : -0.75, z: sz * rad * 0.38 })),
+  ];
+  const face = new THREE.Mesh(M.mergeGeos(parts), new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.7 }));
+  g.add(face);
+  g.userData.face = face;
+  return g;
+}
+/** Fleur-trampoline : une grosse fleur dont le cœur fait ressort. */
+function flowerGeometry(rad, hue) {
+  const parts = [{ geo: paint(new THREE.CylinderGeometry(0.12, 0.16, 0.5, 6), 0x4a9a3a), y: 0.25 }];
+  for (let k = 0; k < 7; k++) {
+    const a = k / 7 * Math.PI * 2, g = new THREE.SphereGeometry(rad * 0.42, 10, 6);
+    parts.push({ geo: paint(g, (c, x, y) => c.setHSL(hue, 0.75, 0.62 + y * 0.4)), x: Math.cos(a) * rad * 0.62, y: 0.55, z: Math.sin(a) * rad * 0.62, sy: 0.32, ry: -a });
+  }
+  parts.push({ geo: paint(new THREE.SphereGeometry(rad * 0.42, 12, 8), 0xffd23a), y: 0.62, sy: 0.4 });
+  return M.mergeGeos(parts);
+}
+
 function canvasTex(w, h, draw) {
   const c = document.createElement('canvas'); c.width = w; c.height = h;
   draw(c.getContext('2d'), w, h);
@@ -234,6 +263,7 @@ export function buildSky(game) {
     if (!Array.isArray(k.flags)) k.flags = S.MAIN_PATH.filter(id => id <= k.cp);
     if (!Array.isArray(k.bells)) k.bells = [];
     if (!Array.isArray(k.feathers)) k.feathers = [];
+    if (!Array.isArray(k.defis)) k.defis = [];
     return k;
   };
   const st = {
@@ -332,6 +362,7 @@ export function buildSky(game) {
   const movers = S.movers.map((m, i) => {
     let mesh;
     if (m.look === 'cloud') mesh = new THREE.Mesh(cloudGeometry(m.r, 90 + i), cloudMat);
+    else if (m.look === 'sheep') mesh = sheepModel(m.r, 95 + i, false);
     else {
       mesh = new THREE.Group();
       const body = new THREE.Mesh(padGeometry(m.r, 120 + i), rockMat);
@@ -359,8 +390,16 @@ export function buildSky(game) {
   // --- champignons-ressorts --------------------------------------------------------
   const trampMat = std({ roughness: 1, emissive: 0xff9ad0, emissiveIntensity: 0.22, color: 0xffe4f2 });
   const trampRingMat = new THREE.MeshStandardMaterial({ color: 0xffffff, vertexColors: true, roughness: 0.5, emissive: 0xffffff, emissiveIntensity: 0.25 });
+  const flowerMat = std({ roughness: 0.6 });
   const springs = S.springs.map((s, i) => {
     const g = new THREE.Group();
+    if (s.look === 'flower') {
+      const fl = new THREE.Mesh(flowerGeometry(s.r * 1.2, [0.92, 0.12, 0.78, 0.55, 0.02, 0.85, 0.15][i % 7]), flowerMat);
+      fl.castShadow = !lite; g.add(fl);
+      g.position.set(s.x, s.base, s.z);
+      sc.add(g);
+      return { def: s, g, cap: [fl] };
+    }
     if (s.look === 'tramp') {
       // nuage-trampoline : un gros nuage rose, cerclé d'un anneau arc-en-ciel
       const puff = new THREE.Mesh(cloudGeometry(s.r * 1.05, 700 + i), trampMat);
@@ -666,8 +705,8 @@ export function buildSky(game) {
 
   // --- le Col des Rafales : rochers-abris, haie, manches à air, traînées de vent ----
   {
-    const rocks = S.SHELTERS.map((s, i) => { const g = new THREE.DodecahedronGeometry(s.r * 1.12, 1); return { geo: paint(g, (c, x, y, z) => { c.set(ROCK_BANDS[(i + Math.floor((y + 1) * 1.5)) % 4]); c.multiplyScalar(0.9 + hash3(x * 3, y * 3, z * 3) * 0.2); }), x: s.x, y: s.base + s.h * 0.45, z: s.z, sx: 1, sy: s.h / (s.r * 2) * 1.1 }; });
-    const rm = new THREE.Mesh(M.mergeGeos(rocks), rockMat); rm.castShadow = true; rm.receiveShadow = true; sc.add(rm);
+    const rocks = S.SHELTERS.map((s, i) => { const g = new THREE.DodecahedronGeometry(s.r * 1.15, 0); g.rotateY(i * 1.3); g.rotateX(0.3); return { geo: paint(g, (c, x, y, z) => { c.set(ROCK_BANDS[(i + Math.floor((y + 1) * 1.5)) % 4]); c.multiplyScalar(0.9 + hash3(x * 3, y * 3, z * 3) * 0.2); }), x: s.x, y: s.base + s.h * 0.45, z: s.z, sx: 1, sy: s.h / (s.r * 2) * 1.1 }; });
+    const rm = new THREE.Mesh(mergeRaw(rocks.map(q => { const g = q.geo.index ? q.geo.toNonIndexed() : q.geo; g.scale(1, q.sy, 1); g.translate(q.x, q.y, q.z); g.computeVertexNormals(); return g; })), islandRock); rm.castShadow = !lite; rm.receiveShadow = true; sc.add(rm);
     const hedge = S.HEDGE.map((h, i) => ({ geo: paint(new THREE.IcosahedronGeometry(0.85, 1), (c) => c.set(i % 2 ? 0x5aa83e : 0x4a9832)), x: h.x, y: h.y + 0.55, z: h.z, sy: 1.0 }));
     const hm = new THREE.Mesh(M.mergeGeos(hedge), std({ roughness: 0.95 })); hm.castShadow = true; sc.add(hm);
   }
@@ -842,6 +881,241 @@ export function buildSky(game) {
     sc.add(grp);
     return { def: f, grp, m };
   });
+
+  // =================================================================================
+  // La vie des îles : ballons à éclater, papillons géants, petits oiseaux,
+  // habitants (et leurs petits défis)
+  // =================================================================================
+  const aud = () => (game.sfx && game.sfx.ok ? game.sfx : null);
+  const life = (() => {
+    const L = { popped: new Map(), defi: null, bounces: 0, ride: 0, rideOf: null };
+    const dm = new THREE.Object3D(), col = new THREE.Color();
+    const meNear = (x, z, R) => near(x, z, R);
+    // --- ballons ---------------------------------------------------------------------
+    const BL = S.BALLOONS;
+    const bGeo = new THREE.SphereGeometry(0.55, lite ? 10 : 14, lite ? 8 : 10); bGeo.scale(1, 1.18, 1);
+    const bMesh = new THREE.InstancedMesh(bGeo, new THREE.MeshStandardMaterial({ roughness: 0.25, metalness: 0.05 }), BL.length);
+    const sMesh = new THREE.InstancedMesh(new THREE.CylinderGeometry(0.012, 0.012, 1.4, 3).translate(0, -0.7, 0), ropeMat, BL.length);
+    BL.forEach((b, i) => bMesh.setColorAt(i, col.setHex(b.color)));
+    bMesh.instanceColor.needsUpdate = true;
+    bMesh.frustumCulled = false; sMesh.frustumCulled = false; sMesh.userData.noOutline = true;
+    bMesh.castShadow = !lite;
+    sc.add(bMesh, sMesh);
+    function pop(i, P) {
+      const b = BL[i];
+      L.popped.set(i, game.t);
+      game.burst(b.x, b.y, b.z, 16, b.color, 4, 0.5);
+      game.burst(b.x, b.y, b.z, 6, 0xffffff, 3, 0.35);
+      const a = aud(); if (a) { a.noise(0.12, { freq: 2600, freqTo: 700, vol: 0.28 }); a.tone(880, 0.09, { type: 'triangle', to: 1500, vol: 0.08 }); }
+      if (P) {
+        // boing ! on rebondit sur le ballon (et le double saut revient)
+        if (P.vel.y < S.POP_BOUNCE) P.vel.y = S.POP_BOUNCE;
+        P.grounded = false; P.jumps = 1; P.coyote = 0; P.cheerT = 0.3;
+        if (P === game.me && !st.popTold) { st.popTold = true; game.banner('Pop !', 'Sauter sur un ballon fait rebondir très haut', 2000); }
+      }
+      if (L.defi && L.defi.id === 'ballons' && b.group === 'z' && !L.defi.got.has(i)) {
+        L.defi.got.add(i);
+        const n = L.defi.got.size, tot = BL.filter(q => q.group === 'z').length;
+        if (n >= tot) winDefi('ballons'); else game.banner(`Ballons de Zéphyr : ${n}/${tot}`, `Encore ${Math.ceil(L.defi.end - game.t)} s`, 1100);
+      }
+    }
+    // --- papillons géants ------------------------------------------------------------
+    const BF = [];
+    S.BUTTERFLIES.forEach((h, i) => { for (let k = 0; k < 2; k++) BF.push({ h, ph: i * 1.7 + k * 3.1, r: 1.2 + k * 0.9, sp: 0.5 + ((i * 7 + k * 3) % 5) * 0.08, flee: 0, hue: ((i * 0.13 + k * 0.37) % 1) }); });
+    const wingShape = new THREE.Shape();
+    wingShape.moveTo(0, 0); wingShape.bezierCurveTo(0.25, 0.55, 0.75, 0.6, 0.62, 0.12); wingShape.bezierCurveTo(0.72, -0.25, 0.35, -0.5, 0, 0);
+    const wingGeo = new THREE.ShapeGeometry(wingShape, 6); wingGeo.rotateX(-Math.PI / 2);
+    const wMesh = new THREE.InstancedMesh(wingGeo, new THREE.MeshStandardMaterial({ side: THREE.DoubleSide, roughness: 0.5, emissive: 0xffffff, emissiveIntensity: 0.18 }), BF.length * 2);
+    BF.forEach((b, i) => { col.setHSL(b.hue, 0.8, 0.6); wMesh.setColorAt(i * 2, col); wMesh.setColorAt(i * 2 + 1, col); });
+    wMesh.instanceColor.needsUpdate = true; wMesh.frustumCulled = false; wMesh.userData.noOutline = true;
+    sc.add(wMesh);
+    // --- petits oiseaux posés --------------------------------------------------------
+    const BD = [];
+    S.BIRDS.forEach((f, i) => { for (let k = 0; k < 5; k++) { const a = k * 1.26 + i, d = 0.8 + (k % 3) * 0.7; BD.push({ f, x: f.x + Math.cos(a) * d, z: f.z + Math.sin(a) * d, a, fly: 0, ph: i + k * 0.7, peck: 0 }); } });
+    const birdBody = paint(new THREE.SphereGeometry(0.16, 8, 6).scale(0.8, 0.8, 1.3), 0xffffff);
+    const birdWing = new THREE.BufferGeometry();
+    birdWing.setAttribute('position', new THREE.Float32BufferAttribute([0, 0, 0.1, -0.42, 0.05, -0.05, 0, 0, -0.12, 0, 0, 0.1, 0.42, 0.05, -0.05, 0, 0, -0.12], 3));
+    birdWing.computeVertexNormals();
+    const bdMat = new THREE.MeshStandardMaterial({ roughness: 0.7, side: THREE.DoubleSide });
+    const bbMesh = new THREE.InstancedMesh(birdBody, bdMat, BD.length), bwMesh = new THREE.InstancedMesh(birdWing, bdMat, BD.length);
+    BD.forEach((b, i) => { col.setHex([0x5a8ae0, 0xe8604a, 0xf0c040, 0x6ac0a0, 0xa070d0][i % 5]); bbMesh.setColorAt(i, col); bwMesh.setColorAt(i, col.multiplyScalar(0.8)); });
+    for (const m of [bbMesh, bwMesh]) { m.instanceColor.needsUpdate = true; m.frustumCulled = false; m.userData.noOutline = true; sc.add(m); }
+    // --- habitants -------------------------------------------------------------------
+    const res = S.RESIDENTS.map((r, i) => {
+      let m;
+      if (r.model === 'sheep') { m = sheepModel(1.1, 990 + i, true); m.position.y = 1.15; const g = new THREE.Group(); g.add(m); m = g; }
+      else if (r.model === 'pug') m = M.buildPug({ fur: r.fur, collar: r.collar, scale: 1.25 });
+      else m = M.buildYorkie({ tan: r.fur, bow: r.bow, scale: 1.35 });
+      m.position.set(r.x, r.y, r.z);
+      sc.add(m); chars.push(m);
+      const mark = new THREE.Sprite(nimbusMark.material);
+      mark.scale.set(0.7, 0.7, 1); mark.userData.noOutline = true; sc.add(mark);
+      return { def: r, m, mark };
+    });
+    function winDefi(id) {
+      const k = sky();
+      L.defi = null;
+      const first = !k.defis.includes(id);
+      if (first) { k.defis.push(id); game.persist(); }
+      for (const P of game.players) { P.cheerT = 1.6; P.hearts = Math.max(P.hearts, 3); }
+      const r = S.RESIDENTS.find(q => q.defi === id);
+      for (let i = 0; i < 6; i++) game.burst(r.x, r.y + 2, r.z, 10, RAINBOW_COLS[i].getHex(), 5, 0.9);
+      game.sound('win');
+      game.banner('Défi réussi !', first ? `${r.name} est ravi${r.id === 'floconne' || r.id === 'brindille' ? 'e' : ''} : les cœurs sont pleins !` : 'Encore plus vite que la dernière fois !', 3000);
+      game.updateHud();
+    }
+    function talk(r) {
+      const k = sky(), done = k.defis.includes(r.defi);
+      const ctl = game.controlsHelp();
+      if (r.id === 'zephyr') {
+        const go = () => {
+          for (const [i] of [...L.popped]) if (BL[i].group === 'z') L.popped.delete(i);
+          L.defi = { id: 'ballons', end: game.t + S.DEFI_TIME * (game.easy ? 2 : 1), got: new Set() };
+          game.banner('Défi des ballons !', `Éclatez les 6 ballons de Zéphyr en ${S.DEFI_TIME * (game.easy ? 2 : 1)} secondes`, 2400);
+        };
+        if (done) { game.say([{ who: 'Zéphyr', text: 'Six ballons en un clin d\'œil ! Vous êtes les champions du boing. On recommence ?' }], go); return; }
+        game.say([
+          { who: 'Zéphyr', text: 'Bonjour, les toutous ! Je suis Zéphyr, le marchand de ballons. Le vent en a emporté six autour de l\'île…' },
+          { who: 'Zéphyr', text: `Vous voulez jouer ? Éclatez mes six ballons avant la fin du sablier : sautez dessus (${ctl.jump}), ça fait boing !` },
+          { who: 'Matcha', text: 'Boing ? J\'adore les boings ! Allez, Ainu !' },
+        ], go);
+      } else if (r.id === 'floconne') {
+        game.say(done ? [{ who: 'Mamie Floconne', text: 'Pompon m\'a tout raconté : vous étiez de très sages passagers. Bêêê !' }] : [
+          { who: 'Mamie Floconne', text: 'Bêêê… Bonjour, mes petits. Moi, c\'est Mamie Floconne. Mes deux nuages-moutons, Cotonnet et Pompon, se promènent entre les îles.' },
+          { who: 'Mamie Floconne', text: 'Montez sur le dos de Pompon, au bord de l\'île : il vous emmène doucement jusqu\'au Jardin Suspendu. Restez bien assis jusqu\'au bout !' },
+          { who: 'Ainu', text: 'Un nuage tout doux qui marche dans le ciel… Même moi, je n\'ai pas peur. Ouaf !' },
+        ]);
+      } else if (r.id === 'pipou') {
+        game.say(done ? [{ who: 'Pipou', text: 'Cinq rebonds ! Tu es le roi du trampoline ! Ouaf, ouaf !' }] : [
+          { who: 'Pipou', text: 'Coucou ! Moi, c\'est Pipou. Tu vois mon nuage-trampoline, au milieu de l\'île ? Personne n\'a jamais fait cinq rebonds d\'affilée dessus !' },
+          { who: 'Pipou', text: 'Saute dessus, et ne touche pas l\'herbe entre deux rebonds. Tu y arrives ?' },
+        ], () => { L.bounces = 0; });
+      } else {
+        game.say([
+          { who: 'Brindille', text: 'Hiii ! Le vent du Col m\'a toute ébouriffée !' },
+          { who: 'Brindille', text: 'Quand il siffle, cachez-vous derrière un gros rocher. Et tout en bas, au sud, il y a un îlot secret… mais chut !' },
+        ]);
+      }
+    }
+    return {
+      res, talk,
+      step(dt) {
+        const t = game.t, players = game.players;
+        // ballons
+        for (const [i, at] of [...L.popped]) if (t - at > S.BALLOON_BACK && !(L.defi && BL[i].group === 'z')) L.popped.delete(i);
+        for (const P of players) {
+          if (P.fly) continue;
+          const py = P.pos.y + 0.7;
+          for (let i = 0; i < BL.length; i++) {
+            if (L.popped.has(i)) continue;
+            const b = BL[i], y = b.y + Math.sin(t * 1.4 + i) * 0.2;
+            if ((P.pos.x - b.x) ** 2 + (py - y) ** 2 + (P.pos.z - b.z) ** 2 < 1.15 * 1.15) pop(i, P);
+          }
+          // le trampoline de Pipou : des rebonds d'affilée
+          if (P === game.me) {
+            if (P.onCol && P.onCol === S.TRAMPS[0].col && P.vel.y > 10 && !L.bounced) {
+              L.bounced = true; L.bounces++;
+              if (L.bounces >= 2 && !sky().defis.includes('rebonds')) game.banner(`Rebonds : ${L.bounces}/${S.DEFI_BOUNCES}`, null, 900);
+              if (L.bounces >= S.DEFI_BOUNCES) { L.bounces = 0; winDefi('rebonds'); }
+            }
+            if (P.vel.y < 0) L.bounced = false;
+            if (P.grounded && P.onCol !== S.TRAMPS[0].col) L.bounces = 0;
+            // à dos de Pompon, de bout en bout
+            const sheep = P.grounded && P.onCol && P.onCol.mover && P.onCol.mover.look === 'sheep' ? P.onCol.mover : null;
+            if (sheep) {
+              if (L.rideOf !== sheep) { L.rideOf = sheep; L.ride = 0; if (!st.sheepTold) { st.sheepTold = true; game.banner('Un nuage-mouton !', `${sheep.name} vous emmène en promenade. Bêêê !`, 2400); } const a = aud(); if (a) a.tone(330, 0.5, { type: 'sawtooth', to: 300, vol: 0.05 }); }
+              L.ride += dt;
+              if (sheep === S.SHEEP[1] && L.ride > S.SHEEP[1].period / 2 - 1.5 && !L.rideWon) { L.rideWon = true; winDefi('mouton'); }
+            } else if (P.grounded) { L.rideOf = null; L.ride = 0; L.rideWon = false; }
+          }
+        }
+        if (L.defi && t > L.defi.end) { L.defi = null; game.banner('Presque !', 'Reparlez à Zéphyr pour réessayer', 2200); }
+        // papillons : ils s'enfuient quand un chien arrive
+        for (const b of BF) {
+          b.flee = Math.max(0, b.flee - dt);
+          if (b.flee <= 0) for (const P of players) if ((P.pos.x - b.h.x) ** 2 + (P.pos.z - b.h.z) ** 2 < 16 && Math.abs(P.pos.y - b.h.y) < 4) b.flee = 3.5;
+        }
+        // oiseaux : ils s'envolent en piaillant
+        for (const b of BD) {
+          b.fly = Math.max(0, b.fly - dt);
+          if (b.fly <= 0) for (const P of players) if ((P.pos.x - b.x) ** 2 + (P.pos.z - b.z) ** 2 < 25 && Math.abs(P.pos.y - b.f.y) < 3) {
+            for (const q of BD) if (q.f === b.f) q.fly = 7 + Math.random();
+            const a = aud(); if (a && P === game.me) for (let k = 0; k < 4; k++) a.tone(2400 + k * 300, 0.05, { type: 'sine', to: 3200, vol: 0.035, delay: k * 0.07 });
+            break;
+          }
+        }
+      },
+      render(dt, t) {
+        // ballons
+        BL.forEach((b, i) => {
+          const at = L.popped.get(i);
+          const k = at === undefined ? 1 : clamp((t - at - (S.BALLOON_BACK - 0.6)) / 0.6, 0, 1);
+          const show = k > 0.01 && near(b.x, b.z, 110);
+          const y = b.y + Math.sin(t * 1.4 + i) * 0.2;
+          dm.position.set(b.x + Math.sin(t * 0.7 + i) * 0.1, y, b.z); dm.rotation.set(0, 0, Math.sin(t + i) * 0.1); dm.scale.setScalar(show ? k : 0);
+          dm.updateMatrix(); bMesh.setMatrixAt(i, dm.matrix);
+          dm.position.y = y - 0.62; dm.rotation.set(0, 0, 0); dm.updateMatrix(); sMesh.setMatrixAt(i, dm.matrix);
+        });
+        bMesh.instanceMatrix.needsUpdate = true; sMesh.instanceMatrix.needsUpdate = true;
+        // papillons
+        BF.forEach((b, i) => {
+          const show = near(b.h.x, b.h.z, 70);
+          if (!show) { dm.scale.setScalar(0); dm.updateMatrix(); wMesh.setMatrixAt(i * 2, dm.matrix); wMesh.setMatrixAt(i * 2 + 1, dm.matrix); return; }
+          const a = t * b.sp + b.ph, f = b.flee > 0 ? (3.5 - b.flee) : 0;
+          const x = b.h.x + Math.cos(a) * b.r + Math.sin(a * 2.3) * 0.4 + Math.cos(b.ph) * f * 2.5;
+          const z = b.h.z + Math.sin(a * 1.3) * b.r + Math.sin(b.ph) * f * 2.5;
+          const y = b.h.y + Math.sin(a * 2.1) * 0.35 + f * 1.6;
+          const flap = Math.sin(t * (b.flee > 0 ? 26 : 13) + b.ph) * 0.9, head = a + Math.PI / 2;
+          for (const s of [-1, 1]) {
+            dm.position.set(x, y, z);
+            dm.rotation.set(0, head + (s < 0 ? Math.PI : 0), s * flap, 'YXZ');
+            dm.scale.set(0.9, 0.9, 0.9);
+            dm.updateMatrix(); wMesh.setMatrixAt(i * 2 + (s < 0 ? 0 : 1), dm.matrix);
+          }
+        });
+        wMesh.instanceMatrix.needsUpdate = true;
+        // oiseaux
+        BD.forEach((b, i) => {
+          const show = near(b.x, b.z, 70);
+          let x = b.x, y = b.f.y + 0.13, z = b.z, yaw = b.a, wing = 0.15;
+          if (b.fly > 0) {
+            const k = Math.min(1, (7 - b.fly) * 0.8), land = Math.min(1, b.fly * 0.8), up = Math.min(k, land);
+            const a = t * 1.6 + b.ph;
+            x = b.x + Math.cos(a) * 3.5 * up; z = b.z + Math.sin(a) * 3.5 * up; y += up * (4 + Math.sin(t * 3 + b.ph));
+            yaw = -a; wing = 0.4 + Math.abs(Math.sin(t * 22 + b.ph)) * 1.4;
+          } else { b.peck = Math.sin(t * 2.5 + b.ph * 3); y += Math.max(0, Math.sin(t * 5 + b.ph * 2) - 0.85) * 1.2; }
+          dm.position.set(x, y, z); dm.rotation.set(b.fly > 0 ? 0 : Math.max(0, b.peck) * 0.5, yaw, 0); dm.scale.setScalar(show ? 1 : 0);
+          dm.updateMatrix(); bbMesh.setMatrixAt(i, dm.matrix);
+          dm.scale.set(show ? 1 : 0, show ? wing : 0, show ? 1 : 0); dm.position.y += 0.06; dm.updateMatrix(); bwMesh.setMatrixAt(i, dm.matrix);
+        });
+        bbMesh.instanceMatrix.needsUpdate = true; bwMesh.instanceMatrix.needsUpdate = true;
+        // habitants : ils regardent le chien, remuent la queue ; un « ! » tant que le défi n'est pas fait
+        const me = game.me, k = sky();
+        for (const r of res) {
+          const vis = near(r.def.x, r.def.z, 100);
+          r.m.visible = vis;
+          const u = r.m.userData;
+          if (vis && me && Math.hypot(me.pos.x - r.def.x, me.pos.z - r.def.z) < 12) {
+            let d = Math.atan2(me.pos.x - r.def.x, me.pos.z - r.def.z) - r.m.rotation.y;
+            d = Math.atan2(Math.sin(d), Math.cos(d));
+            r.m.rotation.y += clamp(d, -dt * 3, dt * 3);
+          }
+          if (u.mtail) u.mtail.rotation.y = Math.sin(t * 8 + r.def.x) * 0.5;
+          if (u.mhead) u.mhead.rotation.z = Math.sin(t * 1.7 + r.def.z) * 0.1;
+          if (r.def.model === 'sheep') r.m.children[0].position.y = 1.15 + Math.abs(Math.sin(t * 1.5)) * 0.06;
+          r.mark.visible = vis && !!r.def.defi && !k.defis.includes(r.def.defi);
+          r.mark.position.set(r.def.x, r.def.y + 2.4 + Math.sin(t * 4 + r.def.x) * 0.12, r.def.z);
+        }
+      },
+      snapshot() { return [...L.popped.keys()]; },
+      apply(list) {
+        if (!list) return;
+        const want = new Set(list);
+        for (const i of want) if (!L.popped.has(i)) { L.popped.set(i, game.t); game.burst(BL[i].x, BL[i].y, BL[i].z, 10, BL[i].color, 4, 0.4); }
+        for (const [i] of [...L.popped]) if (!want.has(i)) L.popped.delete(i);
+      },
+    };
+  })();
 
   // petits décors lointains : on ne les dessine pas (le téléphone dit merci)
   const farCull = [
@@ -1154,6 +1428,7 @@ export function buildSky(game) {
           { who: 'Ainu', text: 'Un arc-en-ciel… rien que pour nous ? Ouaf ! Matcha, regarde-moi planer !' },
         ]);
       }
+      life.step(dt);
       boss.step(dt);
       // nuages fragiles
       st.crumble.forEach((c, i) => {
@@ -1210,9 +1485,10 @@ export function buildSky(game) {
       return true;
     },
     extraCandidates() {
-      return [{ kind: 'lv', act: 'nimbus', label: 'PARLER', x: S.NIMBUS.x, z: S.NIMBUS.z, y: S.NIMBUS.y }];
+      return [{ kind: 'lv', act: 'nimbus', label: 'PARLER', x: S.NIMBUS.x, z: S.NIMBUS.z, y: S.NIMBUS.y },
+        ...S.RESIDENTS.map(r => ({ kind: 'lv', act: 'res', id: r.id, label: 'PARLER', x: r.x, z: r.z, y: r.y }))];
     },
-    interact(n) { if (n.act === 'nimbus') talkNimbus(); },
+    interact(n) { if (n.act === 'nimbus') talkNimbus(); else if (n.act === 'res') life.talk(S.RESIDENTS.find(r => r.id === n.id)); },
     /** Mode Promenade : le chemin d'étincelles mène au prochain drapeau, puis aux cloches, puis au Trophée. */
     guideTarget(me) {
       if (boss.active) return null;
@@ -1274,10 +1550,11 @@ export function buildSky(game) {
     },
     snapshot() {
       return { bo: boss.snapshot(), f: st.running ? 1 : 0, cp: st.cp, b: st.bridge === 'on' ? 1 : st.bridge === 'timed' ? Math.round((st.bridgeUntil - game.t) * 10) / 10 : 0, c: st.crumble.map(c => (c.s === 'idle' ? 0 : c.s === 'shake' ? 1 : 2)), r: Math.round(st.runT), p: st.plates.map(Number),
-        bl: sky().bells.slice(), fl: game.players.map(P => (P.fly ? 1 : 0)) };
+        bl: sky().bells.slice(), fl: game.players.map(P => (P.fly ? 1 : 0)), lb: life.snapshot() };
     },
     apply(x) {
       boss.apply(x.bo);
+      life.apply(x.lb);
       if (x.cp !== st.cp && flags[x.cp] && !hasFlag(x.cp)) { flags[x.cp].raisedAt = game.t; sky().flags.push(x.cp); }
       st.cp = x.cp; st.runT = x.r; st.running = !!x.f; st.plates = x.p.map(Boolean);
       if (x.b === 1) setBridge('on'); else if (x.b > 0) setBridge('timed', game.t + x.b); else setBridge('off');
@@ -1338,11 +1615,19 @@ export function buildSky(game) {
     },
     render(dt, t) {
       boss.render(dt, t);
+      life.render(dt, t);
       // plates-formes mobiles (calculées depuis le temps : pareil chez les amis)
       for (const m of movers) {
         const p = S.moverAt(m.def, t);
         m.mesh.position.set(p.x, p.y, p.z);
         if (m.def.look === 'cloud' && !m.def.gondola) m.mesh.rotation.y = t * 0.2;
+        if (m.def.look === 'sheep') {
+          // il regarde là où il va, et bat des pattes
+          const q = S.moverAt(m.def, t + 0.2);
+          if (Math.hypot(q.x - p.x, q.z - p.z) > 1e-3) m.mesh.rotation.y = Math.atan2(q.x - p.x, q.z - p.z);
+          m.mesh.position.y = p.y + Math.sin(t * 2 + m.def.x0) * 0.05;
+          if (m.mesh.userData.face) m.mesh.userData.face.rotation.x = Math.sin(t * 3) * 0.04;
+        }
       }
       turn.rotation.y = -S.turnAngle(t);
       wheel.rotation.x = -WH.w * t;

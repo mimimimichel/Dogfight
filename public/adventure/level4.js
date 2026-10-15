@@ -58,6 +58,8 @@ export const ISLANDS = [
   { id: 'nest', x: 17, z: 66, r: 2.8, top: 15.5 },               // îlot caché (étoile 1)
   { id: 'cave', x: 12, z: 115, r: 3.2, top: 5.5, name: 'Le Nid sous l\'île' },   // sous l'île du départ (plume)
   { id: 'garden', x: -30, z: 3, r: 5.5, top: 18.6, name: 'Jardin Suspendu' },
+  { id: 'swallow', x: 8.5, z: -88.5, r: 2.6, top: 26, name: 'Le Nid des Hirondelles' },   // sous le Carillon (secret)
+  { id: 'daisy', x: -24, z: 58.5, r: 3.6, top: 12.6, name: 'Îlot des Pâquerettes' },   // on y va à dos de nuage-mouton
   // ouest : les Nuages-Trampolines
   { id: 'fluff', x: -30, z: -102, r: 6.5, top: 34.5, name: 'Île Moelleuse' },
   { id: 'rose', x: -67, z: -102, r: 6, top: 40, name: 'Île de la Cloche Rose' },
@@ -307,7 +309,7 @@ function ribbon(id, a, c, b, w) {
   return R;
 }
 const edgeY = (id) => isle(id).top + 0.02;
-ribbon('rose', [-61.4, edgeY('rose'), -101], [-36, 37, -84], [-10.5, edgeY('hub'), -100]);
+ribbon('rose', [-61.4, edgeY('rose'), -101], [-38, 37, -74], [-10.5, edgeY('hub'), -100]);
 ribbon('bleue', [86, edgeY('blue'), -107], [50, 36.5, -132], [10.5, edgeY('hub'), -104]);
 // le grand pont arc-en-ciel : du Carillon au Trophée, tout droit et en montant
 export const RAINBOW = ribbon('pont', [0, edgeY('hub'), -112.5], [0, 42, -132], [0, edgeY('goal'), -152.4], 3.8);
@@ -316,6 +318,50 @@ export const RAINBOW = ribbon('pont', [0, edgeY('hub'), -112.5], [0, 42, -132], 
 // Points de passage (drapeaux) : on revient au dernier drapeau touché.
 // back : le drapeau d'avant (mode Défi, quand on n'a plus de cœurs)
 // ---------------------------------------------------------------------------
+// ---------------------------------------------------------------------------
+// La vie des îles : il se passe quelque chose tous les quelques mètres
+// ---------------------------------------------------------------------------
+// Fleurs-trampolines (un peu partout, pour le plaisir… et des pièces en l'air)
+export const FLOWERS = [
+  [-8.5, 95], [2.5, 7.5], [-5.5, -37.5], [6, -106.5], [-24.5, -129.5], [-80, -145], [-24, 58.5],
+].map(([x, z]) => spring(x, z, heightAt(x, z), 15, 1.15, 'flower'));
+// Nuages-moutons : on monte sur leur dos, ils font la navette (doucement)
+export const SHEEP = [
+  // de l'Île des Ballons à l'Îlot des Pâquerettes
+  mover('slide', { x0: -14.5, z0: 54, y0: 12.45, ax: 6, az: -3, ay: 0, period: 16, phase: 0, r: 2, look: 'sheep', name: 'Cotonnet' }),
+  // de l'Île de l'Écho au Jardin Suspendu (un autre chemin que le Pont des Copains)
+  mover('slide', { x0: -17.9, z0: -17, y0: 18.3, ax: 8.1, az: -14.5, ay: 0, period: 30, phase: 0, r: 2, look: 'sheep', name: 'Pompon' }),
+];
+// Ballons à éclater : on rebondit dessus (et ils reviennent un peu plus tard)
+export const POP_BOUNCE = 13, BALLOON_BACK = 12;
+const BALLOON_COLS = [0xff5a6a, 0xffc83a, 0x5ac8ff, 0x8ae05a, 0xc88aff, 0xff8ad8];
+export const BALLOONS = [
+  // les six ballons de Zéphyr (mini-défi), autour de l'Île des Ballons
+  [-6, 56.5, 14.6, 'z'], [-11, 54.5, 15.2, 'z'], [-17.5, 56, 15.6, 'z'], [6.5, 44, 14.6, 'z'], [8.5, 52, 15.2, 'z'], [-3, 40.5, 14.8, 'z'],
+  // le long du chemin
+  [-3.5, 83, 12.6], [0, 29.5, 19.6], [2.5, 15.5, 20.2], [0, -7.5, 20.6], [12.5, -12.2, 21.8], [10.5, -23.8, 22.2],
+  [0, -45.5, 21.2], [0, -55, 21.8], [4.5, -72, 25.5], [-4, -92.5, 37], [-36, -97, 37.2], [-44.5, -106, 39.5], [-51.5, -96.5, 41.5],
+  [41.3, -99.3, 38.4], [52, -99.6, 39.4], [66.5, -84.5, 35], [85, -106.5, 41.6], [-18, -125.5, 37], [-27, -138, 39], [-27, -164, 46.4],
+  [-84, -154.5, 48.6], [-33, 0, 21], [-25.5, 62, 15.6], [12, 111, 8.2], [8.5, -88.5, 28.4],
+].map(([x, z, y, g], i) => ({ id: 'b' + i, x, z, y, group: g || '', color: BALLOON_COLS[i % BALLOON_COLS.length] }));
+// Papillons géants (ils s'envolent quand on s'approche) et petits oiseaux posés (ils s'envolent en piaillant)
+export const BUTTERFLIES = [
+  [6, 98], [-9, 88], [5, 86], [2, 70, 13], [-5, 52], [6, 47], [-24, 58], [3, 20], [-5, 1], [6, -2], [-30, 5], [-27, 0], [-12, -12, 20], [8.5, -88.5],
+  [-5, -33], [6, -38], [0, -55, 21.5], [0, -79, 28], [-6, -96], [6, -96], [0, -108], [-30, -105], [-67, -99], [28, -98], [64, -99], [90, -98],
+  [-22, -129], [-22, -157], [-78, -146], [-4, -160], [5, -166], [64, -80], [-92, -161], [12, 115, 7.5],
+].map(([x, z, y]) => ({ x, z, y: y || Math.max(heightAt(x, z), 8) + 1.6 }));
+export const BIRDS = [[-6.5, 91], [-3, 48], [-4, -2.5], [-31, 2], [3, -38.5], [3.5, -97], [-27.5, -101], [62, -100], [-80, -151], [88, -100]]
+  .map(([x, z]) => ({ x, z, y: heightAt(x, z) }));
+// Les habitants des îles (on peut leur parler) ; trois ont un petit défi
+export const RESIDENTS = [
+  { id: 'zephyr', name: 'Zéphyr', x: 5, z: 53.5, model: 'yorkie', fur: 0xf2d6b8, bow: 0xff5a6a, defi: 'ballons' },
+  { id: 'floconne', name: 'Mamie Floconne', x: 5.2, z: -29.5, model: 'sheep', defi: 'mouton' },
+  { id: 'pipou', name: 'Pipou', x: -26.5, z: -106.5, model: 'pug', fur: 0xf0e0d0, collar: 0xff8ad8, defi: 'rebonds' },
+  { id: 'brindille', name: 'Brindille', x: 61, z: -101, model: 'yorkie', fur: 0xe8c8a8, bow: 0x6ab8ff },
+].map(r => Object.assign(r, { y: heightAt(r.x, r.z) }));
+export const DEFI_TIME = 30;            // les ballons de Zéphyr : 30 secondes (60 en Promenade)
+export const DEFI_BOUNCES = 5;          // rebonds d'affilée sur le trampoline de Pipou
+
 export const CHECKPOINTS = [
   { id: 0, x: 0, z: 100, name: 'Départ', fx: -3.4, fz: -6 },
   { id: 1, x: 0, z: 52, name: 'Île des Ballons', back: 0 },
@@ -417,7 +463,7 @@ const arc = (cx, cz, r, n, a0, a1, y) => { for (let i = 0; i < n; i++) { const a
 const garc = (id, r, n, a0, a1) => { const I = isle(id); for (let i = 0; i < n; i++) { const a = a0 + (a1 - a0) * (n === 1 ? 0.5 : i / (n - 1)); at(I.x + Math.cos(a) * r, I.z + Math.sin(a) * r); } };
 // --- première moitié (54) ---
 lineTo(0, 92, 0, 84, 4);                                        // départ
-arc(0, 96, 9, 4, Math.PI * 0.2, Math.PI * 0.8, 11.2);
+for (const k of [0.15, 0.4, 0.6, 0.85]) pts.push({ x: -8.5 + (-14.5 - -8.5) * k, z: 51 + (57 - 51) * k, y: 14.6 });   // sur le chemin de Cotonnet
 for (const p of pads.slice(0, 4)) at(p.x, p.z);                 // pas nuageux
 for (let i = 0; i < 3; i++) pts.push({ x: 10.2 + i * 2.6, z: 63.2 + i * 1.0, y: 16.2 + i * 1.2 });   // au-dessus du ressort vers l'îlot
 arc(0, 50, 5.5, 5, 0.3, Math.PI * 2 - 0.9, 13.3);              // île des Ballons
@@ -430,12 +476,12 @@ pts.push({ x: -12.5, z: 3, y: 19.6 }, { x: -21.5, z: 3, y: 19.6 }); // le nuage-
 garc('garden', 3.4, 2, -0.6, 1.2);                               // jardin suspendu
 for (let i = 0; i < 3; i++) pts.push({ x: 0, z: -9.5 - i * 6.2, y: 19.4 });   // pont des copains
 for (const c of crumbles.slice(0, 3)) at(c.x, c.z, 1.2);        // nuages fragiles
-garc('echo', 6, 3, -Math.PI * 0.85, Math.PI * 0.3);              // île de l'Écho
+for (const k of [0.25, 0.5, 0.75]) pts.push({ x: -9.8 + (-26 - -9.8) * k, z: -31.5 + (-2.5 - -31.5) * k, y: 19.7 });   // sur le chemin de Pompon
 arc(CAROUSEL.cx, CAROUSEL.cz, CAROUSEL.R, 4, Math.PI * 0.25, Math.PI * 1.75, CAROUSEL.y0 + 1.2);   // manège
 for (const p of spiral.filter((_, i) => i % 3 === 1)) at(p.x, p.z);   // spirale
 garc('cave', 1.6, 3, 0, Math.PI * 1.3);                          // le nid sous l'île
 // --- l'Île du Carillon et ses branches (46) ---
-garc('hub', 7.5, 3, Math.PI * 0.2, Math.PI * 0.8);
+for (let i = 0; i < 3; i++) pts.push({ x: 6, z: -106.5, y: 37.5 + i * 1.3 });       // au-dessus de la fleur du Carillon
 at(-17.3, -102); garc('fluff', 3.6, 2, Math.PI * 0.7, Math.PI * 1.3);   // ouest
 for (const T of TRAMPS.slice(1, 4)) pts.push({ x: T.x, z: T.z, y: T.top + 3.6 });
 garc('rose', 3.4, 2, 0.2, Math.PI * 0.6);
@@ -487,6 +533,7 @@ export const crates = [
   { id: 'c6', x: 66.5, z: -99.5, content: 'heart' },
   { id: 'c7', x: -19.5, z: -133, content: 'heart' },
   { id: 'c8', x: 6, z: -157, content: 'heart' },
+  { id: 'c9', x: 9, z: -87.5, content: 'heart' },
 ].map(c => Object.assign(c, { y: groundY(c.x, c.z) }));
 
 // Quelques chats bandits qui gardent les îles (ils restent chez eux)
@@ -551,7 +598,7 @@ export const trees = [];
       if (PLATES.some(p => Math.hypot(p.x - x, p.z - z) < 2.5)) continue;
       if (crates.some(c => Math.hypot(c.x - x, c.z - z) < 2)) continue;
       if (PORTALS.some(p => Math.hypot(p.x - x, p.z - z) < 3.5)) continue;
-      if ([...BELLS, ...CANNONS, ...signs, ...CHECKPOINTS].some(p => Math.hypot(p.x - x, p.z - z) < 3.2)) continue;
+      if ([...BELLS, ...CANNONS, ...signs, ...CHECKPOINTS, ...RESIDENTS].some(p => Math.hypot(p.x - x, p.z - z) < 3.2)) continue;
       if (CHECKPOINTS.some(c => Math.hypot(c.x + (c.fx === undefined ? 2.3 : c.fx) - x, c.z + (c.fz || 0) - z) < 2.5)) continue;
       if (bones.some(b => Math.hypot(b.x - x, b.z - z) < 1.2)) continue;
       const s = 0.75 + rnd() * 0.35;

@@ -29,8 +29,8 @@ const disc = (p) => ({ x: p.x, z: p.z, r: p.r, top: p.top });
 const isl = (id) => { const I = L.ISLANDS.find(q => q.id === id); assert.ok(I, 'île ' + id); return { x: I.x, z: I.z, r: I.r, top: I.top + 0.02 }; };
 const sprDisc = (s) => ({ x: s.x, z: s.z, r: s.r, top: s.top });
 
-test('vingt îles, des pierres, des plates-formes mobiles, 4 nuages fragiles, 3 colonnes de vent, 15 drapeaux', () => {
-  assert.strictEqual(L.ISLANDS.length, 20);
+test('vingt-deux îles, des pierres, des plates-formes mobiles, 4 nuages fragiles, 3 colonnes de vent, 15 drapeaux', () => {
+  assert.strictEqual(L.ISLANDS.length, 22);
   assert.ok(L.pads.length >= 28);
   assert.ok(L.movers.length >= 12);
   assert.strictEqual(L.crumbles.length, 4);
@@ -272,6 +272,8 @@ test('impossible d\'atteindre le Trophée avant d\'avoir sonné les trois cloche
     { x: L.WHEEL.cx, z: L.WHEEL.cz, r: 1.8, top: L.WHEEL.cy + L.WHEEL.R, v: V1 },
     ...L.springs.map(s => ({ x: s.x, z: s.z, r: s.r, top: s.top, v: s.bounce })),
     ...L.UPDRAFTS.map(u => ({ x: u.x, z: u.z, r: u.r, top: u.y1, v: V1 })),
+    ...L.BALLOONS.map(b => ({ x: b.x, z: b.z, r: 1, top: b.y - 0.7, v: L.POP_BOUNCE })),
+    ...L.SHEEP.flatMap(m => [-1, 1].map(k => ({ x: m.x0 + m.ax * k, z: m.z0 + m.az * k, r: m.r, top: m.y0, v: V1 }))),
   ];
   for (const s of spots) {
     const gap = Math.hypot(s.x - goal.x, s.z - goal.z) - s.r - goal.r;
@@ -280,6 +282,35 @@ test('impossible d\'atteindre le Trophée avant d\'avoir sonné les trois cloche
   }
   for (const C of L.CANNONS) assert.ok(L.islandAt(C.to.x, C.to.z).id !== 'goal');
   assert.ok(!L.trees.some(t => L.islandAt(t.x, t.z) && L.islandAt(t.x, t.z).id === 'goal'), 'l\'arène du combat reste dégagée');
+});
+
+test('la vie des îles : rien de vide plus de quelques mètres', () => {
+  // nuages-moutons : chaque bout de leur trajet touche une île, à hauteur de pas
+  for (const m of L.SHEEP) for (const k of [-1, 1]) {
+    const x = m.x0 + m.ax * k, z = m.z0 + m.az * k, I = L.ISLANDS.find(q => Math.hypot(q.x - x, q.z - z) < q.r + m.r - 0.5);
+    assert.ok(I, `${m.name} : bout ${k}`);
+    assert.ok(Math.abs(m.y0 - I.top) < STEP_UP, `${m.name} : on monte sans sauter (${I.id})`);
+  }
+  // ballons : en l'air (pas dans un obstacle), au-dessus du sol ou du vide
+  for (const b of L.BALLOONS) {
+    assert.ok(b.y - L.heightAt(b.x, b.z) > 1.4, 'ballon ' + b.id);
+    for (const c of L.colliders) if (!c.off && !c.moving && L.inside(c, b.x, b.z, 0.5) && b.y > c.y0 - 0.6 && b.y < c.y1 + 0.9) assert.fail(`ballon ${b.id} dans un obstacle (${c.kind})`);
+  }
+  assert.strictEqual(L.BALLOONS.filter(b => b.group === 'z').length, 6, 'les six ballons de Zéphyr');
+  for (const r of L.RESIDENTS) assert.ok(L.islandAt(r.x, r.z) && L.heightAt(r.x, r.z) === r.y, r.id);
+  assert.ok(L.FLOWERS.length >= 6 && L.FLOWERS.every(f => f.look === 'flower' && L.islandAt(f.x, f.z)));
+  // densité : le long du parcours principal, toujours quelque chose à moins de 8 m (pièce, ballon, papillon, oiseau…)
+  const things = [...L.bones, ...L.medals, { x: L.WHEEL.cx, z: L.WHEEL.cz }, ...L.BALLOONS, ...L.BUTTERFLIES, ...L.BIRDS, ...L.springs, ...L.RESIDENTS, ...L.crates, ...L.FEATHERS];
+  const route = [[0, 96], [0, 50], [0, 20], [0, 2], [0, -34], [0, -55], [0, -79], [0, -102], [-30, -102], [-67, -102], [28.5, -102], [64, -102], [90, -102], [-22, -131.5], [-22, -157.3], [-78, -150], [0, -162]];
+  for (let i = 0; i + 1 < route.length; i++) {
+    const [ax, az] = route[i], [bx, bz] = route[i + 1];
+    if (Math.hypot(bx - ax, bz - az) > 45) continue;      // (les branches partent toutes du Carillon)
+    for (let k = 0; k <= 1; k += 0.05) {
+      const x = ax + (bx - ax) * k, z = az + (bz - az) * k;
+      const d = Math.min(...things.map(o => Math.hypot(o.x - x, o.z - z)));
+      assert.ok(d < 8, `rien autour de (${x.toFixed(0)}, ${z.toFixed(0)}) : ${d.toFixed(1)} m`);
+    }
+  }
 });
 
 test('100 pièces du ciel, aucune dans un obstacle, réparties sur tout le parcours', () => {
