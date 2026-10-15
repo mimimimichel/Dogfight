@@ -545,7 +545,7 @@ export function buildCastle(game) {
     const r = rng(5150);
     for (const c of S.hedges) {
       const h = c.y1 - c.y0;
-      hedgeParts.push({ geo: boxGeo(c.w + 0.1, h, c.d + 0.1, 1.6), x: c.x, y: c.y0 + h / 2, z: c.z, color: new THREE.Color(0x4c9a38).lerp(new THREE.Color(0x6ab848), r() * 0.6).getHex() });
+      hedgeParts.push({ geo: boxGeo(c.w + 0.1, h, c.d + 0.1, 1.6), x: c.x, y: c.y0 + h / 2, z: c.z, color: new THREE.Color(0x9ad870).lerp(new THREE.Color(0xc0e890), r() * 0.6).getHex() });
       // fleurs roses accrochées ici et là
       if (r() < 0.45) hedgeParts.push({ geo: new THREE.IcosahedronGeometry(0.28, 0), x: c.x + (c.w > c.d ? (r() - 0.5) * c.w * 0.8 : (r() < 0.5 ? -1 : 1) * (c.w / 2 + 0.06)), y: c.y0 + 2 + r() * 2.5, z: c.z + (c.d > c.w ? (r() - 0.5) * c.d * 0.8 : (r() < 0.5 ? -1 : 1) * (c.d / 2 + 0.06)), color: [0xff8ab8, 0xffffff, 0xffd23a][Math.floor(r() * 3)] });
     }
@@ -1376,6 +1376,13 @@ export function buildCastle(game) {
     },
     render(dt, t) {
       const k = cs();
+      // dans le labyrinthe : la caméra monte au-dessus des haies (on voit les allées)
+      {
+        const me = game.me, inMaze = inRect(S.MAZE_RECT, me.pos.x, me.pos.z, 1);
+        if (inMaze) { game.camPitch += (1.08 - game.camPitch) * Math.min(1, dt * 2.5); game.camDistOverride = 10.5; st.mazeCam = true; }
+        else if (st.mazeCam) { st.mazeCam = false; game.camDistOverride = 0; game.camPitch = Math.min(game.camPitch, 0.5); }
+      }
+
       crackMesh.visible = !k.crack;
       for (const v of souvenirs) {
         v.g.visible = !(k.souv || []).includes(v.def.id);

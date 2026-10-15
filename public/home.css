@@ -489,3 +489,4 @@ html.ios-text .hbtn.small, html.ios-text .hbtn.lvpick:not(.active), html.ios-tex
 .level-card.l8.locked { filter: grayscale(0.8) brightness(0.8); }
 .level-card.l8.locked small { background: rgba(42, 20, 8, 0.85); }
 .album-world.l8 { background: linear-gradient(170deg, #f08ab0, #7a4ad8); }
+#screen-levels .level-card.l8 b { font-size: 17px; }

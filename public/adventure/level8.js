@@ -86,8 +86,8 @@ export function heightAt(x, z) {
   if (dm < 6) h = h + (MAZE.y - h) * (1 - smooth(1.5, 6, dm));
   // le Lac aux Nénuphars, et son île
   const e = ((x - LAKE.x) / LAKE.rx) ** 2 + ((z - LAKE.z) / LAKE.rz) ** 2;
-  if (e < 1.5) {
-    h = h + (LAKE_FLOOR - h) * smooth(1.45, 0.82, e);
+  if (e < 1.7) {
+    h = h + (LAKE_FLOOR - h) * smooth(1.6, 0.8, e);
     const di = Math.hypot(x - LAKE.x, z - LAKE.z);
     if (di < LAKE.isle + 1.2) h = Math.max(h, LAKE_ISLE_TOP - 0.2 * (di / LAKE.isle) ** 2 - 2.8 * smooth(LAKE.isle, LAKE.isle + 1.2, di));
   }
@@ -194,7 +194,7 @@ export const mazeCells = [];          // chaque case : { c, r, x, z, open: [n, s
   }
   // les haies : le nord et l'ouest de chaque case, plus les bords est et sud
   const H0 = MAZE.y - 1, H1 = MAZE.y + MAZE.hedge, T = 0.9;
-  const hedge = (x0, z0, x1, z1) => { const c = box((x0 + x1) / 2, (z0 + z1) / 2, Math.abs(x1 - x0) || T, Math.abs(z1 - z0) || T, H0, H1, { kind: 'hedge', solid: true, cam: true, map: '#3f8a30' }); hedges.push(c); };
+  const hedge = (x0, z0, x1, z1) => { const c = box((x0 + x1) / 2, (z0 + z1) / 2, Math.abs(x1 - x0) || T, Math.abs(z1 - z0) || T, H0, H1, { kind: 'hedge', solid: true, map: '#3f8a30' }); hedges.push(c); };
   for (const m of mazeCells) {
     const x0 = MAZE.x0 + m.c * cell, z0 = MAZE.z0 + m.r * cell;
     if (!m.open.n) hedge(x0 - T / 2, z0, x0 + cell + T / 2, z0);
