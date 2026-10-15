@@ -3584,7 +3584,7 @@ class Adventure {
           continue;
         }
         if (c.type !== 'cyl' || !(CAM_BLOCK.has(c.kind) || c.cam)) continue;
-        const r = c.r + 0.35;
+        const r = (c.camR || c.r) + 0.35;   // (camR : le feuillage, plus large que le tronc — sapins)
         // intersection segment / cercle (plan horizontal)
         const ox = tx - c.x, oz = tz - c.z;
         const b = ox * dx + oz * dz, cc = ox * ox + oz * oz - r * r;

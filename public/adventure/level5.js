@@ -687,7 +687,7 @@ export const trees = [];
     const s = 0.8 + rnd() * 0.6;
     trees.push({ x, z, y: h, s, h: 7 * s });
   }
-  for (const t of trees) cyl(t.x, t.z, 0.5 * t.s, t.y - 1, t.y + t.h, { kind: 'tree' });
+  for (const t of trees) cyl(t.x, t.z, 0.5 * t.s, t.y - 1, t.y + t.h, { kind: 'tree', camR: 1.7 * t.s });
   indexAll();
 }
 
