@@ -495,6 +495,8 @@ export function blockedAt(x, z) {
   for (const c of near(x, z, 0.5)) if ((c.solid || c.kind === 'rock') && !c.off && inside(c, x, z, 0.4)) return true;
   return false;
 }
+/** Obstacles ajoutés après coup (la couche de vie : sapins à secouer, bonshommes, habitants…). */
+export function addColliders(list) { for (const c of list) colliders.push(c); indexAll(); }
 function groundY(x, z) {
   let best = heightAt(x, z);
   for (const c of near(x, z, 0.3)) if (!c.off && c.kind !== 'tree' && c.kind !== 'trunk' && c.kind !== 'gate' && c.y1 > best && inside(c, x, z, 0.25)) best = c.y1;

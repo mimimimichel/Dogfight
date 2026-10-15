@@ -5,7 +5,7 @@
   "main": "server.js",
   "scripts": {
     "start": "node server.js",
-    "test": "node test/sim.test.js && node test/level1.test.mjs && node test/level2.test.mjs && node test/level3.test.mjs && node test/level4.test.mjs && node test/level5.test.mjs && node test/level6.test.mjs && node test/level7.test.mjs && node test/level8.test.mjs"
+    "test": "node test/sim.test.js && node test/level1.test.mjs && node test/level2.test.mjs && node test/level3.test.mjs && node test/level4.test.mjs && node test/level5.test.mjs && node test/life.test.mjs && node test/level6.test.mjs && node test/level7.test.mjs && node test/level8.test.mjs"
   },
   "repository": {
     "type": "git",
