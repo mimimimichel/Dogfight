@@ -44,7 +44,7 @@ export const VILLAGERS = [
   { id: 'praline', name: 'Praline', body: 'dog', x: -18, z: 90, yaw: 2.4, act: 'throw', tool: 'snowball', fur: 0xc08a5a, cloth: 0xff6ab0, scale: 0.72, moves: true, defi: 'd_bataille' },
   { id: 'noisette', name: 'Noisette', body: 'dog', x: -12, z: 96, yaw: -2.2, act: 'throw', tool: 'snowball', fur: 0x8a5a3a, cloth: 0x5ac8ff, scale: 0.68, moves: true },
   { id: 'chouquette', name: 'Chouquette', body: 'dog', x: -24, z: 96, yaw: 0.8, act: 'throw', tool: 'snowball', fur: 0xf2e6d0, cloth: 0x9a6ae0, scale: 0.66, moves: true },
-  { id: 'olga', name: 'Olga la sculptrice', body: 'dog', x: -121, z: -89, yaw: Math.PI, act: 'chisel', tool: 'mallet', fur: 0xb8b0a8, cloth: 0x3a8ae0, defi: 'd_xylophone' },
+  { id: 'olga', name: 'Olga la sculptrice', body: 'dog', x: -136, z: -97, yaw: Math.PI, act: 'chisel', tool: 'mallet', fur: 0xb8b0a8, cloth: 0x3a8ae0, defi: 'd_xylophone' },
   { id: 'marcel', name: 'Marcel des marrons', body: 'dog', x: -38, z: 167, yaw: 1.2, act: 'stir', tool: 'pan', fur: 0x5a4030, cloth: 0xa0522d, defi: 'd_village' },
   { id: 'bonhomme', name: 'Monsieur Bonhomme', body: 'snowman', x: 66, z: 126, yaw: -1.2, sleepy: true, hat: 0x3a6ad0 },
   { id: 'yeti', name: 'Le Yéti', body: 'yeti', x: -136, z: -153, yaw: 0.4, hidden: 22, act: 'idle' },
@@ -181,7 +181,7 @@ export const DEFIS = [
   { id: 'd_poissons', type: 'fish', name: 'La pêche sur la glace', hint: 'Les poissons sautent hors des trous : attrapez-en 5 au vol !', x: 111, z: 45, critter: 'fish', time: 50, need: 5,
     holes: [[124, 42], [131, 39], [138, 42], [127, 32], [140, 32]] },
   { id: 'd_bataille', type: 'tag', name: 'La bataille de boules de neige', hint: 'Chat perché : touchez Praline, Noisette et Chouquette !', x: -18, z: 99, time: 40, leash: 15, speed: 6.0, kids: ['praline', 'noisette', 'chouquette'] },
-  { id: 'd_xylophone', type: 'xylo', name: 'La mélodie de glace', hint: 'Écoutez, puis faites sonner les carillons dans le même ordre', x: -112, z: -78, chimes: ['x_1', 'x_2', 'x_3', 'x_4', 'x_5'], seq: [0, 2, 4, 1, 3], time: 90 },
+  { id: 'd_xylophone', type: 'xylo', name: 'La mélodie de glace', hint: 'Écoutez, puis faites sonner les carillons dans le même ordre', x: -127, z: -85, chimes: ['x_1', 'x_2', 'x_3', 'x_4', 'x_5'], seq: [0, 2, 4, 1, 3], time: 90 },
   { id: 'd_chiots', type: 'herd', name: 'Les chiots de l\'école de ski', hint: 'Touchez les chiots perdus et ramenez-les dans le rond doré', x: 10, z: 54, critter: 'puppy', time: 100, pen: { x: -1, z: 46, r: 3.6 },
     chicks: [[-28, 34], [40, 60], [-18, 74], [36, 22]] },
   { id: 'd_congeres', type: 'pads', name: 'Les congères-trampolines', hint: 'Rebondissez sur les 6 congères qui brillent !', x: -98, z: 127, time: 35, pads: ['c_1', 'c_2', 'c_3', 'c_4', 'c_5', 'c_6'] },
@@ -207,7 +207,7 @@ for (const d of DEFIS) d.y = g(d.x, d.z);
 // ---------------------------------------------------------------------------
 // Objets posés à la main (temps forts)
 // ---------------------------------------------------------------------------
-const xyloC = { x: -121, z: -84 };
+const xyloC = { x: -136, z: -92 };
 const PROPS = [
   // trampolines du parcours d'anneaux
   { id: 'j_1', kind: 'drift', x: 90, z: 113 }, { id: 'j_2', kind: 'drift', x: 100, z: 124 },

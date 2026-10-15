@@ -662,7 +662,11 @@ export function buildLife(game, cfg) {
           }
         } else if (act === 'shake' || act === 'break' || act === 'chime' || act === 'hat' || act === 'press') {
           const r = (pk.r || propModel[p.kind].mdl.r || 0.8);
-          const bump = (attacking(P) && d < r + 1.8 && Math.abs(dy) < 2.5) || (sp > 5 && d < r + 0.8 && Math.abs(dy) < 1.5) || (act === 'press' && d < r + 0.3 && dy > 0.2 && dy < 1.2 && P.vel.y <= 0) || (act === 'chime' && d < r + 0.9 && Math.abs(dy) < 2);
+          // (un carillon sonne quand on arrive contre lui, pas tant qu'on y reste collé)
+          const touch = act === 'chime' && d < r + 0.9 && Math.abs(dy) < 2;
+          const fresh = touch && !p.touching; if (touch) p.touchT = game.t;
+          const bump = (attacking(P) && d < r + 1.8 && Math.abs(dy) < 2.5) || (sp > 5 && d < r + 0.8 && Math.abs(dy) < 1.5 && act !== 'chime') || (act === 'press' && d < r + 0.3 && dy > 0.2 && dy < 1.2 && P.vel.y <= 0) || fresh;
+          if (touch) p.touching = true;
           if (bump) hitProp(p, P, pk);
         }
       }
@@ -688,6 +692,7 @@ export function buildLife(game, cfg) {
         }
       }
     }
+    for (const p of props) if (p.touching && game.t - p.touchT > 0.1) p.touching = false;
     // une boule abandonnée revient à sa place
     for (const p of props) if (p.kind === 'ball' && p.moved && game.t - p.moved > 40 && game.players.every(P => Math.hypot(P.pos.x - p.x, P.pos.z - p.z) > 30)) { p.x = p.bx; p.z = p.bz; p.r = 0.5; p.y = ground(p.x, p.z); p.moved = 0; }
   }
@@ -966,7 +971,7 @@ export function buildLife(game, cfg) {
   }
 
   // --- rendu ------------------------------------------------------------------------------------------
-  const m4 = new THREE.Matrix4(), m5 = new THREE.Matrix4(), m6 = new THREE.Matrix4(), q4 = new THREE.Quaternion(), e4 = new THREE.Euler(), v4 = new THREE.Vector3(), s4 = new THREE.Vector3(), one = new THREE.Vector3(1, 1, 1);
+  const m4 = new THREE.Matrix4(), m5 = new THREE.Matrix4(), m6 = new THREE.Matrix4(), mB = new THREE.Matrix4(), q4 = new THREE.Quaternion(), e4 = new THREE.Euler(), v4 = new THREE.Vector3(), s4 = new THREE.Vector3(), one = new THREE.Vector3(1, 1, 1);
   const camQ = new THREE.Quaternion();
   const compose = (x, y, z, yaw, pitch, roll, sx, sy, sz) => m4.compose(v4.set(x, y, z), q4.setFromEuler(e4.set(pitch || 0, yaw || 0, roll || 0, 'YXZ')), s4.set(sx, sy === undefined ? sx : sy, sz === undefined ? sx : sz));
   function glow(x, y, z, size, color, k) {
@@ -999,7 +1004,12 @@ export function buildLife(game, cfg) {
     else if (act === 'fish') { armR = -1.1 + Math.sin(ph * 1.5) * 0.08; armL = -0.9; sy = 0.82; bob = -0.25; if ((v.fishT = (v.fishT === undefined ? 4 + (v.i % 5) : v.fishT) - 1 / 60) < 0) { v.fishT = 6 + (v.i % 4) * 2; v.wave = game.t; } }
     else if (act === 'skate') { const k = Math.sin(ph * 2.2); lean = 0.15; armR = -0.4 + k * 0.6; armL = -0.4 - k * 0.6; bob = Math.abs(k) * 0.06; armRz = 0.5; }
     else if (act === 'run') { const k = Math.sin(ph * 14); armR = k * 0.9; armL = -k * 0.9; bob = Math.abs(k) * 0.12; lean = 0.2; toolOn = false; }
-    else if (act === 'throw') { const k = (ph * 0.8) % 2; armR = k < 0.3 ? -2.6 * (k / 0.3) : k < 0.5 ? -2.6 + (k - 0.3) * 13 : 0; armL = -0.3; }
+    else if (act === 'throw') {
+      const k = (ph * 0.8) % 2; armR = k < 0.3 ? -2.6 * (k / 0.3) : k < 0.5 ? -2.6 + (k - 0.3) * 13 : 0; armL = -0.3;
+      // la boule part (une vraie petite boule de neige qui vole)
+      if (k >= 0.4 && (v.lastK === undefined || v.lastK < 0.4) && Math.hypot(game.me.pos.x - v.x, game.me.pos.z - v.z) < 45) game.spawnParticle(v.x + Math.sin(v.yaw) * 0.4, v.y + 1.3 * (def.scale || 1), v.z + Math.cos(v.yaw) * 0.4, Math.sin(v.yaw) * 7, 4.5, Math.cos(v.yaw) * 7, 0xffffff, 0.32, 1.1, 9);
+      v.lastK = k;
+    }
     else if (act === 'chisel') { const k = Math.sin(ph * 7); armR = -1.0 + k * 0.4; armL = -1.2; lean = 0.2; }
     else if (act === 'stir') { armR = -1.1; armRz = Math.sin(ph * 3) * 0.3; armL = -0.5; }
     else if (act === 'flag') { armR = -2.5 + Math.sin(ph * 2) * 0.3; armL = -0.2; }
@@ -1018,7 +1028,7 @@ export function buildLife(game, cfg) {
       const wake = v.awake ? 1 : 0;
       compose(v.x, v.y + (wake ? Math.abs(Math.sin(ph * (waving ? 9 : 1.5))) * 0.06 : 0), v.z, v.yaw, 0, wake ? Math.sin(ph * 1.3) * 0.05 : 0, sc);
       L1.push(m4);
-      const base = m4.clone();
+      const base = mB.copy(m4);
       for (const sd of [-1, 1]) {
         const ang = sd > 0 ? (waving ? 2.4 + Math.sin(ph * 12) * 0.3 : 0.9 + wake * Math.sin(ph * 2) * 0.2) : 0.9;
         m5.copy(base).multiply(m6.compose(v4.set(sd * (big ? 0.85 : 0.42), big ? 2.0 : 1.42, 0), q4.setFromEuler(e4.set(0, 0, sd * ang)), one));
@@ -1032,7 +1042,7 @@ export function buildLife(game, cfg) {
     compose(v.x, v.y + bob, v.z, v.yaw, lean, 0, sc, sc * sy, sc);
     vill.body.push(m4, furTint);
     vill.cloth.push(m4, C.setHex(def.cloth || 0xd84a3a));
-    const base = m4.clone();
+    const base = mB.copy(m4);
     for (const sd of [1, -1]) {
       const a = sd > 0 ? armR : armL;
       m5.copy(base).multiply(m6.compose(v4.set(sd * 0.36, 1.12, 0.04), q4.setFromEuler(e4.set(a, 0, sd * (0.18 + (sd > 0 ? armRz : 0)), 'ZYX')), one));
@@ -1254,6 +1264,8 @@ export function buildLife(game, cfg) {
   return {
     step, render, candidates, interact, snapshot, apply, applySave, questText, marks,
     get active() { return st.D; },
+    /** Arrête le défi en cours sans récompense (changement de niveau, réapparition…). */
+    stopDefi: () => { st.D = null; },
     startDefi: (id, P) => { const d = plan.defis.find(q => q.id === id); if (d) startDefi(d, P || game.player); },
     stats: () => ({ creatures: creatures.length, props: props.length, villagers: villagers.length, defis: defis.length, secrets: chests.length, sparkles: sparkles.length, layers: layers.size }),
     creatures, props, villagers, chests, plan, layers,
