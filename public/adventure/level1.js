@@ -41,7 +41,7 @@ export const GRASS_K = 1.5;
 // Ambiance : soleil doré de fin de matinée, en contre-jour vers le nord (rayons à travers les arbres)
 export const SKY = { top: 0x4a90e2, horizon: 0xf4e4c6, bottom: 0xd6e6dc, sunDir: [-0.34, 0.4, -0.66] };
 export const LIGHT = { hemi: [0xe6f0ff, 0x8a7050, 0.75], sun: [0xffe0b0, 3.0], fog: [95, 300] };
-export const TREE_STYLE = { min: 4, extra: 2, rad: 1.15, big: 2.0, small: 1.4, bushes: 1 };
+export const TREE_STYLE = { min: 3, extra: 2, rad: 1.15, big: 2.0, small: 1.4, bushes: 1 };
 // Portails magiques, de part et d'autre de l'arche d'entrée (près du départ, sur un sol libre)
 export const PORTALS = [{ x: -7.6, z: 36.5, to: 2 }, { x: 7.6, z: 36.5, to: 4 }, { x: -10.5, z: 40.5, to: 3 }, { x: 10.5, z: 40.5, to: 5 },
   { x: -13.5, z: 44.5, to: 6 }, { x: 13.5, z: 44.5, to: 7 }, { x: -13.5, z: 36.5, to: 8 }];
@@ -676,7 +676,7 @@ export const trees = [];
   }
   // et partout ailleurs
   guard = 0;
-  while (trees.length < 120 && guard++ < 30000) {
+  while (trees.length < 100 && guard++ < 30000) {
     const a = rnd() * Math.PI * 2, d = 18 + rnd() * 150, x = Math.cos(a) * d, z = Math.sin(a) * d, h = heightAt(x, z);
     if (!ok(x, z, h, 8.5)) continue;
     trees.push({ x, z, y: h, s: 0.85 + rnd() * 0.55, h: 5.5 + rnd() * 3 });

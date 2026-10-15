@@ -567,14 +567,11 @@ export function buildPark(game) {
     P.forEach((p, i) => { const q2 = P[(i + 1) % P.length], len = Math.hypot(q2.x - p.x, q2.z - p.z); m4.compose(v3.set((p.x + q2.x) / 2, (p.y + q2.y) / 2 - 0.1, (p.z + q2.z) / 2), q.setFromEuler(e.set(Math.atan2(p.y - q2.y, len), p.yaw, 0, 'YXZ')), sv.set(1, 1, len + 0.05)); rails.setMatrixAt(i, m4); });
     rails.userData.noOutline = true; sc.add(rails);
     for (const st0 of S.STATIONS) {
-      put(K.stationGeo(st0.name), st0.x, st0.y, st0.z, st0.yaw + (st0.side > 0 ? 0 : Math.PI));
+      put(K.stationGeo(st0.name), st0.x, st0.y, st0.z, Math.atan2(st0.tx - st0.x, st0.tz - st0.z));
+      // le panneau de la gare, tourné vers la voie
       const b = K.nameBoard(st0.name, 1.8);
-      const fy = st0.yaw + (st0.side > 0 ? 0 : Math.PI);
-      b.position.set(st0.x + Math.sin(fy) * 1.29, st0.y + 2.45, st0.z + Math.cos(fy) * 1.29);
-      b.rotation.y = fy;
-      // le panneau regarde la voie
       b.rotation.y = Math.atan2(st0.tx - st0.x, st0.tz - st0.z);
-      b.position.set(st0.x + (st0.tx - st0.x) * 0.32, st0.y + 2.45, st0.z + (st0.tz - st0.z) * 0.32);
+      b.position.set(st0.x + (st0.tx - st0.x) * 0.36, st0.y + 2.5, st0.z + (st0.tz - st0.z) * 0.36);
       place(b, st0.x, st0.z, 4);
     }
   }
@@ -861,7 +858,7 @@ export function buildPark(game) {
   function seatPos(i) {
     const car = 1 + (i >> 1), side = i % 2 ? 0.55 : -0.55;
     const p = S.trackAt(st.train.s - CAR_GAP[car]);
-    return { x: p.x + Math.sin(p.yaw) * side, y: p.y + 0.95, z: p.z + Math.cos(p.yaw) * side, yaw: p.yaw };
+    return { x: p.x + Math.cos(p.yaw) * side, y: p.y + 0.8, z: p.z - Math.sin(p.yaw) * side, yaw: p.yaw };
   }
   const trainSeats = () => players().filter(P => P.ride && P.ride.kind === 'train').map(P => P.ride.seat);
   function board(P, kind, extra) {
@@ -972,26 +969,35 @@ export function buildPark(game) {
   }
 
   // --- Train : avance, s'arrête aux gares -------------------------------------------------------
+  /** La gare où le train est arrêté (ou null). */
+  function trainStation(any) {
+    if (!any && !(st.train.dwell > 0)) return null;
+    const total = S.TRACK.total;
+    return S.STATIONS.find(s0 => Math.abs(angDiff((st.train.s - CAR_GAP[1] - s0.s) / total * Math.PI * 2, 0)) < 0.02) || null;
+  }
   function stepTrain(dt) {
     const T = st.train, total = S.TRACK.total;
     if (T.dwell > 0) {
       T.dwell -= dt; T.v = 0;
       // quelqu'un attend sur le quai : on patiente encore un peu
-      const stn = S.STATIONS.find(s0 => Math.abs(angDiff((T.s - CAR_GAP[1] - s0.s) / total * Math.PI * 2, 0)) < 0.02);
-      if (T.dwell <= 0 && stn && (T.extra || 0) < 10 && players().some(P => !P.ride && Math.hypot(P.pos.x - stn.x, P.pos.z - stn.z) < 6)) { T.dwell = 1; T.extra = (T.extra || 0) + 1; }
-      if (T.dwell <= 0) { T.extra = 0; snd.toot(); }
+      const stn = trainStation(true);
+      if (T.dwell <= 0 && stn && (T.extra || 0) < 20 && players().some(P => !P.ride && Math.hypot(P.pos.x - stn.x, P.pos.z - stn.z) < 7)) { T.dwell = 1; T.extra = (T.extra || 0) + 1; }
+      if (T.dwell <= 0) { T.extra = 0; T.s = (T.s + 0.05) % total; snd.toot(); }
       return;
     }
     // prochaine gare : là où le premier wagon s'aligne sur le quai
     let dNext = Infinity;
-    for (const s0 of S.STATIONS) { const d = (((s0.s + CAR_GAP[1]) - T.s) % total + total) % total; if (d > 0.05 && d < dNext) dNext = d; }
-    const vmax = 11, want = Math.min(vmax, Math.sqrt(2 * 2.6 * dNext) + 0.4);
+    for (const s0 of S.STATIONS) { const d = (((s0.s + CAR_GAP[1]) - T.s) % total + total) % total; if (d > 0.01 && d < dNext) dNext = d; }
+    // quelqu'un attend sur un quai (et personne à bord) : le train se dépêche un peu
+    const aboard = players().some(P => P.ride && P.ride.kind === 'train');
+    const waiting = !aboard && players().some(P => !P.ride && S.STATIONS.some(s0 => Math.hypot(P.pos.x - s0.x, P.pos.z - s0.z) < 7));
+    const vmax = waiting ? 17 : 11, want = Math.min(vmax, Math.sqrt(2 * 2.6 * dNext) + 0.4);
     T.v += clamp(want - T.v, -6 * dt, 3 * dt);
     const step = Math.min(T.v * dt, dNext);
     T.s = (T.s + step) % total;
-    if (dNext - step < 0.02) { T.dwell = 5; T.v = 0; snd.whistle(false); }
+    if (dNext - step < 0.02) { T.s = (T.s + dNext - step) % total; T.dwell = 5; T.v = 0; snd.whistle(false); }
     T.chug += T.v * dt;
-    if (T.chug > 2.2) { T.chug = 0; if (Math.hypot(game.camera.position.x - trainCars[0].position.x, game.camera.position.z - trainCars[0].position.z) < 40) snd.chug(T.v / vmax); }
+    if (T.chug > 2.2) { T.chug = 0; if (Math.hypot(game.camera.position.x - trainCars[0].position.x, game.camera.position.z - trainCars[0].position.z) < 40) snd.chug(Math.min(1, T.v / 11)); }
   }
   /** Le train pousse gentiment le chien qui est sur la voie. */
   function trainPush() {
@@ -1092,7 +1098,12 @@ export function buildPark(game) {
       if (st.train.dwell > 0) {
         const taken = trainSeats();
         const free = [0, 1, 2, 3].find(i => !taken.includes(i));
-        if (free !== undefined) for (const c of [1, 2]) { const p2 = S.trackAt(st.train.s - CAR_GAP[c]); out.push({ kind: 'lv', act: 'train', label: 'MONTER', x: p2.x, z: p2.z, y: p2.y + 0.5 }); }
+        if (free !== undefined) {
+          for (const c of [1, 2]) { const p2 = S.trackAt(st.train.s - CAR_GAP[c]); out.push({ kind: 'lv', act: 'train', label: 'MONTER', x: p2.x, z: p2.z, y: p2.y + 0.5 }); }
+          // tout le quai compte (les petits ne savent pas toujours où se mettre)
+          const stn = trainStation();
+          if (stn && Math.hypot(Q.pos.x - stn.x, Q.pos.z - stn.z) < 2.6) out.push({ kind: 'lv', act: 'train', label: 'MONTER', x: Q.pos.x, z: Q.pos.z, y: stn.top });
+        }
       }
       for (const b of boats) if (b.driver < 0) out.push({ kind: 'lv', act: 'boat', b: b.id, label: 'MONTER', x: b.x, z: b.z, y: S.WATER_Y + 0.6 });
       const C = S.CAROUSEL, dc = Math.hypot(Q.pos.x - C.x, Q.pos.z - C.z);

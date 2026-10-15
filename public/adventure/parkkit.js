@@ -63,9 +63,9 @@ export function wagonGeo(col) {
   k.add(Box(1.6, 0.5, 2.5), col, { y: 0.9 });
   k.add(Box(1.3, 0.35, 2.2), 0xfff4e0, { y: 1.0 });
   for (const z of [-0.6, 0.6]) { k.add(Box(1.2, 0.18, 0.5), 0x8a5a30, { y: 1.05, z }); k.add(Box(1.2, 0.5, 0.12), 0x8a5a30, { y: 1.3, z: z - 0.22 }); }
-  for (const sx of [-1, 1]) for (const sz of [-1, 1]) k.add(Cyl(0.05, 0.05, 1.1, 6), 0xf0c040, { x: sx * 0.7, y: 1.7, z: sz * 1.1 });
-  k.add(Box(1.7, 0.1, 2.6), col, { y: 2.25 });
-  k.add(Box(1.75, 0.06, 2.65), 0xffffff, { y: 2.33 });
+  for (const sx of [-1, 1]) for (const sz of [-1, 1]) k.add(Cyl(0.05, 0.05, 1.5, 6), 0xf0c040, { x: sx * 0.7, y: 1.9, z: sz * 1.1 });
+  k.add(Box(1.7, 0.1, 2.6), col, { y: 2.65 });
+  k.add(Box(1.75, 0.06, 2.65), 0xffffff, { y: 2.73 });
   wheels(k, 0.75, -0.75, 0.32);
   return k.geo();
 }
@@ -146,10 +146,10 @@ export function kioskGeo(R, floorH, roofY) {
     for (let j = 1; j < 5; j++) k.add(Cyl(0.03, 0.03, 0.8, 5), 0xfaf6ee, { x: x + (x2 - x) * j / 5, y: floorH + 0.45, z: z + (z2 - z) * j / 5 });
   }
   // le toit : un chapeau vert à 8 pans, liseré doré
-  k.add(Cone(R + 0.6, 1.3, 8), (x, y, z, c) => c.set(0x3a9a6a).lerp(_c2.set(0x2a7a52), Math.floor((Math.atan2(z, x) + 4) * 8 / Math.PI) % 2 ? 0.4 : 0), { y: roofY + 0.4, ry: Math.PI / 8 });
+  k.add(Cone(R + 0.6, 0.85, 8), (x, y, z, c) => c.set(0x3a9a6a).lerp(_c2.set(0x2a7a52), Math.floor((Math.atan2(z, x) + 4) * 8 / Math.PI) % 2 ? 0.4 : 0), { y: roofY + 0.17, ry: Math.PI / 8 });
   k.add(Cyl(R + 0.6, R + 0.6, 0.25, 8, true), 0xf0c040, { y: roofY - 0.36, ry: Math.PI / 8 });
-  k.add(Sph(0.22, 10, 8), 0xf0c040, { y: roofY + 1.15 });
-  k.add(Cone(0.08, 0.5, 6), 0xf0c040, { y: roofY + 1.5 });
+  k.add(Sph(0.22, 10, 8), 0xf0c040, { y: roofY + 0.7 });
+  k.add(Cone(0.08, 0.5, 6), 0xf0c040, { y: roofY + 1.05 });
   return k.geo();
 }
 /** Caisse de la fanfare (dessus au niveau h), avec une étoile peinte. */
@@ -368,9 +368,10 @@ export function stationGeo(name) {
   const k = new Kit();
   k.add(Box(3.2, 0.35, 3.2), 0xd8c8b0, { y: 0.175 });
   k.add(Box(3.24, 0.06, 3.24), 0xf0c040, { y: 0.36 });
-  for (const sx of [-1, 1]) k.add(Cyl(0.08, 0.08, 2.6, 8), 0x2a6a4a, { x: sx * 1.3, y: 1.6, z: 1.2 });
-  k.add(Box(3.4, 0.12, 2.0), 0xc84a3a, { y: 2.9, z: 0.5, rx: 0.18 });
-  k.add(Box(1.8, 0.45, 0.06), 0xfff6e0, { y: 2.45, z: 1.25 });
+  // (le quai regarde la voie vers +z : les poteaux derrière, le toit au-dessus des voyageurs)
+  for (const sx of [-1, 1]) k.add(Cyl(0.08, 0.08, 2.8, 8), 0x2a6a4a, { x: sx * 1.3, y: 1.7, z: -1.2 });
+  k.add(Box(3.4, 0.12, 2.6), 0xc84a3a, { y: 3.0, z: -0.2, rx: -0.14 });
+  k.add(Box(3.4, 0.18, 0.1), 0xf0c040, { y: 2.85, z: 1.05 });
   void name;
   return k.geo();
 }
@@ -383,7 +384,7 @@ export function nameBoard(text, w) {
   x.fillStyle = '#2a4a3a'; x.font = '700 50px Fredoka, Arial Rounded MT Bold, sans-serif'; x.textAlign = 'center'; x.textBaseline = 'middle';
   x.fillText(text, 256, 66, 480);
   const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace;
-  const m = new THREE.Mesh(new THREE.PlaneGeometry(w || 1.8, (w || 1.8) / 4), new THREE.MeshStandardMaterial({ map: t, roughness: 0.8 }));
+  const m = new THREE.Mesh(new THREE.PlaneGeometry(w || 1.8, (w || 1.8) / 4), new THREE.MeshStandardMaterial({ map: t, roughness: 0.8, side: THREE.DoubleSide }));
   return m;
 }
 
