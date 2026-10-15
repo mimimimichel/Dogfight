@@ -399,7 +399,7 @@ export const MUSH_HOUSES = [0.3, 1.25, 2.2, 3.3, 4.3, 5.35].map((a, i) => {
   const R = 11 + (i % 2) * 1.5, x = VG.x + Math.cos(a) * R, z = VG.z + Math.sin(a) * R, g = heightAt(x, z);
   const hgt = 3.4 + (i % 3) * 0.5, capR = 2.8 + (i % 2) * 0.4;
   const h = { x, z, y: g, h: hgt, r: 1.8, capR, yaw: Math.atan2(VG.x - x, VG.z - z), col: ['#e0453a', '#f08a2a', '#a066e0', '#e85a9a', '#3a9ae0', '#e0b030'][i] };
-  cyl(x, z, h.r, g - 1, g + hgt, { kind: 'rock', solid: true });
+  cyl(x, z, h.r, g - 1, g + hgt, { kind: 'rock', solid: true, cam: true, camR: capR });   // la caméra évite aussi le chapeau
   h.cap = cyl(x, z, capR, g + hgt, g + hgt + 0.55, { kind: 'cap' });
   h.top = g + hgt + 0.55;
   return h;
