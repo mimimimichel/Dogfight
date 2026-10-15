@@ -53,6 +53,7 @@ CAST = {
     'Papi Berger': ('loup', 0.55, 0.45),
     'Pingo': ('zazou', 0.75, 0.5),
     'Pompon': ('matcha', 0.7, 0.5),
+    'Gaston': ('fernand', 0.65, 0.5),
 }
 # les rôles principaux d'abord
 ORDER = ['', 'Mamie Labrador', 'Matcha', 'Ainu', 'Biscotte', 'Capitaine Moustache']

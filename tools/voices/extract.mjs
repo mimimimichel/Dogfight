@@ -16,7 +16,7 @@ const walk = require('acorn-walk');
 const DIR = path.join(path.dirname(new URL(import.meta.url).pathname), '../../public/adventure');
 const levels = {};
 for (const n of [1, 2, 3, 4, 5, 6, 7, 8]) levels[n] = await import(path.join(DIR, `level${n}.js`));
-const FILES = { 'game.js': 1, 'level1.js': 1, 'level2.js': 2, 'forest.js': 2, 'level3.js': 3, 'cityplay.js': 3, 'city.js': 3, 'level4.js': 4, 'sky.js': 4, 'sky_boss.js': 4, 'level5.js': 5, 'snow.js': 5, 'level6.js': 6, 'beach.js': 6, 'beachplay.js': 6, 'level7.js': 7, 'farm.js': 7, 'farmkit.js': 7, 'level8.js': 8, 'castle.js': 8, 'story.js': 0 };
+const FILES = { 'game.js': 1, 'level1.js': 1, 'park.js': 1, 'parkkit.js': 1, 'level2.js': 2, 'forest.js': 2, 'level3.js': 3, 'cityplay.js': 3, 'city.js': 3, 'level4.js': 4, 'sky.js': 4, 'sky_boss.js': 4, 'level5.js': 5, 'snow.js': 5, 'level6.js': 6, 'beach.js': 6, 'beachplay.js': 6, 'level7.js': 7, 'farm.js': 7, 'farmkit.js': 7, 'level8.js': 8, 'castle.js': 8, 'story.js': 0 };
 const KEYS = [{ jump: 'ESPACE', attack: 'J', dash: 'K' }, { jump: 'SAUT', attack: 'ATTAQUE', dash: 'CHARGE' }];
 const NARRATOR = '';
 
@@ -112,6 +112,30 @@ for (const [file, lv] of Object.entries(FILES)) {
       },
     });
   }
+}
+// Parc (park.js) : indices et longue-vue construits à partir des lieux de level1.js
+{
+  const L1 = levels[1], M = 'Mamie Labrador', f = 'park.js', pl = (n, w) => w + (n > 1 ? 's' : '');
+  for (const k of [...out.keys()]) if (/\bx\d/.test(out.get(k).text)) out.delete(k);
+  for (let n = 1; n <= 5; n++) add(M, `Il vous reste ${n} ${pl(n, 'médaille')} à trouver.`, f);
+  for (const t of ['Mon Biscotte voulait voir les canards de la mare, à l\'ouest. Cherchez près de l\'eau !',
+    'Son collier ! Alors suivez ses traces jusqu\'au bac à sable de l\'aire de jeux. Creusez là où ça sent le chiot !',
+    'Son doudou ! Biscotte n\'est pas loin… Allez voir au manège, au nord-est du Grand Chêne.', 'Ramenez-le-moi vite !',
+    'Biscotte est dans le labyrinthe fleuri, au nord-ouest ! Trouvez le chemin jusqu\'au milieu.',
+    'Les chats ont soufflé les six lanternes magiques du parc. Approchez-vous d\'une lanterne pour la rallumer ! Quand elles brilleront toutes, le Grand Chêne s\'illuminera.',
+    'Gaston, l\'entraîneur d\'agility, vous attend sur son terrain, à l\'est du Grand Chêne.',
+    'Cinq balles de tennis se sont perdues loin des chemins. Elles reviennent toutes seules sur le piédestal, à côté de la fontaine !',
+    'Si vous êtes perdus, montez au belvédère, tout au nord : la longue-vue montre tout le parc !']) add(M, t, f);
+  for (let n = 1; n <= 5; n++) for (const l of L1.LANTERNS) add(M, `Il reste ${n} ${pl(n, 'lanterne')} à rallumer. Il y en a une ${l.where}.`, f);
+  for (let n = 1; n <= 6; n++) add(M, `Encore ${n} ${pl(n, 'chat')} ${pl(n, 'farceur')} dans le parc. Un gros « Ouaf ! » les fait déguerpir !`, f);
+  const balls = L1.BALLS || L1.balls || [];
+  for (let n = 1; n <= 4; n++) for (const b of balls) add(M, `Encore ${n} ${pl(n, 'balle')} de tennis à trouver. Il y en a une ${b.where}.`, f);
+  for (const t of ['Là-bas, près de la mare : quelque chose de rouge brille dans l\'herbe…', 'Dans le bac à sable de l\'aire de jeux : des petites traces de pattes !', 'Sur le manège : un drôle de jouet rose…', 'Au milieu du labyrinthe fleuri… c\'est Biscotte !']) add('Matcha', t, f);
+  for (const l of L1.LANTERNS) add('Matcha', `Une lanterne éteinte, ${l.where} !`, f);
+  for (const b of balls) add('Matcha', `Une balle de tennis, ${b.where} !`, f);
+  for (const c of (L1.CATS || L1.cats || []).filter(c => c.group === 'clearing')) add('Matcha', `Un chat farceur, ${c.where} !`, f);
+  for (const n of [90, 60]) add('Gaston', `Vous avez ${n} secondes. À vos marques… Prêts ?`, f);
+  if (!balls.length) process.stderr.write('ATTENTION : balles du parc introuvables\n');
 }
 const list = [...out.values()];
 process.stdout.write(JSON.stringify(list, null, 1));
