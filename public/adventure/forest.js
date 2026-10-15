@@ -94,6 +94,47 @@ function glowSprite(color, size, opacity) {
 
 const shadowy = (o) => { o.traverse(k => { if (k.isMesh) { k.castShadow = true; k.receiveShadow = true; } }); return o; };
 
+/**
+ * Fusionne le décor immobile d'un groupe : un seul dessin par matériau (bien moins
+ * d'appels de dessin sur téléphone). On garde à part ce qui bouge (userData.dyn),
+ * les instances, les sprites et les personnages.
+ */
+function bakeGroup(g) {
+  g.updateMatrixWorld(true);
+  const inv = new THREE.Matrix4().copy(g.matrixWorld).invert();
+  const byMat = new Map();
+  const skip = (o) => { for (let p = o; p && p !== g; p = p.parent) if (p.userData.dyn) return true; return false; };
+  g.traverse(o => {
+    if (!o.isMesh || o.isInstancedMesh || o.isSkinnedMesh || Array.isArray(o.material) || !o.visible || skip(o)) return;
+    if (!byMat.has(o.material)) byMat.set(o.material, []);
+    byMat.get(o.material).push(o);
+  });
+  for (const [mat, list] of byMat) {
+    if (list.length < 2) continue;
+    const geos = list.map(o => {
+      const gg = (o.geometry.index ? o.geometry.toNonIndexed() : o.geometry.clone());
+      gg.applyMatrix4(new THREE.Matrix4().multiplyMatrices(inv, o.matrixWorld));
+      if (!gg.attributes.normal) gg.computeVertexNormals();
+      return gg;
+    });
+    const keep = ['position', 'normal'].concat(['uv', 'color'].filter(k => geos.every(gg => gg.attributes[k])));
+    const n = geos.reduce((t, gg) => t + gg.attributes.position.count, 0);
+    const out = new THREE.BufferGeometry();
+    for (const k of keep) {
+      const size = geos[0].attributes[k].itemSize, arr = new Float32Array(n * size);
+      let o = 0;
+      for (const gg of geos) { arr.set(gg.attributes[k].array.subarray(0, gg.attributes[k].count * size), o); o += gg.attributes[k].count * size; }
+      out.setAttribute(k, new THREE.BufferAttribute(arr, size));
+    }
+    const m = new THREE.Mesh(out, mat);
+    m.castShadow = list.some(o => o.castShadow); m.receiveShadow = list.some(o => o.receiveShadow);
+    m.userData.noOutline = list.every(o => o.userData.noOutline);
+    m.renderOrder = list[0].renderOrder;
+    for (const o of list) o.parent.remove(o);
+    g.add(m);
+  }
+}
+
 // ---------------------------------------------------------------------------
 // La Capitaine Moustache : grand chat gris, bicorne, cache-œil et grosse moustache
 // ---------------------------------------------------------------------------
@@ -186,7 +227,7 @@ export function buildForest(game) {
   // décor par quartier : on le cache quand il est loin de la caméra (la forêt est grande)
   const cull = [];
   const place = (obj, x, z, r) => { sc.add(obj); cull.push({ obj, x, z, r: r || 12 }); return obj; };
-  const area = (x, z, r) => place(new THREE.Group(), x, z, r);
+  const area = (x, z, r) => { const g = place(new THREE.Group(), x, z, r); g.userData.area = true; return g; };
   const save = () => game.save;
   const forest = () => {
     const s = game.save;
@@ -435,6 +476,7 @@ export function buildForest(game) {
   const hulotte = FK.buildOwl({ shawl: true });
   hulotte.position.set(S.HULOTTE.x, S.HULOTTE.y, S.HULOTTE.z);
   hulotte.rotation.y = Math.atan2(S.STUMP.x - S.HULOTTE.x, S.STUMP.z - S.HULOTTE.z);
+  hulotte.userData.dyn = true;
   lakeG.add(hulotte); chars.push(hulotte);
 
   // --- Patte géante (interrupteur) et feuilles magiques -----------------------
@@ -521,6 +563,8 @@ export function buildForest(game) {
     const glow = glowSprite(0xff9a30, 5, 0.6);
     glow.position.y = 1.1; fire.add(glow);
     fire.scale.setScalar(scale || 1);
+    for (const f of flames) f.userData.dyn = true;
+    glow.userData.dyn = true;
     return { fire, flames, glow };
   };
   const campFire = makeFire(1);
@@ -692,6 +736,28 @@ export function buildForest(game) {
     const bell = new THREE.Mesh(new THREE.CylinderGeometry(0.12, 0.26, 0.34, 12, 1, true), M.mat(0xffc830, { metalness: 0.7, roughness: 0.3, side: THREE.DoubleSide }));
     bell.position.set(px, D.top + 2.25, pz); g.add(bell);
   }
+  // le petit ponton de l'îlot
+  {
+    const J = S.ISLET_JETTY, len = Math.hypot(J.x1 - J.x0, J.z1 - J.z0) + 1.4, g = area((J.x0 + J.x1) / 2, (J.z0 + J.z1) / 2, 6);
+    const deck = new THREE.Mesh(new THREE.BoxGeometry(1.8, 0.26, len), woodMat);
+    deck.position.set((J.x0 + J.x1) / 2, J.top - 0.13, (J.z0 + J.z1) / 2); deck.rotation.y = J.yaw; g.add(shadowy(deck));
+    for (const [px, pz] of [[J.x1, J.z1], [(J.x0 + J.x1) / 2, (J.z0 + J.z1) / 2]]) for (const sd of [-1, 1]) {
+      const p = new THREE.Mesh(new THREE.CylinderGeometry(0.12, 0.14, 3, 8), darkWood);
+      p.position.set(px + Math.cos(J.yaw) * sd * 0.85, J.top - 1.2, pz - Math.sin(J.yaw) * sd * 0.85); g.add(p);
+    }
+    // des roseaux tout autour de l'îlot
+    const reeds = new THREE.InstancedMesh(new THREE.CylinderGeometry(0.03, 0.05, 1.4, 5), M.mat(0x6a9a3a, { roughness: 0.9 }), 40);
+    const tops = new THREE.InstancedMesh(new THREE.CapsuleGeometry(0.07, 0.3, 3, 6), M.mat(0x7a4a26, { roughness: 1 }), 40);
+    for (let i = 0; i < 40; i++) {
+      const a = i * 2.39996, d = S.ISLET.r - 0.3 + (i % 3) * 0.35, x = S.ISLET.x + Math.cos(a) * d, z = S.ISLET.z + Math.sin(a) * d;
+      if (Math.abs(((a - Math.atan2(J.x1 - S.ISLET.x, J.z1 - S.ISLET.z) + Math.PI * 7) % (Math.PI * 2)) - Math.PI) > 2.6) { m4.makeScale(0, 0, 0); reeds.setMatrixAt(i, m4); tops.setMatrixAt(i, m4); continue; }
+      const y = Math.max(0, S.heightAt(x, z)), lean = (i % 5 - 2) * 0.06;
+      m4.compose(v.set(x, y + 0.6, z), q.setFromEuler(e.set(lean, 0, -lean)), sv.set(1, 1, 1)); reeds.setMatrixAt(i, m4);
+      m4.compose(v.set(x + lean * 0.7, y + 1.35, z + lean * 0.7), q.setFromEuler(e.set(lean, 0, -lean)), sv.set(1, 1, 1)); tops.setMatrixAt(i, m4);
+    }
+    reeds.userData.noOutline = tops.userData.noOutline = true;
+    g.add(reeds, tops);
+  }
   // le radeau de Gaston
   const raftMesh = FK.buildRaft(S.RAFT.r);
   sc.add(raftMesh); moving.push(raftMesh);
@@ -780,6 +846,7 @@ export function buildForest(game) {
   {
     const P = S.FRIENDS.pistache;
     pistache.position.set(P.x, P.y, P.z); pistache.rotation.y = P.yaw;
+    pistache.userData.dyn = true;
     thG.add(pistache); chars.push(pistache);
   }
 
@@ -909,6 +976,7 @@ export function buildForest(game) {
     }
     const foam = new THREE.Mesh(new THREE.RingGeometry(0.6, 4.5, 28), new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.45, depthWrite: false }));
     foam.rotation.x = -Math.PI / 2; foam.position.set(F.x + F.nx * 2.5, 0.05, F.z + F.nz * 2.5); foam.userData.noOutline = true;
+    foam.userData.dyn = true;
     plateauG.add(foam); fallParts.foam = foam;
     const mist = glowSprite(0xffffff, 9, 0.35); mist.material.blending = THREE.NormalBlending;
     mist.position.set(F.x + F.nx * 2, 1.6, F.z + F.nz * 2); plateauG.add(mist); fallParts.mist = mist;
@@ -928,17 +996,19 @@ export function buildForest(game) {
     const pot = new THREE.Mesh(new THREE.LatheGeometry([[0.001, 0], [0.9, 0.05], [1.25, 0.45], [1.3, 0.95], [1.18, 1.2], [1.28, 1.25]].map(([x, y]) => new THREE.Vector2(x * PT.r, y)), 24),
       M.mat(0x3a3a44, { metalness: 0.5, roughness: 0.5, side: THREE.DoubleSide }));
     pot.position.set(PT.x, PT.y + 0.35, PT.z); villageG.add(shadowy(pot));
-    soup.rotation.x = -Math.PI / 2; soup.position.set(PT.x, PT.y + 0.6, PT.z); villageG.add(soup);
+    soup.rotation.x = -Math.PI / 2; soup.position.set(PT.x, PT.y + 0.6, PT.z); soup.userData.dyn = true; villageG.add(soup);
   }
   const noisette = FK.buildHedgehog({ apron: true, spoon: true, bow: true });
   noisette.position.set(S.FRIENDS.noisette.x, S.FRIENDS.noisette.y, S.FRIENDS.noisette.z);
   noisette.rotation.y = Math.atan2(PT.x - S.FRIENDS.noisette.x, PT.z - S.FRIENDS.noisette.z) + 1.2;
+  noisette.userData.dyn = true;
   villageG.add(noisette); chars.push(noisette);
   const hedgehogs = [];
   for (const [a, R, col] of [[2.6, 6.5, 0x8a6040], [4.9, 7, 0xa07850], [0.9, 7.5, 0x7a5236]]) {
     const hh = FK.buildHedgehog({ color: col, scale: 1.0 });
     const x = VG.x + Math.cos(a) * R, z = VG.z + Math.sin(a) * R;
     hh.position.set(x, S.heightAt(x, z), z); hh.rotation.y = Math.atan2(PT.x - x, PT.z - z);
+    hh.userData.dyn = true;
     villageG.add(hh); hedgehogs.push(hh);
   }
   // petites guirlandes de lampions entre les maisons
@@ -1042,7 +1112,7 @@ export function buildForest(game) {
     hint.position.set(0.5, postH + 0.6, 0); g.add(hint);
     g.position.set(l.x, l.y, l.z);
     g.rotation.y = l.x * 0.7;
-    sc.add(shadowy(g));
+    place(shadowy(g), l.x, l.z, 4);
     return { def: l, g, glass, glow, hint, lit: false, litT: -9 };
   });
 
@@ -1065,7 +1135,7 @@ export function buildForest(game) {
   }
   const altarGlow = glowSprite(0x80fff0, 6, 0.1); altarGlow.position.y = 1.6; altar.add(altarGlow);
   altar.position.set(ALT.x, altY, ALT.z);
-  sc.add(shadowy(altar));
+  place(shadowy(altar), ALT.x, ALT.z, 4);
 
   // --- Lucioles : un nuage autour de la caméra, et un grand essaim au bosquet -------
   const NF = lite ? 80 : 160, NG = lite ? 50 : 110, NT = NF + NG, FB = 44;
@@ -1656,7 +1726,7 @@ export function buildForest(game) {
       if (lookoutsLeft() > 0 && nearTo(S.SPOTS.treehouses, 32)) return `Chasse les chats guetteurs des cabanes (${lookoutsLeft()})`;
       if (!f.feast && nearTo(S.POT, 20)) return f.met.includes('noisette') ? `Baies pour Noisette : ${potCount()}/${S.BERRIES_NEEDED}` : 'Parle à Noisette la hérissonne';
       if (f.owlets.length < S.OWLETS.length && nearTo(S.OWL, 22)) return `Bébés hiboux : ${f.owlets.length}/${S.OWLETS.length}`;
-      if (st.gateOpen && !s.boss) return 'Va au repaire de la Capitaine Moustache, tout au nord';
+      if (st.gateOpen && !s.boss) return nearTo(S.ARENA, S.ARENA.r + 2) ? 'Évite les pelotes, attaque quand elle est fatiguée !' : 'Va au repaire de la Capitaine Moustache, tout au nord';
       return `Médailles ${s.medals.length}/5 · Lanternes ${s.lanterns.length}/${S.lanterns.length}`;
     },
     minimapMarks() {
@@ -1740,8 +1810,9 @@ export function buildForest(game) {
     },
     render(dt, t) {
       const cam = game.camera.position, s = save();
+      if (game.guest && Math.floor(t * 4) !== Math.floor((t - dt) * 4)) updateChips();   // (l'invité ne fait pas tourner step)
       // décor lointain caché (la forêt est grande)
-      const far = lite ? 175 : 235;
+      const far = lite ? 140 : 205;
       for (const c of cull) c.obj.visible = Math.hypot(c.x - cam.x, c.z - cam.z) < far + c.r;
       const hiR = lite ? 55 : 80;
       for (const ch of treeChunks) {
@@ -1753,6 +1824,8 @@ export function buildForest(game) {
       }
       // les chats très loin ne sont pas dessinés (ils sont détaillés : ça coûte cher)
       for (const c of game.cats) if (!c.dead || c.fly) c.mesh.visible = Math.hypot(c.pos.x - cam.x, c.pos.z - cam.z) < (lite ? 90 : 140);
+      for (const g of game.crystals || []) g.visible = Math.hypot(g.position.x - cam.x, g.position.z - cam.z) < far;
+      const arenaFar = Math.hypot(AR.x - cam.x, AR.z - cam.z) > far + 12;
       // lucioles : un nuage qui suit la caméra, et l'essaim du bosquet
       const n = s.lanterns.length;
       const ux = Math.floor(t * 4) !== Math.floor((t - dt) * 4);
@@ -1875,10 +1948,10 @@ export function buildForest(game) {
       // porte qui s'enfonce
       st.gateK += ((st.gateOpen ? 1 : 0) - st.gateK) * Math.min(1, dt * 2);
       gate.position.y = S.ARENA.y - st.gateK * 4.2;
-      gate.visible = st.gateK < 0.98;
+      gate.visible = st.gateK < 0.98 && !arenaFar;
       // Capitaine
       const gone = B.phase === 'gone' || s.boss && B.phase !== 'defeated';
-      cap.visible = !gone && !(B.inv > 0 && Math.floor(t * 14) % 2 === 0);
+      cap.visible = !gone && !arenaFar && !(B.inv > 0 && Math.floor(t * 14) % 2 === 0);
       bossShadow.visible = cap.visible;
       if (cap.visible) {
         cap.position.set(B.x, B.y, B.z);
@@ -1903,6 +1976,9 @@ export function buildForest(game) {
     },
   };
   const LEAF_REARM = 3; // on peut relancer les feuilles quand il reste moins de 3 s
+
+  // décor immobile fusionné (moins de dessins)
+  for (const c of cull) if (c.obj.userData.area) bakeGroup(c.obj);
 
   // état initial d'après la sauvegarde
   refreshLanterns();

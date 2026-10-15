@@ -138,10 +138,15 @@ test('la rivière coupe la forêt ; on la traverse par le pont, les rondins ou l
     for (let o = 0; o < 3; o += 0.25) { const x = l.x + nx * sgn * (l.r + o), z = l.z + nz * sgn * (l.r + o); if (L.heightAt(x, z) > 0.3 && L.heightAt(x, z) < l.top + 1.2) { ok = true; break; } }
     assert.ok(ok, 'berge trop loin des rondins');
   }
-  // l'îlot n'est accessible qu'en radeau (ou à la nage… non !) : il est tout près de l'arrêt
-  const p = L.riverAt(L.RAFT.stops.I);
-  const gap = d2(p, L.ISLET) - L.RAFT.r - (L.ISLET.r - 0.8);
-  assert.ok(gap < reach(L.ISLET.top - L.RAFT.top) * 0.6 && gap > 0.5, `îlot à ${gap.toFixed(2)} m du radeau`);
+  // l'îlot n'est accessible qu'en radeau : son petit ponton touche le radeau à l'arrêt, et il est loin des deux rives
+  const p = L.riverAt(L.RAFT.stops.I), J = L.ISLET_JETTY;
+  assert.ok(d2(p, J.end) - L.RAFT.r - 0.85 < 0.3, 'le ponton de l\'îlot touche le radeau');
+  assert.ok(J.top - L.RAFT.top < 0.6 && L.ISLET.top - J.top < 0.6, 'on passe du radeau au ponton sans sauter');
+  for (let a = 0; a < 6.28; a += 0.1) {
+    let x = L.ISLET.x, z = L.ISLET.z, wet = 0;
+    for (let k = 0; k < 40; k++) { x += Math.cos(a) * 0.5; z += Math.sin(a) * 0.5; if (L.inWater(x, z, -0.2)) wet += 0.5; else if (wet > 0) break; }
+    assert.ok(wet > 3 || wet === 0, 'îlot accessible à pied');
+  }
   assert.ok(L.RAFT.stops.A < L.RAFT.stops.I && L.RAFT.stops.I < L.RAFT.stops.B);
   for (const D of L.DOCKS) {
     const s = L.supportAt(D.end.x, D.end.z, D.top + 0.1, 0);

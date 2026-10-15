@@ -195,14 +195,23 @@ export function buildMushHouse(h) {
   const H = h.h, R = h.r;
   const capCol = new THREE.Color(h.col);
   k.add(Cyl(R * 0.92, R * 1.08, H + 0.6, 22), (x, y, z, c) => {
-    c.set(0xf4e8d0);
+    c.set(0xe6d2ac);
     const a = Math.atan2(x, z), yy = y + (H + 0.6) / 2;
-    if (Math.abs(a) < 0.32 && yy < 1.7) c.set(0x7a4a26);                         // la porte (vers +z)
-    if (Math.abs(a) < 0.26 && yy < 1.75 && yy > 1.62) c.set(0x5a3418);
-    if (Math.abs(Math.abs(a) - 1.4) < 0.2 && yy > 1.6 && yy < 2.3) c.set(0xffe08a);  // fenêtres allumées
+    if (Math.sin(a * 9 + yy * 0.8) > 0.92) c.set(0xd8c098);                       // de fines rainures
+    if (yy < 0.35) c.set(0xb89e78);                                                // le bas un peu sali
     if (hash(Math.round(x * 6), Math.round(y * 6), Math.round(z * 6)) > 0.93) c.multiplyScalar(0.94);
   }, { y: (H + 0.6) / 2 - 0.6 });
-  k.add(Sph(0.08, 8, 6), 0xffd040, { x: 0.32, y: 0.9, z: R * 1.0 });
+  // une vraie porte ronde en bois, et deux fenêtres rondes allumées
+  const rAt = (y) => R * (1.08 - (y + 0.6) / (H + 0.6) * 0.16);
+  k.add(new THREE.BoxGeometry(0.95, 1.3, 0.14), 0x8a5430, { y: 0.65, z: rAt(0.65) - 0.02 });
+  k.add(Cyl(0.475, 0.475, 0.14, 18), 0x8a5430, { y: 1.3, z: rAt(1.3) - 0.02, rx: Math.PI / 2 });
+  for (const dx of [-0.24, 0, 0.24]) k.add(new THREE.BoxGeometry(0.04, 1.6, 0.04), 0x5a3418, { x: dx, y: 0.85, z: rAt(0.85) + 0.06 });
+  k.add(Sph(0.07, 8, 6), 0xffd040, { x: 0.3, y: 0.8, z: rAt(0.8) + 0.08 });
+  for (const sx of [-1, 1]) {
+    const a = sx * 1.25, y = Math.min(H - 0.7, 2.0), rr = rAt(y);
+    k.add(Cyl(0.3, 0.3, 0.1, 16).rotateX(Math.PI / 2), 0xffe08a, { x: Math.sin(a) * rr, y, z: Math.cos(a) * rr, ry: a });
+    k.add(new THREE.TorusGeometry(0.31, 0.06, 6, 16), 0x8a5430, { x: Math.sin(a) * (rr + 0.04), y, z: Math.cos(a) * (rr + 0.04), ry: a });
+  }
   // le chapeau
   const cr = h.capR;
   const pts = [new THREE.Vector2(0.001, 0.95), new THREE.Vector2(cr * 0.55, 0.85), new THREE.Vector2(cr * 0.88, 0.5), new THREE.Vector2(cr, 0.1), new THREE.Vector2(cr * 0.98, -0.05), new THREE.Vector2(R * 0.9, -0.2), new THREE.Vector2(0.001, -0.2)];

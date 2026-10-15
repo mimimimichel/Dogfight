@@ -294,6 +294,13 @@ for (const [k, side] of [['A', 1], ['B', -1]]) {
   for (let o = d0 + 0.6; o <= d1 + 0.01; o += 1.1) cyl(p.x + nxx * o, p.z + nzz * o, 1.0, RIVER_BED, D.top, { kind: 'plank' });
   DOCKS.push(D);
 }
+// le petit ponton de l'îlot (le radeau s'arrête juste au bout)
+export const ISLET_JETTY = (() => {
+  const p = riverAt(RAFT.stops.I), dx = p.x - ISLET.x, dz = p.z - ISLET.z, d = Math.hypot(dx, dz), ux = dx / d, uz = dz / d;
+  const d0 = ISLET.r - 1.4, d1 = d - RAFT.r - 0.75, top = ISLET.top - 0.15;
+  for (let o = d0; o <= d1 + 0.01; o += (d1 - d0) / Math.max(1, Math.round((d1 - d0) / 1.0))) cyl(ISLET.x + ux * o, ISLET.z + uz * o, 0.85, RIVER_BED, top, { kind: 'plank' });
+  return { x0: ISLET.x + ux * d0, z0: ISLET.z + uz * d0, x1: ISLET.x + ux * d1, z1: ISLET.z + uz * d1, top, yaw: Math.atan2(ux, uz), end: { x: ISLET.x + ux * d1, z: ISLET.z + uz * d1 } };
+})();
 export const RAFT_COL = { type: 'cyl', x: 0, z: 0, r: RAFT.r, y0: -1, y1: RAFT.top, kind: 'raft', moving: true, dx: 0, dz: 0 };
 { const p = riverAt(RAFT.stops.A); RAFT_COL.x = p.x; RAFT_COL.z = p.z; }
 colliders.push(RAFT_COL);
