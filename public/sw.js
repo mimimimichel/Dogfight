@@ -14,7 +14,7 @@
  */
 'use strict';
 
-const VERSION = 'v7';
+const VERSION = 'v8';
 const ASSETS_VERSION = 'v1';
 const PREFIX = 'matcha-';
 const CORE = PREFIX + 'core-' + VERSION;
@@ -31,7 +31,7 @@ const PRECACHE = [
   'icon-maskable-512.png',
   'img/duo.webp',
   // public/
-  'audio.js', 'coop.js', 'game-core.js', 'loader.js', 'main.js', 'p2p.js', 'profiles.js',
+  'audio.js', 'coop.js', 'daily.js', 'game-core.js', 'loader.js', 'main.js', 'p2p.js', 'profiles.js',
   'memories.js', 'carnet.js', 'niche.js',
   'render.js', 'room.js', 'touch.js',
   'brand.css', 'home.css', 'style.css',

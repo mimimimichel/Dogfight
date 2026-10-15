@@ -144,6 +144,7 @@
   function show(screen) {
     app.screen = screen;
     if (screen === 'menu' || screen === 'levels') updateAdventureButton();
+    if (screen === 'menu' && window.DailyGift) setTimeout(() => window.DailyGift.maybeShow(sfx), 600);
     // musique : aventure, combat (partie, pause, résultat) ou menus
     sfx.music(screen === 'adventure' ? 'adventure' : (screen === 'game' || screen === 'pause' || screen === 'result') ? 'fight' : 'menu');
     for (const el of document.querySelectorAll('.screen')) el.classList.add('hidden');
@@ -1289,6 +1290,10 @@
     $('online-status').textContent = `Invitation au salon ${invite} : clique sur « Rejoindre ».`;
     history.replaceState(null, '', location.pathname);
   }
+  // cadeau du jour : au premier contact sur l'accueil (le son est alors débloqué)
+  window.addEventListener('pointerdown', () => {
+    setTimeout(() => { if (app.screen === 'menu' && window.DailyGift) window.DailyGift.maybeShow(sfx); }, 500);
+  }, { once: true });
 
   // ---------------------------------------------------------------------------
   // Appli installable : bouton « Installer » (Android) et service worker (hors-ligne)
