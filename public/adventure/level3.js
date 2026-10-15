@@ -636,12 +636,16 @@ const CELL = 16, OFF = 32;
 const grid = new Map();
 const key = (i, j) => (i + OFF) * 128 + (j + OFF);
 function bbox(c) { return c.type === 'box' ? [c.x - c.w / 2, c.x + c.w / 2, c.z - c.d / 2, c.z + c.d / 2] : [c.x - c.r, c.x + c.r, c.z - c.r, c.z + c.r]; }
-for (const c of colliders) {
+function indexCollider(c) {
   const [x0, x1, z0, z1] = bbox(c);
   for (let i = Math.floor(x0 / CELL); i <= Math.floor(x1 / CELL); i++) for (let j = Math.floor(z0 / CELL); j <= Math.floor(z1 / CELL); j++) {
     const k = key(i, j); if (!grid.has(k)) grid.set(k, []); grid.get(k).push(c);
   }
 }
+for (const c of colliders) indexCollider(c);
+/** Obstacles ajoutés après coup (objets solides de la couche de vie : tonneaux, terrasses, cloches…). */
+const added = new Set();
+export function addColliders(list) { for (const c of list) { const k = c.life ? c.life + ':' + c.x + ':' + c.z : null; if (k && added.has(k)) continue; if (k) added.add(k); colliders.push(c); indexCollider(c); } }
 let stamp = 1;
 /** Obstacles proches de (x, z) dans un rayon r (plus les plates-formes mobiles). */
 export function near(x, z, r) {

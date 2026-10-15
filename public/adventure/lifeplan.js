@@ -60,12 +60,14 @@ const GROUPS = ['fauna', 'props', 'villagers', 'defis', 'secrets', 'trails'];
  *   info(x, z) → { ice, forest, slope, … } (le « milieu », passé aux règles),
  *   highlights: { fauna: [], props: [], villagers: [], defis: [], secrets: [], trails: [] },
  *   fill: [{ type: 'fauna' | 'props', kind, w, when(x, z, info), min (écart mini entre deux du même genre), data }],
- *   avoid(x, z, type, kind) → bool (zones interdites : pistes, chemins de quête…)
+ *   avoid(x, z, type, kind) → bool (zones interdites : pistes, chemins de quête…),
+ *   place(e) (retouche d'une entrée posée), init() (appelé au début de chaque calcul)
  * }
  * Renvoie { fauna, props, villagers, defis, secrets, trails, stats }.
  */
 export function planLife(spec) {
   const R = rng(spec.seed || 1);
+  if (spec.init) spec.init();   // (remise à zéro de l'état du monde : perchoirs pris…)
   const ground = spec.ground || (() => 0);
   const info = spec.info || (() => ({}));
   const avoid = spec.avoid || (() => false);
