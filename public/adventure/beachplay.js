@@ -560,7 +560,16 @@ export function buildPlay(game, decor) {
       if (pr.has('attack') && b.spin <= 0) { b.spin = 0.55; P.trickT = 0.55; game.sound('trick'); if (b.air) game.burst(b.x, b.y + 0.6, b.z, 12, 0xfff0a0, 3, 0.5); }
       if (pr.has('bark') && P.barkT <= 0) { P.barkT = 0.7; game.dogBark(P); }
     }
-    const [steer, fwd] = boardStick(P, b, wx, wz);
+    let [steer, fwd] = boardStick(P, b, wx, wz);
+    // Promenade : pilotage assisté pendant la leçon et la course (cap sur la prochaine bouée) — on reprend la main en tournant
+    if (game.easy && !frozen && st.race && st.race.ph === 'go' && st.race.next[P.id] !== undefined && Math.abs(steer) < 0.15) {
+      const t = course()[st.race.next[P.id]];
+      if (t) {
+        const dyaw = ((Math.atan2(t.x - b.x, t.z - b.z) - b.yaw + Math.PI * 3) % (Math.PI * 2)) - Math.PI;
+        steer = clamp(-dyaw * 1.6, -0.9, 0.9);
+        if (fwd < 0.15) fwd = 0.9;
+      }
+    }
     // avant : on accélère ; arrière : on freine ; seulement tourner : on avance doucement
     let target = 0;
     if (fwd > 0.15) target = BB.MAX * Math.min(1, fwd + Math.abs(steer) * 0.4);

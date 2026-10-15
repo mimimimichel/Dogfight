@@ -990,6 +990,17 @@ export function buildSnow(game) {
     const frozen = game.dialog || game.freeze > 0;
     if (frozen) { sx = 0; sy = 0; }
     const x = P.pos.x, z = P.pos.z, e = 0.6;
+    // Promenade : pilotage assisté (comme la direction assistée de Mario Kart) — quand on ne tourne pas,
+    // la luge suit doucement la piste ; dès qu'on tourne soi-même, c'est l'enfant qui pilote
+    if (game.easy && !frozen && Math.abs(sx) < 0.15) {
+      const ri = S.runInfo(x, z);
+      if (ri && ri.line && ri.d < S.RUN_W + 6) {
+        const t = ri.line.at(ri.along + 9), want = Math.atan2(t.x - x, t.z - z);
+        const dyaw = ((want - P.yaw + Math.PI * 3) % (Math.PI * 2)) - Math.PI;
+        sx = clamp(-dyaw * 1.6, -0.8, 0.8);
+      }
+      if (Math.hypot(R.vx, R.vz) < 3 && sy > -0.4) sy = -1;   // et elle repart toute seule si elle ralentit
+    }
     const gx = (S.heightAt(x + e, z) - S.heightAt(x - e, z)) / (2 * e), gz = (S.heightAt(x, z + e) - S.heightAt(x, z - e)) / (2 * e);
     // tourner (même à l'arrêt, un peu)
     const sp0 = Math.hypot(R.vx, R.vz);

@@ -354,6 +354,12 @@ export function buildPlay(game, decor) {
       if (pr.has('dash') && k.boostCd <= 0) { const up = drv && turboUp(); k.boost = up ? 1.7 : 1.15; k.boostCd = up ? 1.8 : 2.4; if (drv) game.sound('boost'); }
       if (pr.has('jump') && k.grounded) { k.vy = KP.HOP; k.grounded = false; k.hopped = true; if (drv) game.sound('jump'); }
     }
+    // Promenade : pilotage assisté pendant les courses (cap sur le prochain point de passage) — on reprend la main en touchant le stick
+    const m = st.m;
+    if (game.easy && drv && !frozen && m && ['race', 'champion', 'downhill'].includes(m.id) && m.ph !== 'ready' && m.ph !== 'count' && Math.hypot(wx, wz) <= 0.15) {
+      const path = m.id === 'downhill' ? S.DOWNHILL.cps : m.path, cp = path && path[m.prog[drv.id] || 0];
+      if (cp) { const dx = cp.x - k.x, dz = cp.z - k.z, l = Math.hypot(dx, dz) || 1; wx = dx / l; wz = dz / l; }
+    }
     const wl = Math.hypot(wx, wz);
     let target = 0, turn = 0, brake = false;
     if (wl > 0.15) {
@@ -498,7 +504,7 @@ export function buildPlay(game, decor) {
       if (d < 7) { r.wp++; r.prog = r.wp; if (r.wp >= r.path.length) { r.done = true; continue; } }
       // élastique : moins vite s'ils sont loin devant le meilleur joueur, plus vite derrière
       const gap = r.prog - leaderProg;
-      r.maxK = clamp(r.skill - gap * 0.04, 0.72, 1.06);
+      r.maxK = game.easy ? clamp(r.skill * 0.8 - gap * 0.05, 0.6, 0.86) : clamp(r.skill - gap * 0.04, 0.72, 1.06);   // (Promenade : des adversaires plus tranquilles)
       const pr = new Set();
       if (Math.random() < dt * 0.15 && gap < 1) pr.add('dash');
       driveKart(null, r, dx / (d || 1), dz / (d || 1), false, pr, dt);
