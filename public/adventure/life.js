@@ -22,6 +22,7 @@
 import * as THREE from '../vendor/three.module.min.js';
 import * as FOL from './foliage.js';
 import * as M from './models.js';
+import * as RT from './realtex.js';
 import { PointGrid } from './lifeplan.js';
 let firMatCache = null;
 const firMat = () => firMatCache || (firMatCache = FOL.firMaterials({ snow: 0.7 }));
@@ -68,6 +69,83 @@ const cone = (r, h, n) => new THREE.ConeGeometry(r, h, n || 6);
 const box = (w, h, d) => new THREE.BoxGeometry(w, h, d);
 const tor = (r, t, a, b, arc) => new THREE.TorusGeometry(r, t, a || 6, b || 16, arc);
 
+// ---------------------------------------------------------------------------
+// Matières : la couleur vient des sommets, le grain d'une vraie texture (sable, bois, tissu,
+// pelage, roche…) plaquée en « triplanaire » dans le repère de l'objet (pas besoin d'UV).
+// Fini le « jouet en plastique » : chaque sorte d'objet peut choisir sa peau (palette : skin).
+// ---------------------------------------------------------------------------
+const SKIN_CACHE = {};
+/** Une texture de grain en niveaux de gris (moyenne ~0,5) ; dessinée, ou tirée d'une photo. */
+function skinCanvas(kind) {
+  const N = 256, c = document.createElement('canvas'); c.width = c.height = N;
+  const x = c.getContext('2d');
+  let s = 97 + kind.length * 31; const r = () => ((s = (s * 16807) % 2147483647) / 2147483647);
+  const photoKey = { wood: 'brown_planks_03_d', rock: 'mossy_rock_d', bark: 'bark_willow_02_d', stone: 'stone_pathway_d' }[kind];
+  const ph = photoKey && RT.photoImage(photoKey);
+  if (ph) {
+    // photo → gris normalisé (on garde le grain, la couleur vient des sommets)
+    x.drawImage(ph, 0, 0, N, N);
+    const img = x.getImageData(0, 0, N, N), p = img.data;
+    let sum = 0; for (let i = 0; i < p.length; i += 4) sum += p[i] * 0.3 + p[i + 1] * 0.55 + p[i + 2] * 0.15;
+    const k = 128 / (sum / (p.length / 4));
+    for (let i = 0; i < p.length; i += 4) { const l = Math.min(255, (p[i] * 0.3 + p[i + 1] * 0.55 + p[i + 2] * 0.15) * k); p[i] = p[i + 1] = p[i + 2] = l; }
+    x.putImageData(img, 0, 0);
+    return c;
+  }
+  x.fillStyle = '#808080'; x.fillRect(0, 0, N, N);
+  const dot = (px, py, w, h, v, a) => { x.fillStyle = `rgba(${v},${v},${v},${a})`; x.fillRect(px, py, w, h); };
+  if (kind === 'sand' || kind === 'grain') {
+    for (let i = 0; i < 9000; i++) dot(r() * N, r() * N, 1 + r() * 1.6, 1 + r() * 1.6, r() < 0.5 ? 40 + r() * 60 : 190 + r() * 65, 0.35);
+    for (let i = 0; i < 200; i++) dot(r() * N, r() * N, 2, 2, 250, 0.6);
+  } else if (kind === 'wood' || kind === 'bark') {
+    for (let y = 0; y < N; y += 2) { const v = 128 + Math.sin(y * 0.21 + Math.sin(y * 0.05) * 4) * 40 + (r() - 0.5) * 30; dot(0, y, N, 2, v | 0, 0.7); }
+    for (let i = 0; i < 40; i++) { const y = r() * N; x.strokeStyle = 'rgba(30,30,30,0.35)'; x.beginPath(); x.moveTo(0, y); x.bezierCurveTo(N * 0.3, y + 6, N * 0.6, y - 6, N, y + (r() - 0.5) * 8); x.stroke(); }
+  } else if (kind === 'fabric') {
+    for (let y = 0; y < N; y += 2) for (let xx = 0; xx < N; xx += 2) dot(xx, y, 2, 2, ((xx + y) / 2) % 2 ? 150 + r() * 25 : 100 + r() * 25, 1);
+    for (let i = 0; i < 1500; i++) dot(r() * N, r() * N, 1, 3, 200, 0.15);
+  } else if (kind === 'fur') {
+    for (let i = 0; i < 5000; i++) { const px = r() * N, py = r() * N, v = r() < 0.5 ? 70 + r() * 40 : 170 + r() * 60; x.strokeStyle = `rgba(${v | 0},${v | 0},${v | 0},0.5)`; x.beginPath(); x.moveTo(px, py); x.lineTo(px + (r() - 0.5) * 3, py + 3 + r() * 5); x.stroke(); }
+  } else if (kind === 'skin' || kind === 'shell') {
+    for (let i = 0; i < 2500; i++) dot(r() * N, r() * N, 2 + r() * 3, 2 + r() * 3, 90 + r() * 80, 0.25);
+    if (kind === 'shell') for (let y = 0; y < N; y += 6) dot(0, y, N, 1.5, 70, 0.35);
+  } else {   // rock, stone (sans photo)
+    for (let i = 0; i < 1800; i++) dot(r() * N, r() * N, 3 + r() * 7, 3 + r() * 7, 60 + r() * 140, 0.22);
+    for (let i = 0; i < 6000; i++) dot(r() * N, r() * N, 1, 1, r() * 255, 0.3);
+  }
+  return c;
+}
+/**
+ * Matière à grain (lit) : opts { roughness, scale (répétitions par mètre), k (force du grain), side, metal }.
+ * Les géométries « peintes » n'ont pas d'UV : on échantillonne la texture sur les trois plans de
+ * l'objet (position locale, avant l'instanciation : le grain suit l'objet quand il bouge).
+ */
+export function skinMaterial(kind, opts) {
+  opts = opts || {};
+  const key = kind + ':' + (opts.side || 0) + ':' + (opts.roughness || 0.8) + ':' + (opts.k || 0.7) + ':' + (opts.scale || 2);
+  if (SKIN_CACHE[key]) return SKIN_CACHE[key];
+  const tex = new THREE.CanvasTexture(skinCanvas(kind));
+  tex.wrapS = tex.wrapT = THREE.RepeatWrapping; tex.anisotropy = 4;
+  const m = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: opts.roughness || 0.8, metalness: opts.metal || 0, side: opts.side || THREE.FrontSide });
+  const U = { uSkin: { value: tex }, uSkinS: { value: opts.scale || 2 }, uSkinK: { value: opts.k === undefined ? 0.7 : opts.k } };
+  m.onBeforeCompile = (sh) => {
+    Object.assign(sh.uniforms, U);
+    sh.vertexShader = sh.vertexShader
+      .replace('#include <common>', '#include <common>\nvarying vec3 vSkP;\nvarying vec3 vSkN;')
+      .replace('#include <begin_vertex>', '#include <begin_vertex>\nvSkP = position; vSkN = normal;');
+    sh.fragmentShader = sh.fragmentShader
+      .replace('#include <common>', '#include <common>\nuniform sampler2D uSkin;\nuniform float uSkinS, uSkinK;\nvarying vec3 vSkP;\nvarying vec3 vSkN;')
+      .replace('#include <color_fragment>', `#include <color_fragment>
+        {
+          vec3 bw = pow(abs(normalize(vSkN)), vec3(4.0)); bw /= (bw.x + bw.y + bw.z + 1e-4);
+          vec3 p = vSkP * uSkinS;
+          float g = texture2D(uSkin, p.zy).r * bw.x + texture2D(uSkin, p.xz).r * bw.y + texture2D(uSkin, p.xy).r * bw.z;
+          diffuseColor.rgb *= mix(1.0, g * 2.0, uSkinK);
+        }`);
+  };
+  m.customProgramCacheKey = () => 'life-skin';
+  return (SKIN_CACHE[key] = m);
+}
+
 /** Une paire d'yeux noirs (et un reflet) sur une tête. */
 const eyes = (x, y, z, r) => [P(sph(r, 6, 4), 0x141414, { x, y, z }), P(sph(r, 6, 4), 0x141414, { x: -x, y, z })];
 
@@ -93,7 +171,7 @@ export const MODELS = {
     const back = c.back || 0x6a7080, breast = c.breast || 0xe8503a, cap = c.cap || 0x1a1a20;
     return {
       body: merge([P(sph(0.11), back, { y: 0.15, sz: 1.3, sy: 0.95 }), P(sph(0.1), breast, { y: 0.13, z: 0.05, sx: 0.92 }), P(sph(0.078), cap, { y: 0.27, z: 0.1 }),
-        P(cone(0.03, 0.08, 5), 0x2a2a2a, { y: 0.26, z: 0.2, rx: Math.PI / 2 }), P(box(0.1, 0.02, 0.14), cap, { y: 0.17, z: -0.18, rx: 0.3 }),
+        P(cone(0.03, 0.08, 5), c.beak || 0x2a2a2a, { y: 0.26, z: 0.2, rx: Math.PI / 2 }), P(box(0.1, 0.02, 0.14), cap, { y: 0.17, z: -0.18, rx: 0.3 }),
         ...eyes(0.05, 0.29, 0.16, 0.014)]),
       flap: wingGeo(0.22, 0.13, back), pivots: [0.08, 0.18, 0.0], h: 0.35, r: 0.15,
     };
@@ -187,7 +265,95 @@ export const MODELS = {
       P(sph(0.05), f, { y: 0.45, z: -0.32, sz: 1.8, rx: 0.8 })];
     for (const [x, z] of [[0.1, 0.18], [-0.1, 0.18], [0.1, -0.18], [-0.1, -0.18]]) parts.push(P(cyl(0.05, 0.05, 0.22, 5), f, { x, y: 0.11, z }));
     if (c.bonnet) parts.push(P(sph(0.17, 8, 5, 0, TAU, 0, Math.PI / 2), c.bonnet, { y: 0.68, z: 0.26 }), P(sph(0.06), 0xfff0f0, { y: 0.86, z: 0.26 }));
+    if (c.collar) parts.push(P(tor(0.16, 0.035, 5, 12), c.collar, { y: 0.47, z: 0.2, rx: Math.PI / 2 + 0.5 }));
     return { body: merge(parts), h: 0.9, r: 0.3, tint: true };
+  },
+  // --- bord de mer ---
+  /** Crabe : carapace, yeux sur pédoncules, six pattes ; les pinces (flap) claquent. */
+  crab(c) {
+    const red = c.fur || 0xd8502a, dark = c.dark || 0xa83a1a, belly = c.belly || 0xf0a070;
+    const parts = [P(sph(0.3, 10, 6), red, { y: 0.24, sx: 1.25, sy: 0.5, sz: 0.95 }), P(sph(0.27, 10, 5), belly, { y: 0.19, sx: 1.2, sy: 0.3, sz: 0.85 })];
+    for (const s of [-1, 1]) {
+      parts.push(P(cyl(0.022, 0.022, 0.2, 4), dark, { x: s * 0.1, y: 0.4, z: 0.15 }), P(sph(0.055, 6, 5), 0xffffff, { x: s * 0.1, y: 0.52, z: 0.16 }), P(sph(0.03, 5, 4), 0x111111, { x: s * 0.1, y: 0.53, z: 0.2 }));
+      for (let i = 0; i < 3; i++) parts.push(P(cyl(0.024, 0.016, 0.34, 4), dark, { x: s * 0.4, y: 0.13, z: 0.12 - i * 0.14, rz: s * 1.05 }));
+    }
+    const flap = merge([P(cyl(0.035, 0.035, 0.22, 5), red, { x: 0.05, z: 0.1, rx: Math.PI / 2 }), P(sph(0.1, 7, 5), red, { x: 0.06, y: 0.03, z: 0.25, sx: 0.8, sy: 0.7, sz: 1.2 }),
+      P(cone(0.04, 0.12, 4), dark, { x: 0.02, y: 0.06, z: 0.36, rx: Math.PI / 2 })]);
+    return { body: merge(parts), flap, pivots: [0.28, 0.26, 0.2], flapAxis: 'z', h: 0.6, r: 0.4 };
+  },
+  /** Bernard-l'ermite : une grosse coquille en spirale, une petite tête rouge et ses pattes. */
+  hermit(c) {
+    const shell = c.shell || 0xe8d0b0, band = c.band || 0xc89870, body = c.fur || 0xe0603a;
+    const parts = [];
+    for (let i = 0; i < 4; i++) parts.push(P(sph(0.26 - i * 0.05, 9, 6), i % 2 ? band : shell, { y: 0.3 + i * 0.1, z: -0.06 - i * 0.04, sz: 1.2 }));
+    parts.push(P(cone(0.08, 0.2, 6), shell, { y: 0.72, z: -0.2, rx: -0.5 }), P(cyl(0.2, 0.2, 0.04, 10), 0x3a2418, { y: 0.27, z: 0.16, rx: 1.2 }));
+    parts.push(P(sph(0.1, 7, 5), body, { y: 0.2, z: 0.22 }), P(sph(0.05, 6, 4), body, { x: 0.12, y: 0.18, z: 0.3, sz: 1.4 }), P(sph(0.07, 6, 4), body, { x: -0.13, y: 0.18, z: 0.3, sz: 1.5 }));
+    for (const s of [-1, 1]) {
+      parts.push(P(cyl(0.015, 0.015, 0.16, 4), body, { x: s * 0.05, y: 0.32, z: 0.27 }), P(sph(0.035, 6, 4), 0x111111, { x: s * 0.05, y: 0.41, z: 0.28 }));
+      for (let i = 0; i < 2; i++) parts.push(P(cyl(0.02, 0.014, 0.24, 4), body, { x: s * 0.17, y: 0.08, z: 0.18 - i * 0.1, rz: s * 1.0 }));
+    }
+    return { body: merge(parts), h: 0.6, r: 0.3 };
+  },
+  /** Dauphin (origine au milieu du corps : il nage à la surface, saute en arc). */
+  dolphin(c) {
+    const back = c.back || 0x5a7488, belly = c.belly || 0xdce6ee;
+    const parts = [P(sph(0.42, 12, 8), back, { sx: 0.72, sy: 0.7, sz: 2.4 }), P(sph(0.36, 10, 6), belly, { y: -0.1, sx: 0.66, sy: 0.55, sz: 2.2 }),
+      P(cone(0.13, 0.42, 8), back, { y: -0.05, z: 1.12, rx: Math.PI / 2, sy: 1 }), P(sph(0.18, 8, 6), back, { y: 0.12, z: 0.78, sx: 0.9 }),
+      P(cone(0.22, 0.48, 5), back, { y: 0.42, z: -0.05, rx: -0.55, sz: 0.25 }), P(cone(0.1, 0.5, 6), back, { z: -1.05, rx: -Math.PI / 2 }),
+      P(box(0.9, 0.05, 0.3), back, { z: -1.32 }), ...eyes(0.17, 0.14, 0.78, 0.03), P(box(0.18, 0.012, 0.012), 0x2a3440, { y: -0.04, z: 1.12 })];
+    const flap = merge([P(sph(0.16, 6, 4), back, { x: 0.14, sx: 1.6, sy: 0.15, sz: 0.6, ry: -0.5 })]);
+    return { body: merge(parts), flap, pivots: [0.24, -0.15, 0.45], h: 0.9, r: 1.0 };
+  },
+  /** Méduse : une ombrelle rose et des tentacules (on la voit par transparence : lueur). */
+  jelly(c) {
+    const f = c.fur || 0xf4a8d0, inner = c.inner || 0xffd8ec;
+    const parts = [P(sph(0.42, 12, 6, 0, TAU, 0, Math.PI / 2), f, { sy: 0.75 }), P(sph(0.26, 10, 5, 0, TAU, 0, Math.PI / 2), inner, { y: 0.02, sy: 0.7 }),
+      P(tor(0.4, 0.04, 4, 18), f, { y: 0.01, rx: Math.PI / 2 })];
+    for (let i = 0; i < 7; i++) { const a = i / 7 * TAU; parts.push(P(cyl(0.02, 0.008, 0.9, 3), inner, { x: Math.cos(a) * 0.22, y: -0.45, z: Math.sin(a) * 0.22, rx: Math.sin(a) * 0.15, rz: Math.cos(a) * 0.15 })); }
+    parts.push(P(cyl(0.08, 0.02, 0.6, 5), inner, { y: -0.3 }));
+    return { body: merge(parts), h: 0.4, r: 0.45 };
+  },
+  /** Étoile de mer (teintée) : cinq bras bombés, deux petits yeux. */
+  starfish() {
+    const f = 0xffffff, parts = [P(sph(0.14, 8, 5), f, { y: 0.04, sy: 0.4 })];
+    for (let i = 0; i < 5; i++) {
+      const a = i / 5 * TAU;
+      parts.push(P(cone(0.11, 0.42, 5), f, { x: Math.sin(a) * 0.2, y: 0.04, z: Math.cos(a) * 0.2, rx: Math.PI / 2, ry: a, sx: 1, sz: 0.45 }));
+      for (let k = 1; k < 3; k++) parts.push(P(sph(0.022, 4, 3), 0xfff4e0, { x: Math.sin(a) * (0.12 + k * 0.1), y: 0.075, z: Math.cos(a) * (0.12 + k * 0.1) }));
+    }
+    parts.push(...eyes(0.04, 0.085, 0.05, 0.022));
+    return { body: merge(parts), h: 0.12, r: 0.4, tint: true };
+  },
+  /** Tortue de mer : carapace à écailles, tête, nageoires (flap : les nageoires avant rament). */
+  turtle(c) {
+    const shell = c.shell || 0x6a7a3a, scute = c.scute || 0x8a8a4a, skin = c.fur || 0x9aa878, under = 0xe8dca8;
+    const parts = [P(sph(0.45, 12, 6, 0, TAU, 0, Math.PI / 2), shell, { y: 0.1, sy: 0.55, sz: 1.2 }), P(cyl(0.44, 0.4, 0.08, 12), under, { y: 0.1, sz: 1.2 })];
+    for (let i = 0; i < 6; i++) { const a = i / 6 * TAU; parts.push(P(cyl(0.11, 0.11, 0.03, 6), scute, { x: Math.sin(a) * 0.24, y: 0.3 - 0.02, z: Math.cos(a) * 0.28, rx: Math.cos(a) * 0.5, rz: -Math.sin(a) * 0.5 })); }
+    parts.push(P(cyl(0.12, 0.12, 0.03, 6), scute, { y: 0.35 }));
+    parts.push(P(sph(0.15, 8, 6), skin, { y: 0.17, z: 0.62, sz: 1.2 }), ...eyes(0.08, 0.22, 0.72, 0.028), P(sph(0.08, 5, 4), skin, { x: 0.18, y: 0.08, z: -0.5, sx: 1.4, sy: 0.4 }), P(sph(0.08, 5, 4), skin, { x: -0.18, y: 0.08, z: -0.5, sx: 1.4, sy: 0.4 }));
+    const flap = merge([P(sph(0.16, 6, 4), skin, { x: 0.2, sx: 1.8, sy: 0.18, sz: 0.7, ry: -0.4 })]);
+    return { body: merge(parts), flap, pivots: [0.32, 0.12, 0.3], h: 0.45, r: 0.5 };
+  },
+  /** Phoque : corps fuselé, moustaches ; les nageoires (flap) applaudissent. */
+  seal(c) {
+    const f = c.fur || 0x8a8a98, belly = c.belly || 0xc0c0cc;
+    const parts = [P(sph(0.36, 12, 8), f, { y: 0.3, sx: 0.95, sy: 0.8, sz: 1.7 }), P(sph(0.3, 10, 6), belly, { y: 0.22, z: 0.1, sx: 0.85, sy: 0.6, sz: 1.5 }),
+      P(cone(0.16, 0.4, 8), f, { y: 0.2, z: -0.72, rx: -Math.PI / 2 }), P(sph(0.12, 6, 4), f, { x: 0.14, y: 0.12, z: -0.95, sx: 1.5, sy: 0.25, ry: 0.9 }), P(sph(0.12, 6, 4), f, { x: -0.14, y: 0.12, z: -0.95, sx: 1.5, sy: 0.25, ry: -0.9 }),
+      P(sph(0.28, 10, 8), f, { y: 0.62, z: 0.52 }), P(sph(0.13, 8, 6), belly, { y: 0.54, z: 0.74, sx: 1.2, sy: 0.8 }), P(sph(0.04, 6, 4), 0x2a2a2a, { y: 0.6, z: 0.85, sx: 1.3 }),
+      ...eyes(0.11, 0.69, 0.74, 0.05)];
+    for (const s of [-1, 1]) for (const dy of [-0.02, 0.02]) parts.push(P(cyl(0.004, 0.004, 0.26, 3), 0xdddddd, { x: s * 0.15, y: 0.53 + dy, z: 0.82, rz: Math.PI / 2 + s * dy * 6 }));
+    const flap = merge([P(sph(0.14, 6, 4), f, { x: 0.12, y: -0.05, sx: 1.6, sy: 0.25, sz: 0.8 })]);
+    return { body: merge(parts), flap, pivots: [0.28, 0.16, 0.28], flapAxis: 'z', h: 0.95, r: 0.6 };
+  },
+  /** Papillon : un petit corps et deux ailes (flap) colorées. */
+  butterfly(c) {
+    const w1 = c.wing || 0xffa030, w2 = c.wing2 || 0x2a2018;
+    return {
+      body: merge([P(cyl(0.012, 0.01, 0.16, 4), 0x2a2018, { rx: Math.PI / 2 }), P(sph(0.018, 5, 4), 0x2a2018, { z: 0.09 })]),
+      flap: merge([P(sph(0.07, 7, 4), w1, { x: 0.07, z: 0.03, sx: 1.1, sy: 0.08, sz: 0.85 }), P(sph(0.05, 6, 4), w1, { x: 0.05, z: -0.05, sx: 0.9, sy: 0.08, sz: 0.8 }),
+        P(sph(0.02, 4, 3), w2, { x: 0.1, y: 0.006, z: 0.04, sy: 0.3 }), P(sph(0.015, 4, 3), 0xffffff, { x: 0.06, y: 0.006, z: 0.06, sy: 0.3 })]),
+      pivots: [0.008, 0, 0], h: 0.1, r: 0.12,
+    };
   },
 };
 
@@ -232,6 +398,24 @@ const VILLAGER = {
   pan() { return merge([P(cyl(0.025, 0.025, 0.5, 5), 0x3a3a3a, { y: -0.05, rx: 1.2 }), P(cyl(0.28, 0.22, 0.1, 10), 0x2a2a30, { y: -0.18, z: 0.45 }), P(sph(0.06), 0x7a3a1a, { x: 0.08, y: -0.11, z: 0.45 }), P(sph(0.06), 0x7a3a1a, { x: -0.08, y: -0.11, z: 0.5 })]); },
   flag() { return merge([P(cyl(0.02, 0.02, 1.2, 4), 0xdddddd, { y: 0.35 }), P(box(0.02, 0.32, 0.46), 0x3a8ae0, { y: 0.8, z: 0.24 })]); },
   snowball() { return merge([P(sph(0.16), 0xffffff, { y: -0.5 })]); },
+  // tenue d'été (teintée) : tee-shirt à manches courtes, short ; chapeau de paille et lunettes noires
+  summer() {
+    const w = 0xffffff;
+    return merge([P(cyl(0.35, 0.41, 0.5, 12), w, { y: 0.74 }), P(sph(0.16, 8, 6), w, { x: 0.33, y: 1.0, sy: 0.8 }), P(sph(0.16, 8, 6), w, { x: -0.33, y: 1.0, sy: 0.8 }),
+      P(cyl(0.38, 0.36, 0.2, 12), 0xdcdcdc, { y: 0.42 }), P(tor(0.17, 0.04, 5, 12), w, { y: 1.04, z: 0.04, rx: Math.PI / 2 })]);
+  },
+  sunhat() {
+    const straw = 0xe8cc88;
+    return merge([P(cyl(0.52, 0.55, 0.03, 16), straw, { y: 1.74 }), P(cyl(0.25, 0.29, 0.22, 12), straw, { y: 1.86 }), P(cyl(0.295, 0.295, 0.06, 12), 0xc83a3a, { y: 1.78 }),
+      P(box(0.13, 0.08, 0.03), 0x15151a, { x: 0.1, y: 1.55, z: 0.36 }), P(box(0.13, 0.08, 0.03), 0x15151a, { x: -0.1, y: 1.55, z: 0.36 }), P(box(0.08, 0.015, 0.02), 0x15151a, { y: 1.57, z: 0.37 })]);
+  },
+  spade() { return merge([P(cyl(0.025, 0.025, 0.55, 5), 0xf0c020, { y: -0.1, rx: 0.3 }), P(box(0.2, 0.03, 0.24), 0xe84a3a, { y: -0.4, z: 0.1, rx: 0.6 })]); },
+  surfboard() { return merge([P(sph(0.5, 12, 6), 0x3ab0e8, { y: -0.2, z: -0.12, sx: 0.36, sy: 2.6, sz: 0.06 }), P(box(0.04, 2.2, 0.065), 0xffffff, { y: -0.2, z: -0.12 }), P(cone(0.05, 0.12, 4), 0x2a6a9a, { y: -1.2, z: -0.18, rx: -Math.PI / 2 })]); },
+  ukulele() { return merge([P(sph(0.16, 9, 6), 0xb87a3a, { x: -0.18, y: -0.35, z: 0.28, sz: 0.35 }), P(sph(0.12, 8, 5), 0xb87a3a, { x: -0.05, y: -0.3, z: 0.3, sz: 0.35 }), P(cyl(0.04, 0.04, 0.02, 8), 0x2a1a10, { x: -0.16, y: -0.35, z: 0.34, rx: Math.PI / 2 }), P(box(0.05, 0.42, 0.03), 0x5a3a20, { x: 0.12, y: -0.3, z: 0.3, rz: 1.2 })]); },
+  scoop() { return merge([P(cyl(0.02, 0.02, 1.3, 5), 0xc8a060, { y: -0.2, z: 0.4, rx: 1.1 }), P(tor(0.2, 0.02, 4, 12), 0x3a7ad8, { y: -0.45, z: 1.0, rx: 0.4 }), P(cone(0.19, 0.3, 8), 0xf0f0f0, { y: -0.6, z: 1.0, rx: Math.PI + 0.4 })]); },
+  vball() { return merge([P(sph(0.2, 10, 8, 0, Math.PI), 0xffffff, { y: -0.6, z: 0.15 }), P(sph(0.2, 10, 8, Math.PI, Math.PI), 0xf0c030, { y: -0.6, z: 0.15 })]); },
+  tray() { const p = [P(box(0.6, 0.04, 0.4), 0xb88a50, { y: -0.45, z: 0.3 }), P(box(0.62, 0.08, 0.02), 0xa07040, { y: -0.41, z: 0.5 })]; for (let i = 0; i < 6; i++) p.push(P(sph(0.07, 6, 5), 0xd89850, { x: -0.2 + (i % 3) * 0.2, y: -0.39, z: 0.22 + Math.floor(i / 3) * 0.15, sy: 0.7 })); return merge(p); },
+  spool() { return merge([P(cyl(0.08, 0.08, 0.18, 8), 0xc8a060, { y: -0.45, rz: Math.PI / 2 }), P(cyl(0.004, 0.004, 3.0, 3), 0xf0f0f0, { y: 1.0, z: 0.5, rx: 0.35 })]); },
 };
 
 // Objets
@@ -278,7 +462,102 @@ export const PROPS = {
   button() {
     return { geo: merge([P(cyl(0.6, 0.7, 0.35, 12), 0xf2f6fc, { y: 0.17 }), P(cyl(0.38, 0.42, 0.22, 12), 0xe8403a, { y: 0.42 }), P(cyl(0.2, 0.2, 0.04, 10), 0xffffff, { y: 0.54 })]), h: 0.55, r: 0.6 };
   },
-  hole() { return { geo: merge([P(cyl(0.55, 0.55, 0.02, 14), 0x16303e, { y: 0.03 }), P(tor(0.58, 0.08, 4, 16), 0xeef6ff, { y: 0.05, rx: Math.PI / 2, sz: 0.4 })]), h: 0.1, r: 0.6 }; },
+  hole(c) { return { geo: merge([P(cyl(0.55, 0.55, 0.02, 14), c.inner || 0x16303e, { y: 0.03 }), P(tor(0.58, 0.08, 4, 16), c.rim || 0xeef6ff, { y: 0.05, rx: Math.PI / 2, sz: 0.4 })]), h: 0.1, r: 0.6 }; },
+  // --- bord de mer ---
+  /** Château de sable (il se bâtit en plusieurs étapes : voir l'action « build »). */
+  castle(c) {
+    const s = c.sand || 0xe2c488, d = c.dark || 0xcaa868, parts = [P(sph(1.05, 14, 6, 0, TAU, 0, Math.PI / 2), d, { sy: 0.32 })];
+    for (const [x, z] of [[0.6, 0.6], [-0.6, 0.6], [0.6, -0.6], [-0.6, -0.6]]) {
+      parts.push(P(cyl(0.2, 0.26, 0.7, 10), s, { x, y: 0.5, z }));
+      for (let i = 0; i < 4; i++) { const a = i / 4 * TAU + 0.4; parts.push(P(box(0.08, 0.1, 0.08), s, { x: x + Math.cos(a) * 0.16, y: 0.9, z: z + Math.sin(a) * 0.16 })); }
+    }
+    parts.push(P(cyl(0.34, 0.42, 1.05, 12), s, { y: 0.7 }), P(cone(0.36, 0.42, 12), d, { y: 1.43 }));
+    for (const [x, z, rz, rx] of [[0, 0.6, 0, 0], [0, -0.6, 0, 0], [0.6, 0, 1, 0], [-0.6, 0, 1, 0]]) parts.push(P(box(rz ? 0.12 : 0.95, 0.32, rz ? 0.95 : 0.12), s, { x, y: 0.35, z, rx }));
+    parts.push(P(box(0.18, 0.28, 0.06), 0x5a4428, { y: 0.48, z: 0.42 }), P(sph(0.05, 6, 4), 0xfff0f4, { x: 0.25, y: 0.75, z: 0.37 }), P(sph(0.05, 6, 4), 0xffc8d8, { x: -0.22, y: 0.9, z: 0.34 }));
+    return { geo: merge(parts), h: 1.65, r: 0.95 };
+  },
+  pennant() { return { geo: merge([P(cyl(0.012, 0.012, 0.6, 4), 0xf4ecd8, { y: 0.3 }), P(box(0.02, 0.18, 0.3), 0xe83a3a, { y: 0.5, z: 0.15 })]), h: 0.6, r: 0.1 }; },
+  /** Ballon de plage (rayon 1 : on le met à l'échelle) : six quartiers de couleur. */
+  beachball() {
+    const cols = [0xe83a3a, 0xffffff, 0x2a8ae8, 0xffffff, 0xf8c020, 0xffffff], parts = [];
+    for (let i = 0; i < 6; i++) parts.push(P(sph(1, 8, 10, i / 6 * TAU, TAU / 6), cols[i]));
+    parts.push(P(cyl(0.2, 0.2, 2.02, 10), 0xffffff));
+    return { geo: merge(parts), h: 1, r: 1 };
+  },
+  /** Parasol (teinté) : on rebondit sur la toile. */
+  parasol() {
+    const parts = [P(cyl(0.035, 0.035, 2.5, 6), 0xf2f2f2, { y: 1.25 })];
+    for (let i = 0; i < 8; i++) parts.push(P(cyl(0.06, 1.45, 0.5, 3, 1, false, i / 8 * TAU, TAU / 8), i % 2 ? 0xffffff : 0x9a9a9a, { y: 2.35 }));
+    for (let i = 0; i < 8; i++) { const a = (i + 0.5) / 8 * TAU; parts.push(P(sph(0.12, 5, 3), i % 2 ? 0xffffff : 0x9a9a9a, { x: Math.sin(a) * 1.4, y: 2.08, z: Math.cos(a) * 1.4, sy: 0.5 })); }
+    parts.push(P(sph(0.07, 6, 4), 0xffffff, { y: 2.64 }));
+    return { geo: merge(parts), h: 2.6, r: 1.45 };
+  },
+  /** Matelas gonflable (teinté) : un trampoline tout mou. */
+  mattress() {
+    const parts = [P(box(1.1, 0.16, 1.9), 0xffffff, { y: 0.12 })];
+    for (let i = 0; i < 6; i++) parts.push(P(cyl(0.11, 0.11, 1.08, 8), i % 2 ? 0xffffff : 0xd0d0d0, { y: 0.2, z: -0.7 + i * 0.24, rz: Math.PI / 2 }));
+    parts.push(P(cyl(0.16, 0.16, 1.08, 8), 0xf0f0f0, { y: 0.25, z: 0.82, rz: Math.PI / 2 }));
+    return { geo: merge(parts), h: 0.35, r: 1.0 };
+  },
+  /** Touffe d'oyats (herbe des dunes). */
+  oyat() {
+    const parts = [P(sph(0.45, 8, 4, 0, TAU, 0, Math.PI / 2), 0xe2c890, { sy: 0.3 })];
+    for (let i = 0; i < 14; i++) { const a = i * 2.4, r = 0.08 + (i % 4) * 0.06, h = 0.8 + (i % 5) * 0.14; parts.push(P(cone(0.035, h, 3), i % 3 ? 0x9aa850 : 0xc8bc78, { x: Math.cos(a) * r, y: h / 2, z: Math.sin(a) * r, rx: Math.sin(a) * 0.35, rz: -Math.cos(a) * 0.35 })); }
+    return { geo: merge(parts), h: 1.2, r: 0.45 };
+  },
+  /** Seau et pelle (teintés) dans un petit pâté de sable. */
+  bucket() {
+    return { geo: merge([P(sph(0.42, 9, 4, 0, TAU, 0, Math.PI / 2), 0xd8bc80, { sy: 0.25 }), P(cyl(0.24, 0.18, 0.34, 12, 1, true), 0xffffff, { y: 0.2 }), P(cyl(0.18, 0.18, 0.02, 12), 0xd8bc80, { y: 0.06 }),
+      P(tor(0.24, 0.022, 4, 14), 0xffffff, { y: 0.37, rx: Math.PI / 2 }), P(tor(0.22, 0.012, 3, 10, Math.PI), 0xe0e0e0, { y: 0.37, ry: 0.4 }),
+      P(cyl(0.022, 0.022, 0.45, 5), 0xf0c020, { x: 0.38, y: 0.2, z: 0.1, rz: -0.4 }), P(box(0.16, 0.025, 0.2), 0xe8e8e8, { x: 0.47, y: 0.03, z: 0.1 })]), h: 0.45, r: 0.35 };
+  },
+  /** Tonneau échoué (cerclé de fer). */
+  barrel() {
+    return { geo: merge([P(cyl(0.34, 0.3, 0.85, 12), 0x8a6038, { y: 0.42 }), P(cyl(0.36, 0.36, 0.06, 12), 0x3a3430, { y: 0.2 }), P(cyl(0.36, 0.36, 0.06, 12), 0x3a3430, { y: 0.66 }), P(cyl(0.29, 0.29, 0.03, 12), 0x6a4a2a, { y: 0.86 }), P(sph(0.25, 6, 3), 0x5a7a3a, { x: 0.1, y: 0.02, z: 0.3, sy: 0.25 })]), h: 0.9, r: 0.4 };
+  },
+  /** Tas d'algues (avec un coquillage dedans). */
+  kelp() {
+    const parts = [];
+    for (let i = 0; i < 7; i++) { const a = i * 2.1; parts.push(P(sph(0.3, 7, 4), i % 2 ? 0x4a5a28 : 0x6a5a2a, { x: Math.cos(a) * 0.3 * (i % 3), y: 0.04, z: Math.sin(a) * 0.3 * (i % 3), sx: 1.4, sy: 0.22, ry: a })); }
+    parts.push(P(sph(0.08, 6, 4), 0xffd8e0, { x: 0.25, y: 0.1, z: 0.1, sy: 0.6 }), P(sph(0.06, 5, 4), 0xf0e0c0, { x: -0.3, y: 0.09, z: -0.1, sy: 0.7 }));
+    return { geo: merge(parts), h: 0.2, r: 0.7 };
+  },
+  /** Carillon de coquillages (bois flotté et coquillages suspendus) : il chante. */
+  shellchime() {
+    const wood = 0xb8a080, parts = [P(cyl(0.07, 0.09, 2.3, 6), wood, { x: 0.85, y: 1.15, rz: 0.05 }), P(cyl(0.07, 0.09, 2.3, 6), wood, { x: -0.85, y: 1.15, rz: -0.05 }), P(cyl(0.07, 0.07, 2.0, 6), wood, { y: 2.28, rz: Math.PI / 2 })];
+    const cols = [0xffd8c8, 0xf8e8c0, 0xe8c8f0, 0xc8e8f0, 0xffc8a0];
+    for (let i = 0; i < 5; i++) { const x = -0.6 + i * 0.3, len = 0.4 + (i % 3) * 0.15; parts.push(P(cyl(0.006, 0.006, len, 3), 0xe8e0d0, { x, y: 2.24 - len / 2 }), P(cone(0.09, 0.22, 7), cols[i], { x, y: 2.2 - len, rx: Math.PI }), P(sph(0.05, 6, 4), cols[i], { x, y: 2.1 - len - 0.12 })); }
+    return { geo: merge(parts), h: 2.3, r: 0.45 };
+  },
+  /** Cerf-volant (teinté) au bout de sa ficelle, attaché à un piquet. */
+  kite() {
+    const parts = [P(cyl(0.03, 0.03, 0.5, 4), 0x8a6a40, { y: 0.2 })];
+    const ty = 7.5, tz = -3.2, L = Math.hypot(ty, tz), a = Math.atan2(-tz, ty);
+    parts.push(P(cyl(0.008, 0.008, L, 3), 0xf4f4f4, { y: ty / 2 + 0.3, z: tz / 2, rx: -a }));
+    parts.push(P(new THREE.OctahedronGeometry(0.7, 0), 0xffffff, { y: ty + 0.6, z: tz - 0.1, sx: 0.75, sy: 1.0, sz: 0.06, rx: -0.4 }), P(box(0.02, 1.35, 0.03), 0x3a2a1a, { y: ty + 0.6, z: tz - 0.06, rx: -0.4 }), P(box(1.0, 0.02, 0.03), 0x3a2a1a, { y: ty + 0.75, z: tz - 0.11, rx: -0.4 }));
+    for (let i = 0; i < 4; i++) parts.push(P(box(0.22, 0.08, 0.02), i % 2 ? 0xffffff : 0xd0d0d0, { x: Math.sin(i * 1.4) * 0.15, y: ty - 0.2 - i * 0.45, z: tz + 0.15 + i * 0.12, rz: i * 0.5 }));
+    return { geo: merge(parts), h: ty + 1.2, r: 0.3 };
+  },
+  /** Filet de volley (deux poteaux, filet à mailles) : le long de l'axe x. */
+  net() {
+    const parts = [P(cyl(0.06, 0.06, 2.6, 6), 0xe8e8e8, { x: 3.2, y: 1.3 }), P(cyl(0.06, 0.06, 2.6, 6), 0xe8e8e8, { x: -3.2, y: 1.3 }), P(box(6.4, 0.08, 0.03), 0xffffff, { y: 2.42 })];
+    for (let i = 0; i < 4; i++) parts.push(P(box(6.4, 0.015, 0.015), 0x2a2a2a, { y: 1.62 + i * 0.25 }));
+    for (let i = 0; i <= 26; i++) parts.push(P(box(0.015, 0.8, 0.015), 0x2a2a2a, { x: -3.15 + i * 0.242, y: 2.0 }));
+    return { geo: merge(parts), h: 2.5, r: 3.2 };
+  },
+  /** Serviette de plage (teintée, rayée). */
+  towel() {
+    const parts = [];
+    for (let i = 0; i < 7; i++) parts.push(P(box(1.0, 0.03, 0.27), i % 2 ? 0xffffff : 0xa8a8a8, { y: 0.03, z: -0.81 + i * 0.27 }));
+    return { geo: merge(parts), h: 0.05, r: 0.9 };
+  },
+  /** Touffe de fleurs sauvages (on la secoue). */
+  flowers() {
+    const parts = [P(sph(0.3, 7, 4), 0x4a7a30, { y: 0.1, sy: 0.5 })];
+    const cols = [0xff7ab0, 0xffe040, 0xffffff, 0xb07aff, 0xff5a3a];
+    for (let i = 0; i < 9; i++) { const a = i * 2.4, r = 0.12 + (i % 3) * 0.08, h = 0.3 + (i % 4) * 0.08; parts.push(P(cyl(0.012, 0.012, h, 3), 0x5a8a3a, { x: Math.cos(a) * r, y: h / 2, z: Math.sin(a) * r }), P(sph(0.06, 6, 4), cols[i % 5], { x: Math.cos(a) * r, y: h + 0.02, z: Math.sin(a) * r, sy: 0.6 })); }
+    return { geo: merge(parts), h: 0.6, r: 0.35 };
+  },
   marker() { return { geo: merge([P(tor(1.15, 0.1, 5, 24), 0xffd23a, { y: 0.08, rx: Math.PI / 2, sz: 0.5 }), P(cyl(1.0, 1.0, 0.03, 20), 0xfff2a8, { y: 0.03 })]), h: 0.1, r: 1.2 }; },
   star() { return { geo: merge([P(new THREE.OctahedronGeometry(0.32), 0xffe24a, { sy: 1.3 })]), h: 0.4, r: 0.3, unlit: true }; },
   coin() { return { geo: merge([P(new THREE.OctahedronGeometry(0.3), 0xff3a4a, { sz: 0.35, sy: 1.25 })]), h: 0.4, r: 0.3, unlit: true }; },
@@ -362,36 +641,45 @@ export function buildLife(game, cfg) {
   shadowL.mesh.renderOrder = 1;
 
   // modèles de bêtes (une couche par sorte, une pour les ailes)
+  const skinOf = (o, fallback) => (o && o.skin ? skinMaterial(o.skin, o.skinOpts) : fallback);
   const faunaModel = {};
   const countKind = (list, k) => list.filter(e => e.kind === k).reduce((a, e) => a + (e.n || (pal.fauna[k] && pal.fauna[k].group) || 1), 0);
   const defiCritters = {};
   for (const d of plan.defis) { const c = d.critter || (d.type === 'whack' ? 'marmot' : d.type === 'fish' ? 'fish' : null); if (c) defiCritters[c] = (defiCritters[c] || 0) + (d.chicks ? d.chicks.length : 1) + 2; }
+  for (const v of plan.villagers) if (v.body === 'critter' && v.model) defiCritters[v.model] = (defiCritters[v.model] || 0) + 1;
   for (const k in pal.fauna) {
     const f = pal.fauna[k], mdl = MODELS[f.model](f.colors || {});
     const n = countKind(plan.fauna, k) + (defiCritters[k] || 0) + (f.extra || 0);
-    faunaModel[k] = { f, mdl, body: layer('f_' + k, mdl.body, mdl.unlit ? unlitMat : litMat, n + 2, !!mdl.tint), flap: mdl.flap ? layer('w_' + k, mdl.flap, wingMat, (n + 2) * 2, false) : null };
+    faunaModel[k] = { f, mdl, body: layer('f_' + k, mdl.body, mdl.unlit ? unlitMat : skinOf(f, litMat), n + 2, !!(mdl.tint || f.tints)), flap: mdl.flap ? layer('w_' + k, mdl.flap, wingMat, (n + 2) * 2, false) : null };
   }
   const propModel = {};
   const propCount = {};
   for (const p of plan.props) propCount[p.kind] = (propCount[p.kind] || 0) + 1;
+  const holeOf = (o) => (o && o.holeKind) || 'hole';
   const propKinds = new Set([...Object.keys(propCount), 'marker', 'star', 'coin', 'ring', 'sparkle', 'chest', 'lid', 'hole', 'finish']);
   const extraProp = { marker: plan.defis.length, star: plan.defis.length, coin: 12, ring: 12, sparkle: 0, chest: plan.secrets.length, lid: plan.secrets.length, hole: 0, finish: 2 };
+  const more = (k, n) => { propKinds.add(k); extraProp[k] = (extraProp[k] || 0) + n; };
   for (const t of plan.trails) extraProp.sparkle += t.pts.length;
   extraProp.sparkle += 40;   // paillettes qui tombent des sapins, des coffres…
-  for (const e of plan.fauna) if (pal.fauna[e.kind] && pal.fauna[e.kind].hole) extraProp.hole++;
-  for (const d of plan.defis) if (d.holes) extraProp.hole += d.holes.length;
+  for (const e of plan.fauna) if (pal.fauna[e.kind] && pal.fauna[e.kind].hole) more(holeOf(pal.fauna[e.kind]), 1);
+  for (const d of plan.defis) if (d.holes) more(holeOf(d), d.holes.length);
+  for (const d of plan.defis) if (d.type === 'volley') more(d.ball || 'beachball', 1);
+  for (const k in propCount) { const pk = pal.props[k] || {}; if (pk.crown) more(pk.crown, propCount[k]); }
   for (const k of propKinds) {
     const pk = pal.props[k] || {};
     const mdl = PROPS[pk.model || k](pk.colors || {});
     const n = (propCount[k] || 0) + (extraProp[k] || 0);
-    propModel[k] = { pk, mdl, l: layer('p_' + k, mdl.geo, mdl.mat || (mdl.unlit ? unlitMat : litMat), n + 2, k === 'hat' || !!pk.tint) };
+    propModel[k] = { pk, mdl, l: layer('p_' + k, mdl.geo, mdl.mat || (mdl.unlit ? unlitMat : skinOf(pk, litMat)), n + 2, k === 'hat' || !!pk.tint) };
     if (mdl.shadow) propModel[k].l.mesh.castShadow = true;
   }
   // chapeaux des bonshommes (teintés)
   const hatL = layer('p_hat', VILLAGER.hat(), litMat, (propCount.snowman || 0) + 6, true);
-  // habitants
-  const vill = { body: layer('v_dog', VILLAGER.dog(), litMat, 24, true), cloth: layer('v_cloth', VILLAGER.dogCloth(), litMat, 24, true), arm: layer('v_arm', VILLAGER.arm(), litMat, 48, true),
+  // habitants (pal.villagers : { skin, clothSkin, hatSkin } pour du vrai pelage, du vrai tissu, de la vraie paille)
+  const pv = pal.villagers || {}, furMat = skinOf(pv, litMat), clothMat = pv.clothSkin ? skinMaterial(pv.clothSkin, pv.clothOpts) : litMat;
+  const vill = { body: layer('v_dog', VILLAGER.dog(), furMat, 24, true), cloth: layer('v_cloth', VILLAGER.dogCloth(), clothMat, 24, true), arm: layer('v_arm', VILLAGER.arm(), clothMat, 48, true),
     snow: layer('v_snow', VILLAGER.snowman(), litMat, 3, false), snowArm: layer('v_snowarm', VILLAGER.snowArm(), litMat, 6, false), yeti: layer('v_yeti', VILLAGER.yeti(), litMat, 2, false), yetiArm: layer('v_yetiarm', VILLAGER.yetiArm(), litMat, 4, false) };
+  if (plan.villagers.some(v => v.outfit === 'summer')) vill.summer = layer('v_summer', VILLAGER.summer(), clothMat, 24, true);
+  if (plan.villagers.some(v => v.sunhat)) vill.sunhat = layer('v_sunhat', VILLAGER.sunhat(), skinOf({ skin: pv.hatSkin }, litMat), 12, false);
   const tools = {};
   for (const v of plan.villagers) if (v.tool && !tools[v.tool]) tools[v.tool] = layer('t_' + v.tool, VILLAGER[v.tool](), litMat, plan.villagers.filter(q => q.tool === v.tool).length + 1, false);
 
@@ -411,8 +699,15 @@ export function buildLife(game, cfg) {
   }
   const cGrid = new PointGrid(16);
   for (const c of creatures) cGrid.add({ x: c.hx, z: c.hz, c });
-  const props = plan.props.map((def, i) => ({ def, i, kind: def.kind, x: def.x, y: def.y, z: def.z, yaw: def.rot || 0, wob: -9, sq: -9, broken: 0, ring: -9, r: def.kind === 'ball' ? 0.5 : 0, rot: 0, bx: def.x, bz: def.z, on: false }));
+  const props = plan.props.map((def, i) => {
+    const pk = pal.props[def.kind] || {};
+    const p = { def, i, kind: def.kind, x: def.x, y: def.y, z: def.z, yaw: def.rot || 0, wob: -9, sq: -9, broken: 0, ring: -9, r: def.kind === 'ball' ? 0.5 : 0, rot: 0, bx: def.x, bz: def.z, on: false };
+    if (pk.act === 'build') { p.stage0 = def.stage === undefined ? 0 : def.stage; p.stage = p.stage0; p.grow = -9; }
+    if (pk.act === 'kick') { p.r = pk.radius || 0.45; p.vx = 0; p.vy = 0; p.vz = 0; p.by = def.y; p.y = def.y; }
+    return p;
+  });
   const propById = new Map(props.map(p => [p.def.id, p]));
+  const kicks = props.filter(p => (pal.props[p.kind] || {}).act === 'kick');
   const pGrid = new PointGrid(16);
   for (const p of props) pGrid.add({ x: p.def.x, z: p.def.z, p });
   const villagers = plan.villagers.map((def, i) => ({ def, i, x: def.x, y: def.y, z: def.z, yaw: def.yaw || 0, ph: i * 1.7, awake: !def.sleepy, wave: -9, run: null }));
@@ -459,6 +754,8 @@ export function buildLife(game, cfg) {
     else if (type === 'chest') { const c = chests[a]; if (c) c.open = game.t; }
     else if (type === 'press') { if (p) { p.sq = game.t; p.on = !!b; } }
     else if (type === 'wave') { const v = villagers[a]; if (v) v.wave = game.t; }
+    else if (type === 'kick') { if (p) { p.sq = game.t; game.sound('ball'); } }
+    else if (type === 'grow') { if (p) { p.stage = b; p.grow = game.t; if (b) note(67 + PENTA[b * 2 % PENTA.length], 'mallet', 0.1); } }
     else if (type === 'chirp') chirp(['chirp', 'squeak', 'hoot', 'honk', 'whistle', 'grunt', 'ting', 'splash', 'yip'][a] || 'ting');
   }
   const CHIRPS = ['chirp', 'squeak', 'hoot', 'honk', 'whistle', 'grunt', 'ting', 'splash', 'yip'];
@@ -494,7 +791,7 @@ export function buildLife(game, cfg) {
 
   // --- défis éclair -----------------------------------------------------------------------------
   const defiDone = (id) => sv().defis.includes(id);
-  const KIND_NAMES = { coins: 'Les pièces rouges', rings: 'Les anneaux', race: 'La course', chase: 'Attrape-le !', pads: 'Les trampolines', whack: 'Tape-taupe', fish: 'La pêche', tag: 'Chat perché', xylo: 'La mélodie de glace', herd: 'Les petits perdus' };
+  const KIND_NAMES = { coins: 'Les pièces rouges', rings: 'Les anneaux', race: 'La course', chase: 'Attrape-le !', pads: 'Les trampolines', whack: 'Tape-taupe', fish: 'La pêche', tag: 'Chat perché', xylo: 'La mélodie de glace', herd: 'Les petits perdus', build: 'Les châteaux', volley: 'Le volley' };
   function defiTime(d) { return game.easy ? Infinity : (d.time || 45); }
   function startDefi(def, P) {
     if (st.D) return;
@@ -505,6 +802,8 @@ export function buildLife(game, cfg) {
     if (def.type === 'herd') D.crit = def.chicks.map(([x, z]) => ({ x, z, y: ground(x, z), yaw: R() * TAU, a: 0, st: 'lost', who: -1 }));
     if (def.type === 'whack' || def.type === 'fish') { D.crit = def.holes.map(([x, z]) => ({ x, z, y: ground(x, z), up: 0, t: 0, yaw: R() * TAU, hit: 0 })); D.next = 1; }
     if (def.type === 'xylo') { D.phase = 'show'; D.seq = def.seq.slice(); D.seqT = -0.8; D.k = 0; }
+    if (def.type === 'build') for (const id of def.props) { const p = propById.get(id); if (p) event('grow', p.i, 0); }
+    if (def.type === 'volley') { D.crit = [{ x: 0, y: 0, z: 0, yaw: 0, a: 0, vx: 0, vy: 0, vz: 0, side: 'them', t: 0, tf: 1, wait: 1.2 }]; D.miss = 0; volleyHome(D); }
     st.D = D;
     const easyNote = game.easy ? ' (Promenade : pas de chrono)' : '';
     game.banner('⚡ Défi éclair : ' + def.name, (def.hint || '') + easyNote, 3200);
@@ -551,6 +850,32 @@ export function buildLife(game, cfg) {
       if (D.i >= def.rings.length) endDefi(true);
     } else if (T === 'pads') {
       if (D.got.length >= def.pads.length) endDefi(true);
+    } else if (T === 'build') {
+      const max = (pal.props[(propById.get(def.props[0]) || {}).kind] || {}).stages || 3;
+      const n = def.props.filter(id => { const p = propById.get(id); return p && p.stage >= max; }).length;
+      if (n !== D.got.length) { D.got = def.props.slice(0, n).map(() => 1); if (n) game.localBanner(`${n}/${def.props.length}`, '', 800); }
+      if (n >= def.props.length) endDefi(true);
+    } else if (T === 'volley') {
+      const b = D.crit[0], G = 9, V = volleyFrame(def);
+      if (b.wait > 0) { b.wait -= dt; volleyHome(D); if (b.wait <= 0) volleyThrow(b, V, 'us'); return; }
+      b.t += dt; b.vy -= G * dt; b.x += b.vx * dt; b.y += b.vy * dt; b.z += b.vz * dt; b.a += dt * 8;
+      const g = ground(b.x, b.z);
+      if (b.side === 'us') {
+        for (const P of players) {
+          const d = Math.hypot(P.pos.x - b.x, P.pos.z - b.z);
+          if (d < 1.5 && b.y > P.pos.y - 0.4 && b.y < P.pos.y + 2.8) {
+            D.got.push(1); game.sound('boing'); game.burst(b.x, b.y, b.z, 14, 0xffe070, 3.5, 0.5);
+            game.localBanner(`${D.got.length}/${def.need}`, D.got.length === 1 ? 'Bien renvoyé !' : '', 700);
+            volleyThrow(b, V, 'them');
+            break;
+          }
+        }
+        if (b.side === 'us' && b.y <= g + 0.2 && b.vy < 0) {
+          D.miss++; game.sound('bump'); game.burst(b.x, g + 0.2, b.z, 18, 0xf0d9a4, 3, 0.6);
+          game.localBanner('Raté !', 'Courez sous le ballon et sautez !', 1000); b.wait = 1.3;
+        }
+      } else if (b.t >= b.tf) { b.wait = 0.6; event('wave', (villById.get(def.server) || {}).i || 0); }
+      if (D.got.length >= def.need) endDefi(true);
     } else if (T === 'race') {
       const c = D.crit[0], path = def.path, v = (def.speed || 7) * (game.easy ? 0.72 : 1);
       c.s += v * dt;
@@ -635,6 +960,28 @@ export function buildLife(game, cfg) {
       if (D.crit.every(c => c.st === 'home')) endDefi(true);
     }
   }
+  // --- volley : le filet (centre N, axe u), le côté des chiens (normale n), le lanceur ---------
+  function volleyFrame(def) {
+    const nt = def.net, u = { x: Math.cos(nt.yaw || 0), z: -Math.sin(nt.yaw || 0) }, n = { x: Math.sin(nt.yaw || 0), z: Math.cos(nt.yaw || 0) };
+    const sv0 = villById.get(def.server);
+    const S0 = sv0 ? { x: sv0.x, z: sv0.z } : { x: nt.x - n.x * 5, z: nt.z - n.z * 5 };
+    return { N: nt, u, n, S: S0 };
+  }
+  function volleyHome(D) {
+    const V = volleyFrame(D.def), b = D.crit[0];
+    b.x = V.S.x + V.n.x * 0.5; b.z = V.S.z + V.n.z * 0.5; b.y = ground(b.x, b.z) + 2.0 + Math.abs(Math.sin(game.t * 5)) * 0.4; b.side = 'them';
+  }
+  /** Lance le ballon : vers les chiens (« us »), ou renvoyé vers le lanceur (« them »). */
+  function volleyThrow(b, V, side) {
+    const k = (R() - 0.5), far = R();
+    const T = side === 'us'
+      ? { x: V.N.x + V.n.x * (2.5 + far * 4) + V.u.x * k * 5, z: V.N.z + V.n.z * (2.5 + far * 4) + V.u.z * k * 5 }
+      : { x: V.S.x + V.n.x * 0.5 + V.u.x * k * 1.5, z: V.S.z + V.n.z * 0.5 + V.u.z * k * 1.5 };
+    const ty = ground(T.x, T.z) + (side === 'us' ? 0 : 1.9), G = 9;
+    const tf = side === 'us' ? (game.easy ? 2.2 : 1.75) : 1.3;
+    b.vx = (T.x - b.x) / tf; b.vz = (T.z - b.z) / tf; b.vy = (ty - b.y) / tf + 0.5 * G * tf;
+    b.t = 0; b.tf = tf; b.side = side;
+  }
   /** Un glaçon sonne : la mélodie de glace avance (ou on recommence). */
   function xyloRing(p) {
     const D = st.D; if (!D || D.def.type !== 'xylo' || D.phase !== 'play') return;
@@ -655,8 +1002,9 @@ export function buildLife(game, cfg) {
         const p = q.p, pk = pal.props[p.kind] || {}, act = pk.act, d = Math.hypot(P.pos.x - p.x, P.pos.z - p.z), dy = P.pos.y - p.y;
         if (p.broken > game.t) continue;
         if (act === 'bounce') {
-          const r = (pk.r || 1.25), top = p.y + 0.35;
-          if (d < r && dy < 1.0 && dy > -0.6 && P.vel.y <= 0.5 && (P.grounded || dy < 0.6)) {
+          // pk.top : hauteur de la surface qui rebondit (0,35 m : congère ; 2,4 m : toile d'un parasol)
+          const r = (pk.r || 1.25), tH = pk.top === undefined ? 0.35 : pk.top, top = p.y + tH, dy2 = P.pos.y - top;
+          if (d < r && dy2 < 0.65 && dy2 > (tH > 1 ? -0.4 : -0.95) && P.vel.y <= 0.5 && (P.grounded || dy2 < 0.25)) {
             P.vel.y = (pk.power || 17) * (game.easy ? 1.05 : 1); P.grounded = false; P.jumps = 1; P.coyote = 0;
             P.pos.y = Math.max(P.pos.y, top);
             const D = st.D;
@@ -674,6 +1022,13 @@ export function buildLife(game, cfg) {
           const bump = (attacking(P) && d < r + 1.8 && Math.abs(dy) < 2.5) || (sp > 5 && d < r + 0.8 && Math.abs(dy) < 1.5 && act !== 'chime') || (act === 'press' && d < r + 0.3 && dy > 0.2 && dy < 1.2 && P.vel.y <= 0) || fresh;
           if (touch) p.touching = true;
           if (bump) hitProp(p, P, pk);
+        } else if (act === 'build') {
+          // château de sable : un coup (Attaque) le monte d'un étage ; une charge le fait tomber
+          const r = pk.r || propModel[p.kind].mdl.r || 0.9;
+          if (d < r + 1.5 && Math.abs(dy) < 2) {
+            if (P.dashT > 0 && p.stage >= (pk.stages || 3)) knockCastle(p, P, pk);
+            else if (P.attackT > 0) buildCastle(p, P, pk);
+          }
         }
       }
       for (const P2 of barks) if (P2 === P) for (const q of pGrid.within(P.pos.x, P.pos.z, 7)) { const pk = pal.props[q.p.kind] || {}; if (['shake', 'chime', 'hat'].includes(pk.act) && q.p.broken <= game.t) hitProp(q.p, P, pk, true); }
@@ -699,8 +1054,72 @@ export function buildLife(game, cfg) {
       }
     }
     for (const p of props) if (p.touching && game.t - p.touchT > 0.1) p.touching = false;
+    // ballons de plage : on les pousse en courant, on les envoie en l'air d'un coup de queue
+    for (const b of kicks) {
+      if (b.broken > game.t) continue;
+      for (const P of players) {
+        if (P.ride || P.board) continue;
+        const dx = b.x - P.pos.x, dz = b.z - P.pos.z, d = Math.hypot(dx, dz), dy = b.y + b.r - (P.pos.y + 0.5);
+        if (d > b.r + 0.6 || Math.abs(dy) > b.r + 0.9 || game.t - (b.kickT || -9) < 0.25) continue;
+        const nx = dx / (d || 1), nz = dz / (d || 1), sp = Math.hypot(P.vel.x, P.vel.z), att = attacking(P);
+        const pow = Math.max(2.5, sp * 1.35) + (att ? 5 : 0);
+        b.vx = nx * pow + P.vel.x * 0.25; b.vz = nz * pow + P.vel.z * 0.25; b.vy = 3 + (att ? 4 : 0) + Math.max(0, P.vel.y * 0.5);
+        b.kickT = game.t; b.moved = game.t;
+        event('kick', b.i);
+        if (P === game.me && !st.kickTold) { st.kickTold = true; game.localBanner('Boing !', 'Poussez les ballons en courant, ou envoyez-les en l\'air avec Attaque', 2400); }
+      }
+    }
     // une boule abandonnée revient à sa place
     for (const p of props) if (p.kind === 'ball' && p.moved && game.t - p.moved > 40 && game.players.every(P => Math.hypot(P.pos.x - p.x, P.pos.z - p.z) > 30)) { p.x = p.bx; p.z = p.bz; p.r = 0.5; p.y = ground(p.x, p.z); p.moved = 0; }
+  }
+  /** Le ballon roule, rebondit, s'arrête (hôte). L'eau profonde et les murs le renvoient. */
+  function stepKicks(dt) {
+    const wy = cfg.waterY;
+    for (const b of kicks) {
+      const g0 = ground(b.x, b.z);
+      if (!b.vx && !b.vz && !b.vy && b.y <= g0 + 0.01) {
+        if (b.moved && game.t - b.moved > 40 && game.players.every(P => Math.hypot(P.pos.x - b.x, P.pos.z - b.z) > 30)) { b.x = b.bx; b.z = b.bz; b.y = ground(b.x, b.z); b.moved = 0; }
+        continue;
+      }
+      b.vy -= 16 * dt;
+      const nx = b.x + b.vx * dt, nz = b.z + b.vz * dt, gn = ground(nx, nz);
+      const wall = (L.blockedAt && L.blockedAt(nx, nz)) || (wy !== undefined && gn < wy - 0.25) || gn > b.y + 0.6 || Math.hypot(nx - b.bx, nz - b.bz) > ((pal.props[b.kind] || {}).leash || 35);
+      if (wall) { b.vx *= -0.5; b.vz *= -0.5; } else { b.x = nx; b.z = nz; }
+      b.y += b.vy * dt;
+      const g = ground(b.x, b.z);
+      if (b.y <= g) {
+        b.y = g;
+        if (b.vy < -2.5) { b.vy = -b.vy * 0.55; if (b.vy > 2) event('kick', b.i); } else b.vy = 0;
+        const k = Math.max(0, 1 - dt * 1.2); b.vx *= k; b.vz *= k;
+        if (Math.hypot(b.vx, b.vz) < 0.08 && !b.vy) { b.vx = 0; b.vz = 0; }
+      }
+      const sp = Math.hypot(b.vx, b.vz);
+      if (sp > 0.05) { b.yaw = Math.atan2(b.vx, b.vz); b.rot += sp * dt / b.r; }
+      b.moved = game.t;
+    }
+  }
+  /** Château de sable : un étage de plus (et des paillettes quand il est fini). */
+  function buildCastle(p, P, pk) {
+    if (game.t - (p.hitT || -9) < 0.45) return;
+    p.hitT = game.t;
+    const max = pk.stages || 3;
+    if (p.stage >= max) { event('wob', p.i); return; }
+    p.stage++;
+    event('grow', p.i, p.stage);
+    game.burst(p.x, p.y + 0.4 + p.stage * 0.3, p.z, 14, pk.color || 0xe8cc90, 3, 0.6);
+    if (p.stage >= max) {
+      game.sound('chain');
+      const id = 'p:' + p.def.id;
+      if (!gone(id)) { sv().gone[id] = Date.now(); dropSparkles(p.x, p.y + 1.6, p.z, pk.drop || 2, 1); }
+      if (P === game.me) game.localBanner(pk.doneText || 'Un beau château !', '', 1300);
+    }
+  }
+  function knockCastle(p, P, pk) {
+    if (game.t - (p.hitT || -9) < 0.6) return;
+    p.hitT = game.t; p.stage = 0;
+    event('grow', p.i, 0);
+    game.sound('crate'); game.burst(p.x, p.y + 0.8, p.z, 30, pk.color || 0xe8cc90, 5, 0.8);
+    if (P === game.me) game.localBanner(pk.knockText || 'Patatras !', '', 1000);
   }
   function hitProp(p, P, pk, byBark) {
     const act = pk.act;
@@ -799,13 +1218,20 @@ export function buildLife(game, cfg) {
     for (const P of game.players) { const d = Math.hypot(P.pos.x - c.x, P.pos.z - c.z); if (d < bd) { bd = d; best = P; } }
     return { P: best, d: bd };
   }
-  function moveTo(c, tx, tz, v, dt) {
+  /** Les nageurs restent dans l'eau profonde, les autres au sec (cfg.waterY : niveau de la mer). */
+  function wrongWater(c, x, z) {
+    const wy = cfg.waterY; if (wy === undefined) return false;
+    const g = ground(x, z);
+    if (c.f.ai === 'swim') return g > wy - (c.f.depth || 1.2);
+    return !c.f.wade && g < wy + 0.02;
+  }
+  function moveTo(c, tx, tz, v, dt, side) {
     const dx = tx - c.x, dz = tz - c.z, d = Math.hypot(dx, dz);
     if (d < 0.2) return true;
     const st2 = Math.min(d, v * dt), nx = c.x + dx / d * st2, nz = c.z + dz / d * st2;
-    if ((L.blockedAt && L.blockedAt(nx, nz)) || (c.f.ai !== 'slide' && c.f.onIce === false && L.iceAt && L.iceAt(nx, nz))) { c.t = 0; return true; }
+    if ((L.blockedAt && L.blockedAt(nx, nz)) || (c.f.ai !== 'slide' && c.f.onIce === false && L.iceAt && L.iceAt(nx, nz)) || wrongWater(c, nx, nz)) { c.t = 0; return true; }
     c.x = nx; c.z = nz;
-    c.yaw = lerpAngle(c.yaw, Math.atan2(dx, dz), Math.min(1, dt * 10));
+    c.yaw = lerpAngle(c.yaw, Math.atan2(dx, dz) + (side ? Math.PI / 2 : 0), Math.min(1, dt * 10));
     return false;
   }
   function flee(c, P, dist, long) {
@@ -901,7 +1327,70 @@ export function buildLife(game, cfg) {
       if (th.d < 3) { tx += (c.x - th.P.pos.x) * 2; tz += (c.z - th.P.pos.z) * 2; }
       if (barkNear && !c.sc) { c.sc = 1.5; }
       if (c.sc > 0) { c.sc -= dt; tx = c.hx + Math.cos(c.i * 2.4) * 6; tz = c.hz + Math.sin(c.i * 2.4) * 6; }
-      c.x += (tx - c.x) * dt * 1.5; c.z += (tz - c.z) * dt * 1.5; c.y = ground(c.x, c.z) + 1.2 + Math.sin(c.ph * 2 + c.i) * 0.5 + (c.sc > 0 ? 2 : 0); c.yaw = c.ph;
+      c.x += (tx - c.x) * dt * 1.5; c.z += (tz - c.z) * dt * 1.5; c.y = ground(c.x, c.z) + (f.hoverY || 1.2) + Math.sin(c.ph * 2 + c.i) * 0.5 + (c.sc > 0 ? 2 : 0);
+      if (c.fm.flap) { c.flapA = Math.sin(c.ph * 26 + c.i) * 0.95; c.yaw = Math.atan2(tx - c.x, tz - c.z); } else c.yaw = c.ph;
+      return;
+    }
+    if (ai === 'scuttle') {
+      // crabe : marche de côté ; on approche → il file dans son trou (ou rentre dans sa coquille)
+      const scared = th.d < (f.flee || 4) || barkNear;
+      c.t -= dt;
+      if (scared) {
+        c.calm = 0;
+        if (!c.whis && th.d < 18) { c.whis = true; if (f.say && R() < 0.4) game.bubble({ pos: new THREE.Vector3(c.x, c.y + 0.7, c.z), small: true }, f.say[Math.floor(R() * f.say.length)]); }
+        if (f.hole && Math.hypot(c.hx - c.x, c.hz - c.z) > 0.3) { moveTo(c, c.hx, c.hz, f.run || 5, dt, f.side); c.hop = Math.abs(Math.sin(c.ph * 30)) * 0.03; }
+        else c.under = Math.min(1, c.under + dt * (f.hole ? 4 : 6));
+      } else {
+        c.whis = false; c.calm = (c.calm || 0) + dt;
+        if (c.calm > (f.hole ? 1.6 : 1.0)) c.under = Math.max(0, c.under - dt * 1.4);
+        if (c.under < 0.05) {
+          if (c.t <= 0) { const a = R() * TAU, r = R() * (f.home || 4); c.tx = c.hx + Math.cos(a) * r; c.tz = c.hz + Math.sin(a) * r; c.s = R() < 0.7 ? 'walk' : 'idle'; c.t = 1.5 + R() * 3; }
+          if (c.s === 'walk' && !moveTo(c, c.tx, c.tz, f.speed || 1.2, dt, f.side)) c.hop = Math.abs(Math.sin(c.ph * 24)) * 0.025; else { c.hop = 0; c.s = 'idle'; }
+        }
+      }
+      c.y = ground(c.x, c.z) - c.under * (f.sink || 0.6);
+      c.flapA = Math.sin(c.ph * (scared ? 22 : 2.5) + c.i) * (scared ? 0.7 : 0.35);
+      return;
+    }
+    if (ai === 'swim') {
+      // dauphins, méduses : à la surface de la mer ; les dauphins sautent en arc
+      const wy = cfg.waterY || 0;
+      c.t -= dt;
+      if (c.j !== undefined) {
+        c.j += dt / (f.leapT || 1.3);
+        const k = clamp(c.j, 0, 1);
+        c.x += c.vx * dt; c.z += c.vz * dt;
+        c.y = wy - 0.2 + Math.sin(k * Math.PI) * (f.leap || 2.4); c.pitch = (k - 0.5) * 2.2;
+        if (c.j >= 1) { c.j = undefined; c.t = 2 + R() * 4; c.pitch = 0; if (th.d < 50) game.burst(c.x, wy + 0.1, c.z, 12, 0xffffff, 3, 0.5); }
+      } else {
+        if (c.t <= 0 || c.tx === undefined) {
+          for (let k = 0; k < 6; k++) { const a = R() * TAU, r = 2 + R() * (f.home || 10); const x = c.hx + Math.cos(a) * r, z = c.hz + Math.sin(a) * r; if (!wrongWater(c, x, z)) { c.tx = x; c.tz = z; break; } }
+          c.t = 3 + R() * 4;
+          if (f.leap && th.d < 80 && R() < 0.7) {
+            c.j = 0; const sp = f.leapSpeed || 6; c.vx = Math.sin(c.yaw) * sp; c.vz = Math.cos(c.yaw) * sp;
+            if (wrongWater(c, c.x + c.vx * 1.4, c.z + c.vz * 1.4)) { c.vx = -c.vx; c.vz = -c.vz; c.yaw += Math.PI; }
+            if (th.d < 35) { chirp('splash'); game.burst(c.x, wy + 0.1, c.z, 10, 0xffffff, 3, 0.4); }
+          }
+        }
+        if (c.j === undefined) {
+          if (c.tx !== undefined) moveTo(c, c.tx, c.tz, f.speed || 1.6, dt);
+          c.y = wy - (f.sub || 0.3) + Math.sin(c.ph * (f.bobF || 1.5) + c.i) * (f.bob || 0.06);
+          c.pitch = Math.sin(c.ph * 1.5 + c.i) * 0.06;
+        }
+      }
+      c.sq = f.pulse ? 1 + Math.sin(c.ph * 2.6 + c.i) * f.pulse : 1;
+      c.flapA = Math.sin(c.ph * 3 + c.i) * 0.4;
+      return;
+    }
+    if (ai === 'bask') {
+      // phoque au soleil : il lève la tête, applaudit quand on le caresse (ou qu'on aboie)
+      c.y = c.def.perch !== undefined ? c.def.perch : ground(c.x, c.z);
+      if (barkNear && c.s !== 'pet') { c.s = 'pet'; c.t = 1.2; if (th.d < 15 && f.say) game.bubble({ pos: new THREE.Vector3(c.x, c.y + 1.2 * c.scale, c.z), small: true }, f.say[0]); }
+      if (c.s === 'pet') { c.t -= dt; c.flapA = Math.sin(c.ph * 16) * 0.9; c.pitch = -0.25; c.hop = Math.abs(Math.sin(c.ph * 8)) * 0.08; if (c.t <= 0) c.s = 'idle'; return; }
+      c.hop = 0; c.pitch = Math.sin(c.ph * 0.7 + c.i) * 0.06 - (th.d < 8 ? 0.15 : 0);
+      c.roll = Math.sin(c.ph * 0.35 + c.i) * 0.12;
+      c.flapA = Math.sin(c.ph * 1.2) * 0.15;
+      if (th.d < 9) c.yaw = lerpAngle(c.yaw, Math.atan2(th.P.pos.x - c.x, th.P.pos.z - c.z), dt * 1.5);
       return;
     }
     // promeneurs (lièvre, hermine, renne, écureuil, pingouin, chiot…)
@@ -958,9 +1447,11 @@ export function buildLife(game, cfg) {
     if (def.path === 'ellipse') {
       // patineurs : un grand tour de piste, en se balançant
       const sp = def.speed || 0.35, a = (game.t * sp + def.phase) % TAU, e = def.ellipse, sg = Math.sign(sp);
-      v.x = e.x + Math.cos(a) * e.rx; v.z = e.z + Math.sin(a) * e.rz; v.y = e.y;
+      v.x = e.x + Math.cos(a) * e.rx; v.z = e.z + Math.sin(a) * e.rz; v.y = e.y === undefined ? ground(v.x, v.z) : e.y;
       v.yaw = Math.atan2(-Math.sin(a) * e.rx * sg, Math.cos(a) * e.rz * sg);
-      v.act = 'skate';
+      v.act = def.act || 'skate';
+      // un marchand qui fait sa tournée : il crie de temps en temps
+      if (def.cry && (v.cryT = (v.cryT === undefined ? 3 + v.i : v.cryT) - dt) <= 0) { v.cryT = 9 + (v.i % 4) * 2; if (dd < 30) game.bubble({ pos: new THREE.Vector3(v.x, v.y + 2.3, v.z), small: true }, def.cry[Math.floor(R() * def.cry.length)]); }
       return;
     }
     if (def.sleepy && !v.awake) {
@@ -1020,9 +1511,34 @@ export function buildLife(game, cfg) {
     else if (act === 'stir') { armR = -1.1; armRz = Math.sin(ph * 3) * 0.3; armL = -0.5; }
     else if (act === 'flag') { armR = -2.5 + Math.sin(ph * 2) * 0.3; armL = -0.2; }
     else if (act === 'cheer') { armR = -2.8; armL = -2.8; bob = Math.abs(Math.sin(ph * 8)) * 0.3; toolOn = false; }
+    // --- activités de plage ---
+    else if (act === 'dig') {
+      // accroupi, il creuse : du sable vole
+      const k = Math.sin(ph * 4); lean = 0.45; sy = 0.78; bob = -0.18; armR = -0.9 + k * 0.6; armL = -0.7 - k * 0.3;
+      if (k > 0.96 && (v.puffT = (v.puffT || 0) - 1) < 0 && Math.hypot(game.me.pos.x - v.x, game.me.pos.z - v.z) < 35) { v.puffT = 1; game.spawnParticle(v.x + Math.sin(v.yaw) * 0.9, v.y + 0.3, v.z + Math.cos(v.yaw) * 0.9, Math.sin(v.yaw + 2.6) * 1.6, 2.6, Math.cos(v.yaw + 2.6) * 1.6, def.puff || 0xe8cc90, 0.25, 0.7, 9); }
+    }
+    else if (act === 'lie') { armR = -2.9; armL = -2.9; armRz = 0.5; toolOn = false; }
+    else if (act === 'strum') {
+      armR = -0.75 + Math.sin(ph * 13) * 0.18; armL = -1.35; armRz = -0.2; bob = Math.abs(Math.sin(ph * 4)) * 0.03;
+      if ((v.noteT = (v.noteT || 0) - 1 / 60) < 0 && Math.hypot(game.me.pos.x - v.x, game.me.pos.z - v.z) < 30) { v.noteT = 0.7; game.spawnParticle(v.x + (R() - 0.5) * 0.6, v.y + 1.7, v.z + (R() - 0.5) * 0.6, (R() - 0.5) * 0.6, 1.4, (R() - 0.5) * 0.6, [0xffd23a, 0xff7ab0, 0x7ad8ff][v.i % 3], 0.22, 1.4, -0.2); }
+    }
+    else if (act === 'kite') { armR = -2.3 + Math.sin(ph * 0.9) * 0.2; armL = -2.1 + Math.sin(ph * 0.9 + 0.5) * 0.2; lean = -0.1; bob = Math.sin(ph * 1.8) * 0.02; }
+    else if (act === 'serve') { const k = Math.abs(Math.sin(ph * 2.4)); armR = -1.6 - k * 1.0; armL = -1.4 - k * 0.9; bob = k * 0.1; }
+    else if (act === 'net') { armR = -1.0 + Math.sin(ph * 1.6) * 0.45; armL = -0.8 + Math.sin(ph * 1.6) * 0.3; lean = 0.35; armRz = Math.sin(ph * 1.6) * 0.3; }
+    else if (act === 'walk') { const k = Math.sin(ph * 6); armR = def.tool ? -1.2 : k * 0.5; armL = -k * 0.5; bob = Math.abs(k) * 0.05; }
+    else if (act === 'carry') { armR = -0.4; armL = Math.sin(ph * 1.2) * 0.08; armRz = 0.15; bob = Math.sin(ph * 2) * 0.02; }
     else { armR = Math.sin(ph * 1.2) * 0.08; armL = -Math.sin(ph * 1.2) * 0.08; bob = Math.sin(ph * 2) * 0.02; }
     if (waving) { armR = -2.7 + Math.sin(ph * 12) * 0.3; armRz = 0.3; }
     const sc = def.scale || 1;
+    if (def.body === 'critter') {
+      // un habitant-bête (phoque qui bronze, tortue…) : il bouge à peine, applaudit quand on lui parle
+      const fm = faunaModel[def.model];
+      const nap = !v.awake;
+      if (fm) drawCreature(fm, v.x, v.y + (waving ? Math.abs(Math.sin(ph * 9)) * 0.1 : 0), v.z, v.yaw, nap ? 0.05 : -0.12 + Math.sin(ph * 0.8) * 0.05, nap ? 0.5 + Math.sin(ph * 0.6) * 0.05 : 0, sc, 1 + (nap ? Math.sin(ph * 1.4) * 0.03 : 0), waving ? Math.sin(ph * 16) * 0.9 : Math.sin(ph * 1.1) * 0.15);
+      shadow(v.x, v.z, (fm ? fm.mdl.r : 0.5) * sc);
+      if (nap && (v.zzT = (v.zzT || 0) - 1 / 60) < 0 && Math.hypot(game.me.pos.x - v.x, game.me.pos.z - v.z) < 25) { v.zzT = 1.4; game.spawnParticle(v.x, v.y + 1.2 * sc, v.z, 0.2, 0.8, 0, 0xffffff, 0.2, 1.6, -0.1); }
+      return;
+    }
     if (def.body === 'penguin') {
       const fm = faunaModel[def.model || 'skater'] || faunaModel.penguin;
       if (fm) drawCreature(fm, v.x, v.y + bob, v.z, v.yaw, 0, act === 'skate' ? Math.sin(ph * 2.2) * 0.15 : 0, sc, 1, act === 'skate' ? 0.6 + Math.sin(ph * 2.2) * 0.4 : waving ? 1.2 : 0.1);
@@ -1045,14 +1561,18 @@ export function buildLife(game, cfg) {
       return;
     }
     furTint.setHex(def.fur || 0xe8c49a);
-    compose(v.x, v.y + bob, v.z, v.yaw, lean, 0, sc, sc * sy, sc);
+    // allongé sur sa serviette (sur le dos, le nez au soleil) ou debout
+    if (act === 'lie') compose(v.x, v.y + 0.32 + Math.sin(ph * 1.3) * 0.01, v.z, v.yaw, -Math.PI / 2, 0, sc, sc, sc);
+    else compose(v.x, v.y + bob, v.z, v.yaw, lean, 0, sc, sc * sy, sc);
     vill.body.push(m4, furTint);
-    vill.cloth.push(m4, C.setHex(def.cloth || 0xd84a3a));
+    const summer = def.outfit === 'summer' && vill.summer;
+    (summer ? vill.summer : vill.cloth).push(m4, C.setHex(def.cloth || 0xd84a3a));
+    if (def.sunhat && vill.sunhat) vill.sunhat.push(m4);
     const base = mB.copy(m4);
     for (const sd of [1, -1]) {
       const a = sd > 0 ? armR : armL;
       m5.copy(base).multiply(m6.compose(v4.set(sd * 0.36, 1.12, 0.04), q4.setFromEuler(e4.set(a, 0, sd * (0.18 + (sd > 0 ? armRz : 0)), 'ZYX')), one));
-      vill.arm.push(m5, C.setHex(def.cloth || 0xd84a3a));
+      vill.arm.push(m5, summer ? furTint : C.setHex(def.cloth || 0xd84a3a));
       if (sd > 0 && toolOn && def.tool && tools[def.tool]) { m5.multiply(m6.makeTranslation(0, -0.5, 0.02)); tools[def.tool].push(m5); }
     }
     shadow(v.x, v.z, 0.5 * sc);
@@ -1078,17 +1598,20 @@ export function buildLife(game, cfg) {
     for (const c of st.near.c) {
       const d2 = (c.x - me.pos.x) ** 2 + (c.z - me.pos.z) ** 2;
       if (d2 < act2) stepCreature(c, dt, t, barks);
-      if (c.f.hole) { compose(c.hx, ground(c.hx, c.hz), c.hz, 0, 0, 0, 1); propModel.hole.l.push(m4); }
+      if (c.f.hole) { compose(c.hx, ground(c.hx, c.hz), c.hz, 0, 0, 0, c.f.holeS || 1); (propModel[holeOf(c.f)] || propModel.hole).l.push(m4); }
       if (c.y < -100) continue;
       const fm = c.fm, ai = c.f.ai;
       let pitch = c.pitch || 0, roll = 0, sqy = 1;
       if (ai === 'slide' && c.slide > 0) { pitch = 1.35; }
       if (ai === 'slide' && !(c.slide > 0)) roll = c.s === 'walk' ? Math.sin(c.ph * 9) * 0.12 : Math.sin(c.ph * 2) * 0.04;
       if (c.s === 'pet') sqy = 1 + Math.sin(c.ph * 12) * 0.08;
-      if (ai === 'burrow' && c.under > 0.98) continue;
+      if (c.sq) sqy *= c.sq;
+      if (c.roll) roll += c.roll;
+      if ((ai === 'burrow' || (ai === 'scuttle' && c.f.hole)) && c.under > 0.98) continue;
       drawCreature(fm, c.x, c.y + (c.hop || 0), c.z, c.yaw, pitch, roll, c.scale, sqy, ai === 'slide' ? (c.s === 'walk' ? Math.sin(c.ph * 8) * 0.6 : 0) : c.flapA, c.tint !== null && c.tint !== undefined ? C.setHex(c.tint) : undefined);
-      if (ai === 'hover') glow(c.x, c.y, c.z, 1.2, c.f.glow || 0x9ad8ff, 0.8);
-      else if (ai !== 'jump' && ai !== 'perch' && !(c.fly > 0 && c.y - ground(c.x, c.z) > 4)) shadow(c.x, c.z, (c.fm.mdl.r || 0.3) * c.scale);
+      if (ai === 'hover') { if (c.f.glow !== 0) glow(c.x, c.y, c.z, c.f.glowSize || 1.2, c.f.glow || 0x9ad8ff, 0.8); }
+      else if (c.f.glow) glow(c.x, c.y + (c.f.glowY || 0), c.z, (c.f.glowSize || 1.2) * c.scale, c.f.glow, 0.6);
+      if (ai !== 'hover' && ai !== 'jump' && ai !== 'perch' && ai !== 'swim' && !(c.fly > 0 && c.y - ground(c.x, c.z) > 4)) shadow(c.x, c.z, (c.fm.mdl.r || 0.3) * c.scale);
     }
     // objets
     for (const p of st.near.p) {
@@ -1100,9 +1623,18 @@ export function buildLife(game, cfg) {
       const s = game.t - p.sq; if (s < 0.6) { const k = Math.sin(s / 0.6 * Math.PI * 3) * (1 - s / 0.6); sy = 1 - k * 0.35; sx = 1 + k * 0.2; }
       const rg = game.t - p.ring; if (rg < 0.8) roll += Math.sin(rg * 30) * 0.05 * (1 - rg / 0.8);
       if (p.kind === 'ball') { compose(p.x, y + p.r, p.z, p.yaw, p.rot, 0, p.r); pm.l.push(m4); shadow(p.x, p.z, p.r); continue; }
+      if (pk.act === 'kick') { compose(p.x, p.y + p.r * sy, p.z, p.yaw, p.rot, 0, p.r * sx, p.r * sy, p.r * sx); pm.l.push(m4, p.def.tint !== undefined ? C.setHex(p.def.tint) : undefined); shadow(p.x, p.z, p.r); continue; }
       if (p.kind === 'button' && p.on) sy *= 0.7;
+      if (pk.sway) { roll += Math.sin(t * 0.9 + p.i * 1.7) * pk.sway; pitch += Math.sin(t * 0.63 + p.i) * pk.sway * 0.6; }
+      if (pk.act === 'build') {
+        // un tas de sable qui devient château : l'étage pousse (petit rebond)
+        const max = pk.stages || 3, gk = game.t - p.grow, pop = gk < 0.5 ? Math.sin(gk / 0.5 * Math.PI) * 0.15 : 0;
+        const k = 0.28 + 0.72 * (p.stage / max);
+        sy *= k + pop; sx *= 0.75 + 0.25 * (p.stage / max) + pop * 0.3;
+      }
       compose(p.x, y, p.z, p.yaw, pitch, roll, sx * (p.def.s || 1), sy * (p.def.s || 1), sx * (p.def.s || 1));
       pm.l.push(m4, p.def.tint !== undefined ? C.setHex(p.def.tint) : undefined);
+      if (pk.crown && pk.act === 'build' && p.stage >= (pk.stages || 3) && propModel[pk.crown]) { m5.copy(m4).multiply(m6.makeTranslation(0, pm.mdl.h - 0.05, 0)); propModel[pk.crown].l.push(m5); }
       if (p.kind === 'snowman') {
         const hw = game.t - p.wob, hop = hw < 1.0 ? Math.sin(hw / 1.0 * Math.PI) * 1.2 : 0, spin = hw < 1 ? hw * 9 : 0;
         m5.copy(m4).multiply(m6.compose(v4.set(0, 2.0 + hop, 0), q4.setFromEuler(e4.set(0, spin, 0)), one));
@@ -1179,7 +1711,7 @@ export function buildLife(game, cfg) {
       const fm = faunaModel[def.critter]; if (!fm) return;
       for (const c of D.crit) {
         const hop = fm.f.hopper !== false ? Math.abs(Math.sin(c.a)) * 0.35 : 0;
-        drawCreature(fm, c.x, c.y + hop, c.z, c.yaw, fm.f.ai === 'slide' && T === 'race' ? 1.35 : 0, 0, (fm.f.scale || 1) * (T === 'chase' ? 1.1 : 1), 1, 0, fm.mdl.tint ? C.setHex(c.tint || 0xe8c49a) : undefined);
+        drawCreature(fm, c.x, c.y + hop, c.z, c.yaw + (fm.f.side ? Math.PI / 2 : 0), fm.f.ai === 'slide' && T === 'race' ? 1.35 : 0, 0, (fm.f.scale || 1) * (T === 'chase' ? 1.1 : 1), 1, 0, fm.mdl.tint ? C.setHex(c.tint || 0xe8c49a) : undefined);
         shadow(c.x, c.z, fm.mdl.r);
         if (T === 'herd' && c.st === 'lost') glow(c.x, c.y + 1.3, c.z, 1.4, 0xffd23a, 0.6 + Math.sin(t * 6) * 0.3);
         if (T === 'chase') glow(c.x, c.y + 1.2, c.z, 1.2, 0x40c060, 0.6);
@@ -1188,13 +1720,19 @@ export function buildLife(game, cfg) {
     }
     if (T === 'whack' || T === 'fish') {
       const fm = faunaModel[T === 'fish' ? (def.critter || 'fish') : (def.critter || 'marmot')];
+      const hl = propModel[holeOf(def)] || propModel.hole;
       for (const c of D.crit) {
-        compose(c.x, c.y, c.z, 0, 0, 0, 1); propModel.hole.l.push(m4);
+        compose(c.x, c.y, c.z, 0, 0, 0, 1); hl.l.push(m4);
         if (c.up <= 0 || !fm) continue;
         if (T === 'whack') { const k = c.hit ? clamp(c.up / 0.35, 0, 1) : clamp(c.t / 0.15, 0, 1); drawCreature(fm, c.x, c.y - 0.9 + k * 0.9, c.z, c.yaw, 0, 0, fm.f.scale || 1, c.hit ? 0.6 : 1, 0); glow(c.x, c.y + 0.9, c.z, 1.2, 0xffe070, 0.4); }
         else { const k = clamp(c.t / 1.5, 0, 1); if (c.hit) continue; drawCreature(fm, c.x + Math.sin(c.yaw) * (k - 0.5) * 2, c.y + Math.sin(k * Math.PI) * 2.6, c.z + Math.cos(c.yaw) * (k - 0.5) * 2, c.yaw, (k - 0.5) * 2.4, 0, 1.6, 1, 0); }
       }
     }
+    if (T === 'volley') {
+      const b = D.crit[0], pm = propModel[def.ball || 'beachball'];
+      if (pm && b) { compose(b.x, b.y, b.z, b.a, b.a * 1.3, 0, 0.32); pm.l.push(m4); shadow(b.x, b.z, 0.35); if (b.side === 'us') glow(b.x, ground(b.x, b.z) + 0.15, b.z, 1.6, 0xffe070, 0.5); }
+    }
+    if (T === 'build') for (const id of def.props) { const p = propById.get(id); if (p && p.stage < ((pal.props[p.kind] || {}).stages || 3)) glow(p.x, p.y + 1.2, p.z, 2.4, 0xffd23a, 0.45 + Math.sin(t * 6) * 0.2); }
     if (T === 'xylo') for (const id of def.chimes) { const p = propById.get(id); if (p && D.phase === 'play') glow(p.x, p.y + 2.6, p.z, 0.9, 0xffffff, 0.4); }
   }
 
@@ -1205,7 +1743,7 @@ export function buildLife(game, cfg) {
     if (D.cd > 0) return `⚡ ${def.name} : attention…`;
     const T = def.type;
     const prog = T === 'coins' ? `${D.got.length}/${def.items.length}` : T === 'rings' ? `anneau ${Math.min(D.i + 1, def.rings.length)}/${def.rings.length}` : T === 'pads' ? `${D.got.length}/${def.pads.length}`
-      : T === 'whack' || T === 'fish' ? `${D.got.length}/${def.need}` : T === 'tag' || T === 'chase' ? `${D.crit.filter(c => c.tagged).length}/${D.crit.length}` : T === 'herd' ? `${D.crit.filter(c => c.st === 'home').length}/${D.crit.length}`
+      : T === 'whack' || T === 'fish' || T === 'volley' ? `${D.got.length}/${def.need}` : T === 'build' ? `${D.got.length}/${def.props.length}` : T === 'tag' || T === 'chase' ? `${D.crit.filter(c => c.tagged).length}/${D.crit.length}` : T === 'herd' ? `${D.crit.filter(c => c.st === 'home').length}/${D.crit.length}`
         : T === 'xylo' ? (D.phase === 'show' ? 'écoutez…' : `${D.k}/${D.seq.length}`) : 'vite !';
     return `⚡ ${def.name} : ${prog}${tm}`;
   }
@@ -1223,7 +1761,7 @@ export function buildLife(game, cfg) {
       d: D ? [D.i, r2(D.t === Infinity ? -1 : D.t), r2(D.cd), D.got, D.phase, D.k, D.def === undefined ? 0 : plan.defis.indexOf(D.def), D.crit.map(c => [r2(c.x), r2(c.y), r2(c.z), r2(c.yaw), c.tagged ? 1 : 0, c.st || 0, r2(c.up || 0), r2(c.t || 0), c.hit || 0])] : 0,
       ev: st.ev,
       dr: st.drops.map(d => [r2(d.x), r2(d.y), r2(d.z)]),
-      br: props.filter(p => p.broken > game.t || p.moved || p.on).map(p => [p.i, r2(p.broken - game.t), r2(p.x), r2(p.z), r2(p.r), p.on ? 1 : 0]),
+      br: props.filter(p => p.broken > game.t || p.moved || p.on || p.stage !== p.stage0).map(p => [p.i, r2(p.broken - game.t), r2(p.x), r2(p.z), r2(p.r), p.on ? 1 : 0, p.stage === undefined ? 0 : p.stage, r2(p.y)]),
     };
   }
   function apply(x) {
@@ -1240,9 +1778,12 @@ export function buildLife(game, cfg) {
     const br = new Map((x.br || []).map(b => [b[0], b]));
     for (const p of props) {
       const b = br.get(p.i);
-      if (!b) { if (p.broken > game.t) p.broken = 0; if (p.kind === 'ball') { p.x = p.bx; p.z = p.bz; p.r = 0.5; p.y = ground(p.x, p.z); } p.on = false; continue; }
+      const kick = (pal.props[p.kind] || {}).act === 'kick';
+      if (!b) { if (p.broken > game.t) p.broken = 0; if (p.kind === 'ball' || kick) { p.x = p.bx; p.z = p.bz; if (!kick) p.r = 0.5; p.y = ground(p.x, p.z); } p.on = false; if (p.stage0 !== undefined) p.stage = p.stage0; continue; }
       p.broken = b[1] > 0 ? game.t + b[1] : 0;
       if (p.kind === 'ball') { p.rot += Math.hypot(b[2] - p.x, b[3] - p.z) / (p.r || 1); p.x = b[2]; p.z = b[3]; p.r = b[4]; p.y = ground(p.x, p.z); }
+      if (kick) { const mv = Math.hypot(b[2] - p.x, b[3] - p.z); if (mv > 0.01) { p.yaw = Math.atan2(b[2] - p.x, b[3] - p.z); p.rot += mv / (p.r || 1); } p.x = b[2]; p.z = b[3]; p.y = b[7] === undefined ? ground(p.x, p.z) : b[7]; }
+      if (p.stage0 !== undefined && b[6] !== undefined) p.stage = b[6];
       p.on = !!b[5];
     }
     for (const q of props) if (q.kind === 'lantern') q.on = props.some(p => p.kind === 'button' && p.on && p.def.effect === 'lights' && p.def.group === q.def.group);
@@ -1262,6 +1803,7 @@ export function buildLife(game, cfg) {
       }
     }
     stepProps(dt);
+    stepKicks(dt);
     stepDefi(dt);
     stepDrops(dt);
   }
