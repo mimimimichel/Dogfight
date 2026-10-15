@@ -20,8 +20,11 @@
  * Sauvegarde : game.save.life = { defis: [], chests: [], gone: {}, talk: {}, pets }.
  */
 import * as THREE from '../vendor/three.module.min.js';
+import * as FOL from './foliage.js';
 import * as M from './models.js';
 import { PointGrid } from './lifeplan.js';
+let firMatCache = null;
+const firMat = () => firMatCache || (firMatCache = FOL.firMaterials({ snow: 0.7 }));
 
 const clamp = (v, a, b) => (v < a ? a : v > b ? b : v);
 const lerpAngle = (a, b, t) => { const d = ((b - a + Math.PI) % (Math.PI * 2) + Math.PI * 2) % (Math.PI * 2) - Math.PI; return a + d * t; };
@@ -241,6 +244,8 @@ export const PROPS = {
     return { geo: merge(parts), h: 0.5, r: 1.3 };
   },
   pine() {
+    // vrai sapin (branches scannées, neige dessus) quand les textures sont chargées
+    if (FOL.hasFir()) return { geo: FOL.firGeometry(7, { height: 3.4, radius: 1.2, levels: 7 }), mat: firMat(), h: 3.3, r: 0.5, shadow: true };
     const parts = [P(cyl(0.12, 0.18, 0.9), 0x5a3a24, { y: 0.45 })];
     for (let i = 0; i < 3; i++) { const r = 1.1 - i * 0.3, h = 1.3 - i * 0.15, y0 = 0.6 + i * 0.8; parts.push(P(cone(r, h, 8), [0x24503a, 0x2a5c40, 0x316848][i], { y: y0 + h / 2 }), P(cone(r * 0.55, h * 0.45, 8), 0xf2f6fc, { y: y0 + h - h * 0.22 + 0.02 })); }
     return { geo: merge(parts), h: 3.3, r: 0.5 };
@@ -379,7 +384,8 @@ export function buildLife(game, cfg) {
     const pk = pal.props[k] || {};
     const mdl = PROPS[pk.model || k](pk.colors || {});
     const n = (propCount[k] || 0) + (extraProp[k] || 0);
-    propModel[k] = { pk, mdl, l: layer('p_' + k, mdl.geo, mdl.unlit ? unlitMat : litMat, n + 2, k === 'hat' || !!pk.tint) };
+    propModel[k] = { pk, mdl, l: layer('p_' + k, mdl.geo, mdl.mat || (mdl.unlit ? unlitMat : litMat), n + 2, k === 'hat' || !!pk.tint) };
+    if (mdl.shadow) propModel[k].l.mesh.castShadow = true;
   }
   // chapeaux des bonshommes (teintés)
   const hatL = layer('p_hat', VILLAGER.hat(), litMat, (propCount.snowman || 0) + 6, true);

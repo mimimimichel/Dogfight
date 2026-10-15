@@ -14,6 +14,7 @@ import * as N from './npcs.js';
 import * as RT from './realtex.js';
 import { buildCaptain } from './forest.js';
 import { buildLife } from './life.js';
+import * as FOL from './foliage.js';
 import * as LIFE from './level5life.js';
 
 const clamp = (v, a, b) => (v < a ? a : v > b ? b : v);
@@ -392,8 +393,11 @@ export function buildSnow(game) {
 
   // --- sapins (par quartiers : les quartiers hors de l'écran ne sont pas dessinés) ------------
   {
-    const geo = pineGeometry(lite);
-    const mat = std({ vertexColors: true, roughness: 0.92 });
+    // vrais sapins (branches d'un sapin scanné, neige posée dessus) quand les photos sont là
+    const real = FOL.hasFir();
+    const firGeos = real ? [1, 2, 3].map(sd => FOL.firGeometry(sd, { levels: lite ? 8 : 11 })) : null;
+    const geo = real ? null : pineGeometry(lite);
+    const mat = real ? FOL.firMaterials({ snow: 0.7, lite }) : std({ vertexColors: true, roughness: 0.92 });
     const r = rng(9), m4 = new THREE.Matrix4(), q = new THREE.Quaternion(), e = new THREE.Euler(), v = new THREE.Vector3(), s = new THREE.Vector3(), c = new THREE.Color();
     const deco = [];
     let guard = 0;
@@ -409,8 +413,10 @@ export function buildSnow(game) {
     const all = S.trees.map(t => ({ x: t.x, z: t.z, y: t.y, s: t.s, k: t.h / 7 / t.s })).concat(deco);
     const CH = 70, chunks = new Map();
     for (const t of all) { const key = Math.floor(t.x / CH) + ',' + Math.floor(t.z / CH); if (!chunks.has(key)) chunks.set(key, []); chunks.get(key).push(t); }
+    let ci = 0;
     for (const list of chunks.values()) {
-      const inst = new THREE.InstancedMesh(geo, mat, list.length);
+      // une forme de sapin par quartier (2 appels de dessin : tronc + branches)
+      const inst = new THREE.InstancedMesh(real ? firGeos[ci++ % 3] : geo, mat, list.length);
       list.forEach((t, i) => {
         m4.compose(v.set(t.x, t.y - 0.25, t.z), q.setFromEuler(e.set(0, r() * 6.28, (r() - 0.5) * 0.06)), s.set(t.s, t.s * (t.k || 1) * (0.9 + r() * 0.25), t.s));
         inst.setMatrixAt(i, m4);
@@ -1722,6 +1728,7 @@ export function buildSnow(game) {
       ];
     },
     render(dt, t) {
+      FOL.tickFoliage(t);
       const me = game.me, k = snow(), cam = game.camera.position;
       // le bandeau de quête suit la descente (portes, chrono) : on le rafraîchit quand il change
       if ((st.hudT = (st.hudT || 0) + dt) > 0.25) { st.hudT = 0; const q = logic.questText(); if (q !== st.hudQ) { st.hudQ = q; game.updateHud(); } }
