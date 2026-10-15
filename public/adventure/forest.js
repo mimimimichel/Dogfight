@@ -348,7 +348,7 @@ export function buildForest(game) {
     // rendu réaliste : des fougères au pied de quelques arbres
     const F = real ? RT.plant('fern_02') : null;
     if (F) {
-      const spots = [], max = lite ? 40 : 160;
+      const spots = [], max = lite ? 16 : 50;
       for (const t of S.trees) {
         if (spots.length >= max) break;
         if (r() < 0.4) continue;
