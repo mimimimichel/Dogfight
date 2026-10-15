@@ -331,7 +331,7 @@ export function buildPark(game) {
       const h = new THREE.Mesh(K.horseGeo(cols[i]), VM);
       const a = i / 6 * Math.PI * 2;
       h.position.set(Math.cos(a) * (C.r - 1.6), 1.3, Math.sin(a) * (C.r - 1.6));
-      h.rotation.y = -a + Math.PI;      // tête dans le sens de la rotation
+      h.rotation.y = -a;                // tête dans le sens de la rotation
       carousel.add(h); horses.push(h);
     }
     carousel.position.set(C.x, C.floor, C.z);
@@ -951,7 +951,7 @@ export function buildPark(game) {
       const C = S.CAROUSEL, a = R.a + st.carA, rr = C.r - 1.6;
       if ((wantOff && R.t > 0.4) || R.t > 16) { getOff(P, C.x + Math.cos(a) * (C.r + 1.3), C.z + Math.sin(a) * (C.r + 1.3), 0); return; }
       P.pos.set(C.x + Math.cos(a) * rr, C.floor + 1.2 + Math.sin(R.t * 3 + R.a * 3) * 0.25, C.z + Math.sin(a) * rr);
-      P.yaw = -a + Math.PI; R.speed = 2; R.yaw = P.yaw; R.camRate = 0.6;
+      P.yaw = -a; R.speed = 0.5; R.yaw = P.yaw; R.camRate = 0.6;
     } else if (R.kind === 'swing') {
       const sw = swingSeats[R.i];
       const amp = Math.min(1, R.t / 2) * 0.85, th = Math.sin(R.t * 2.1) * amp;
@@ -1260,7 +1260,7 @@ export function buildPark(game) {
       if (shown) return `Une médaille brille : ${shown.def.label.replace(/^L/, 'l')} !`;
       const near = (o, r) => me && Math.hypot(me.pos.x - o.x, me.pos.z - o.z) < r;
       if (!p.agility && near(S.AGILITY, 30)) return 'Parle à Gaston pour la course d\'agility';
-      if (catsLeft() > 0 && game.cats.some(c => !c.dead && c.def.group === 'clearing' && near(c.pos, 16))) return `Chasse les chats farceurs (${catsLeft()})`;
+      if (catsLeft() > 0 && game.cats.some(c => !c.dead && c.def.group === 'clearing' && near(c.pos, 10))) return `Chasse les chats farceurs (${catsLeft()})`;
       if (game.puppy.state === 'lost' && !s.medals.includes('m_puppy')) return ['Biscotte a disparu : cherche près de la mare', 'Suis les traces de Biscotte : le bac à sable', 'Suis la piste de Biscotte : le manège', 'Trouve Biscotte dans le labyrinthe fleuri'][Math.min(3, p.clues)];
       if (p.lit.length > 0 && p.lit.length < S.LANTERNS.length) return `Rallume les lanternes (${p.lit.length}/${S.LANTERNS.length})`;
       if (s.balls.length > 0 && s.balls.length < 5) return `Trouve les balles de tennis (${s.balls.length}/5)`;
@@ -1460,15 +1460,17 @@ export function buildPark(game) {
         const u = P.mesh.userData;
         if (u.legs) u.legs.forEach((l) => { l.rotation.x = 0; });
       }
-      // tout en haut du Grand Chêne : la caméra passe au-dessus du feuillage (sinon on ne voit que des feuilles)
+      // caméra : tout en haut du Grand Chêne, elle passe au-dessus du feuillage (sinon on ne voit que des feuilles) ;
+      // sur le manège, elle se met plus bas et plus loin (sous le toit) et regarde vers le centre
       const me = game.me;
       const onTop = me.pos.y > S.TREE_TOP - 1.2 && Math.hypot(me.pos.x - S.TREE.x, me.pos.z - S.TREE.z) < 5.5;
-      if (onTop) {
+      const onCar = me.ride && me.ride.kind === 'carousel';
+      if (onTop || onCar) {
         if (st.pitch0 === undefined) st.pitch0 = game.camPitch;
-        game.camPitch += (0.95 - game.camPitch) * Math.min(1, dt * 3);
-        game.camDistOverride = 7;
+        game.camPitch += ((onTop ? 0.95 : 0.12) - game.camPitch) * Math.min(1, dt * 3);
+        game.camDistOverride = onTop ? 7 : 11;
+        if (onCar && game.t - game.lastCamManual > 1) game.camYaw = lerpAngle(game.camYaw, Math.atan2(me.pos.x - S.CAROUSEL.x, me.pos.z - S.CAROUSEL.z), Math.min(1, dt * 1.5));
       } else if (st.pitch0 !== undefined) { game.camPitch = st.pitch0; st.pitch0 = undefined; game.camDistOverride = 0; }
-      if (me.ride && me.ride.kind === 'carousel' && game.t - game.lastCamManual > 1) game.camYaw = lerpAngle(game.camYaw, Math.atan2(me.pos.x - S.CAROUSEL.x, me.pos.z - S.CAROUSEL.z), Math.min(1, dt * 1.5));
     },
   };
   // état initial d'après la sauvegarde
