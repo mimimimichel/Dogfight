@@ -26,6 +26,7 @@ import * as SK from './sky.js';
 import * as SN from './snow.js';
 import * as BE from './beach.js';
 import * as CA from './castle.js';
+import * as FA from './farm.js';
 import { voiceFor } from './voice.js';
 import * as M from './models.js';
 import * as W from './world.js';
@@ -140,7 +141,7 @@ const MAMIE_UPRIGHT = { x: -0.34, z: 0.13, neck: 0.14, head: 0.16 };
 const MAMIE_SCALE = 1.25;
 const medalWord = () => (L.ID === 3 ? 'Trophées' : L.ID === 4 ? 'Étoiles' : L.ID === 8 ? 'Trésors' : 'Médailles');
 const collectWord = (long) => ({ 2: 'Croquettes', 3: long ? 'Pièces d\'or' : 'Pièces', 4: 'Pièces du ciel', 5: long ? 'Flocons dorés' : 'Flocons', 6: 'Coquillages', 8: 'Poissons d\'or' })[L.ID] || (long ? 'Os dorés' : 'Os');
-const NEXT_LEVEL = { 1: 'Niveau 2 : la Forêt des Moustaches', 2: 'Niveau 3 : Port-Croquette', 3: 'Niveau 4 : les Îles du Ciel', 4: 'Niveau 5 : la Station des Neiges', 5: 'Niveau 6 : la Plage aux Coquillages', 7: 'Niveau 8 : le Château des Chats' };
+const NEXT_LEVEL = { 1: 'Niveau 2 : la Forêt des Moustaches', 2: 'Niveau 3 : Port-Croquette', 3: 'Niveau 4 : les Îles du Ciel', 4: 'Niveau 5 : la Station des Neiges', 5: 'Niveau 6 : la Plage aux Coquillages', 6: 'Niveau 7 : la Ferme de Papi Berger', 7: 'Niveau 8 : le Château des Chats' };
 // LEVEL-CHAIN: chaque monde ouvre le suivant ; NEXT_ID seulement quand ce n'est pas simplement L.ID + 1
 const NEXT_ID = {};
 
@@ -752,6 +753,7 @@ class Adventure {
     else if (L.ID === 5) this.levelLogic = SN.buildSnow(this);
     else if (L.ID === 6) this.levelLogic = BE.buildBeach(this);
     else if (L.ID === 8) this.levelLogic = CA.buildCastle(this);
+    else if (L.ID === 7) this.levelLogic = FA.buildFarm(this);
     else this.levelLogic = F.buildForest(this, { THREE, M, W, T });
 
     // Nuages et papillons
@@ -787,8 +789,8 @@ class Adventure {
         list.push({ x, z, to: 1 }); break;
       }
     }
-    const NAMES = { 1: 'Le Parc des Toutous', 2: 'La Forêt des Moustaches', 3: 'Port-Croquette', 4: 'Les Îles du Ciel', 5: 'La Station des Neiges', 6: 'La Plage aux Coquillages', 8: 'Le Château des Chats' };
-    const COLS = { 1: [0x3affa0, 0x0a4a3a], 2: [0x4ab0ff, 0x10206a], 3: [0xffb04a, 0x5a2008], 4: [0xc070ff, 0x2a0a5a], 5: [0xbfeaff, 0x1a4a7a], 6: [0x4ae0e0, 0x0a4a5a], 8: [0xff7ab0, 0x5a0a2a] };
+    const NAMES = { 1: 'Le Parc des Toutous', 2: 'La Forêt des Moustaches', 3: 'Port-Croquette', 4: 'Les Îles du Ciel', 5: 'La Station des Neiges', 6: 'La Plage aux Coquillages', 7: 'La Ferme de Papi Berger', 8: 'Le Château des Chats' };
+    const COLS = { 1: [0x3affa0, 0x0a4a3a], 2: [0x4ab0ff, 0x10206a], 3: [0xffb04a, 0x5a2008], 4: [0xc070ff, 0x2a0a5a], 5: [0xbfeaff, 0x1a4a7a], 6: [0x4ae0e0, 0x0a4a5a], 7: [0xffe04a, 0x4a3a08], 8: [0xff7ab0, 0x5a0a2a] };
     markVisited(L.ID);
     const visited = visitedLevels();
     this.portals = list.map(p => {
@@ -3349,6 +3351,9 @@ class Adventure {
     } else if (L.ID === 8) {
       if (L.MOAT) water = Math.max(0, 1 - Math.max(0, Math.abs(c.z - (L.MOAT.z1 - 3)) - 4) / 30) * 0.35;   // les douves, devant le pont-levis
       wind = c.y > 12 ? 0.35 : 0.2; windP = 0.15; birds = c.z > 12 ? 0.45 : 0.15; gulls = 0.03;
+    } else if (L.ID === 7) {
+      if (L.POND) water = near(L.POND.x, L.POND.z, 24) * 0.4;
+      wind = 0.28; windP = 0.15; birds = 0.6;
     }
     // moteur : kart ou avion conduit par moi
     const k = this.player && this.player.kart;

@@ -161,14 +161,17 @@
    * Dans cette branche, c'est le niveau 4 (Trophée du Ciel) ; une fois les niveaux 5 à 7 ajoutés,
    * mettre ici le niveau 7 (la Ferme de Papi Berger) et sa médaille finale.
    */
-  function level8Open() {
-    const prev = levelSave(4), own = levelSave(8);
-    return !!(prev && prev.medals && prev.medals.includes('m_goal')) || !!(own && own.intro);
-  }
+  // (tous les mondes sont ouverts, comme les niveaux 1 à 6 : on choisit librement où jouer)
+  function level8Open() { return true; }
   /** Progression sauvegardée d'un niveau de l'aventure (ou null). */
   function levelSave(n) {
     try { return JSON.parse(localStorage.getItem('dogfight.aventure.niveau' + n + (n === 3 ? 'b' : '')) || 'null'); } catch (e) { return null; }
   }
+  /**
+   * Niveau 7 (la Ferme) ouvert ? LEVEL-CHAIN : il suit le niveau 6 ; tant que les niveaux 5 et 6
+   * n'existent pas, il s'ouvre quand le niveau 4 est fini (à recâbler sur levelSave(6)).
+   */
+  function level7Open() { return true; }
   /** Le gros bouton d'aventure indique la progression sauvegardée. */
   function updateAdventureButton() {
     const s1 = levelSave(1), s2 = levelSave(2), s3 = levelSave(3), s4 = levelSave(4), s5 = levelSave(5);
@@ -199,6 +202,12 @@
     $('lv8-prog').textContent = !open8 ? '🔒 Finis d\'abord les Îles du Ciel' : started(s8) ? `Trésors ${medals(s8)}/5 · Poissons ${(s8.bones || []).length}/100` : 'Nouveau !';
     $('lv8-bar').style.setProperty('--p', (s8 ? Math.round((Math.min(medals(s8), 5) / 5 * 0.7 + Math.min((s8.bones || []).length, 100) / 100 * 0.3) * 100) : 0) + '%');
     const c8 = document.querySelector('.level-card.l8'); if (c8) c8.classList.toggle('locked', !open8);
+    // niveau 7 : la Ferme de Papi Berger (fermé tant que le niveau d'avant n'est pas fini)
+    const s7 = levelSave(7), open7 = level7Open();
+    if (started(s7)) $('adv-play-label').textContent = 'Continuer';
+    $('lv7-prog').textContent = !open7 ? '🔒 Finis d\'abord les Îles du Ciel' : started(s7) ? `Médailles ${medals(s7)}/5 · Os ${(s7.bones || []).length}/100` : 'Nouveau !';
+    $('lv7-bar').style.setProperty('--p', (s7 ? Math.round((Math.min(medals(s7), 5) / 5 * 0.7 + Math.min((s7.bones || []).length, 100) / 100 * 0.3) * 100) : 0) + '%');
+    for (const el of document.querySelectorAll('[data-action="level-7"], [data-action="coop-lv-7"]')) el.classList.toggle('locked', !open7);
   }
   // ---------------------------------------------------------------------------
   // « Qui joue ? » : un joueur = sa propre progression (profiles.js)
@@ -274,6 +283,7 @@
     ];
     const S6 = levelSave(6);
     W.push({ id: 6, n: 'La Plage aux Coquillages', med: 5, medName: 'Médailles', col: 'Coquillages', s: S6, extra: S6 && S6.beach && S6.beach.raceBest ? `Bodyboard ${S6.beach.raceBest.toFixed(1)} s` : '' });
+    W.push({ id: 7, n: 'La Ferme de Papi Berger', med: 5, medName: 'Médailles', col: 'Os', s: levelSave(7), extra: levelSave(7) && (levelSave(7).medals || []).length >= 5 ? 'Ferme en fête !' : '' });
     W.push({ id: 8, n: 'Le Château des Chats', med: 5, medName: 'Trésors', col: 'Poissons', s: S8, extra: S8 && S8.castle && S8.castle.party ? 'Fête au château !' : '' });
     let got = 0, all = 0;
     $('album-worlds').innerHTML = W.map((w, i) => {
@@ -318,6 +328,8 @@
       ['🏄', 'Rois de la glisse', has(S6, 'm_race')],
       ['🧶', 'Pousseurs de pelotes', has(S8, 'm_wall')],
       ['🏰', 'Amis de la Capitaine', has(S8, 'm_goal')],
+      ['🐑', 'Chiens de berger', has(levelSave(7), 'm_sheep')],
+      ['🚜', 'Ferme en fête', count(levelSave(7), 'medals') >= 5],
       ['🦴', 'Grand collectionneur', anyBones100],
       ['👑', 'Toutous légendaires', total >= 95],
     ];
@@ -861,7 +873,7 @@
     if (document.activeElement && document.activeElement.blur) document.activeElement.blur();
     app.mode = 'adventure';
     show('adventure');
-    const LV = { 1: ['Le Parc des Toutous', 'Niveau 1'], 2: ['La Forêt des Moustaches', 'Niveau 2'], 3: ['Port-Croquette', 'Niveau 3 · la grande ville'], 4: ['Les Îles du Ciel', 'Niveau 4 · parcours à plusieurs'], 5: ['La Station des Neiges', 'Niveau 5 · luge et boules de neige'], 6: ['La Plage aux Coquillages', 'Niveau 6 · creuser et surfer'], 8: ['Le Château des Chats', 'Niveau 8 · énigmes et grande fête'] }[level || 1] || ['Aventure', ''];
+    const LV = { 1: ['Le Parc des Toutous', 'Niveau 1'], 2: ['La Forêt des Moustaches', 'Niveau 2'], 3: ['Port-Croquette', 'Niveau 3 · la grande ville'], 4: ['Les Îles du Ciel', 'Niveau 4 · parcours à plusieurs'], 5: ['La Station des Neiges', 'Niveau 5 · luge et boules de neige'], 6: ['La Plage aux Coquillages', 'Niveau 6 · creuser et surfer'], 7: ['La Ferme de Papi Berger', 'Niveau 7 · chiens de berger'], 8: ['Le Château des Chats', 'Niveau 8 · énigmes et grande fête'] }[level || 1] || ['Aventure', ''];
     if (window.AppLoader) { window.AppLoader.show(LV[0], coop ? 'On rejoint le monde de ton ami…' : LV[1]); window.AppLoader.progress(0.12, 'Chargement de l\'aventure…'); }
     import('./adventure/game.js').then((mod) => {
       adventureLoading = false;
@@ -1040,11 +1052,12 @@
       case 'level-5': startAdventure(null, null, 5); break;
       case 'level-6': startAdventure(null, null, 6); break;
       case 'level-8': if (level8Open()) startAdventure(null, null, 8); else toast('🔒 Le Château des Chats s\'ouvre quand les Îles du Ciel sont finies !', 2800); break;
+      case 'level-7': if (level7Open()) startAdventure(null, null, 7); else toast('🔒 La Ferme de Papi Berger s\'ouvre quand tu as fini les Îles du Ciel !', 3200); break;
       case 'mode-promenade': case 'mode-aventure': case 'mode-defi':
         try { localStorage.setItem('dogfight.mode', a.slice(5)); } catch (e) { /* ignore */ }
         renderModes();
         break;
-      case 'coop-lv-1': case 'coop-lv-2': case 'coop-lv-3': case 'coop-lv-4': case 'coop-lv-5': case 'coop-lv-6': case 'coop-lv-8': {
+      case 'coop-lv-1': case 'coop-lv-2': case 'coop-lv-3': case 'coop-lv-4': case 'coop-lv-5': case 'coop-lv-6': case 'coop-lv-7': case 'coop-lv-8': {
         coopLevel = +a.slice(-1);
         for (const b of document.querySelectorAll('.lvpick')) b.classList.toggle('active', b.dataset.action === a);
         if (coopSession) coopSession.level = coopLevel;

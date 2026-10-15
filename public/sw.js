@@ -14,7 +14,7 @@
  */
 'use strict';
 
-const VERSION = 'v5';
+const VERSION = 'v6';
 const ASSETS_VERSION = 'v1';
 const PREFIX = 'matcha-';
 const CORE = PREFIX + 'core-' + VERSION;
@@ -40,9 +40,9 @@ const PRECACHE = [
   // public/adventure/ (sans les assets lourds)
   'adventure/adventure.css',
   'adventure/cinema.js', 'adventure/city.js', 'adventure/citykit.js', 'adventure/cityplay.js',
-  'adventure/current.js', 'adventure/forest.js', 'adventure/game.js', 'adventure/level1.js',
+  'adventure/current.js', 'adventure/farm.js', 'adventure/farmkit.js', 'adventure/forest.js', 'adventure/game.js', 'adventure/level1.js',
   'adventure/level2.js', 'adventure/level3.js', 'adventure/level4.js', 'adventure/level5.js', 'adventure/models.js',
-  'adventure/level6.js', 'adventure/beach.js', 'adventure/beachplay.js', 'adventure/level8.js', 'adventure/castle.js',
+  'adventure/level6.js', 'adventure/beach.js', 'adventure/beachplay.js', 'adventure/level7.js', 'adventure/level8.js', 'adventure/castle.js',
   'adventure/npcs.js', 'adventure/post.js', 'adventure/realtex.js', 'adventure/sky.js',
   'adventure/sky_boss.js', 'adventure/snow.js', 'adventure/story.js', 'adventure/seasons.js', 'adventure/toon.js', 'adventure/voice.js',
   'adventure/voices.js', 'adventure/wardrobe.js', 'adventure/world.js',
