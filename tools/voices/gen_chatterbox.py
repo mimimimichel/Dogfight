@@ -59,6 +59,13 @@ CAST = {
     'Mamie Floconne': ('mamie', 0.6, 0.45),
     'Pipou': ('biscotte', 0.8, 0.5),
     'Brindille': ('persane', 0.7, 0.5),
+    'Gaston la grenouille': ('bruno', 0.7, 0.5),
+    'Mère Hulotte': ('maire', 0.55, 0.45),
+    'Noisette la hérissonne': ('rita', 0.65, 0.5),
+    "Pistache l'écureuil": ('zazou', 0.75, 0.5),
+    'Plume': ('biscotte', 0.8, 0.5),
+    'Lapinou': ('filou', 0.75, 0.5),
+    'Mélodie la mésange': ('mimi', 0.7, 0.5),
 }
 # les rôles principaux d'abord
 ORDER = ['', 'Mamie Labrador', 'Matcha', 'Ainu', 'Biscotte', 'Capitaine Moustache']
