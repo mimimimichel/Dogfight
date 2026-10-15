@@ -113,6 +113,8 @@ export function storyShots(game, L) {
       cap: 'Miaou-ha-ha ! En ville, personne ne rattrape mon bolide !', duo: ['Ainu', 'Ouaf ! Des karts… et même des avions ?!'] },
     4: { title: 'Les Îles du Ciel', fly: 'Pour leur échapper une dernière fois, la Capitaine s\'est envolée en montgolfière vers les Îles du Ciel.',
       cap: 'Bonne chance pour me suivre là-haut, les cabots !', duo: ['Matcha', 'Accroche-toi, Ainu : on va sauter de nuage en nuage !'] },
+    7: { title: 'La Ferme de Papi Berger', fly: 'Après tant d\'aventures, Mamie emmène tout le monde à la campagne, chez son vieil ami Papi Berger. Mais des moustaches rôdent autour de la grange…',
+      cap: 'Miaou-hi-hi ! Et si on ouvrait l\'enclos des moutons… juste pour rire ?', duo: ['Matcha', 'Des moutons partout ! Ainu, on va jouer aux chiens de berger !'] },
   };
   const ch = chapters[L.ID];
   if (!ch) return null;

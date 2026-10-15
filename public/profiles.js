@@ -39,7 +39,7 @@
 
   /** Progression d'un joueur (0..100), lue dans son tiroir. */
   function progress(id) {
-    const lv = [[1, 5], [2, 5], ['3b', 12], [4, 6]];
+    const lv = [[1, 5], [2, 5], ['3b', 12], [4, 6], [7, 5]];
     let got = 0, all = 0;
     for (const [n, med] of lv) {
       let s = null;

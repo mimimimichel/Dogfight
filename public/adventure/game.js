@@ -23,6 +23,7 @@ function markVisited(id) {
 import * as F from './forest.js';
 import * as C from './city.js';
 import * as SK from './sky.js';
+import * as FA from './farm.js';
 import { voiceFor } from './voice.js';
 import * as M from './models.js';
 import * as W from './world.js';
@@ -138,6 +139,10 @@ const MAMIE_SCALE = 1.25;
 const medalWord = () => (L.ID === 3 ? 'Trophées' : L.ID === 4 ? 'Étoiles' : 'Médailles');
 const collectWord = (long) => ({ 2: 'Croquettes', 3: long ? 'Pièces d\'or' : 'Pièces', 4: 'Pièces du ciel' })[L.ID] || (long ? 'Os dorés' : 'Os');
 const NEXT_LEVEL = { 1: 'Niveau 2 : la Forêt des Moustaches', 2: 'Niveau 3 : Port-Croquette', 3: 'Niveau 4 : les Îles du Ciel' };
+// LEVEL-CHAIN: le niveau 7 (la Ferme) vient après le niveau 6. Tant que les niveaux 5 et 6 ne sont pas là,
+// il suit le niveau 4 : à recâbler en 6 → 7 (et retirer cette passerelle 4 → 7) quand ils arrivent.
+if (!LEVELS[5]) NEXT_LEVEL[4] = 'Niveau 7 : la Ferme de Papi Berger';
+const nextLevelId = (id) => (id === 4 && !LEVELS[5] ? 7 : id + 1);
 
 const isChild = (o, root) => { for (let p = o.parent; p; p = p.parent) if (p === root) return true; return false; };
 const clamp = (v, a, b) => (v < a ? a : v > b ? b : v);
@@ -171,7 +176,7 @@ export async function start(opts) {
     LD.progress(0.35, 'Les chiens se préparent…');
   }
   W.applySky(L.SKY);
-  if (opts.sfx) opts.sfx.music('adv' + L.ID);     // l'ambiance musicale du niveau
+  if (opts.sfx) opts.sfx.music(L.MUSIC || 'adv' + L.ID);     // l'ambiance musicale du niveau
   let style = null;
   try { style = localStorage.getItem('dogfight.style'); } catch (e) { /* ignore */ }
   // rendu réaliste : matières photographiées et ciel (chargés une seule fois)
@@ -740,6 +745,7 @@ class Adventure {
     if (L.ID === 1) this.buildParc();
     else if (L.ID === 3) this.levelLogic = C.buildCity(this);
     else if (L.ID === 4) this.levelLogic = SK.buildSky(this);
+    else if (L.ID === 7) this.levelLogic = FA.buildFarm(this);
     else this.levelLogic = F.buildForest(this, { THREE, M, W, T });
 
     // Nuages et papillons
@@ -775,8 +781,8 @@ class Adventure {
         list.push({ x, z, to: 1 }); break;
       }
     }
-    const NAMES = { 1: 'Le Parc des Toutous', 2: 'La Forêt des Moustaches', 3: 'Port-Croquette', 4: 'Les Îles du Ciel' };
-    const COLS = { 1: [0x3affa0, 0x0a4a3a], 2: [0x4ab0ff, 0x10206a], 3: [0xffb04a, 0x5a2008], 4: [0xc070ff, 0x2a0a5a] };
+    const NAMES = { 1: 'Le Parc des Toutous', 2: 'La Forêt des Moustaches', 3: 'Port-Croquette', 4: 'Les Îles du Ciel', 7: 'La Ferme de Papi Berger' };
+    const COLS = { 1: [0x3affa0, 0x0a4a3a], 2: [0x4ab0ff, 0x10206a], 3: [0xffb04a, 0x5a2008], 4: [0xc070ff, 0x2a0a5a], 7: [0xffe04a, 0x4a3a08] };
     markVisited(L.ID);
     const visited = visitedLevels();
     this.portals = list.map(p => {
@@ -3321,6 +3327,9 @@ class Adventure {
     } else if (L.ID === 4) {
       const v = this.player ? this.player.vel : null, sp = v ? Math.hypot(v.x, v.y, v.z) : 0;
       wind = 0.6; windP = Math.min(1, 0.3 + sp / 25); birds = 0.06; gulls = 0.08;
+    } else if (L.ID === 7) {
+      if (L.POND) water = near(L.POND.x, L.POND.z, 24) * 0.4;
+      wind = 0.28; windP = 0.15; birds = 0.6;
     }
     // moteur : kart ou avion conduit par moi
     const k = this.player && this.player.kart;
@@ -4099,7 +4108,7 @@ class Adventure {
         this.dispose(true);
         start({ sfx: this.sfx, onExit: this.onExit, coopHost: this.hostSession, level: L.ID });
         break;
-      case 'next': this.switchLevel(L.ID + 1); break;
+      case 'next': this.switchLevel(nextLevelId(L.ID)); break;
       case 'quit': this.dispose(); this.onExit(); break;
       case 'lost': this.dispose(); this.onExit(); break;
     }

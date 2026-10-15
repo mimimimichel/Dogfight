@@ -45,7 +45,7 @@
   /** Récompenses gagnées (médailles, trophées, étoiles) dans les 4 mondes. */
   function rewards() {
     let n = 0;
-    for (const k of ['niveau1', 'niveau2', 'niveau3b', 'niveau4']) { const s = read('dogfight.aventure.' + k, null); if (s && s.medals) n += s.medals.length; }
+    for (const k of ['niveau1', 'niveau2', 'niveau3b', 'niveau4', 'niveau7']) { const s = read('dogfight.aventure.' + k, null); if (s && s.medals) n += s.medals.length; }
     return n;
   }
   function storyDone() { const s = read('dogfight.aventure.niveau4', null); return !!(s && s.medals && s.medals.includes('m_goal')); }
