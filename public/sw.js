@@ -46,6 +46,7 @@ const PRECACHE = [
   'adventure/npcs.js', 'adventure/post.js', 'adventure/realtex.js', 'adventure/sky.js',
   'adventure/sky_boss.js', 'adventure/snow.js', 'adventure/story.js', 'adventure/seasons.js', 'adventure/toon.js', 'adventure/voice.js',
   'adventure/voices.js', 'adventure/wardrobe.js', 'adventure/world.js',
+  'adventure/park.js', 'adventure/parkkit.js',
 ];
 
 const SCOPE = new URL(self.registration ? self.registration.scope : './', self.location.href);
