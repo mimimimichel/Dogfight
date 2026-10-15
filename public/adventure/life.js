@@ -39,7 +39,7 @@ function paint(geo, color) {
   const n = g.attributes.position.count, col = new Float32Array(n * 3), c = new THREE.Color(color);
   for (let i = 0; i < n; i++) { col[i * 3] = c.r; col[i * 3 + 1] = c.g; col[i * 3 + 2] = c.b; }
   g.setAttribute('color', new THREE.BufferAttribute(col, 3));
-  if (g.attributes.uv) g.deleteAttribute('uv');
+  // (on garde les coordonnées de texture : un monde peut habiller ses bêtes et ses objets de vraies matières)
   return g;
 }
 const _m = new THREE.Matrix4(), _q = new THREE.Quaternion(), _e = new THREE.Euler(), _v = new THREE.Vector3(), _s = new THREE.Vector3();
@@ -53,15 +53,24 @@ function P(geo, color, o) {
 }
 function merge(list) {
   const out = new THREE.BufferGeometry();
-  for (const [name, k] of [['position', 3], ['normal', 3], ['color', 3]]) {
-    let n = 0; for (const g of list) n += g.attributes[name].count;
+  for (const [name, k] of [['position', 3], ['normal', 3], ['color', 3], ['uv', 2]]) {
+    let n = 0; for (const g of list) n += g.attributes.position.count;
     const a = new Float32Array(n * k); let o = 0;
-    for (const g of list) { a.set(g.attributes[name].array, o); o += g.attributes[name].array.length; }
+    for (const g of list) { const at = g.attributes[name]; if (at) a.set(at.array, o); o += g.attributes.position.count * k; }
     out.setAttribute(name, new THREE.BufferAttribute(a, k));
   }
   out.computeBoundingSphere();
   return out;
 }
+/** Plusieurs listes de pièces → une géométrie à groupes (une matière par liste : bois + métal…). */
+function mergeGroups(lists) {
+  const g = merge(lists.flat());
+  let o = 0;
+  lists.forEach((l, i) => { const n = l.reduce((a, q) => a + q.attributes.position.count, 0); g.addGroup(o, n, i); o += n; });
+  return g;
+}
+/** Une forme tournée (vase, tonneau…) : profil [[rayon, y], …]. */
+const lathe = (prof, n) => new THREE.LatheGeometry(prof.map(([r, y]) => new THREE.Vector2(r, y)), n || 12);
 const sph = (r, w, h, ...a) => new THREE.SphereGeometry(r, w || 8, h || 6, ...a);
 const cyl = (a, b, h, n, ...o) => new THREE.CylinderGeometry(a, b, h, n || 6, ...o);
 const cone = (r, h, n) => new THREE.ConeGeometry(r, h, n || 6);
@@ -180,6 +189,72 @@ export const MODELS = {
     return { body: merge([P(sph(0.13), f, { sx: 0.5, sz: 2.2 }), P(cone(0.12, 0.18, 4), f, { z: -0.32, rx: -Math.PI / 2, sx: 0.3 }), ...eyes(0.05, 0.03, 0.18, 0.02)]), h: 0.3, r: 0.2 };
   },
   sprite(c) { return { body: merge([P(new THREE.IcosahedronGeometry(0.12, 0), c.fur || 0xbfeaff)]), h: 0.3, r: 0.2, unlit: true }; },
+  /** Chat à quatre pattes (pelage teinté par bête) ; casque de garde, collier, foulard en option. */
+  cat(c) {
+    const f = 0xffffff, light = 0xfff8f0, pink = 0xf2a0b0, dark = 0x1a1414;
+    const parts = [P(sph(0.24, 10, 8), f, { y: 0.4, sz: 1.55, sy: 0.82 }), P(sph(0.17), light, { y: 0.4, z: 0.22, sy: 1.0, sz: 0.9 }),
+      P(sph(0.21, 10, 8), f, { y: 0.7, z: 0.4, sx: 1.08, sy: 0.95 }), P(sph(0.09), light, { y: 0.63, z: 0.56, sx: 1.4, sy: 0.75 }),
+      P(sph(0.028), pink, { y: 0.67, z: 0.64 }), ...eyes(0.085, 0.74, 0.56, 0.032), P(sph(0.012), 0xffffff, { x: 0.075, y: 0.755, z: 0.585 }), P(sph(0.012), 0xffffff, { x: -0.095, y: 0.755, z: 0.585 }),
+      P(cone(0.085, 0.17, 4), f, { x: 0.12, y: 0.9, z: 0.36, rz: -0.32 }), P(cone(0.085, 0.17, 4), f, { x: -0.12, y: 0.9, z: 0.36, rz: 0.32 }),
+      P(cone(0.05, 0.1, 4), pink, { x: 0.115, y: 0.89, z: 0.39, rz: -0.32 }), P(cone(0.05, 0.1, 4), pink, { x: -0.115, y: 0.89, z: 0.39, rz: 0.32 }),
+      P(cyl(0.045, 0.03, 0.62, 5), f, { y: 0.66, z: -0.47, rx: -0.55 }), P(sph(0.045), light, { y: 0.92, z: -0.62 })];
+    for (const s of [-1, 1]) for (const k of [-1, 1]) parts.push(P(box(0.18, 0.006, 0.006), 0xf4f4f4, { x: s * 0.13, y: 0.64 + k * 0.02, z: 0.6, rz: s * k * 0.15 }));
+    for (const [x, z] of [[0.1, 0.24], [-0.1, 0.24], [0.1, -0.22], [-0.1, -0.22]]) parts.push(P(cyl(0.05, 0.045, 0.3, 5), f, { x, y: 0.15, z }), P(sph(0.055), light, { x, y: 0.03, z: z + 0.02, sz: 1.3, sy: 0.6 }));
+    if (c.collar) parts.push(P(tor(0.15, 0.035, 5, 12), c.collar, { y: 0.56, z: 0.37, rx: Math.PI / 2 - 0.5 }), P(sph(0.04), 0xffd23a, { y: 0.47, z: 0.48 }));
+    if (c.helmet) parts.push(P(sph(0.2, 10, 6, 0, TAU, 0, Math.PI / 2), c.helmet, { y: 0.78, z: 0.4, sy: 0.8 }), P(box(0.04, 0.12, 0.3), c.plume || 0xd83a3a, { y: 0.98, z: 0.36 }));
+    return { body: merge(parts), h: 1.0, r: 0.35, tint: true };
+  },
+  mouse(c) {
+    const f = c.fur || 0xb8b0b8, pink = 0xf4a8b8;
+    return {
+      body: merge([P(sph(0.11, 8, 6), f, { y: 0.1, sz: 1.45, sy: 0.85 }), P(sph(0.075), f, { y: 0.14, z: 0.15, sz: 1.2 }), P(sph(0.02), pink, { y: 0.14, z: 0.25 }),
+        ...eyes(0.04, 0.17, 0.2, 0.016), P(sph(0.05), f, { x: 0.06, y: 0.23, z: 0.11, sz: 0.35 }), P(sph(0.04), pink, { x: 0.06, y: 0.23, z: 0.125, sz: 0.25 }),
+        P(sph(0.05), f, { x: -0.06, y: 0.23, z: 0.11, sz: 0.35 }), P(sph(0.04), pink, { x: -0.06, y: 0.23, z: 0.125, sz: 0.25 }),
+        P(cyl(0.012, 0.006, 0.34, 4), pink, { y: 0.1, z: -0.3, rx: 1.25 }), P(cyl(0.008, 0.005, 0.18, 4), pink, { y: 0.2, z: -0.47, rx: 0.4 })]),
+      h: 0.3, r: 0.14,
+    };
+  },
+  bat(c) {
+    const f = c.fur || 0x5a4a6a, belly = 0x8a7a8a;
+    return {
+      body: merge([P(sph(0.12), f, { y: 0.14, sy: 1.1 }), P(sph(0.08), belly, { y: 0.13, z: 0.06, sy: 1.1, sz: 0.6 }), P(sph(0.09), f, { y: 0.3, z: 0.02 }),
+        P(cone(0.04, 0.12, 4), f, { x: 0.06, y: 0.42, z: 0.0, rz: -0.25 }), P(cone(0.04, 0.12, 4), f, { x: -0.06, y: 0.42, z: 0.0, rz: 0.25 }),
+        P(sph(0.026), 0xffffff, { x: 0.035, y: 0.32, z: 0.085 }), P(sph(0.026), 0xffffff, { x: -0.035, y: 0.32, z: 0.085 }),
+        P(sph(0.014), 0x141414, { x: 0.035, y: 0.32, z: 0.105 }), P(sph(0.014), 0x141414, { x: -0.035, y: 0.32, z: 0.105 }), P(cone(0.008, 0.025, 3), 0xffffff, { x: 0.015, y: 0.26, z: 0.09, rx: Math.PI })]),
+      flap: merge([P(sph(0.5, 8, 4), c.wing || 0x3a2a48, { x: 0.17, sx: 0.34, sy: 0.04, sz: 0.2 }), P(sph(0.5, 8, 4), c.wing || 0x3a2a48, { x: 0.27, z: -0.06, sx: 0.2, sy: 0.04, sz: 0.16 })]), pivots: [0.08, 0.2, 0], h: 0.45, r: 0.15,
+    };
+  },
+  frog(c) {
+    const g = c.fur || 0x5ab040, belly = 0xd8e8a0;
+    return {
+      body: merge([P(sph(0.2, 10, 8), g, { y: 0.15, sz: 1.15, sy: 0.7 }), P(sph(0.16), belly, { y: 0.11, z: 0.07, sz: 0.9, sy: 0.55 }),
+        P(sph(0.075), g, { x: 0.09, y: 0.28, z: 0.12 }), P(sph(0.075), g, { x: -0.09, y: 0.28, z: 0.12 }),
+        P(sph(0.05), 0xffffff, { x: 0.09, y: 0.3, z: 0.165 }), P(sph(0.05), 0xffffff, { x: -0.09, y: 0.3, z: 0.165 }),
+        P(sph(0.026), 0x141414, { x: 0.09, y: 0.305, z: 0.205 }), P(sph(0.026), 0x141414, { x: -0.09, y: 0.305, z: 0.205 }),
+        P(box(0.16, 0.012, 0.01), 0x2a5a20, { y: 0.17, z: 0.23 }), P(sph(0.03), 0xf4a0b0, { x: 0.1, y: 0.19, z: 0.2, sz: 0.5 }), P(sph(0.03), 0xf4a0b0, { x: -0.1, y: 0.19, z: 0.2, sz: 0.5 }),
+        P(sph(0.09), g, { x: 0.17, y: 0.07, z: -0.08, sz: 1.6, sy: 0.6 }), P(sph(0.09), g, { x: -0.17, y: 0.07, z: -0.08, sz: 1.6, sy: 0.6 }),
+        P(sph(0.05), g, { x: 0.12, y: 0.04, z: 0.15, sy: 0.6 }), P(sph(0.05), g, { x: -0.12, y: 0.04, z: 0.15, sy: 0.6 })]),
+      h: 0.4, r: 0.22,
+    };
+  },
+  duck(c) {
+    const f = 0xffffff, beak = 0xf0962a;
+    return {
+      body: merge([P(sph(0.22, 10, 8), f, { y: 0.16, sz: 1.4, sy: 0.72 }), P(cone(0.1, 0.2, 6), f, { y: 0.24, z: -0.3, rx: -1.1 }),
+        P(sph(0.13, 10, 8), f, { y: 0.42, z: 0.2 }), P(box(0.1, 0.035, 0.13), beak, { y: 0.4, z: 0.36 }), P(box(0.09, 0.02, 0.1), beak, { y: 0.375, z: 0.35 }),
+        ...eyes(0.07, 0.46, 0.3, 0.022), P(sph(0.12), f, { x: 0.14, y: 0.2, z: -0.04, sz: 1.4, sy: 0.5, rz: -0.3 }), P(sph(0.12), f, { x: -0.14, y: 0.2, z: -0.04, sz: 1.4, sy: 0.5, rz: 0.3 })]),
+      h: 0.55, r: 0.28, tint: true,
+    };
+  },
+  butterfly(c) {
+    const w = c.wing || 0xff8ac8, w2 = c.spot || 0xffffff;
+    return {
+      body: merge([P(cyl(0.018, 0.012, 0.22, 5), 0x2a2030, { rx: Math.PI / 2 }), P(sph(0.025), 0x2a2030, { z: 0.12 }),
+        P(cyl(0.004, 0.004, 0.1, 3), 0x2a2030, { x: 0.02, y: 0.04, z: 0.16, rx: 0.6 }), P(cyl(0.004, 0.004, 0.1, 3), 0x2a2030, { x: -0.02, y: 0.04, z: 0.16, rx: 0.6 })]),
+      flap: merge([P(sph(0.5, 8, 4), w, { x: 0.11, z: 0.05, sx: 0.22, sy: 0.02, sz: 0.2 }), P(sph(0.5, 8, 4), w, { x: 0.09, z: -0.07, sx: 0.16, sy: 0.02, sz: 0.14 }), P(sph(0.5, 6, 4), w2, { x: 0.13, y: 0.006, z: 0.06, sx: 0.06, sy: 0.02, sz: 0.06 })]),
+      pivots: [0.01, 0, 0], h: 0.1, r: 0.1, flapAxis: 'x',
+    };
+  },
   puppy(c) {
     const f = 0xffffff, dark = 0x1a1414;
     const parts = [P(sph(0.22), f, { y: 0.32, sz: 1.4, sy: 0.9 }), P(sph(0.19), f, { y: 0.56, z: 0.28 }), P(sph(0.09), 0xffffff, { y: 0.51, z: 0.44, sz: 0.9 }),
@@ -232,6 +307,57 @@ const VILLAGER = {
   pan() { return merge([P(cyl(0.025, 0.025, 0.5, 5), 0x3a3a3a, { y: -0.05, rx: 1.2 }), P(cyl(0.28, 0.22, 0.1, 10), 0x2a2a30, { y: -0.18, z: 0.45 }), P(sph(0.06), 0x7a3a1a, { x: 0.08, y: -0.11, z: 0.45 }), P(sph(0.06), 0x7a3a1a, { x: -0.08, y: -0.11, z: 0.5 })]); },
   flag() { return merge([P(cyl(0.02, 0.02, 1.2, 4), 0xdddddd, { y: 0.35 }), P(box(0.02, 0.32, 0.46), 0x3a8ae0, { y: 0.8, z: 0.24 })]); },
   snowball() { return merge([P(sph(0.16), 0xffffff, { y: -0.5 })]); },
+  // --- chats debout (les gens du château) ------------------------------------------------------
+  cat() {
+    const f = 0xffffff, light = 0xfff8f0, pink = 0xf2a0b0;
+    const parts = [P(cyl(0.1, 0.11, 0.45, 6), f, { x: 0.15, y: 0.22 }), P(cyl(0.1, 0.11, 0.45, 6), f, { x: -0.15, y: 0.22 }),
+      P(sph(0.12), light, { x: 0.15, y: 0.04, z: 0.07, sz: 1.4, sy: 0.6 }), P(sph(0.12), light, { x: -0.15, y: 0.04, z: 0.07, sz: 1.4, sy: 0.6 }),
+      P(sph(0.34, 10, 8), f, { y: 0.78, sy: 1.25, sz: 0.9 }), P(sph(0.3, 12, 10), f, { y: 1.44, sx: 1.08, sy: 0.95 }),
+      P(sph(0.13), light, { y: 1.35, z: 0.24, sx: 1.35, sy: 0.72 }), P(sph(0.035), pink, { y: 1.4, z: 0.36 }),
+      ...eyes(0.115, 1.5, 0.25, 0.042), P(sph(0.014), 0xffffff, { x: 0.1, y: 1.52, z: 0.29 }), P(sph(0.014), 0xffffff, { x: -0.13, y: 1.52, z: 0.29 }),
+      P(cone(0.12, 0.26, 4), f, { x: 0.17, y: 1.72, z: 0.0, rz: -0.35 }), P(cone(0.12, 0.26, 4), f, { x: -0.17, y: 1.72, z: 0.0, rz: 0.35 }),
+      P(cone(0.07, 0.15, 4), pink, { x: 0.165, y: 1.7, z: 0.05, rz: -0.35 }), P(cone(0.07, 0.15, 4), pink, { x: -0.165, y: 1.7, z: 0.05, rz: 0.35 }),
+      P(cyl(0.055, 0.04, 0.9, 6), f, { y: 0.7, z: -0.5, rx: -0.75 }), P(sph(0.06), light, { y: 1.02, z: -0.82 })];
+    for (const s of [-1, 1]) for (const k of [-1, 1]) parts.push(P(box(0.26, 0.008, 0.008), 0xf8f8f8, { x: s * 0.2, y: 1.37 + k * 0.025, z: 0.3, rz: s * k * 0.12 }));
+    return merge(parts);
+  },
+  /** Tunique et col (teintés), sans bonnet : les oreilles restent dehors. */
+  catCloth() {
+    const w = 0xffffff;
+    return merge([P(cyl(0.34, 0.43, 0.6, 10), w, { y: 0.68 }), P(tor(0.24, 0.07, 6, 14), w, { y: 1.12, rx: Math.PI / 2 }), P(box(0.7, 0.07, 0.6), 0xd8d0c0, { y: 0.48 })]);
+  },
+  // coiffes (posées sur la tête, origine = pied du personnage)
+  toque() { return merge([P(cyl(0.2, 0.18, 0.3, 10), 0xfafafa, { y: 1.78 }), P(sph(0.27, 10, 6), 0xffffff, { y: 2.0, sy: 0.65 })]); },
+  jester() {
+    const parts = [P(cyl(0.3, 0.31, 0.12, 12), 0xffd23a, { y: 1.66 })];
+    for (const [s, col] of [[-1, 0xd83a4a], [1, 0x3a6ad8]]) parts.push(P(cone(0.15, 0.6, 7), col, { x: s * 0.25, y: 1.95, rz: -s * 0.85 }), P(sph(0.07), 0xffd23a, { x: s * 0.5, y: 2.08 }));
+    parts.push(P(cone(0.13, 0.5, 7), 0x3ab060, { y: 2.0, z: -0.08, rx: -0.4 }), P(sph(0.065), 0xffd23a, { y: 2.22, z: -0.2 }));
+    return merge(parts);
+  },
+  helmet() { return merge([P(sph(0.33, 12, 6, 0, TAU, 0, Math.PI / 2), 0xc8ccd4, { y: 1.58, sy: 0.85 }), P(cyl(0.34, 0.34, 0.06, 12), 0xa8acb4, { y: 1.6 }), P(box(0.05, 0.22, 0.42), 0xd83a3a, { y: 1.95, z: -0.05 })]); },
+  beret() { return merge([P(sph(0.3, 12, 6), 0x3a5ad8, { x: 0.04, y: 1.7, sy: 0.35, rz: -0.2 }), P(sph(0.05), 0x3a5ad8, { x: 0.04, y: 1.82 })]); },
+  hood() { return merge([P(sph(0.34, 12, 8, 0, TAU, 0, Math.PI * 0.62), 0x6a5a8a, { y: 1.42, sy: 1.05 })]); },
+  crownlet() { return merge([P(cyl(0.2, 0.22, 0.12, 10, 1, true), 0xffc830, { y: 1.74 }), ...[0, 1, 2, 3, 4].map(i => P(cone(0.05, 0.12, 4), 0xffc830, { x: Math.cos(i * 1.256) * 0.2, y: 1.85, z: Math.sin(i * 1.256) * 0.2 }))]); },
+  // outils des chats (dans la patte droite ; origine = bout du bras)
+  ladle() { return merge([P(cyl(0.02, 0.02, 0.7, 5), 0xb8b0a0, { y: -0.1, rx: 0.4 }), P(sph(0.12, 8, 5, 0, TAU, Math.PI / 2, Math.PI / 2), 0xc8c0b0, { y: -0.45, z: -0.14 })]); },
+  brush() { return merge([P(cyl(0.02, 0.025, 0.55, 5), 0xc8a060, { y: -0.05, rx: 0.5 }), P(cone(0.04, 0.12, 6), 0x3a6ad8, { y: -0.36, z: -0.15, rx: 0.5 + Math.PI })]); },
+  palette() { return merge([P(cyl(0.22, 0.22, 0.03, 12), 0xd8b080, { y: -0.4, z: 0.15, rx: 1.3 }), ...[0xd83a3a, 0x3a6ad8, 0xffd23a, 0x3ab060].map((c, i) => P(sph(0.04), c, { x: Math.cos(i * 1.4) * 0.13, y: -0.42 + 0.03, z: 0.15 + Math.sin(i * 1.4) * 0.13 }))]); },
+  spear() { return merge([P(cyl(0.025, 0.025, 2.4, 5), 0x8a5a30, { y: 0.4 }), P(cone(0.07, 0.25, 4), 0xd8dce4, { y: 1.72 }), P(box(0.02, 0.18, 0.12), 0xd83a3a, { y: 1.45, z: 0.07 })]); },
+  sword() { return merge([P(box(0.06, 0.7, 0.02), 0xd8c8a0, { y: -0.6 }), P(box(0.22, 0.04, 0.04), 0x8a5a30, { y: -0.22 }), P(cyl(0.025, 0.025, 0.14, 5), 0x8a5a30, { y: -0.12 })]); },
+  baton() { return merge([P(cyl(0.012, 0.008, 0.5, 4), 0xffffff, { y: -0.2, z: 0.2, rx: 0.9 }), P(sph(0.03), 0x3a2a20, { y: -0.04, z: 0.02 })]); },
+  lute() { return merge([P(sph(0.22, 10, 6), 0xc8803a, { x: -0.1, y: -0.3, z: 0.28, sz: 0.35, sy: 1.15, rz: 0.9 }), P(box(0.05, 0.55, 0.04), 0x6a3a1a, { x: -0.4, y: -0.05, z: 0.3, rz: 0.9 }), P(cyl(0.05, 0.05, 0.02, 10), 0x2a1a10, { x: -0.1, y: -0.3, z: 0.36, rx: Math.PI / 2 })]); },
+  drumstick() { return merge([P(cyl(0.015, 0.02, 0.4, 4), 0xd8c8a0, { y: -0.15, z: 0.12, rx: 0.8 }), P(sph(0.04), 0xffffff, { y: -0.02, z: 0.28 })]); },
+  broom() { return merge([P(cyl(0.025, 0.025, 1.4, 5), 0x8a5a30, { y: -0.1, z: 0.1, rx: 0.3 }), P(cone(0.16, 0.4, 8), 0xd8b860, { y: -0.85, z: -0.12, rx: 0.3 + Math.PI })]); },
+  can() { return merge([P(cyl(0.13, 0.15, 0.3, 10), 0x5aa0c0, { y: -0.45, z: 0.1 }), P(cyl(0.02, 0.03, 0.4, 5), 0x5aa0c0, { y: -0.4, z: 0.38, rx: 1.0 }), P(tor(0.1, 0.02, 4, 10, Math.PI), 0x4a8aa8, { y: -0.27, z: 0.05 })]); },
+  book() { return merge([P(box(0.3, 0.04, 0.22), 0xf4ece0, { y: -0.42, z: 0.18, rx: 0.5 }), P(box(0.32, 0.03, 0.24), 0x8a2a3a, { y: -0.45, z: 0.18, rx: 0.5 })]); },
+  pole() { return merge([P(cyl(0.02, 0.025, 1.9, 5), 0x6a4a2a, { y: 0.35 }), P(cyl(0.05, 0.03, 0.12, 6), 0x3a3a3a, { y: 1.3 }), P(cone(0.04, 0.12, 6), 0xffb040, { y: 1.42 })]); },
+  trumpet() { return merge([P(cyl(0.02, 0.02, 0.5, 5), 0xffc830, { y: -0.2, z: 0.25, rx: 1.2 }), P(cone(0.1, 0.16, 10, true), 0xffc830, { y: -0.08, z: 0.5, rx: -0.4 })]); },
+  jball() { return merge([P(sph(0.08, 8, 6), 0xffffff)]); },
+  /** Heaume d'armure (posé au sommet d'une armure ; origine = bas du heaume). */
+  knight() {
+    return merge([P(sph(0.25, 12, 8), 0xd8dce4, { y: 0.24, sy: 1.12 }), P(box(0.34, 0.05, 0.1), 0x2a2a30, { y: 0.27, z: 0.22 }), P(box(0.3, 0.035, 0.1), 0x2a2a30, { y: 0.19, z: 0.22 }),
+      P(cyl(0.04, 0.06, 0.12, 6), 0xffd23a, { y: 0.52 }), P(sph(0.12, 8, 6), 0xd83a3a, { y: 0.66, z: -0.08, sz: 1.8, sy: 0.8 })]);
+  },
 };
 
 // Objets
@@ -268,6 +394,103 @@ export const PROPS = {
     for (let i = 0; i < 5; i++) { const len = 0.55 + (i % 3) * 0.22 + i * 0.05; parts.push(P(cone(0.07, len, 5), [0x9ae0ff, 0xc8b8ff, 0x9affe0, 0xffe09a, 0xffb0d8][i], { x: -0.64 + i * 0.32, y: 2.22 - len / 2, rx: Math.PI })); }
     return { geo: merge(parts), h: 2.4, r: 0.4 };
   },
+  // --- le château (matières : tex = nom d'une matière fournie par le monde, cfg.materials) -------
+  /** Gros pouf moelleux : on rebondit dessus. */
+  pouf() {
+    const parts = [P(sph(1.3, 18, 8, 0, TAU, 0, Math.PI / 2), 0xffffff, { sy: 0.48 }), P(tor(1.24, 0.08, 6, 28), 0xffe6a0, { y: 0.06, rx: Math.PI / 2 }), P(sph(0.09), 0xffe6a0, { y: 0.63 })];
+    for (let i = 0; i < 6; i++) { const a = i / 6 * TAU; parts.push(P(sph(0.07), 0xffe6a0, { x: Math.cos(a) * 0.62, y: 0.54, z: Math.sin(a) * 0.62 })); }
+    return { geo: merge(parts), h: 0.62, r: 1.3, tex: 'fabric' };
+  },
+  /** Buis taillé en chat assis, dans son pot. */
+  topiary() {
+    const leaf = [P(sph(0.62, 12, 10), 0x7ab858, { y: 0.62 + 0.45, sx: 1.25, sz: 1.2, sy: 0.7 }), P(sph(0.72, 12, 10), 0x8ac060, { y: 0.62 + 1.25, sy: 1.1 }),
+      P(sph(0.5, 12, 10), 0x8ac868, { y: 0.62 + 2.35, z: 0.15 }), P(cone(0.19, 0.4, 6), 0x7ab858, { x: 0.27, y: 0.62 + 2.82, z: 0.1, rz: -0.3 }), P(cone(0.19, 0.4, 6), 0x7ab858, { x: -0.27, y: 0.62 + 2.82, z: 0.1, rz: 0.3 }),
+      P(tor(0.5, 0.15, 6, 12, Math.PI * 1.1), 0x7ab858, { x: -0.55, y: 0.62 + 1.05, z: -0.6, ry: 0.9 })];
+    const pot = [P(lathe([[0.01, 0], [0.5, 0], [0.6, 0.5], [0.7, 0.55], [0.7, 0.66], [0.01, 0.66]], 14), 0xd08a60), P(tor(0.66, 0.05, 5, 18), 0xf0d0b0, { y: 0.4, rx: Math.PI / 2 })];
+    return { geo: mergeGroups([leaf, pot]), h: 3.3, r: 0.75, tex: ['leaves', 'clay'] };
+  },
+  barrel() {
+    const parts = [P(lathe([[0.01, 0], [0.42, 0], [0.5, 0.3], [0.53, 0.55], [0.5, 0.8], [0.42, 1.1], [0.01, 1.1]], 14), 0xd8a878)];
+    for (const [y, r] of [[0.16, 0.47], [0.55, 0.535], [0.94, 0.47]]) parts.push(P(tor(r, 0.03, 4, 18), 0x4a4038, { y, rx: Math.PI / 2 }));
+    return { geo: merge(parts), h: 1.1, r: 0.55, tex: 'wood' };
+  },
+  caisse() {
+    const parts = [P(box(1, 1, 1), 0xe0b888, { y: 0.5 })];
+    for (const [x, z] of [[0.47, 0.47], [-0.47, 0.47], [0.47, -0.47], [-0.47, -0.47]]) parts.push(P(box(0.1, 1.02, 0.1), 0x9a6a40, { x, y: 0.5, z }));
+    for (const s of [-1, 1]) { parts.push(P(box(0.08, 1.3, 0.04), 0x9a6a40, { y: 0.5, z: s * 0.51, rz: 0.78 })); parts.push(P(box(0.04, 1.3, 0.08), 0x9a6a40, { x: s * 0.51, y: 0.5, rx: 0.78 })); }
+    return { geo: merge(parts), h: 1.0, r: 0.7, tex: 'wood' };
+  },
+  urn() {
+    return { geo: merge([P(lathe([[0.01, 0], [0.24, 0], [0.4, 0.28], [0.43, 0.5], [0.32, 0.78], [0.2, 0.88], [0.27, 1.0], [0.01, 0.98]], 14), 0xd8875a),
+      P(tor(0.425, 0.03, 4, 18), 0xf4e0c0, { y: 0.48, rx: Math.PI / 2 }), P(tor(0.4, 0.025, 4, 18), 0x3a6a8a, { y: 0.38, rx: Math.PI / 2 })]), h: 1.0, r: 0.45, tex: 'clay' };
+  },
+  hay() {
+    return { geo: merge([P(cyl(0.62, 0.62, 1.3, 14), 0xf0d480, { y: 0.62, rz: Math.PI / 2 }), P(tor(0.63, 0.03, 4, 18), 0xa07a3a, { x: 0.35, y: 0.62, ry: Math.PI / 2 }), P(tor(0.63, 0.03, 4, 18), 0xa07a3a, { x: -0.35, y: 0.62, ry: Math.PI / 2 })]), h: 1.25, r: 0.75, tex: 'hay' };
+  },
+  /** Armure d'apparat (le casque est une « coiffe » qui saute : clong !). */
+  armour() {
+    const st = 0xd8dce4, dk = 0x9aa0aa;
+    const parts = [P(box(0.9, 0.18, 0.7), 0x6a5040, { y: 0.09 }), P(cyl(0.1, 0.085, 0.82, 8), st, { x: 0.15, y: 0.6 }), P(cyl(0.1, 0.085, 0.82, 8), st, { x: -0.15, y: 0.6 }),
+      P(sph(0.13), dk, { x: 0.15, y: 0.24, z: 0.07, sz: 1.5, sy: 0.6 }), P(sph(0.13), dk, { x: -0.15, y: 0.24, z: 0.07, sz: 1.5, sy: 0.6 }), P(sph(0.1), st, { x: 0.15, y: 0.62, z: 0.05 }), P(sph(0.1), st, { x: -0.15, y: 0.62, z: 0.05 }),
+      P(cyl(0.3, 0.37, 0.32, 12), dk, { y: 1.08 }), P(sph(0.34, 14, 10), st, { y: 1.42, sy: 1.15, sz: 0.78 }), P(box(0.36, 0.62, 0.05), 0xb83040, { y: 1.18, z: 0.25 }), P(box(0.12, 0.12, 0.06), 0xffd23a, { y: 1.33, z: 0.28 }),
+      P(sph(0.17), st, { x: 0.38, y: 1.68 }), P(sph(0.17), st, { x: -0.38, y: 1.68 }), P(cyl(0.08, 0.07, 0.6, 8), st, { x: 0.42, y: 1.32, rz: 0.12 }), P(cyl(0.08, 0.07, 0.6, 8), st, { x: -0.42, y: 1.32, rz: -0.12 }),
+      P(sph(0.09), dk, { x: 0.45, y: 0.98 }), P(sph(0.09), dk, { x: -0.45, y: 0.98 }), P(cyl(0.11, 0.13, 0.12, 10), dk, { y: 1.86 }),
+      P(cyl(0.025, 0.025, 2.5, 5), 0x6a4a2a, { x: 0.5, y: 1.25, z: 0.08 }), P(box(0.04, 0.35, 0.3), st, { x: 0.5, y: 2.3, z: 0.22 }), P(cone(0.05, 0.2, 4), st, { x: 0.5, y: 2.6, z: 0.08 })];
+    return { geo: merge(parts), h: 2.4, r: 0.5, tex: 'metal' };
+  },
+  /** La cloche de l'orchestre, sur son portique de bois. */
+  bell() {
+    const wood = [P(box(0.14, 2.3, 0.14), 0xc8a070, { x: 0.72, y: 1.15 }), P(box(0.14, 2.3, 0.14), 0xc8a070, { x: -0.72, y: 1.15 }), P(box(1.8, 0.18, 0.2), 0xb89060, { y: 2.3 }), P(box(1.7, 0.1, 0.5), 0xa88050, { y: 0.05 })];
+    const brass = [P(lathe([[0.01, 0.62], [0.2, 0.55], [0.25, 0.35], [0.36, 0.08], [0.4, 0.0], [0.34, 0.02], [0.01, 0.1]], 16), 0xffd890, { y: 1.42 }), P(sph(0.08), 0xd8b060, { y: 1.45 }), P(cyl(0.02, 0.02, 0.2, 4), 0x8a7a60, { y: 2.12 })];
+    return { geo: mergeGroups([wood, brass]), h: 2.4, r: 0.45, tex: ['wood', 'gold'] };
+  },
+  /** Brasero de fer forgé (on l'allume en le touchant, ou d'un « Ouaf ! »). */
+  brazier() {
+    const ir = 0x5a5a64, parts = [];
+    for (let i = 0; i < 3; i++) { const a = i / 3 * TAU; parts.push(P(cyl(0.04, 0.04, 1.2, 5), ir, { x: Math.cos(a) * 0.22, y: 0.55, z: Math.sin(a) * 0.22, rx: Math.sin(a) * 0.3, rz: -Math.cos(a) * 0.3 })); }
+    parts.push(P(lathe([[0.01, 0], [0.25, 0.02], [0.48, 0.25], [0.52, 0.32], [0.46, 0.3], [0.01, 0.08]], 14), ir, { y: 1.05 }), P(sph(0.3, 8, 5), 0x3a2a24, { y: 1.22, sy: 0.4 }), P(tor(0.5, 0.025, 4, 16), 0xb89040, { y: 1.36, rx: Math.PI / 2 }));
+    return { geo: merge(parts), h: 1.4, r: 0.5, tex: 'metal' };
+  },
+  candelabra() {
+    const br = 0xe8c070, parts = [P(lathe([[0.01, 0], [0.32, 0], [0.3, 0.06], [0.1, 0.2], [0.06, 0.3], [0.01, 0.3]], 12), br), P(cyl(0.04, 0.05, 1.6, 6), br, { y: 1.05 })];
+    for (const s of [-1, 0, 1]) {
+      if (s) parts.push(P(tor(0.25, 0.03, 4, 10, Math.PI), br, { x: s * 0.25, y: 1.75, rz: Math.PI, ry: s > 0 ? 0 : Math.PI }));
+      parts.push(P(cyl(0.07, 0.05, 0.06, 8), br, { x: s * 0.5, y: s ? 1.78 : 1.88 }), P(cyl(0.045, 0.045, 0.32, 6), 0xfff4e0, { x: s * 0.5, y: (s ? 1.78 : 1.88) + 0.18 }));
+    }
+    return { geo: merge(parts), h: 2.2, r: 0.35, tex: 'gold' };
+  },
+  /** Portrait d'un noble chat (cadre doré + tableau) ; ses yeux suivent les chiens (palette : eyes). */
+  portrait() {
+    const fr = 0xffffff, frame = [];
+    for (const [x, y, w, h] of [[0, 1.42, 1.3, 0.14], [0, 2.98, 1.3, 0.14], [-0.6, 2.2, 0.12, 1.6], [0.6, 2.2, 0.12, 1.6]]) frame.push(P(box(w, h, 0.12), fr, { x, y, z: 0.0 }));
+    frame.push(P(sph(0.1, 8, 6), fr, { y: 3.1, z: 0.02 }));
+    const pic = [P(new THREE.PlaneGeometry(1.1, 1.45), 0xffffff, { y: 2.2, z: 0.02 })];
+    return { geo: mergeGroups([frame, pic]), h: 3.1, r: 0.3, tex: ['gold', 'portrait'] };
+  },
+  pupil() { return { geo: merge([P(sph(1, 8, 6), 0x141414, { sz: 0.3 })]), h: 0.1, r: 0.05 }; },
+  /** Bibliothèque : d'un grand coup, elle glisse… (passage secret). */
+  bookcase() {
+    const wd = 0xc89868, parts = [P(box(2.4, 2.7, 0.08), 0x9a6a48, { y: 1.35, z: -0.26 }), P(box(0.1, 2.7, 0.6), wd, { x: 1.15, y: 1.35 }), P(box(0.1, 2.7, 0.6), wd, { x: -1.15, y: 1.35 }), P(box(2.5, 0.12, 0.66), wd, { y: 2.74 })];
+    const r = (s => () => (s = (s * 16807) % 2147483647) / 2147483647)(41);
+    for (let j = 0; j < 4; j++) {
+      const y = 0.08 + j * 0.66; parts.push(P(box(2.3, 0.06, 0.56), wd, { y }));
+      for (let x = -1.05; x < 1.0;) { const w = 0.07 + r() * 0.07, h = 0.38 + r() * 0.18; parts.push(P(box(w, h, 0.36), [0x8a2a3a, 0x2a4a8a, 0x2a6a4a, 0xc89a3a, 0x6a3a7a, 0xa85a2a][Math.floor(r() * 6)], { x: x + w / 2, y: y + 0.03 + h / 2, z: 0.02, rz: r() < 0.12 ? 0.2 : 0 })); x += w + 0.012; }
+    }
+    return { geo: merge(parts), h: 2.8, r: 0.6, tex: 'wood' };
+  },
+  yarnball() { return { geo: merge([P(sph(1, 16, 12), 0xffffff), P(tor(0.98, 0.05, 5, 24), 0xffffff, { rx: 1.1 }), P(tor(0.99, 0.05, 5, 24), 0xffffff, { rx: 0.3, ry: 1.2 })]), h: 1, r: 1, tex: 'yarn' }; },
+  /** Mannequin d'entraînement des écuyers (sac de paille, bouclier-cible). */
+  dummy() {
+    return { geo: merge([P(cyl(0.06, 0.07, 1.9, 6), 0x8a5a30, { y: 0.95 }), P(sph(0.36, 10, 8), 0xe8c880, { y: 1.25, sy: 1.3 }), P(sph(0.24, 10, 8), 0xe8c880, { y: 1.95 }),
+      P(cyl(0.05, 0.05, 1.3, 5), 0x8a5a30, { y: 1.45, rz: Math.PI / 2 }), P(cyl(0.3, 0.3, 0.05, 14), 0xd83a3a, { y: 1.25, z: 0.33, rx: Math.PI / 2 }), P(cyl(0.18, 0.18, 0.055, 14), 0xf4f0e8, { y: 1.25, z: 0.34, rx: Math.PI / 2 }),
+      P(cyl(0.07, 0.07, 0.06, 10), 0xd83a3a, { y: 1.25, z: 0.36, rx: Math.PI / 2 }), P(tor(0.25, 0.04, 4, 12), 0xa07a3a, { y: 1.62, rx: Math.PI / 2 }), P(box(0.5, 0.06, 0.5), 0x8a5a30, { y: 0.03 })]), h: 2.2, r: 0.45, tex: 'hay' };
+  },
+  /** Bouton en forme de patte, sur un socle de pierre. */
+  pawbutton() {
+    const parts = [P(lathe([[0.01, 0], [0.75, 0], [0.7, 0.3], [0.55, 0.36], [0.01, 0.36]], 16), 0xe8dcc8), P(sph(0.3, 12, 8), 0xf090a8, { y: 0.4, z: -0.05, sy: 0.35, sz: 0.85 })];
+    for (let i = 0; i < 4; i++) { const a = -0.75 + i * 0.5; parts.push(P(sph(0.11, 10, 6), 0xf090a8, { x: Math.sin(a) * 0.36, y: 0.4, z: Math.cos(a) * 0.32, sy: 0.45 })); }
+    return { geo: merge(parts), h: 0.5, r: 0.7, tex: 'stone' };
+  },
   chest() {
     return { geo: merge([P(box(1.0, 0.55, 0.7), 0x8a5230, { y: 0.28 }), P(box(1.04, 0.08, 0.74), 0xe8b83a, { y: 0.1 }), P(box(1.04, 0.08, 0.74), 0xe8b83a, { y: 0.48 }), P(box(0.16, 0.2, 0.05), 0xe8c84a, { y: 0.48, z: 0.37 })]), h: 0.6, r: 0.6 };
   },
@@ -278,7 +501,7 @@ export const PROPS = {
   button() {
     return { geo: merge([P(cyl(0.6, 0.7, 0.35, 12), 0xf2f6fc, { y: 0.17 }), P(cyl(0.38, 0.42, 0.22, 12), 0xe8403a, { y: 0.42 }), P(cyl(0.2, 0.2, 0.04, 10), 0xffffff, { y: 0.54 })]), h: 0.55, r: 0.6 };
   },
-  hole() { return { geo: merge([P(cyl(0.55, 0.55, 0.02, 14), 0x16303e, { y: 0.03 }), P(tor(0.58, 0.08, 4, 16), 0xeef6ff, { y: 0.05, rx: Math.PI / 2, sz: 0.4 })]), h: 0.1, r: 0.6 }; },
+  hole(c) { return { geo: merge([P(cyl(0.55, 0.55, 0.02, 14), c.dark || 0x16303e, { y: 0.03 }), P(tor(0.58, 0.08, 4, 16), c.rim || 0xeef6ff, { y: 0.05, rx: Math.PI / 2, sz: 0.4 })]), h: 0.1, r: 0.6 }; },
   marker() { return { geo: merge([P(tor(1.15, 0.1, 5, 24), 0xffd23a, { y: 0.08, rx: Math.PI / 2, sz: 0.5 }), P(cyl(1.0, 1.0, 0.03, 20), 0xfff2a8, { y: 0.03 })]), h: 0.1, r: 1.2 }; },
   star() { return { geo: merge([P(new THREE.OctahedronGeometry(0.32), 0xffe24a, { sy: 1.3 })]), h: 0.4, r: 0.3, unlit: true }; },
   coin() { return { geo: merge([P(new THREE.OctahedronGeometry(0.3), 0xff3a4a, { sz: 0.35, sy: 1.25 })]), h: 0.4, r: 0.3, unlit: true }; },
@@ -302,9 +525,10 @@ function shadowTexture() {
 /** Un maillage instancié qu'on remplit à chaque image (seulement les objets visibles). */
 const WHITE = new THREE.Color(1, 1, 1);
 class Layer {
-  constructor(scene, geo, material, max, tint) {
+  constructor(scene, geo, material, max, tint, cull) {
     this.mesh = new THREE.InstancedMesh(geo, material, Math.max(1, max));
-    this.mesh.frustumCulled = false;
+    // cull : la couche n'est dessinée que si ses objets sont dans le champ (sphère recalculée à chaque image)
+    this.mesh.frustumCulled = !!cull; this.cull = !!cull;
     this.mesh.castShadow = false; this.mesh.receiveShadow = false;
     this.mesh.userData.noOutline = true;
     this.mesh.count = 0; this.mesh.visible = false;
@@ -321,7 +545,7 @@ class Layer {
   }
   end() {
     this.mesh.count = this.n; this.mesh.visible = this.n > 0;
-    if (this.n) { this.mesh.instanceMatrix.needsUpdate = true; if (this.tint) this.mesh.instanceColor.needsUpdate = true; }
+    if (this.n) { this.mesh.instanceMatrix.needsUpdate = true; if (this.tint) this.mesh.instanceColor.needsUpdate = true; if (this.cull) this.mesh.computeBoundingSphere(); }
   }
 }
 
@@ -354,7 +578,11 @@ export function buildLife(game, cfg) {
   const glowMat = new THREE.MeshBasicMaterial({ map: M.glowTexture(), transparent: true, depthWrite: false, blending: THREE.AdditiveBlending });
   const shadowMat = new THREE.MeshBasicMaterial({ map: shadowTexture(), color: 0x0a1a28, transparent: true, opacity: 0.26, depthWrite: false });
   const layers = new Map();
-  const layer = (name, geo, mat, max, tint) => { if (!layers.has(name)) layers.set(name, new Layer(sc, geo, mat, max, tint)); return layers.get(name); };
+  const layer = (name, geo, mat, max, tint) => { if (!layers.has(name)) layers.set(name, new Layer(sc, geo, mat, max, tint, cfg.cull)); return layers.get(name); };
+  // matières du monde (bois, métal, feuillage, fourrure…) : cfg.materials[nom] ; sinon la peinture
+  const MATS = cfg.materials || {};
+  const matFor = (tex, dflt) => (Array.isArray(tex) ? tex.map(t => MATS[t] || dflt) : (tex && MATS[tex]) || dflt);
+  const furMat = MATS.fur || litMat;
   const quad = new THREE.PlaneGeometry(1, 1);
   const glowL = layer('glow', quad, glowMat, 260, true);
   const shadowGeo = new THREE.PlaneGeometry(1, 1); shadowGeo.rotateX(-Math.PI / 2);
@@ -369,7 +597,7 @@ export function buildLife(game, cfg) {
   for (const k in pal.fauna) {
     const f = pal.fauna[k], mdl = MODELS[f.model](f.colors || {});
     const n = countKind(plan.fauna, k) + (defiCritters[k] || 0) + (f.extra || 0);
-    faunaModel[k] = { f, mdl, body: layer('f_' + k, mdl.body, mdl.unlit ? unlitMat : litMat, n + 2, !!mdl.tint), flap: mdl.flap ? layer('w_' + k, mdl.flap, wingMat, (n + 2) * 2, false) : null };
+    faunaModel[k] = { f, mdl, body: layer('f_' + k, mdl.body, mdl.unlit ? unlitMat : f.shiny ? litMat : furMat, n + 2, !!mdl.tint), flap: mdl.flap ? layer('w_' + k, mdl.flap, MATS.wing || wingMat, (n + 2) * 2, false) : null };
   }
   const propModel = {};
   const propCount = {};
@@ -384,16 +612,30 @@ export function buildLife(game, cfg) {
     const pk = pal.props[k] || {};
     const mdl = PROPS[pk.model || k](pk.colors || {});
     const n = (propCount[k] || 0) + (extraProp[k] || 0);
-    propModel[k] = { pk, mdl, l: layer('p_' + k, mdl.geo, mdl.mat || (mdl.unlit ? unlitMat : litMat), n + 2, k === 'hat' || !!pk.tint) };
+    propModel[k] = { pk, mdl, l: layer('p_' + k, mdl.geo, mdl.mat || matFor(pk.tex || mdl.tex, mdl.unlit ? unlitMat : litMat), n + 2, k === 'hat' || !!pk.tint) };
     if (mdl.shadow) propModel[k].l.mesh.castShadow = true;
   }
   // chapeaux des bonshommes (teintés)
   const hatL = layer('p_hat', VILLAGER.hat(), litMat, (propCount.snowman || 0) + 6, true);
+  // coiffes sauteuses d'autres objets (le heaume des armures…), pupilles des portraits
+  const toppers = {};
+  for (const k in propCount) { const pk = pal.props[k] || {}; if (pk.topper && !toppers[pk.topper]) toppers[pk.topper] = layer('top_' + pk.topper, VILLAGER[pk.topper](), matFor(pk.topperTex, litMat), plan.props.filter(q => (pal.props[q.kind] || {}).topper === pk.topper).length + 1, false); }
+  const eyesN = plan.props.filter(q => (pal.props[q.kind] || {}).eyes).length;
+  const pupilL = eyesN ? layer('p_pupil', PROPS.pupil().geo, litMat, eyesN * 2 + 2, false) : null;
   // habitants
   const vill = { body: layer('v_dog', VILLAGER.dog(), litMat, 24, true), cloth: layer('v_cloth', VILLAGER.dogCloth(), litMat, 24, true), arm: layer('v_arm', VILLAGER.arm(), litMat, 48, true),
     snow: layer('v_snow', VILLAGER.snowman(), litMat, 3, false), snowArm: layer('v_snowarm', VILLAGER.snowArm(), litMat, 6, false), yeti: layer('v_yeti', VILLAGER.yeti(), litMat, 2, false), yetiArm: layer('v_yetiarm', VILLAGER.yetiArm(), litMat, 4, false) };
+  const nCats = plan.villagers.filter(v => v.body === 'cat' && !v.ghost).length;
+  if (nCats) { vill.cat = layer('v_cat', VILLAGER.cat(), furMat, nCats + 1, true); vill.catCloth = layer('v_catcloth', VILLAGER.catCloth(), MATS.cloth || litMat, nCats + 1, true); }
+  if (plan.villagers.some(v => v.ghost)) {
+    const gm = new THREE.MeshStandardMaterial({ vertexColors: true, transparent: true, opacity: 0.55, roughness: 0.6, emissive: 0x9ac8ff, emissiveIntensity: 0.45, depthWrite: false });
+    vill.ghost = layer('v_ghost', VILLAGER.cat(), gm, 3, false);
+  }
   const tools = {};
   for (const v of plan.villagers) if (v.tool && !tools[v.tool]) tools[v.tool] = layer('t_' + v.tool, VILLAGER[v.tool](), litMat, plan.villagers.filter(q => q.tool === v.tool).length + 1, false);
+  const caps = {};
+  for (const v of plan.villagers) if (v.cap && !caps[v.cap]) caps[v.cap] = layer('c_' + v.cap, VILLAGER[v.cap](), litMat, plan.villagers.filter(q => q.cap === v.cap).length + 1, false);
+  const jballL = plan.villagers.some(v => v.act === 'juggle') ? layer('v_jball', VILLAGER.jball(), litMat, 12, true) : null;
 
   // --- entités -------------------------------------------------------------------------------
   const C = new THREE.Color();
@@ -405,13 +647,17 @@ export function buildLife(game, cfg) {
     for (let i = 0; i < n; i++) {
       const a = (i / n) * TAU + (def.rot || 0), rr = n > 1 ? 1 + (i % 3) * 0.9 : 0;
       const x = def.x + Math.cos(a) * rr, z = def.z + Math.sin(a) * rr;
-      creatures.push({ def, kind: def.kind, fm, f, flock: n > 1 ? flock : null, i, hx: def.x, hz: def.z, x, z, y: def.perch !== undefined ? def.perch : ground(x, z), yaw: a + 1.6, s: 'idle', t: R() * 3, ph: R() * 10,
-        hop: 0, vy: 0, fly: 0, tint: f.tints ? f.tints[(i + Math.round(def.x)) % f.tints.length] : null, scale: (f.scale || 1) * (0.9 + ((i * 7 + Math.round(def.z)) % 5) * 0.05), petT: -9, followT: 0, under: f.ai === 'burrow' ? 1 : 0 });
+      const c = { def, kind: def.kind, fm, f, flock: n > 1 ? flock : null, i, hx: def.x, hz: def.z, x, z, y: def.perch !== undefined ? def.perch : ground(x, z), yaw: a + 1.6, s: 'idle', t: R() * 3, ph: R() * 10,
+        hop: 0, vy: 0, fly: 0, tint: f.tints ? f.tints[(i + Math.round(def.x)) % f.tints.length] : null, scale: (f.scale || 1) * (0.9 + ((i * 7 + Math.round(def.z)) % 5) * 0.05), petT: -9, followT: 0, under: f.ai === 'burrow' ? 1 : 0 };
+      // une mère et ses petits (canetons…) : les petits la suivent en file
+      if (f.brood && i > 0) { c.scale *= f.brood.scale || 0.5; if (f.brood.tint !== undefined) c.tint = f.brood.tint; c.lead = creatures[creatures.length - i]; }
+      creatures.push(c);
     }
   }
   const cGrid = new PointGrid(16);
   for (const c of creatures) cGrid.add({ x: c.hx, z: c.hz, c });
-  const props = plan.props.map((def, i) => ({ def, i, kind: def.kind, x: def.x, y: def.y, z: def.z, yaw: def.rot || 0, wob: -9, sq: -9, broken: 0, ring: -9, r: def.kind === 'ball' ? 0.5 : 0, rot: 0, bx: def.x, bz: def.z, on: false }));
+  const isBall = (p) => (pal.props[p.kind] || {}).act === 'push';
+  const props = plan.props.map((def, i) => ({ def, i, kind: def.kind, x: def.x, y: def.y, z: def.z, yaw: def.rot || 0, wob: -9, sq: -9, broken: 0, ring: -9, r: (pal.props[def.kind] || {}).act === 'push' ? ((pal.props[def.kind] || {}).r0 || 0.5) : 0, rot: 0, bx: def.x, bz: def.z, on: false, sk: 0 }));
   const propById = new Map(props.map(p => [p.def.id, p]));
   const pGrid = new PointGrid(16);
   for (const p of props) pGrid.add({ x: p.def.x, z: p.def.z, p });
@@ -426,8 +672,12 @@ export function buildLife(game, cfg) {
   // obstacles des objets solides (sapins, bonshommes, habitants immobiles, coffres)
   if (L.addColliders) {
     const cols = [];
-    for (const p of props) { const pk = pal.props[p.kind] || {}; if (pk.solid) cols.push({ type: 'cyl', x: p.x, z: p.z, r: pk.solid, y0: p.y - 1, y1: p.y + (propModel[p.kind].mdl.h || 1), kind: 'rock', life: p.def.id }); }
-    for (const v of villagers) if (!v.def.moves) cols.push({ type: 'cyl', x: v.x, z: v.z, r: v.def.body === 'yeti' ? 1.0 : 0.45, y0: v.y - 1, y1: v.y + (v.def.body === 'yeti' ? 3 : 1.7), kind: 'rock', life: v.def.id });
+    for (const p of props) {
+      const pk = pal.props[p.kind] || {};
+      if (pk.box) { const q = Math.abs(Math.sin(p.yaw)) > 0.7; p.col = { type: 'box', x: p.x, z: p.z, w: q ? pk.box[1] : pk.box[0], d: q ? pk.box[0] : pk.box[1], y0: p.y - 1, y1: p.y + (propModel[p.kind].mdl.h || 1), kind: 'rock', life: p.def.id }; cols.push(p.col); }
+      else if (pk.solid) cols.push({ type: 'cyl', x: p.x, z: p.z, r: pk.solid, y0: p.y - 1, y1: p.y + (propModel[p.kind].mdl.h || 1), kind: 'rock', life: p.def.id });
+    }
+    for (const v of villagers) if (!v.def.moves && !v.def.ghost) cols.push({ type: 'cyl', x: v.x, z: v.z, r: v.def.body === 'yeti' ? 1.0 : 0.45, y0: v.y - 1, y1: v.y + (v.def.body === 'yeti' ? 3 : 1.7), kind: 'rock', life: v.def.id });
     for (const c of chests) cols.push({ type: 'box', x: c.def.x, z: c.def.z, w: 1.0, d: 0.7, y0: c.def.y - 1, y1: c.def.y + 0.6, kind: 'rock', life: c.def.id });
     L.addColliders(cols);
   }
@@ -448,6 +698,11 @@ export function buildLife(game, cfg) {
     else if (kind === 'ting') s.note('bell', 96 + Math.floor(R() * 5), 0.06, 0, 0.3);
     else if (kind === 'splash') s.noise(0.2, { filter: 'bandpass', freq: 1400, freqTo: 400, vol: 0.12 });
     else if (kind === 'yip') s.tone(900, 0.06, { type: 'sawtooth', to: 1300, vol: 0.06 });
+    else if (kind === 'clank') { s.note('bell', 55 + Math.floor(R() * 4), 0.09, 0, 0.5); s.noise(0.12, { filter: 'bandpass', freq: 3200, freqTo: 1800, vol: 0.12 }); }
+    else if (kind === 'ribbit') { s.tone(260, 0.07, { type: 'square', to: 200, vol: 0.05 }); s.tone(300, 0.08, { type: 'square', to: 220, vol: 0.05, delay: 0.1 }); }
+    else if (kind === 'meow') { if (game.sfx.meow) game.sfx.meow(1.2 + R() * 0.4); else s.tone(700, 0.25, { type: 'triangle', to: 500, vol: 0.06 }); }
+    else if (kind === 'quack') { s.tone(420, 0.09, { type: 'sawtooth', to: 330, vol: 0.05 }); s.tone(420, 0.09, { type: 'sawtooth', to: 330, vol: 0.04, delay: 0.14 }); }
+    else if (kind === 'flutter') s.noise(0.25, { filter: 'bandpass', freq: 900, freqTo: 1800, vol: 0.06 });
   }
   /** Rejoue un effet (chez l'hôte tout de suite, chez les amis à la réception). */
   function playEvent(type, a, b) {
@@ -459,9 +714,9 @@ export function buildLife(game, cfg) {
     else if (type === 'chest') { const c = chests[a]; if (c) c.open = game.t; }
     else if (type === 'press') { if (p) { p.sq = game.t; p.on = !!b; } }
     else if (type === 'wave') { const v = villagers[a]; if (v) v.wave = game.t; }
-    else if (type === 'chirp') chirp(['chirp', 'squeak', 'hoot', 'honk', 'whistle', 'grunt', 'ting', 'splash', 'yip'][a] || 'ting');
+    else if (type === 'chirp') chirp(['chirp', 'squeak', 'hoot', 'honk', 'whistle', 'grunt', 'ting', 'splash', 'yip', 'clank', 'ribbit', 'meow', 'quack', 'flutter'][a] || 'ting');
   }
-  const CHIRPS = ['chirp', 'squeak', 'hoot', 'honk', 'whistle', 'grunt', 'ting', 'splash', 'yip'];
+  const CHIRPS = ['chirp', 'squeak', 'hoot', 'honk', 'whistle', 'grunt', 'ting', 'splash', 'yip', 'clank', 'ribbit', 'meow', 'quack', 'flutter'];
 
   // --- paillettes (récompenses qui tombent, traînées) -------------------------------------------
   function gone(id) { const g = sv().gone[id]; if (!g) return false; if (Date.now() - g > REGROW_MS) { delete sv().gone[id]; return false; } return true; }
@@ -494,7 +749,7 @@ export function buildLife(game, cfg) {
 
   // --- défis éclair -----------------------------------------------------------------------------
   const defiDone = (id) => sv().defis.includes(id);
-  const KIND_NAMES = { coins: 'Les pièces rouges', rings: 'Les anneaux', race: 'La course', chase: 'Attrape-le !', pads: 'Les trampolines', whack: 'Tape-taupe', fish: 'La pêche', tag: 'Chat perché', xylo: 'La mélodie de glace', herd: 'Les petits perdus' };
+  const KIND_NAMES = { coins: 'Les pièces rouges', rings: 'Les anneaux', race: 'La course', chase: 'Attrape-le !', pads: 'Les trampolines', whack: 'Tape-taupe', fish: 'La pêche', tag: 'Chat perché', xylo: 'La mélodie de glace', herd: 'Les petits perdus', touch: 'Touche-les tous !' };
   function defiTime(d) { return game.easy ? Infinity : (d.time || 45); }
   function startDefi(def, P) {
     if (st.D) return;
@@ -505,6 +760,8 @@ export function buildLife(game, cfg) {
     if (def.type === 'herd') D.crit = def.chicks.map(([x, z]) => ({ x, z, y: ground(x, z), yaw: R() * TAU, a: 0, st: 'lost', who: -1 }));
     if (def.type === 'whack' || def.type === 'fish') { D.crit = def.holes.map(([x, z]) => ({ x, z, y: ground(x, z), up: 0, t: 0, yaw: R() * TAU, hit: 0 })); D.next = 1; }
     if (def.type === 'xylo') { D.phase = 'show'; D.seq = def.seq.slice(); D.seqT = -0.8; D.k = 0; }
+    // « touche-les tous » : les braseros s'éteignent, il faut tout rallumer
+    if (def.type === 'touch') for (const id of def.targets) { const p = propById.get(id); if (p && (pal.props[p.kind] || {}).act === 'light') { p.on = false; event('press', p.i, 0); } }
     st.D = D;
     const easyNote = game.easy ? ' (Promenade : pas de chrono)' : '';
     game.banner('⚡ Défi éclair : ' + def.name, (def.hint || '') + easyNote, 3200);
@@ -551,6 +808,8 @@ export function buildLife(game, cfg) {
       if (D.i >= def.rings.length) endDefi(true);
     } else if (T === 'pads') {
       if (D.got.length >= def.pads.length) endDefi(true);
+    } else if (T === 'touch') {
+      if (D.got.length >= def.targets.length) endDefi(true);
     } else if (T === 'race') {
       const c = D.crit[0], path = def.path, v = (def.speed || 7) * (game.easy ? 0.72 : 1);
       c.s += v * dt;
@@ -661,25 +920,27 @@ export function buildLife(game, cfg) {
             P.pos.y = Math.max(P.pos.y, top);
             const D = st.D;
             if (D && D.def.type === 'pads' && D.def.pads.includes(p.def.id) && !D.got.includes(p.def.id)) { D.got.push(p.def.id); game.localBanner(`${D.got.length}/${D.def.pads.length}`, '', 700); }
+            touched(p);
             P.padChain = game.t - (P.padAt || -9) < 2.2 ? (P.padChain || 0) + 1 : 0; P.padAt = game.t;
             event('pad', p.i, P.padChain);
             game.sound('boing'); game.burst(p.x, top + 0.2, p.z, 10, 0xbfeaff, 3, 0.4);
             if (P.padChain === 4 && P === game.me) game.localBanner('Rebonds en chaîne !', '', 1000);
           }
-        } else if (act === 'shake' || act === 'break' || act === 'chime' || act === 'hat' || act === 'press') {
+        } else if (act === 'shake' || act === 'break' || act === 'chime' || act === 'hat' || act === 'press' || act === 'light' || act === 'slide') {
           const r = (pk.r || propModel[p.kind].mdl.r || 0.8);
           // (un carillon sonne quand on arrive contre lui, pas tant qu'on y reste collé)
-          const touch = act === 'chime' && d < r + 0.9 && Math.abs(dy) < 2;
+          const touch = (act === 'chime' || act === 'light') && d < r + 0.9 && Math.abs(dy) < 2;
           const fresh = touch && !p.touching; if (touch) p.touchT = game.t;
           const bump = (attacking(P) && d < r + 1.8 && Math.abs(dy) < 2.5) || (sp > 5 && d < r + 0.8 && Math.abs(dy) < 1.5 && act !== 'chime') || (act === 'press' && d < r + 0.3 && dy > 0.2 && dy < 1.2 && P.vel.y <= 0) || fresh;
           if (touch) p.touching = true;
           if (bump) hitProp(p, P, pk);
         }
       }
-      for (const P2 of barks) if (P2 === P) for (const q of pGrid.within(P.pos.x, P.pos.z, 7)) { const pk = pal.props[q.p.kind] || {}; if (['shake', 'chime', 'hat'].includes(pk.act) && q.p.broken <= game.t) hitProp(q.p, P, pk, true); }
+      for (const P2 of barks) if (P2 === P) for (const q of pGrid.within(P.pos.x, P.pos.z, 7)) { const pk = pal.props[q.p.kind] || {}; if (['shake', 'chime', 'hat', 'light', 'slide'].includes(pk.act) && q.p.broken <= game.t) hitProp(q.p, P, pk, true); }
       // boules de neige qu'on pousse : elles roulent et grossissent
       if (P.grounded) for (const q of pGrid.within(P.pos.x, P.pos.z, 6)) {
-        const b = q.p; if (b.kind !== 'ball' || b.broken > game.t) continue;
+        const b = q.p; if (!isBall(b) || b.broken > game.t) continue;
+        const bk = pal.props[b.kind] || {};
         const dx = b.x - P.pos.x, dz = b.z - P.pos.z, d = Math.hypot(dx, dz);
         if (d > b.r + 0.75 || sp < 1) continue;
         const nx = dx / (d || 1), nz = dz / (d || 1), push = Math.max(0, P.vel.x * nx + P.vel.z * nz);
@@ -687,7 +948,8 @@ export function buildLife(game, cfg) {
         if (L.blockedAt && L.blockedAt(tx, tz)) continue;
         if (Math.abs(ground(tx, tz) - ground(b.x, b.z)) > 0.5) continue;
         const moved = Math.hypot(tx - b.x, tz - b.z);
-        b.x = tx; b.z = tz; b.rot += moved / b.r; b.y = ground(b.x, b.z); b.r = Math.min(1.5, b.r + moved * 0.035);
+        b.x = tx; b.z = tz; b.rot += moved / b.r; b.y = ground(b.x, b.z); b.r = Math.min(1.5, b.r + moved * (bk.grow === undefined ? 0.035 : bk.grow));
+        if (moved > 0.01 && bk.grow === 0 && (b.rollT = (b.rollT || 0) - dt) < 0) { b.rollT = 0.9; touched(b); }
         b.moved = game.t;
         if (b.r >= 1.5) {
           // trop grosse : pouf ! elle éclate en paillettes
@@ -700,22 +962,36 @@ export function buildLife(game, cfg) {
     }
     for (const p of props) if (p.touching && game.t - p.touchT > 0.1) p.touching = false;
     // une boule abandonnée revient à sa place
-    for (const p of props) if (p.kind === 'ball' && p.moved && game.t - p.moved > 40 && game.players.every(P => Math.hypot(P.pos.x - p.x, P.pos.z - p.z) > 30)) { p.x = p.bx; p.z = p.bz; p.r = 0.5; p.y = ground(p.x, p.z); p.moved = 0; }
+    for (const p of props) if (isBall(p) && p.moved && game.t - p.moved > 40 && game.players.every(P => Math.hypot(P.pos.x - p.x, P.pos.z - p.z) > 30)) { p.x = p.bx; p.z = p.bz; p.r = (pal.props[p.kind] || {}).r0 || 0.5; p.y = ground(p.x, p.z); p.moved = 0; }
+    // braseros : ils s'éteignent tout seuls au bout d'un moment ; bibliothèques : elles se referment
+    for (const p of props) {
+      const pk = pal.props[p.kind] || {};
+      if (pk.act === 'light' && p.on && pk.burn && game.t - (p.litT || 0) > pk.burn && !(st.D && st.D.def.type === 'touch')) { p.on = false; event('press', p.i, 0); }
+      if (pk.act === 'slide' && p.on && game.t - (p.litT || 0) > (pk.open || 30) && game.players.every(P => Math.hypot(P.pos.x - p.x, P.pos.z - p.z) > 6)) { p.on = false; event('press', p.i, 0); }
+    }
+  }
+  /** Un objet d'un défi « touche-les tous » vient d'être touché. */
+  function touched(p) {
+    const D = st.D;
+    if (!D || D.def.type !== 'touch' || !D.def.targets.includes(p.def.id) || D.got.includes(p.def.id)) return;
+    D.got.push(p.def.id); game.localBanner(`${D.got.length}/${D.def.targets.length}`, '', 700); game.sound('cp');
   }
   function hitProp(p, P, pk, byBark) {
     const act = pk.act;
     if (game.t - (p.hitT || -9) < (act === 'chime' ? 0.35 : 0.9)) return;
     p.hitT = game.t;
+    const snd = (dflt) => { const n = pk.sound || dflt; if (CHIRPS.includes(n)) event('chirp', CHIRPS.indexOf(n)); else game.sound(n); };
+    touched(p);
     if (act === 'shake' || act === 'hat') {
       event('wob', p.i);
-      game.burst(p.x, p.y + (propModel[p.kind].mdl.h || 2) * 0.8, p.z, act === 'hat' ? 10 : 22, 0xffffff, 3, 0.9);
-      game.sound(act === 'hat' ? 'boing' : 'poof');
+      game.burst(p.x, p.y + (propModel[p.kind].mdl.h || 2) * 0.8, p.z, act === 'hat' ? 10 : 22, pk.burst || 0xffffff, 3, 0.9);
+      snd(act === 'hat' ? 'boing' : 'poof');
       const id = 'p:' + p.def.id;
       if (pk.drop && !gone(id)) { sv().gone[id] = Date.now(); dropSparkles(p.x, p.y + 1.5, p.z, pk.drop, 1); if (P === game.me && !st.shakeTold) { st.shakeTold = true; game.localBanner('Des paillettes !', 'Secouez les sapins, cassez les tas de neige : il y a des trésors partout', 2600); } }
     } else if (act === 'break') {
       if (byBark) return;
       p.broken = game.t + (pk.respawn || 45);
-      game.sound('crate'); game.burst(p.x, p.y + 0.6, p.z, 26, pk.color || 0xf4f8ff, 5, 0.7);
+      snd('crate'); game.burst(p.x, p.y + 0.6, p.z, 26, pk.color || 0xf4f8ff, 5, 0.7);
       if (R() < (pk.chance === undefined ? 0.6 : pk.chance)) dropSparkles(p.x, p.y + 0.6, p.z, 1 + Math.floor(R() * (pk.drop || 2)), 1);
     } else if (act === 'chime') {
       event('ring', p.i);
@@ -728,7 +1004,18 @@ export function buildLife(game, cfg) {
       const t = pk.target || p.def.target;
       if (hooks.onSwitch) hooks.onSwitch(p.def, p.on, P);
       if (p.def.effect === 'geyser') st.geyser = { x: p.def.gx || p.x, z: p.def.gz || p.z, t: game.t + 6 };
-      if (p.def.effect === 'lights') { for (const q of props) if (q.kind === 'lantern' && q.def.group === (p.def.group || t)) q.on = p.on; }
+      if (p.def.effect === 'lights') { for (const q of props) if ((q.kind === 'lantern' || (pal.props[q.kind] || {}).lamp) && q.def.group === (p.def.group || t)) { q.on = p.on; q.litT = game.t; } }
+    } else if (act === 'light') {
+      if (p.on) return;
+      p.on = true; p.litT = game.t;
+      event('press', p.i, 1);
+      game.sound('lantern'); game.burst(p.x, p.y + ((pk.lamp && pk.lamp.y) || 1.4), p.z, 16, (pk.lamp && pk.lamp.color) || 0xffb040, 3, 0.6);
+    } else if (act === 'slide') {
+      if (p.on) return;
+      p.on = true; p.litT = game.t;
+      event('press', p.i, 1);
+      snd('crate'); game.burst(p.x, p.y + 1.4, p.z, 20, 0xd8c0a0, 3, 0.8);
+      if (P === game.me) game.localBanner(pk.say || 'Un passage secret !', '', 1800);
     }
   }
 
@@ -737,7 +1024,7 @@ export function buildLife(game, cfg) {
     const out = [];
     for (const d of defis) if (!st.D && Math.abs(d.def.x - Q.pos.x) < 4 && Math.abs(d.def.z - Q.pos.z) < 4) out.push({ kind: 'lv', life: 'defi', i: d.i, label: defiDone(d.def.id) ? 'REJOUER' : 'DÉFI !', x: d.def.x, z: d.def.z, y: d.def.y });
     for (const v of villagers) if (v.awake && !v.run && Math.abs(v.x - Q.pos.x) < 4 && Math.abs(v.z - Q.pos.z) < 4) out.push({ kind: 'lv', life: 'talk', i: v.i, label: 'PARLER', x: v.x, z: v.z, y: v.y });
-    for (const c of chests) if (!sv().chests.includes(c.def.id) && Math.abs(c.def.x - Q.pos.x) < 3.5 && Math.abs(c.def.z - Q.pos.z) < 3.5) out.push({ kind: 'lv', life: 'chest', i: c.i, label: 'OUVRIR', x: c.def.x, z: c.def.z, y: c.def.y });
+    for (const c of chests) if (!sv().chests.includes(c.def.id) && Math.abs(c.def.x - Q.pos.x) < 3.5 && Math.abs(c.def.z - Q.pos.z) < 3.5 && Math.abs(c.def.y - Q.pos.y) < 3 && !(c.def.behind && !(propById.get(c.def.behind) || {}).on)) out.push({ kind: 'lv', life: 'chest', i: c.i, label: 'OUVRIR', x: c.def.x, z: c.def.z, y: c.def.y });
     for (const q of cGrid.within(Q.pos.x, Q.pos.z, 12)) {
       const c = q.c;
       if (!c.f.pet || c.fly > 0 || c.s === 'flee' || Math.abs(c.x - Q.pos.x) > 3 || Math.abs(c.z - Q.pos.z) > 3) continue;
@@ -803,7 +1090,7 @@ export function buildLife(game, cfg) {
     const dx = tx - c.x, dz = tz - c.z, d = Math.hypot(dx, dz);
     if (d < 0.2) return true;
     const st2 = Math.min(d, v * dt), nx = c.x + dx / d * st2, nz = c.z + dz / d * st2;
-    if ((L.blockedAt && L.blockedAt(nx, nz)) || (c.f.ai !== 'slide' && c.f.onIce === false && L.iceAt && L.iceAt(nx, nz))) { c.t = 0; return true; }
+    if ((L.blockedAt && L.blockedAt(nx, nz)) || (c.f.ai !== 'slide' && c.f.onIce === false && L.iceAt && L.iceAt(nx, nz)) || (cfg.blocked && cfg.blocked(nx, nz, c.f))) { c.t = 0; return true; }
     c.x = nx; c.z = nz;
     c.yaw = lerpAngle(c.yaw, Math.atan2(dx, dz), Math.min(1, dt * 10));
     return false;
@@ -906,6 +1193,14 @@ export function buildLife(game, cfg) {
     }
     // promeneurs (lièvre, hermine, renne, écureuil, pingouin, chiot…)
     const run = f.run || 7, walk = f.speed || 1.6;
+    const bob = f.swim ? Math.sin(c.ph * 2.2 + c.i) * 0.04 - 0.06 : 0;
+    // les petits suivent leur mère, en file
+    if (c.lead) {
+      const ld = c.lead, back = 0.55 + 0.5 * c.i, tx = ld.x - Math.sin(ld.yaw) * back, tz = ld.z - Math.cos(ld.yaw) * back, d = Math.hypot(tx - c.x, tz - c.z);
+      if (d > 0.15) moveTo(c, tx, tz, Math.min(run, d * 2.5 + 0.3), dt);
+      c.hop = 0; c.y = ground(c.x, c.z) + bob;
+      return;
+    }
     if (c.s === 'pet') {
       c.t -= dt; c.hop = Math.abs(Math.sin(c.ph * 12)) * 0.25; c.y = ground(c.x, c.z);
       if (c.t <= 0) c.s = 'idle';
@@ -939,11 +1234,14 @@ export function buildLife(game, cfg) {
       if (c.t <= 0) {
         const a = R() * TAU, r = R() * (f.home || 8);
         c.tx = c.hx + Math.cos(a) * r; c.tz = c.hz + Math.sin(a) * r; c.s = 'walk'; c.t = 4 + R() * 3;
+        // ronde de garde : d'un point de la ronde au suivant (on s'y arrête pour regarder autour)
+        const route = c.def.route;
+        if (route && route.length) { c.wp = ((c.wp === undefined ? c.i : c.wp) + 1) % route.length; c.tx = route[c.wp][0] + (c.i % 2) * 0.9; c.tz = route[c.wp][1] + (c.i % 2) * 0.6; c.t = 30; }
         if (ai === 'slide' && R() < 0.45) c.slide = 1.8;
         if (th.d < 18 && R() < 0.15) chirp(f.sound || 'squeak');
       }
     }
-    c.y = ground(c.x, c.z);
+    c.y = ground(c.x, c.z) + bob;
   }
 
   // --- habitants ------------------------------------------------------------------------------------
@@ -970,9 +1268,18 @@ export function buildLife(game, cfg) {
         if (P === game.me) game.localBanner(def.name + ' s\'est réveillé !', 'Allez lui parler', 2200);
       }
     }
-    v.act = def.act || 'idle';
+    v.act = def.sleepy && !v.awake ? 'sleep' : def.act || 'idle';
     const home = def.yaw || 0;
-    v.yaw = lerpAngle(v.yaw, dd < 7 && v.awake && v.act !== 'shovel' && v.act !== 'fish' ? Math.atan2(me.pos.x - v.x, me.pos.z - v.z) : home, Math.min(1, dt * 3));
+    v.yaw = lerpAngle(v.yaw, dd < 7 && v.awake && v.act !== 'shovel' && v.act !== 'fish' && !def.busy ? Math.atan2(me.pos.x - v.x, me.pos.z - v.z) : home, Math.min(1, dt * 3));
+    // les musiciens jouent leur petit air quand on s'approche (doucement)
+    if (def.tune && dd < (def.hear || 18) && (v.tuneT = (v.tuneT || 0) - dt) <= 0) {
+      v.tuneK = ((v.tuneK || 0) + 1) % def.tune.length;
+      const n = def.tune[v.tuneK];
+      v.tuneT = def.beat || 0.45;
+      if (n) { const s = sfx(); if (s) s.note(def.inst || 'pluck', n, (def.vol || 0.06) * (1 - dd / 22), 0, 0.5); }
+    }
+    // ronrons et petites bulles de sommeil
+    if (v.act === 'sleep' && dd < 30 && R() < dt * 0.8) game.spawnParticle(v.x + (R() - 0.5) * 0.4, v.y + 1.4, v.z, 0.2, 0.5, 0, 0xffffff, 0.14, 2.0, -0.05);
     void t;
   }
 
@@ -1020,6 +1327,20 @@ export function buildLife(game, cfg) {
     else if (act === 'stir') { armR = -1.1; armRz = Math.sin(ph * 3) * 0.3; armL = -0.5; }
     else if (act === 'flag') { armR = -2.5 + Math.sin(ph * 2) * 0.3; armL = -0.2; }
     else if (act === 'cheer') { armR = -2.8; armL = -2.8; bob = Math.abs(Math.sin(ph * 8)) * 0.3; toolOn = false; }
+    // gestes des gens du château
+    else if (act === 'juggle') { const k = Math.sin(ph * 6); armR = -1.3 + k * 0.35; armL = -1.3 - k * 0.35; bob = Math.abs(Math.sin(ph * 3)) * 0.05; }
+    else if (act === 'play') { armR = -0.9 + Math.sin(ph * 16) * 0.12; armL = -1.5; armRz = 0.25; bob = Math.abs(Math.sin(ph * 4)) * 0.03; }
+    else if (act === 'drum') { const k = Math.sin(ph * 9); armR = -0.9 + k * 0.45; armL = -0.9 - k * 0.45; bob = Math.abs(k) * 0.02; }
+    else if (act === 'conduct') { armR = -1.9 + Math.sin(ph * 4.5) * 0.5; armRz = Math.cos(ph * 4.5) * 0.35; armL = -1.4 + Math.sin(ph * 2.25) * 0.3; lean = Math.sin(ph * 2.25) * 0.05; }
+    else if (act === 'trumpet') { armR = -1.45; armL = -1.3; bob = Math.abs(Math.sin(ph * 4)) * 0.04; lean = -0.12; }
+    else if (act === 'sweep') { const k = Math.sin(ph * 3.2); armR = -0.5 + k * 0.25; armL = -0.6 + k * 0.25; armRz = k * 0.3; lean = 0.18; }
+    else if (act === 'water') { armR = -1.0 + Math.sin(ph * 1.2) * 0.1; armL = -0.2; lean = 0.12; if (R() < 0.15 && Math.hypot(game.me.pos.x - v.x, game.me.pos.z - v.z) < 30) game.spawnParticle(v.x + Math.sin(v.yaw) * 0.9, v.y + 0.7, v.z + Math.cos(v.yaw) * 0.9, Math.sin(v.yaw) * 0.6, -0.5, Math.cos(v.yaw) * 0.6, 0x9ad8ff, 0.08, 0.5, 9); }
+    else if (act === 'spar') { const k = (ph * 1.4) % 2; armR = k < 0.25 ? -2.4 * (k / 0.25) : k < 0.45 ? -2.4 + (k - 0.25) * 12 : 0; armL = -0.5; lean = k > 0.25 && k < 0.5 ? 0.25 : 0.05; }
+    else if (act === 'paint') { armR = -1.25 + Math.sin(ph * 5) * 0.2; armRz = Math.sin(ph * 2.5) * 0.25; armL = -0.8; }
+    else if (act === 'read') { armR = -1.0; armL = -1.0; armRz = -0.35; lean = 0.12; bob = Math.sin(ph * 1.5) * 0.01; }
+    else if (act === 'guard') { armR = -0.25; armL = Math.sin(ph * 0.8) * 0.06; }
+    else if (act === 'pole') { armR = -1.7 + Math.sin(ph * 1.6) * 0.15; armL = -0.2; }
+    else if (act === 'sleep') { armR = 0.15; armL = 0.15; sy = 0.62 + Math.sin(ph * 1.6) * 0.03; bob = -0.05; toolOn = false; }
     else { armR = Math.sin(ph * 1.2) * 0.08; armL = -Math.sin(ph * 1.2) * 0.08; bob = Math.sin(ph * 2) * 0.02; }
     if (waving) { armR = -2.7 + Math.sin(ph * 12) * 0.3; armRz = 0.3; }
     const sc = def.scale || 1;
@@ -1044,11 +1365,26 @@ export function buildLife(game, cfg) {
       shadow(v.x, v.z, big ? 1.1 : 0.7);
       return;
     }
+    if (def.ghost) {
+      // le gentil fantôme-chat : il flotte, se balance, et brille un peu
+      const fy = v.y + 0.5 + Math.sin(ph * 1.7) * 0.25;
+      compose(v.x, fy, v.z, v.yaw + Math.sin(ph * 0.9) * 0.3, 0, Math.sin(ph * 1.3) * 0.12, sc, sc * (1 + Math.sin(ph * 3) * 0.04), sc);
+      vill.ghost.push(m4);
+      glow(v.x, fy + 1.3, v.z, 3.2, 0x9ac8ff, 0.35);
+      return;
+    }
+    const cat = def.body === 'cat' && vill.cat;
     furTint.setHex(def.fur || 0xe8c49a);
     compose(v.x, v.y + bob, v.z, v.yaw, lean, 0, sc, sc * sy, sc);
-    vill.body.push(m4, furTint);
-    vill.cloth.push(m4, C.setHex(def.cloth || 0xd84a3a));
+    (cat ? vill.cat : vill.body).push(m4, furTint);
+    (cat ? vill.catCloth : vill.cloth).push(m4, C.setHex(def.cloth || 0xd84a3a));
     const base = mB.copy(m4);
+    if (def.cap && caps[def.cap]) caps[def.cap].push(base);
+    if (act === 'juggle' && jballL) for (let k = 0; k < 3; k++) {
+      const a = ph * 5 + k * TAU / 3;
+      m5.copy(base).multiply(m6.makeTranslation(Math.cos(a) * 0.42, 2.05 + Math.abs(Math.sin(a)) * 0.75, 0.42));
+      jballL.push(m5, C.setHex([0xff5a6a, 0xffd23a, 0x5ac8ff][k]));
+    }
     for (const sd of [1, -1]) {
       const a = sd > 0 ? armR : armL;
       m5.copy(base).multiply(m6.compose(v4.set(sd * 0.36, 1.12, 0.04), q4.setFromEuler(e4.set(a, 0, sd * (0.18 + (sd > 0 ? armRz : 0)), 'ZYX')), one));
@@ -1087,30 +1423,58 @@ export function buildLife(game, cfg) {
       if (c.s === 'pet') sqy = 1 + Math.sin(c.ph * 12) * 0.08;
       if (ai === 'burrow' && c.under > 0.98) continue;
       drawCreature(fm, c.x, c.y + (c.hop || 0), c.z, c.yaw, pitch, roll, c.scale, sqy, ai === 'slide' ? (c.s === 'walk' ? Math.sin(c.ph * 8) * 0.6 : 0) : c.flapA, c.tint !== null && c.tint !== undefined ? C.setHex(c.tint) : undefined);
-      if (ai === 'hover') glow(c.x, c.y, c.z, 1.2, c.f.glow || 0x9ad8ff, 0.8);
+      if (ai === 'hover') { if (c.f.glow !== false) glow(c.x, c.y, c.z, 1.2, c.f.glow || 0x9ad8ff, 0.8); }
       else if (ai !== 'jump' && ai !== 'perch' && !(c.fly > 0 && c.y - ground(c.x, c.z) > 4)) shadow(c.x, c.z, (c.fm.mdl.r || 0.3) * c.scale);
     }
     // objets
     for (const p of st.near.p) {
       const pm = propModel[p.kind]; if (!pm) continue;
       const pk = pm.pk;
-      if (p.broken > game.t) { if (p.kind === 'ball' && p.def) { /* elle revient bientôt */ } continue; }
+      if (p.broken > game.t) continue;
       let pitch = 0, roll = 0, sy = 1, sx = 1, y = p.y;
       const w = game.t - p.wob; if (w < 1.2) { roll = Math.sin(w * 22) * 0.18 * (1 - w / 1.2); pitch = Math.cos(w * 19) * 0.08 * (1 - w / 1.2); }
       const s = game.t - p.sq; if (s < 0.6) { const k = Math.sin(s / 0.6 * Math.PI * 3) * (1 - s / 0.6); sy = 1 - k * 0.35; sx = 1 + k * 0.2; }
       const rg = game.t - p.ring; if (rg < 0.8) roll += Math.sin(rg * 30) * 0.05 * (1 - rg / 0.8);
-      if (p.kind === 'ball') { compose(p.x, y + p.r, p.z, p.yaw, p.rot, 0, p.r); pm.l.push(m4); shadow(p.x, p.z, p.r); continue; }
-      if (p.kind === 'button' && p.on) sy *= 0.7;
-      compose(p.x, y, p.z, p.yaw, pitch, roll, sx * (p.def.s || 1), sy * (p.def.s || 1), sx * (p.def.s || 1));
+      if (isBall(p)) { compose(p.x, y + p.r, p.z, p.yaw, p.rot, 0, p.r); pm.l.push(m4, p.def.tint !== undefined ? C.setHex(p.def.tint) : undefined); shadow(p.x, p.z, p.r); continue; }
+      if ((p.kind === 'button' || pk.act === 'press') && p.on) sy *= 0.7;
+      let ox = 0, oz = 0;
+      if (pk.act === 'slide') {
+        // la bibliothèque glisse sur le côté (et son obstacle avec elle)
+        p.sk += ((p.on ? 1 : 0) - p.sk) * Math.min(1, dt * 2.5);
+        const sl = p.def.slide || [2.6, 0];
+        ox = sl[0] * p.sk; oz = sl[1] * p.sk;
+        if (p.col) { p.col.x = p.x + ox; p.col.z = p.z + oz; }
+        if (p.sk > 0.02 && p.sk < 0.98 && R() < dt * 20) game.spawnParticle(p.x + ox + (R() - 0.5) * 2, p.y + 0.1, p.z + oz + (R() - 0.5) * 0.6, 0, 0.8, 0, 0xd8c8b0, 0.2, 0.8, 1);
+      }
+      compose(p.x + ox, y, p.z + oz, p.yaw, pitch, roll, sx * (p.def.s || 1), sy * (p.def.s || 1), sx * (p.def.s || 1));
       pm.l.push(m4, p.def.tint !== undefined ? C.setHex(p.def.tint) : undefined);
       if (p.kind === 'snowman') {
         const hw = game.t - p.wob, hop = hw < 1.0 ? Math.sin(hw / 1.0 * Math.PI) * 1.2 : 0, spin = hw < 1 ? hw * 9 : 0;
         m5.copy(m4).multiply(m6.compose(v4.set(0, 2.0 + hop, 0), q4.setFromEuler(e4.set(0, spin, 0)), one));
         hatL.push(m5, C.setHex(p.def.hat || 0x2a2430));
       }
-      if (p.kind === 'chime' && rg < 0.8) glow(p.x, p.y + 2.0, p.z, 2.4, 0xbfeaff, 1 - rg / 0.8);
+      if (pk.topper) {
+        // coiffe qui saute et tourne (heaume d'armure : clong !)
+        const hw = game.t - p.wob, hop = hw < 1.0 ? Math.sin(hw / 1.0 * Math.PI) * 1.0 : 0, spin = hw < 1 ? hw * 7 : 0;
+        m5.copy(m4).multiply(m6.compose(v4.set(0, (pk.topperY || 2.0) + hop, 0), q4.setFromEuler(e4.set(0, spin, 0)), one));
+        toppers[pk.topper].push(m5);
+      }
+      if (pk.eyes && pupilL) {
+        // des yeux qui suivent le chien (dans le repère du tableau)
+        const E = pk.eyes, cy = Math.cos(p.yaw), syw = Math.sin(p.yaw);
+        const dx = me.pos.x - p.x, dz = me.pos.z - p.z, lx = dx * cy - dz * syw, lz = dx * syw + dz * cy, ly = me.pos.y + 0.8 - (p.y + E.y);
+        const l = Math.hypot(lx, ly, lz) || 1, ex = clamp(lx / l * 2, -1, 1) * E.range, ey = clamp(ly / l * 2, -1, 1) * E.range * 0.8;
+        for (const sd of [-1, 1]) { m5.copy(m4).multiply(m6.compose(v4.set(sd * E.x + ex, E.y + ey, E.z), q4.identity(), s4.set(E.r, E.r, E.r))); pupilL.push(m5); }
+      }
+      if ((p.kind === 'chime' || pk.act === 'chime') && rg < 0.8) glow(p.x, p.y + (pk.glowY || 2.0), p.z, 2.4, pk.glow || 0xbfeaff, 1 - rg / 0.8);
       if (p.kind === 'lantern' && p.on) glow(p.x, p.y + 2.35, p.z, 2.2, 0xffd890, 0.9);
-      if (p.kind === 'drift' && st.D && st.D.def.type === 'pads' && st.D.def.pads.includes(p.def.id) && !st.D.got.includes(p.def.id)) glow(p.x, p.y + 0.8, p.z, 3.5, 0x8af0ff, 0.6 + Math.sin(t * 8) * 0.3);
+      if (pk.lamp && p.on) {
+        const Lm = pk.lamp, fl = 0.9 + Math.sin(t * 13 + p.i) * 0.06 + Math.sin(t * 7.7 + p.i * 2) * 0.05;
+        glow(p.x, p.y + Lm.y, p.z, (Lm.size || 2.4) * fl, Lm.color || 0xffb050, 0.95);
+        if (Lm.fire && !lite && R() < dt * 14) game.spawnParticle(p.x + (R() - 0.5) * 0.4, p.y + Lm.y - 0.1, p.z + (R() - 0.5) * 0.4, (R() - 0.5) * 0.4, 1.6 + R(), (R() - 0.5) * 0.4, R() < 0.5 ? 0xffc040 : 0xff7020, 0.12, 0.7, -0.4);
+      }
+      if (st.D && st.D.def.type === 'touch' && st.D.def.targets.includes(p.def.id) && !st.D.got.includes(p.def.id)) glow(p.x, p.y + (pm.mdl.h || 1) + 0.6, p.z, 1.8, 0xffd23a, 0.6 + Math.sin(t * 8) * 0.3);
+      if ((p.kind === 'drift' || pk.act === 'bounce') && st.D && st.D.def.type === 'pads' && st.D.def.pads.includes(p.def.id) && !st.D.got.includes(p.def.id)) glow(p.x, p.y + 0.8, p.z, 3.5, 0x8af0ff, 0.6 + Math.sin(t * 8) * 0.3);
       if (pk.shadow) shadow(p.x, p.z, pk.shadow);
     }
     // habitants
@@ -1204,7 +1568,7 @@ export function buildLife(game, cfg) {
     const def = D.def, tm = D.t === Infinity ? '' : ` · ⏱ ${Math.max(0, Math.ceil(D.t))} s`;
     if (D.cd > 0) return `⚡ ${def.name} : attention…`;
     const T = def.type;
-    const prog = T === 'coins' ? `${D.got.length}/${def.items.length}` : T === 'rings' ? `anneau ${Math.min(D.i + 1, def.rings.length)}/${def.rings.length}` : T === 'pads' ? `${D.got.length}/${def.pads.length}`
+    const prog = T === 'coins' ? `${D.got.length}/${def.items.length}` : T === 'rings' ? `anneau ${Math.min(D.i + 1, def.rings.length)}/${def.rings.length}` : T === 'pads' ? `${D.got.length}/${def.pads.length}` : T === 'touch' ? `${D.got.length}/${def.targets.length}`
       : T === 'whack' || T === 'fish' ? `${D.got.length}/${def.need}` : T === 'tag' || T === 'chase' ? `${D.crit.filter(c => c.tagged).length}/${D.crit.length}` : T === 'herd' ? `${D.crit.filter(c => c.st === 'home').length}/${D.crit.length}`
         : T === 'xylo' ? (D.phase === 'show' ? 'écoutez…' : `${D.k}/${D.seq.length}`) : 'vite !';
     return `⚡ ${def.name} : ${prog}${tm}`;
@@ -1240,9 +1604,9 @@ export function buildLife(game, cfg) {
     const br = new Map((x.br || []).map(b => [b[0], b]));
     for (const p of props) {
       const b = br.get(p.i);
-      if (!b) { if (p.broken > game.t) p.broken = 0; if (p.kind === 'ball') { p.x = p.bx; p.z = p.bz; p.r = 0.5; p.y = ground(p.x, p.z); } p.on = false; continue; }
+      if (!b) { if (p.broken > game.t) p.broken = 0; if (isBall(p)) { p.x = p.bx; p.z = p.bz; p.r = (pal.props[p.kind] || {}).r0 || 0.5; p.y = ground(p.x, p.z); } p.on = false; continue; }
       p.broken = b[1] > 0 ? game.t + b[1] : 0;
-      if (p.kind === 'ball') { p.rot += Math.hypot(b[2] - p.x, b[3] - p.z) / (p.r || 1); p.x = b[2]; p.z = b[3]; p.r = b[4]; p.y = ground(p.x, p.z); }
+      if (isBall(p)) { p.rot += Math.hypot(b[2] - p.x, b[3] - p.z) / (p.r || 1); p.x = b[2]; p.z = b[3]; p.r = b[4]; p.y = ground(p.x, p.z); }
       p.on = !!b[5];
     }
     for (const q of props) if (q.kind === 'lantern') q.on = props.some(p => p.kind === 'button' && p.on && p.def.effect === 'lights' && p.def.group === q.def.group);

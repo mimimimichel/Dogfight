@@ -15,6 +15,8 @@ import * as RT from './realtex.js';
 import * as N from './npcs.js';
 import { buildCaptain } from './forest.js';
 import { buildCitizen } from './citykit.js';
+import { buildLife } from './life.js';
+import * as LIFE from './level8life.js';
 
 const clamp = (v, a, b) => (v < a ? a : v > b ? b : v);
 const lerp = (a, b, k) => a + (b - a) * k;
@@ -231,6 +233,101 @@ function pennantTexture() {
     x.fillStyle = '#ffb820';
     x.beginPath(); x.ellipse(68, 32, 18, 10, 0, 0, 7); x.fill();
     x.beginPath(); x.moveTo(54, 32); x.lineTo(40, 22); x.lineTo(40, 42); x.fill();
+  });
+}
+
+// --- matières de la couche de vie (objets et bêtes du château) ------------------------------------
+/** Grain de pelage : mèches fines et douces (teintées ensuite par bête). */
+function furTexture() {
+  return canvasTex(256, 256, (x, w, h) => {
+    const r = rng(303);
+    x.fillStyle = '#eeeeee'; x.fillRect(0, 0, w, h);
+    for (let i = 0; i < 2600; i++) {
+      const px = r() * w, py = r() * h, l = 5 + r() * 9, v = 200 + r() * 55 | 0;
+      x.strokeStyle = `rgba(${v},${v},${v},0.55)`; x.lineWidth = 1 + r();
+      x.beginPath(); x.moveTo(px, py); x.quadraticCurveTo(px + (r() - 0.5) * 3, py + l * 0.5, px + (r() - 0.5) * 4, py + l); x.stroke();
+    }
+    for (let i = 0; i < 500; i++) { x.fillStyle = 'rgba(150,150,150,0.18)'; x.fillRect(r() * w, r() * h, 1.5, 4); }
+  });
+}
+/** Velours des poufs : un tissage fin, des reflets doux. */
+function fabricTexture() {
+  return canvasTex(128, 128, (x, w, h) => {
+    const r = rng(404);
+    x.fillStyle = '#f2f2f2'; x.fillRect(0, 0, w, h);
+    for (let j = 0; j < h; j += 2) { x.fillStyle = `rgba(0,0,0,${0.035 + r() * 0.03})`; x.fillRect(0, j, w, 1); }
+    for (let i = 0; i < w; i += 2) { x.fillStyle = `rgba(255,255,255,${0.05 + r() * 0.05})`; x.fillRect(i, 0, 1, h); }
+    for (let i = 0; i < 90; i++) { x.fillStyle = `rgba(0,0,0,${r() * 0.05})`; x.beginPath(); x.ellipse(r() * w, r() * h, 6 + r() * 14, 3 + r() * 8, r() * 3, 0, 7); x.fill(); }
+  });
+}
+/** Paille des bottes et des mannequins. */
+function strawTexture() {
+  return canvasTex(256, 256, (x, w, h) => {
+    const r = rng(505);
+    x.fillStyle = '#c8a050'; x.fillRect(0, 0, w, h);
+    for (let i = 0; i < 1800; i++) {
+      const px = r() * w, py = r() * h, l = 10 + r() * 26, a = (r() - 0.5) * 0.6;
+      const v = r(); x.strokeStyle = v < 0.5 ? `rgba(250,${215 + r() * 30 | 0},${120 + r() * 50 | 0},0.8)` : v < 0.85 ? 'rgba(210,160,70,0.7)' : 'rgba(130,90,40,0.5)';
+      x.lineWidth = 1 + r() * 1.5; x.beginPath(); x.moveTo(px, py); x.lineTo(px + Math.sin(a) * l, py + Math.cos(a) * l); x.stroke();
+    }
+  });
+}
+/** Terre cuite (jarres, pots des buis) : grain et petites taches. */
+function clayTexture() {
+  return canvasTex(128, 128, (x, w, h) => {
+    const r = rng(606);
+    x.fillStyle = '#efe4da'; x.fillRect(0, 0, w, h);
+    for (let i = 0; i < 900; i++) { const v = 200 + r() * 55 | 0; x.fillStyle = `rgba(${v},${v - 20},${v - 40},0.35)`; x.fillRect(r() * w, r() * h, 1 + r() * 2, 1 + r() * 2); }
+    for (let j = 0; j < h; j += 9) { x.fillStyle = 'rgba(120,70,40,0.08)'; x.fillRect(0, j + r() * 3, w, 2); }
+  });
+}
+/** Métal brossé (armures, braseros). */
+function metalTexture() {
+  return canvasTex(128, 128, (x, w, h) => {
+    const r = rng(707);
+    x.fillStyle = '#d8d8d8'; x.fillRect(0, 0, w, h);
+    for (let j = 0; j < h; j++) { const v = 190 + r() * 60 | 0; x.fillStyle = `rgba(${v},${v},${v},0.5)`; x.fillRect(0, j, w, 1); }
+    for (let i = 0; i < 60; i++) { x.fillStyle = 'rgba(80,70,60,0.12)'; x.beginPath(); x.arc(r() * w, r() * h, 1 + r() * 4, 0, 7); x.fill(); }
+  });
+}
+/**
+ * Le portrait d'un noble chat (peinture à l'huile, fond teinté par tableau). Les yeux sont blancs
+ * et vides : les pupilles sont des billes (life.js) qui suivent les chiens. Leur place (u, v depuis
+ * le haut) doit correspondre à PALETTE.props.portrait.eyes : x ±0,14 m sur 1,1 m, y +0,22 m sur 1,45 m.
+ */
+function portraitTexture() {
+  return canvasTex(256, 338, (x, w, h) => {
+    const r = rng(808);
+    const bg = x.createRadialGradient(w / 2, h * 0.4, 20, w / 2, h * 0.45, h * 0.75);
+    bg.addColorStop(0, '#f4ead8'); bg.addColorStop(0.6, '#b8a890'); bg.addColorStop(1, '#4a3a2a'); x.fillStyle = bg; x.fillRect(0, 0, w, h);
+    // coups de pinceau du fond
+    for (let i = 0; i < 400; i++) { x.fillStyle = `rgba(${r() < 0.5 ? '255,240,210' : '60,40,20'},${r() * 0.06})`; x.beginPath(); x.ellipse(r() * w, r() * h, 8 + r() * 20, 3 + r() * 6, r() * 3, 0, 7); x.fill(); }
+    const ex = w * (0.14 / 1.1), cx = w / 2, ey = h * (0.5 - 0.22 / 1.45);
+    // manteau royal et col d'hermine
+    x.fillStyle = '#9a2030'; x.beginPath(); x.ellipse(cx, h * 1.02, w * 0.48, h * 0.36, 0, 0, 7); x.fill();
+    x.fillStyle = '#f8f4ec'; x.beginPath(); x.ellipse(cx, h * 0.73, w * 0.32, h * 0.07, 0, 0, 7); x.fill();
+    x.fillStyle = '#1a1414'; for (let i = 0; i < 9; i++) { x.beginPath(); x.ellipse(cx - w * 0.26 + i * w * 0.065, h * 0.73 + (i % 2) * 6, 2.5, 5, 0, 0, 7); x.fill(); }
+    x.fillStyle = '#ffd23a'; x.beginPath(); x.arc(cx, h * 0.8, 9, 0, 7); x.fill();
+    // la tête (pelage tigré orange), les oreilles
+    x.fillStyle = '#e8963a';
+    for (const s of [-1, 1]) { x.beginPath(); x.moveTo(cx + s * w * 0.12, ey - h * 0.14); x.lineTo(cx + s * w * 0.3, ey - h * 0.26); x.lineTo(cx + s * w * 0.31, ey - h * 0.04); x.fill(); }
+    x.fillStyle = '#f4a8b8'; for (const s of [-1, 1]) { x.beginPath(); x.moveTo(cx + s * w * 0.16, ey - h * 0.14); x.lineTo(cx + s * w * 0.27, ey - h * 0.21); x.lineTo(cx + s * w * 0.27, ey - h * 0.08); x.fill(); }
+    const hg = x.createRadialGradient(cx - 20, ey - 10, 10, cx, ey + 10, w * 0.32);
+    hg.addColorStop(0, '#f8b860'); hg.addColorStop(1, '#c86a20'); x.fillStyle = hg;
+    x.beginPath(); x.ellipse(cx, ey + h * 0.04, w * 0.3, h * 0.19, 0, 0, 7); x.fill();
+    x.strokeStyle = 'rgba(140,60,10,0.6)'; x.lineWidth = 5;
+    for (const s of [-1, 0, 1]) { x.beginPath(); x.moveTo(cx + s * 16, ey - h * 0.14); x.lineTo(cx + s * 12, ey - h * 0.07); x.stroke(); }
+    x.fillStyle = '#fff4e4'; x.beginPath(); x.ellipse(cx, ey + h * 0.11, w * 0.13, h * 0.07, 0, 0, 7); x.fill();
+    x.fillStyle = '#e07a8a'; x.beginPath(); x.moveTo(cx - 8, ey + h * 0.07); x.lineTo(cx + 8, ey + h * 0.07); x.lineTo(cx, ey + h * 0.095); x.fill();
+    x.strokeStyle = 'rgba(255,255,255,0.85)'; x.lineWidth = 1.5;
+    for (const s of [-1, 1]) for (let k = 0; k < 3; k++) { x.beginPath(); x.moveTo(cx + s * 22, ey + h * 0.11 + k * 5); x.lineTo(cx + s * 80, ey + h * 0.09 + k * 9); x.stroke(); }
+    // les yeux : blancs, vides (les pupilles bougent)
+    for (const s of [-1, 1]) { x.fillStyle = '#fffdf4'; x.beginPath(); x.ellipse(cx + s * ex, ey, 17, 15, 0, 0, 7); x.fill(); x.strokeStyle = '#5a3010'; x.lineWidth = 2.5; x.stroke(); }
+    // la petite couronne
+    x.fillStyle = '#ffd23a'; x.beginPath(); x.moveTo(cx - 30, ey - h * 0.15); for (let i = 0; i <= 4; i++) { x.lineTo(cx - 30 + i * 15, ey - h * (i % 2 ? 0.17 : 0.24)); } x.lineTo(cx + 30, ey - h * 0.15); x.fill();
+    // vernis craquelé et vignettage
+    for (let i = 0; i < 220; i++) { x.strokeStyle = 'rgba(40,25,10,0.07)'; x.lineWidth = 1; x.beginPath(); const px = r() * w, py = r() * h; x.moveTo(px, py); x.lineTo(px + (r() - 0.5) * 18, py + (r() - 0.5) * 18); x.stroke(); }
+    const vg = x.createRadialGradient(cx, h / 2, h * 0.3, cx, h / 2, h * 0.72); vg.addColorStop(0, 'rgba(0,0,0,0)'); vg.addColorStop(1, 'rgba(20,10,0,0.45)'); x.fillStyle = vg; x.fillRect(0, 0, w, h);
   });
 }
 
@@ -1124,9 +1221,36 @@ export function buildCastle(game) {
     }
   }
 
+  // --- la couche de vie : gens du château, bêtes, objets, défis éclair, cachettes (life.js) ---------
+  const lifeMats = (() => {
+    const m = (o) => new THREE.MeshStandardMaterial(Object.assign({ vertexColors: true, roughness: 0.85 }, o));
+    const leaves = (photos && RT.leafClusterTexture()) || hedgeTexture();
+    if (leaves.image && leaves.image.width === 1024) { leaves.repeat.set(0.5, 1); leaves.wrapS = leaves.wrapT = THREE.RepeatWrapping; }
+    const fur = furTexture(), fab = fabricTexture(), straw = strawTexture(), clay = clayTexture(), metal = metalTexture();
+    return {
+      wood: woodMat, stone: stoneMat, yarn: yarnMat,
+      leaves: m({ map: leaves, roughness: 0.95 }),
+      fur: m({ map: fur, roughness: 0.95 }),
+      cloth: m({ map: fab, roughness: 0.9 }),
+      fabric: m({ map: fab, normalMap: real ? RT.normalFor(fab, 1.2) : null, roughness: 0.75 }),
+      hay: m({ map: straw, roughness: 1 }),
+      clay: m({ map: clay, roughness: 0.8 }),
+      metal: m({ map: metal, metalness: 0.65, roughness: 0.32 }),
+      gold: m({ map: metal, color: 0xffd890, metalness: 0.7, roughness: 0.3, emissive: 0x3a2600, emissiveIntensity: 0.35 }),
+      portrait: m({ map: portraitTexture(), roughness: 0.6 }),
+    };
+  })();
+  const life = buildLife(game, {
+    L: S, plan: LIFE.PLAN, palette: LIFE.PALETTE, lines: LIFE.LINES, ground: LIFE.ground, materials: lifeMats, cull: true,
+    view: lite ? 62 : 110, active: lite ? 48 : 75,
+    // les canes restent dans l'eau, les autres bêtes n'y vont pas
+    blocked: (x, z, f) => (f.swim ? !LIFE.inWater(x, z) : S.heightAt(x, z) < 0.25),
+    allDoneText: 'Tout le château applaudit : chats et chiens, champions des défis !',
+  });
+
   const solo = () => game.players.length === 1;
   const logic = {
-    moving, chars,
+    moving, chars, life,
     _debug: { st, balls, hallCats, cap: C, pompon: pompSt },      // (pour les tests)
     step(dt) {
       const t = game.t, players = game.players, k = cs();
@@ -1180,6 +1304,7 @@ export function buildCastle(game) {
       if (!k.laser && players.some(q => q.pos.z < -34.6 && q.pos.z > -41 && q.pos.y < FL + 3)) laserDone();
       stepPompon();
       stepCaptain(dt);
+      life.step(dt);
       // la fête : des confettis qui tombent du plafond
       if (k.party) {
         st.partyT += dt;
@@ -1238,6 +1363,7 @@ export function buildCastle(game) {
       const s = save(), k = cs();
       const n = s.medals.length;
       if (!s.intro) return 'Parle à Mamie Labrador';
+      const lq = life.questText(); if (lq) return lq;
       if (!k.bridge) return 'Fais descendre le pont-levis : deux pattes dorées !';
       if (!k.wall) return 'Grimpe sur le rempart avec la pelote bleue';
       if (!k.laser) return 'Réveille les chats avec le point rouge';
@@ -1256,14 +1382,17 @@ export function buildCastle(game) {
       else if (!k.laser) out.push([S.LASER_BUTTON.x, S.LASER_BUTTON.z, '#ff3a4a', 2.4, true]);
       if (C.ph === 'tag') out.push([C.x, C.z, '#ff5a8a', 2.8, true]);
       if (k.met && !k.given) for (const v of missing()) out.push([v.id === 'boite' && !k.crack ? S.CRACK.x : v.x, v.id === 'boite' && !k.crack ? S.CRACK.z : v.z, '#ff9ad8', 2.6, true]);
+      for (const m of life.marks()) out.push(m);
       return out;
     },
-    extraCandidates() {
-      const out = [{ kind: 'lv', act: 'pompon', label: 'PARLER', x: pompSt.x, z: pompSt.z, y: pompSt.y }];
+    extraCandidates(Q) {
+      const out = Q ? life.candidates(Q) : [];
+      out.push({ kind: 'lv', act: 'pompon', label: 'PARLER', x: pompSt.x, z: pompSt.z, y: pompSt.y });
       if (C.ph === 'party' || (C.ph === 'throne' && cs().met)) out.push({ kind: 'lv', act: 'cap', label: 'PARLER', x: C.x, z: C.z, y: C.y - (C.ph === 'throne' ? 1.5 : 0) });
       return out;
     },
-    interact(n) {
+    interact(n, P) {
+      if (n.life) { life.interact(n, P || game.player); return; }
       const k = cs();
       if (n.act === 'cap') {
         if (C.ph === 'throne') {
@@ -1313,6 +1442,7 @@ export function buildCastle(game) {
         cap: [['throne', 'talk', 'tag', 'party'].indexOf(C.ph), r(C.x), r(C.z), r(C.y), r(C.yaw), C.hop > 0 ? 1 : 0],
         p: st.plates.map(Number), w: st.wallOn ? 1 : 0, bt: st.btn ? 1 : 0, pile: st.pileOn ? 1 : 0,
         sv: (k.souv || []).slice(), cr: k.crack ? 1 : 0, gv: k.given ? 1 : 0,
+        lf: life.snapshot(),
       };
     },
     apply(x) {
@@ -1334,6 +1464,7 @@ export function buildCastle(game) {
       st.plates = x.p.map(Boolean); st.wallOn = !!x.w; st.btn = !!x.bt; st.pileOn = !!x.pile;
       applyColliders();
       stepPompon();
+      life.apply(x.lf);
     },
     talkMamie(first) {
       const s = save();
@@ -1376,6 +1507,7 @@ export function buildCastle(game) {
     },
     render(dt, t) {
       const k = cs();
+      life.render(dt, t);
       // dans le labyrinthe : la caméra monte au-dessus des haies (on voit les allées)
       {
         const me = game.me, inMaze = inRect(S.MAZE_RECT, me.pos.x, me.pos.z, 1);

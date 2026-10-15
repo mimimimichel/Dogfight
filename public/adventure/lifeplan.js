@@ -60,7 +60,8 @@ const GROUPS = ['fauna', 'props', 'villagers', 'defis', 'secrets', 'trails'];
  *   info(x, z) → { ice, forest, slope, … } (le « milieu », passé aux règles),
  *   highlights: { fauna: [], props: [], villagers: [], defis: [], secrets: [], trails: [] },
  *   fill: [{ type: 'fauna' | 'props', kind, w, when(x, z, info), min (écart mini entre deux du même genre), data }],
- *   avoid(x, z, type, kind) → bool (zones interdites : pistes, chemins de quête…)
+ *   avoid(x, z, type, kind) → bool (zones interdites : pistes, chemins de quête…),
+ *   anchors: [{ x, z, kind }] (ce que le niveau anime déjà lui-même : comptés pour la densité, pas dessinés)
  * }
  * Renvoie { fauna, props, villagers, defis, secrets, trails, stats }.
  */
@@ -89,6 +90,9 @@ export function planLife(spec) {
     put(g, Object.assign({ hand: true }, e));
     plan.stats.hand++;
   }
+  // les « ancres » : ce que le niveau fait déjà vivre lui-même (personnages, chats…) ; comptées, pas dessinées
+  plan.anchors = (spec.anchors || []).map(a => ({ x: a.x, z: a.z, kind: a.kind || 'anchor' }));
+  for (const a of plan.anchors) all.add(a);
   // les défis comptent aussi leurs objets (pièces, anneaux…) comme « quelque chose d'intéressant »
   // (ils n'y sont que pendant le défi : on ne compte que le point de départ)
 
@@ -157,6 +161,7 @@ export function planPoints(plan) {
   const out = [];
   for (const g of ['fauna', 'props', 'villagers', 'defis', 'secrets']) for (const e of plan[g]) out.push({ x: e.x, z: e.z, g, kind: e.kind });
   for (const t of plan.trails) for (const p of t.pts) out.push({ x: p.x, z: p.z, g: 'trails' });
+  for (const a of plan.anchors || []) out.push({ x: a.x, z: a.z, g: 'anchors', kind: a.kind });
   return out;
 }
 
