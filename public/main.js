@@ -1292,7 +1292,7 @@
   }
   // cadeau du jour : au premier contact sur l'accueil (le son est alors débloqué)
   window.addEventListener('pointerdown', () => {
-    setTimeout(() => { if (app.screen === 'menu' && window.DailyGift) window.DailyGift.maybeShow(sfx); }, 500);
+    setTimeout(() => { if (app.screen === 'menu' && window.DailyGift && !(window.__adv && !window.__adv.disposed)) window.DailyGift.maybeShow(sfx); }, 500);
   }, { once: true });
 
   // ---------------------------------------------------------------------------
