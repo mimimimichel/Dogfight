@@ -16,6 +16,7 @@ import { buildCaptain } from './forest.js';
 import { buildLife } from './life.js';
 import * as FOL from './foliage.js';
 import * as LIFE from './level5life.js';
+import * as SA from './snowart.js';
 
 const clamp = (v, a, b) => (v < a ? a : v > b ? b : v);
 const lerpAngle = (a, b, t) => { const d = ((b - a + Math.PI) % (Math.PI * 2) + Math.PI * 2) % (Math.PI * 2) - Math.PI; return a + d * t; };
@@ -305,6 +306,18 @@ export function buildSnow(game) {
   };
   const std = (o) => new THREE.MeshStandardMaterial(Object.assign({ roughness: 0.9 }, o || {}));
   const real = W.LOOK.real;
+  // matières photographiées de la neige et de la roche (style réaliste) : sinon, l'ancien rendu
+  const art = real && SA.ready();
+  if (art) {
+    SA.setSun(W.SKY.sunDir);
+    // lumière d'hiver : brume froide et claire, soleil blanc doré, ombres bleues (le ciel et la
+    // neige éclairent les ombres)
+    if (sc.fog) sc.fog.color.setRGB(0.79, 0.86, 0.95, THREE.SRGBColorSpace);
+    const hemi = sc.children.find(o => o.isHemisphereLight);
+    if (hemi) { hemi.color.set(0xd4e4ff); hemi.groundColor.set(0xbccbe6); hemi.intensity *= 1.2; }
+    if (game.sun) game.sun.color.set(0xfff0dc);
+    if (sc.environment) sc.environmentIntensity = 0.72;
+  }
   const snowTex = snowTexture();
   const snowNormal = real ? RT.normalFor(snowTex, 1.2) : null;
   // décor par quartier : on le cache quand on est loin (le monde est grand)
@@ -320,6 +333,8 @@ export function buildSnow(game) {
     for (let i = 0; i < pos.count; i++) {
       const x = pos.getX(i), z = pos.getZ(i);
       pos.setY(i, S.heightAt(x, z) - (S.iceAt(x, z) ? 0.4 : 0));
+      // au-delà de la corniche (hors d'atteinte) : de vraies arêtes, rien qu'à l'image
+      if (art) { const e = Math.pow(x ** 4 + z ** 4, 0.25); if (e > 195) pos.setY(i, pos.getY(i) + Math.pow(SA.ridged(x * 0.028 + 7, z * 0.028, 5), 1.5) * 34 * smooth(195, 212, e)); }
     }
     geo.computeVertexNormals();
     const nrm = geo.attributes.normal, col = new Float32Array(pos.count * 3), c = new THREE.Color();
@@ -337,7 +352,7 @@ export function buildSnow(game) {
       c.lerp(PATH, (1 - smooth(1.2, 2.6, pathD(x, z))) * 0.7);
       const ri = S.runInfo(x, z);
       c.lerp(RUNC, (1 - smooth(1.5, S.RUN_W, ri.d)) * 0.6);
-      c.lerp(n > 0 ? ROCK : ROCK2, smooth(0.66, 0.42, ny) * smooth(9, 18, pos.getY(i) - 2) * (0.65 + 0.35 * n));
+      if (!art) c.lerp(n > 0 ? ROCK : ROCK2, smooth(0.66, 0.42, ny) * smooth(9, 18, pos.getY(i) - 2) * (0.65 + 0.35 * n));   // (sinon : la roche est dans le shader)
       if (S.iceAt(x, z)) c.copy(DEEP);
       col[i * 3] = c.r; col[i * 3 + 1] = c.g; col[i * 3 + 2] = c.b;
     }
@@ -345,9 +360,26 @@ export function buildSnow(game) {
     const tex = snowTex.clone(); tex.needsUpdate = true; tex.wrapS = tex.wrapT = THREE.RepeatWrapping; tex.repeat.set(size / 5, size / 5);
     let nm = null;
     if (snowNormal) { nm = snowNormal.clone(); nm.needsUpdate = true; nm.wrapS = nm.wrapT = THREE.RepeatWrapping; nm.repeat.set(size / 5, size / 5); }
-    const m = new THREE.Mesh(geo, std({ vertexColors: true, map: tex, normalMap: nm, roughness: 0.82 }));
+    let gm;
+    if (art) {
+      // neige photographiée (relief seulement : la couleur reste celle, propre, des sommets)
+      gm = SA.patchGround(std({ vertexColors: true, roughness: 0.78 }), { rockScale: 0.09, slope: [0.3, 0.5], height: [5.5, 10], sparkle: 9, snowN: 0.7 });
+    } else gm = std({ vertexColors: true, map: tex, normalMap: nm, roughness: 0.82 });
+    const m = new THREE.Mesh(geo, gm);
     m.name = 'terrain'; m.receiveShadow = true;
     sc.add(m);
+  }
+
+  // --- les chaînes de montagnes lointaines (remplacent le panorama commun) ---------------------
+  const ranges = art ? SA.buildRanges(sc, { lite, hazeColor: sc.fog.color }) : [];
+  /** Une fois le monde complet (game.js ajoute ciel et panorama après nous) : on l'habille pour l'hiver. */
+  function dressSky() {
+    if (!ranges.length) return;
+    // le panorama commun (cônes bleutés) laisse la place aux vraies montagnes ; les nuages
+    // peints aussi quand le ciel est photographié (il a déjà ses nuages)
+    const vg = game.vista && game.vista.group;
+    if (vg) vg.visible = false;
+    if (game.photoSky && game.clouds) for (const c of game.clouds) c.visible = false;
   }
 
   // --- la glace : lac, rivière, patinoire, mare de la cascade ---------------------------------
@@ -377,16 +409,43 @@ export function buildSnow(game) {
     rg.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3)); rg.setAttribute('uv', new THREE.Float32BufferAttribute(uvs, 2)); rg.setIndex(idx); rg.computeVertexNormals();
     const river = new THREE.Mesh(rg, iceMat); river.receiveShadow = true; sc.add(river);
     // ponts de bois
-    const parts = [];
+    const parts = [], bSnow = [];
     for (const b of S.BRIDGES) {
+      const sx = Math.cos(b.yaw), sz = -Math.sin(b.yaw), fx = Math.sin(b.yaw), fz = Math.cos(b.yaw);
+      if (art) {
+        // vraies planches (un peu de jeu entre elles), longerons, poteaux et main courante enneigés
+        const r = rng(Math.round(Math.abs(b.x * 7 + b.z)) + 1);
+        for (let k = -b.len / 2 + 0.17; k < b.len / 2; k += 0.34) {
+          const g = new THREE.BoxGeometry(0.3, 0.1, 3.3), a = g.attributes.uv, du = r();
+          for (let i = 0; i < a.count; i++) a.setXY(i, a.getX(i) * 0.15 + du, a.getY(i) * 1.6);
+          parts.push({ geo: paint(g, new THREE.Color(0xc89a6a).multiplyScalar(0.85 + r() * 0.3)), x: b.x + sx * k, y: b.y - 0.05 + (r() - 0.5) * 0.03, z: b.z + sz * k, ry: b.yaw, rx: (r() - 0.5) * 0.03 });
+        }
+        for (const sd of [-1, 1]) {
+          parts.push({ geo: paint(new THREE.BoxGeometry(b.len + 0.4, 0.3, 0.22), 0x8a6040), x: b.x + fx * sd * 1.45, y: b.y - 0.25, z: b.z + fz * sd * 1.45, ry: b.yaw });
+          for (let k = -b.len / 2 + 0.3; k <= b.len / 2 - 0.2; k += 2.2) {
+            parts.push({ geo: paint(new THREE.BoxGeometry(0.16, 1.15, 0.16), 0x9a6a44), x: b.x + sx * k + fx * sd * 1.5, y: b.y + 0.5, z: b.z + sz * k + fz * sd * 1.5, ry: b.yaw });
+            bSnow.push({ geo: paint(new THREE.SphereGeometry(0.13, 8, 5, 0, Math.PI * 2, 0, Math.PI / 2), 0xf6f9ff), x: b.x + sx * k + fx * sd * 1.5, y: b.y + 1.07, z: b.z + sz * k + fz * sd * 1.5, sy: 0.9 });
+          }
+          parts.push({ geo: paint(new THREE.BoxGeometry(b.len, 0.1, 0.14), 0x9a6a44), x: b.x + fx * sd * 1.5, y: b.y + 1.0, z: b.z + fz * sd * 1.5, ry: b.yaw });
+          bSnow.push({ geo: paint(new THREE.CapsuleGeometry(0.07, b.len - 0.3, 2, 6).rotateZ(Math.PI / 2), 0xf6f9ff), x: b.x + fx * sd * 1.5, y: b.y + 1.07, z: b.z + fz * sd * 1.5, ry: b.yaw, sz: 1.2, sy: 0.7 });
+          // un peu de neige contre les bords du tablier
+          bSnow.push({ geo: paint(new THREE.CapsuleGeometry(0.16, b.len - 1.0, 2, 6).rotateZ(Math.PI / 2), 0xf4f8ff), x: b.x + fx * sd * 1.25, y: b.y + 0.02, z: b.z + fz * sd * 1.25, ry: b.yaw, sy: 0.45 });
+        }
+        continue;
+      }
       const g = area(b.x, b.z, 12);
       const deck = new THREE.Mesh(new THREE.BoxGeometry(b.len, 0.3, 3.2), M.mat(0xa0703e, { roughness: 0.85 }));
       deck.position.set(b.x, b.y - 0.15, b.z); deck.rotation.y = b.yaw; deck.castShadow = deck.receiveShadow = true; g.add(deck);
       const snowTop = new THREE.Mesh(new THREE.BoxGeometry(b.len - 0.4, 0.06, 2.6), M.mat(0xf4f8ff, { roughness: 0.9 }));
       snowTop.position.set(b.x, b.y + 0.02, b.z); snowTop.rotation.y = b.yaw; g.add(snowTop);
-      const sx = Math.cos(b.yaw), sz = -Math.sin(b.yaw), fx = Math.sin(b.yaw), fz = Math.cos(b.yaw);
       for (const sd of [-1, 1]) for (let k = -b.len / 2 + 0.5; k <= b.len / 2 - 0.4; k += 2.2) parts.push({ geo: paint(new THREE.CylinderGeometry(0.08, 0.1, 1.1, 6), 0x7a5030), x: b.x + sx * k + fx * sd * 1.5, y: b.y + 0.5, z: b.z + sz * k + fz * sd * 1.5 });
       for (const sd of [-1, 1]) parts.push({ geo: paint(new THREE.BoxGeometry(b.len, 0.12, 0.12), 0x7a5030), x: b.x + fx * sd * 1.5, y: b.y + 1.0, z: b.z + fz * sd * 1.5, ry: b.yaw });
+    }
+    if (art && parts.length) {
+      const m = new THREE.Mesh(merge(parts), new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.85, map: SA.tex('brown_planks_03_d', true), normalMap: SA.tex('brown_planks_03_n') }));
+      m.castShadow = m.receiveShadow = true; sc.add(m);
+      const sm = new THREE.Mesh(merge(bSnow), SA.richMaterial({ wood: false, ice: false, gold: false, dark: false })); sm.receiveShadow = true; sc.add(sm);
+      parts.length = 0;
     }
     if (parts.length) { const m = new THREE.Mesh(merge(parts), std({ vertexColors: true })); m.castShadow = true; sc.add(m); }
   }
@@ -429,10 +488,129 @@ export function buildSnow(game) {
     }
   }
 
+  /**
+   * Les chalets « vrais » : murs en rondins croisés aux angles, pignons en planches, toit de
+   * bardeaux sous un épais coussin de neige (bourrelets, glaçons), fenêtres à volets qui
+   * brillent d'une lumière chaude, cheminée en pierre, soubassement de pierre.
+   */
+  function buildChaletsArt() {
+    const wood = [], roof = [], snowP = [], ice = [], glass = [], stone = [];
+    const uvs = (g, su, sv, swap) => { const a = g.attributes.uv; for (let i = 0; i < a.count; i++) { const u = a.getX(i) * su, v = a.getY(i) * sv; a.setXY(i, swap ? v : u, swap ? u : v); } return g; };
+    const tint = (hex, k) => { const c = new THREE.Color(hex).multiplyScalar(k); return new THREE.Color(Math.min(1, c.r), Math.min(1, c.g), Math.min(1, c.b)); };
+    const R = rng(808), LOG = 0.18, STEP = 0.34;
+    for (const c of S.CHALETS) {
+      const logCol = tint(c.col, 1.45), dark = tint(c.col, 0.35), paint2 = tint(c.roof, 1.5);
+      // âme sombre (entre les rondins) et soubassement de pierre
+      wood.push({ geo: paint(new THREE.BoxGeometry(c.w - 0.2, c.h, c.d - 0.2), dark), x: c.x, y: c.y + c.h / 2, z: c.z });
+      stone.push({ geo: paint(uvs(new THREE.BoxGeometry(c.w + 0.55, 0.5, c.d + 0.55), (c.w + 0.5) / 2.5, 0.2), 0xd8d4cc), x: c.x, y: c.y + 0.1, z: c.z });
+      // rondins : en long sur les façades avant/arrière, en travers sur les côtés (décalés d'un demi)
+      const n = Math.round(c.h / STEP);
+      for (let k = 0; k < n; k++) {
+        for (const sd of [-1, 1]) {
+          const lx = c.w + 0.75, lz = c.d + 0.75, jit = () => tint(0xffffff, 0.88 + R() * 0.2);
+          const gx = uvs(new THREE.CylinderGeometry(LOG, LOG, lx, 8, 1), 0.14, lx / 2.4);
+          wood.push({ geo: paint(gx, logCol.clone().multiply(jit())), x: c.x + (R() - 0.5) * 0.08, y: c.y + 0.42 + k * STEP, z: c.z + sd * (c.d / 2), rz: Math.PI / 2 });
+          const gz = uvs(new THREE.CylinderGeometry(LOG, LOG, lz, 8, 1), 0.14, lz / 2.4);
+          wood.push({ geo: paint(gz, logCol.clone().multiply(jit())), x: c.x + sd * (c.w / 2), y: c.y + 0.42 + STEP / 2 + k * STEP, z: c.z + (R() - 0.5) * 0.08, rx: Math.PI / 2 });
+        }
+      }
+      // toit : deux pans (bardeaux), faîte parallèle à la façade qui porte la porte
+      const ridgeX = c.door !== 0;
+      const span = ridgeX ? c.d : c.w, len = ridgeX ? c.w : c.d;
+      const pitch = 0.62, half = span / 2, rise = Math.tan(pitch) * half, slope = half / Math.cos(pitch) + 0.7;
+      const ry = ridgeX ? 0 : Math.PI / 2;
+      const top = c.y + c.h + 0.2;
+      // un point (a : en travers du faîte ; b : le long du faîte) dans le monde
+      const at = (a, b) => (ridgeX ? { x: c.x + b, z: c.z + a } : { x: c.x + a, z: c.z + b });
+      for (const sd of [-1, 1]) {
+        const cx = sd * (half / 2 + 0.12), cy = top + rise / 2 - 0.25;
+        const p = at(cx, 0);
+        const rg = uvs(new THREE.BoxGeometry(len + 1.2, 0.2, slope), (len + 1.2) / 2.2, slope / 2.2);
+        roof.push({ geo: paint(rg, tint(c.roof, 1.0).lerp(new THREE.Color(1, 1, 1), 0.45)), x: p.x, y: cy, z: p.z, rx: sd * pitch, ry });
+        // neige : un coussin épais posé sur le pan, avec un bourrelet arrondi au bord du toit
+        const nx = Math.sin(pitch) * 0.24, ny = Math.cos(pitch) * 0.24;
+        const ps = at(cx + sd * nx, 0);
+        snowP.push({ geo: paint(new THREE.BoxGeometry(len + 1.0, 0.3, slope - 0.15), 0xf6f9ff), x: ps.x, y: cy + ny, z: ps.z, rx: sd * pitch, ry });
+        const ex = cx + sd * Math.cos(pitch) * (slope / 2 - 0.08), ey = cy - Math.sin(pitch) * (slope / 2 - 0.08);
+        const pe = at(ex + sd * nx * 0.6, 0);
+        const roll = new THREE.CapsuleGeometry(0.2, len + 0.7, 3, 8); roll.rotateZ(Math.PI / 2);
+        snowP.push({ geo: paint(roll, 0xf2f6ff), x: pe.x, y: ey + ny * 0.7, z: pe.z, ry, sy: 0.8 });
+        // glaçons sous le bord du toit
+        for (let b = -len / 2 - 0.3; b <= len / 2 + 0.3; b += 0.32 + R() * 0.25) {
+          if (R() < 0.35) continue;
+          const l = 0.18 + R() * R() * 0.75, q = at(ex + sd * 0.05, b);
+          ice.push({ geo: paint(new THREE.ConeGeometry(0.045 + R() * 0.03, l, 5), 0x9ad6f2), x: q.x, y: ey - 0.12 - l / 2, z: q.z, rx: Math.PI });
+        }
+      }
+      // faîte enneigé
+      { const p = at(0, 0); const rr = new THREE.CapsuleGeometry(0.22, len + 0.9, 3, 8); rr.rotateZ(Math.PI / 2); snowP.push({ geo: paint(rr, 0xf8fbff), x: p.x, y: top + rise - 0.02, z: p.z, ry, sy: 0.75 }); }
+      // pignons en planches verticales
+      const sh = new THREE.Shape(); sh.moveTo(-half - 0.1, 0); sh.lineTo(half + 0.1, 0); sh.lineTo(0, rise + 0.05); sh.closePath();
+      for (const e of [-1, 1]) {
+        const g = uvs(new THREE.ExtrudeGeometry(sh, { depth: 0.16, bevelEnabled: false }), 1 / 1.6, 1 / 1.6);
+        const p = at(0, e * (len / 2 + 0.02) - (e > 0 ? 0.16 : 0));
+        wood.push({ geo: paint(g, tint(c.col, 1.6)), x: p.x, y: c.y + c.h + 0.05, z: p.z, ry: ridgeX ? Math.PI / 2 : 0 });
+      }
+      // façade de la porte (côté place)
+      const fx = c.door ? c.door : 0, fz = c.door ? 0 : 1;
+      const fd = (c.door ? c.w : c.d) / 2 + LOG + 0.04;
+      const along = (k, out) => (c.door ? { x: c.x + fx * (fd + (out || 0)), z: c.z + k } : { x: c.x + k, z: c.z + fz * (fd + (out || 0)) });
+      const ryF = c.door ? Math.PI / 2 * fx : 0;
+      const face = (geo, col, k, y, out, list) => { const p = along(k, out); (list || wood).push({ geo: paint(geo, col), x: p.x, y, z: p.z, ry: ryF }); };
+      // porte : planches sombres, encadrement, marche de pierre, petit auvent enneigé
+      face(uvs(new THREE.BoxGeometry(1.15, 2.05, 0.1), 0.7, 1.3), tint(c.col, 0.75), 0, c.y + 1.15, 0);
+      face(uvs(new THREE.BoxGeometry(1.4, 0.14, 0.16), 0.9, 0.1), tint(c.roof, 1.3), 0, c.y + 2.24, 0.04);
+      face(new THREE.BoxGeometry(1.5, 0.22, 0.7), 0xc8c4bc, 0, c.y + 0.11, 0.3, stone);
+      face(new THREE.SphereGeometry(0.06, 8, 6), 0xe8b83a, 0.38, c.y + 1.1, 0.08);
+      face(new THREE.BoxGeometry(1.7, 0.12, 0.8), tint(c.roof, 1.0), 0, c.y + 2.55, 0.35);
+      face(new THREE.BoxGeometry(1.8, 0.16, 0.85), 0xf6f9ff, 0, c.y + 2.67, 0.36, snowP);
+      // fenêtres : vitre éclairée, encadrement blanc, volets peints, rebord enneigé
+      for (const k of [-2.1, 2.1]) {
+        face(new THREE.BoxGeometry(0.95, 0.95, 0.06), 0xffffff, k, c.y + 1.9, 0.02, glass);
+        face(new THREE.BoxGeometry(1.15, 1.15, 0.05), 0xf4ede2, k, c.y + 1.9, -0.01);
+        for (const sd of [-1, 1]) face(uvs(new THREE.BoxGeometry(0.5, 1.12, 0.06), 0.35, 0.8), paint2, k + sd * 0.86, c.y + 1.9, 0.03);
+        face(new THREE.BoxGeometry(1.3, 0.08, 0.3), 0xf4ede2, k, c.y + 1.3, 0.12);
+        face(new THREE.BoxGeometry(1.25, 0.12, 0.28), 0xf6f9ff, k, c.y + 1.39, 0.13, snowP);
+      }
+      // fenêtre du pignon
+      face(new THREE.BoxGeometry(0.7, 0.7, 0.06), 0xffffff, 0, c.y + c.h + rise * 0.42, -0.1, glass);
+      face(new THREE.BoxGeometry(0.88, 0.88, 0.05), 0xf4ede2, 0, c.y + c.h + rise * 0.42, -0.13);
+      // cheminée en pierre (fumée : chimneys)
+      const chp = at(-half * 0.45, len * 0.22);
+      const chY = top + rise * 0.55;
+      stone.push({ geo: paint(uvs(new THREE.BoxGeometry(0.7, 2.0, 0.7), 0.35, 1.0), 0xe0dcd4), x: chp.x, y: chY, z: chp.z });
+      wood.push({ geo: paint(new THREE.BoxGeometry(0.86, 0.1, 0.86), 0x3a3634), x: chp.x, y: chY + 1.0, z: chp.z });
+      snowP.push({ geo: paint(new THREE.BoxGeometry(0.8, 0.14, 0.8), 0xf6f9ff), x: chp.x, y: chY + 1.12, z: chp.z });
+      chimneys.push({ x: chp.x, y: chY + 1.25, z: chp.z });
+      // neige soufflée contre le mur de derrière
+      const bp = along((R() - 0.5) * 2, -(c.door ? c.w : c.d) - 0.5);
+      snowP.push({ geo: paint(new THREE.SphereGeometry(1, 12, 6, 0, Math.PI * 2, 0, Math.PI / 2), 0xf4f8ff), x: bp.x, y: c.y - 0.05, z: bp.z, sx: 1.8, sy: 0.55, sz: 0.9, ry: ryF });
+    }
+    const photoMat = (name, o) => new THREE.MeshStandardMaterial(Object.assign({ vertexColors: true, roughness: 0.85, map: SA.tex(name + '_d', true), normalMap: SA.tex(name + '_n') }, o || {}));
+    const woodM = new THREE.Mesh(merge(wood), photoMat('brown_planks_03'));
+    const roofM = new THREE.Mesh(merge(roof), photoMat('roof_slates_02', { roughness: 0.8 }));
+    const stoneM = new THREE.Mesh(merge(stone), photoMat(RT.photoImage('mossy_stone_wall_d') ? 'mossy_stone_wall' : 'brown_planks_03', { roughness: 0.92 }));
+    const snowM = new THREE.Mesh(merge(snowP), SA.richMaterial({ wood: false, gold: false, ice: false, dark: false, roughness: 0.8 }));
+    const iceM = new THREE.Mesh(merge(ice), SA.richMaterial({ snow: false, wood: false, gold: false, dark: false }));
+    // vitres : intérieur chaud (rideaux, croisillons)
+    const winTex = canvasTex(128, 128, (x, w, h) => {
+      const g = x.createRadialGradient(64, 70, 6, 64, 64, 90); g.addColorStop(0, '#fff2c0'); g.addColorStop(0.5, '#ffbe5a'); g.addColorStop(1, '#b0602a');
+      x.fillStyle = g; x.fillRect(0, 0, w, h);
+      x.fillStyle = 'rgba(200,40,40,0.85)'; x.fillRect(0, 0, 26, h); x.fillRect(w - 26, 0, 26, h);
+      x.fillStyle = 'rgba(255,255,255,0.35)'; for (let i = 0; i < 6; i++) { x.fillRect(0, i * 22 + 4, 26, 6); x.fillRect(w - 26, i * 22 + 4, 26, 6); }
+      x.fillStyle = '#f4ede2'; x.fillRect(60, 0, 8, h); x.fillRect(0, 58, w, 8); x.strokeStyle = '#f4ede2'; x.lineWidth = 8; x.strokeRect(0, 0, w, h);
+    });
+    const glassM = new THREE.Mesh(merge(glass), new THREE.MeshStandardMaterial({ vertexColors: true, map: winTex, emissiveMap: winTex, emissive: 0xffffff, emissiveIntensity: 0.85, roughness: 0.25, metalness: 0.1 }));
+    for (const m of [woodM, roofM, stoneM, snowM]) { m.castShadow = true; m.receiveShadow = true; }
+    iceM.userData.noOutline = true;
+    sc.add(woodM, roofM, stoneM, snowM, iceM, glassM);
+  }
+
   // --- le village : chalets, grand sapin, lampadaires ---------------------------------------
   const winMat = new THREE.MeshStandardMaterial({ color: 0xffe0a0, emissive: 0xffa040, emissiveIntensity: 0.75, roughness: 0.4 });
   const chimneys = [];
-  {
+  if (art) buildChaletsArt();
+  else {
     const walls = [], roofs = [], snowy = [], wins = [], frames = [];
     const logs = logTexture();
     const roofSlab = (c, ridgeX, span, len, h) => {
@@ -489,10 +667,12 @@ export function buildSnow(game) {
     const winM = new THREE.Mesh(merge(wins), winMat);
     for (const m of [roofM, snowM, frameM]) { m.castShadow = true; m.receiveShadow = true; }
     sc.add(wallM, roofM, snowM, frameM, winM);
+  }
+  {
     // enseigne du chalet-chocolat de Myrtille
     const ch = S.CHALETS.find(c => c.choco);
     const sign = new THREE.Mesh(new THREE.PlaneGeometry(3.2, 1.0), new THREE.MeshStandardMaterial({ map: textTex('Chocolat chaud', { bg: '#6a3a22', size: 58 }), roughness: 0.7 }));
-    sign.position.set(ch.x - ch.w / 2 - 0.06, ch.y + ch.h + 0.2, ch.z); sign.rotation.y = -Math.PI / 2;
+    sign.position.set(ch.x - ch.w / 2 - (art ? 0.42 : 0.06), ch.y + ch.h + (art ? 0.45 : 0.2), ch.z); sign.rotation.y = -Math.PI / 2;
     sc.add(sign);
     // comptoir et tasses
     const counter = new THREE.Mesh(new THREE.BoxGeometry(1.0, 1.0, 2.4), M.mat(0x8a5a3a, { roughness: 0.8 }));
@@ -501,7 +681,53 @@ export function buildSnow(game) {
   }
   // grand sapin décoré au milieu de la place
   const treeLights = [];
-  {
+  let bulbs = null;
+  if (art && FOL.hasFir()) {
+    // un vrai grand sapin (branches scannées), boules de verre, guirlande lumineuse, étoile, cadeaux
+    const T = S.BIG_TREE, y0 = S.VILLAGE_Y, H = 9.8, R0 = 3.4, r = rng(4242);
+    const tm = new THREE.Mesh(FOL.firGeometry(42, { height: H, radius: R0, levels: lite ? 12 : 16 }), FOL.firMaterials({ snow: 0.4, lite }));
+    tm.position.set(T.x, y0 - 0.15, T.z); tm.castShadow = true; tm.receiveShadow = true; sc.add(tm);
+    // (rayon des branches à la hauteur f, comme dans foliage.js)
+    const radAt = (f) => (R0 * Math.pow(1 - f, 0.85) + 0.35) * 0.86;
+    const NO = lite ? 46 : 70, orn = new THREE.InstancedMesh(new THREE.SphereGeometry(0.19, 16, 12), new THREE.MeshStandardMaterial({ metalness: 0.9, roughness: 0.16, color: 0xffffff }), NO);
+    const PAL = [0xe0202a, 0xf2c030, 0x2a7ae0, 0xe8e8f0, 0xe050a0, 0xd02040], m4 = new THREE.Matrix4(), c = new THREE.Color();
+    for (let i = 0; i < NO; i++) {
+      const f = 0.06 + Math.pow(r(), 0.8) * 0.8, a = i * 2.39996 + r() * 0.5, rr = radAt(f), y = y0 + H * (0.16 + 0.76 * f) - 0.25;
+      const s = 0.75 + r() * 0.6;
+      m4.compose(new THREE.Vector3(T.x + Math.cos(a) * rr, y, T.z + Math.sin(a) * rr), new THREE.Quaternion(), new THREE.Vector3(s, s, s));
+      orn.setMatrixAt(i, m4); orn.setColorAt(i, c.set(PAL[i % PAL.length]));
+    }
+    orn.castShadow = true; orn.userData.noOutline = true; sc.add(orn);
+    // guirlande : petites ampoules en spirale (couleurs vives : le halo lumineux les fait briller)
+    const NB = lite ? 90 : 150;
+    bulbs = new THREE.InstancedMesh(new THREE.SphereGeometry(0.075, 8, 6), new THREE.MeshBasicMaterial({ color: 0xffffff }), NB);
+    const BC = [[2.6, 2.0, 1.1], [2.6, 1.0, 0.6], [1.2, 1.9, 2.8], [2.4, 2.2, 0.5]];
+    for (let i = 0; i < NB; i++) {
+      const f = 0.04 + (i / NB) * 0.84, a = f * Math.PI * 2 * 6.5, rr = radAt(f) * 1.02, y = y0 + H * (0.16 + 0.76 * f) - 0.1 + Math.sin(a * 3) * 0.08;
+      m4.makeTranslation(T.x + Math.cos(a) * rr, y, T.z + Math.sin(a) * rr);
+      bulbs.setMatrixAt(i, m4); const b = BC[i % 4]; bulbs.setColorAt(i, c.setRGB(b[0], b[1], b[2]));
+    }
+    bulbs.userData.noOutline = true; sc.add(bulbs);
+    // l'étoile (cinq branches, dorée)
+    const sh = new THREE.Shape();
+    for (let i = 0; i < 10; i++) { const a = Math.PI / 2 + i * Math.PI / 5, rad = i % 2 ? 0.26 : 0.62; i ? sh.lineTo(Math.cos(a) * rad, Math.sin(a) * rad) : sh.moveTo(Math.cos(a) * rad, Math.sin(a) * rad); }
+    const sg0 = new THREE.ExtrudeGeometry(sh, { depth: 0.12, bevelEnabled: true, bevelThickness: 0.08, bevelSize: 0.06, bevelSegments: 2 }); sg0.center();
+    const star = new THREE.Mesh(sg0, M.mat(0xffd23a, { metalness: 0.7, roughness: 0.25, emissive: 0xffa000, emissiveIntensity: 0.9 }));
+    star.position.set(T.x, y0 + H * 1.04 + 0.35, T.z); sc.add(star);
+    const sg = glowSprite(0xffe080, 3.4, 0.6); sg.position.copy(star.position); sc.add(sg);
+    treeLights.push(star);
+    // cadeaux au pied du sapin, sur un coussin de neige
+    const gifts = [];
+    for (let i = 0; i < 7; i++) {
+      const a = 0.4 + i * 0.9 + r() * 0.3, d = 2.3 + r() * 0.8, w = 0.45 + r() * 0.35, h = 0.35 + r() * 0.35, x = T.x + Math.cos(a) * d, z = T.z + Math.sin(a) * d;
+      const col = [0xd82a3a, 0x2a8a4a, 0x2a6ad8, 0xf0f0f4, 0x8a3ad0, 0xf0a020, 0xe04080][i];
+      gifts.push({ geo: paint(new THREE.BoxGeometry(w, h, w * 0.9), col), x, y: y0 + h / 2, z, ry: a });
+      for (const rot of [0, Math.PI / 2]) gifts.push({ geo: paint(new THREE.BoxGeometry(w + 0.02, h + 0.02, 0.07), 0xe8b83a), x, y: y0 + h / 2, z, ry: a + rot });
+      gifts.push({ geo: paint(new THREE.TorusGeometry(0.09, 0.035, 6, 12), 0xe8b83a), x, y: y0 + h + 0.06, z, ry: a });
+    }
+    gifts.push({ geo: paint(new THREE.SphereGeometry(1, 20, 6, 0, Math.PI * 2, 0, Math.PI / 2), 0xf6f9ff), x: T.x, y: y0 - 0.1, z: T.z, sx: 3.0, sy: 0.32, sz: 3.0 });
+    const gm = new THREE.Mesh(merge(gifts), SA.richMaterial({ ice: false, roughness: 0.55 })); gm.castShadow = true; gm.receiveShadow = true; sc.add(gm);
+  } else {
     const T = S.BIG_TREE, y0 = S.VILLAGE_Y, parts = [], balls = [];
     parts.push({ geo: paint(new THREE.CylinderGeometry(0.3, 0.45, 1.6, 8), 0x5a3a24), y: y0 + 0.8 });
     for (let i = 0; i < 5; i++) {
@@ -525,12 +751,24 @@ export function buildSnow(game) {
   // lampadaires
   {
     const posts = [], lan = [];
+    // fût tourné (socle, colliers), lanterne à quatre vitres, toit pointu enneigé
+    const lathe = art ? new THREE.LatheGeometry([[0.2, 0], [0.2, 0.12], [0.14, 0.2], [0.1, 0.32], [0.075, 0.5], [0.06, 2.55], [0.1, 2.62], [0.1, 2.7], [0.07, 2.76], [0.07, 2.88], [0, 2.9]].map(([x, y]) => new THREE.Vector2(x, y)), 10) : null;
     for (const l of S.LAMPS) {
-      posts.push({ geo: paint(new THREE.CylinderGeometry(0.07, 0.1, 3, 6), 0x2a2a32), x: l.x, y: l.y + 1.5, z: l.z });
-      posts.push({ geo: paint(new THREE.ConeGeometry(0.32, 0.3, 4), 0x2a2a32), x: l.x, y: l.y + 3.45, z: l.z, ry: Math.PI / 4 });
-      posts.push({ geo: paint(new THREE.ConeGeometry(0.3, 0.14, 4), 0xf4f8ff), x: l.x, y: l.y + 3.62, z: l.z, ry: Math.PI / 4 });
-      lan.push({ geo: new THREE.BoxGeometry(0.3, 0.38, 0.3), x: l.x, y: l.y + 3.1, z: l.z });
-      const s = glowSprite(0xffd890, 1.6, 0.45); s.position.set(l.x, l.y + 3.1, l.z); sc.add(s);
+      if (art) {
+        posts.push({ geo: paint(lathe.clone(), 0x23262c), x: l.x, y: l.y, z: l.z });
+        for (const [dx, dz] of [[1, 1], [1, -1], [-1, 1], [-1, -1]]) posts.push({ geo: paint(new THREE.BoxGeometry(0.035, 0.46, 0.035), 0x23262c), x: l.x + dx * 0.16, y: l.y + 3.12, z: l.z + dz * 0.16 });
+        posts.push({ geo: paint(new THREE.BoxGeometry(0.4, 0.05, 0.4), 0x23262c), x: l.x, y: l.y + 2.88, z: l.z });
+        posts.push({ geo: paint(new THREE.ConeGeometry(0.34, 0.32, 4), 0x23262c), x: l.x, y: l.y + 3.5, z: l.z, ry: Math.PI / 4 });
+        posts.push({ geo: paint(new THREE.SphereGeometry(0.05, 8, 6), 0xd8b040), x: l.x, y: l.y + 3.7, z: l.z });
+        posts.push({ geo: paint(new THREE.ConeGeometry(0.3, 0.17, 4), 0xf6f9ff), x: l.x, y: l.y + 3.6, z: l.z, ry: Math.PI / 4 });
+        lan.push({ geo: new THREE.CylinderGeometry(0.15, 0.13, 0.42, 4, 1, false, Math.PI / 4), x: l.x, y: l.y + 3.12, z: l.z });
+      } else {
+        posts.push({ geo: paint(new THREE.CylinderGeometry(0.07, 0.1, 3, 6), 0x2a2a32), x: l.x, y: l.y + 1.5, z: l.z });
+        posts.push({ geo: paint(new THREE.ConeGeometry(0.32, 0.3, 4), 0x2a2a32), x: l.x, y: l.y + 3.45, z: l.z, ry: Math.PI / 4 });
+        posts.push({ geo: paint(new THREE.ConeGeometry(0.3, 0.14, 4), 0xf4f8ff), x: l.x, y: l.y + 3.62, z: l.z, ry: Math.PI / 4 });
+        lan.push({ geo: new THREE.BoxGeometry(0.3, 0.38, 0.3), x: l.x, y: l.y + 3.1, z: l.z });
+      }
+      const s = glowSprite(0xffd890, art ? 2.0 : 1.6, 0.45); s.position.set(l.x, l.y + 3.1, l.z); sc.add(s);
     }
     const pm = new THREE.Mesh(merge(posts), std({ vertexColors: true, roughness: 0.5, metalness: 0.4 })); pm.castShadow = true; sc.add(pm);
     sc.add(new THREE.Mesh(merge(lan), winMat));
@@ -919,7 +1157,8 @@ export function buildSnow(game) {
   balls.frustumCulled = false; balls.castShadow = true; sc.add(balls); moving.push(balls);
 
   // --- la couche de vie : bêtes, objets, défis éclair, habitants, cachettes (life.js) ---------
-  const life = buildLife(game, { L: S, plan: LIFE.PLAN, palette: LIFE.PALETTE, lines: LIFE.LINES, allDoneText: 'Une aurore boréale danse au-dessus du sommet !' });
+  const life = buildLife(game, { L: S, plan: LIFE.PLAN, palette: LIFE.PALETTE, lines: LIFE.LINES, allDoneText: 'Une aurore boréale danse au-dessus du sommet !',
+    propMat: art ? SA.richMaterial({ lamp: true }) : null, villagerModels: { snowman: 'snowmanHD' } });
   // l'aurore boréale au-dessus du sommet (plus vive quand tous les défis éclair sont réussis)
   const aurora = (() => {
     const geo = new THREE.PlaneGeometry(180, 34, 48, 1), p = geo.attributes.position;
@@ -1729,6 +1968,7 @@ export function buildSnow(game) {
     },
     render(dt, t) {
       FOL.tickFoliage(t);
+      if (!st.skyDone) { st.skyDone = true; dressSky(); }
       const me = game.me, k = snow(), cam = game.camera.position;
       // le bandeau de quête suit la descente (portes, chrono) : on le rafraîchit quand il change
       if ((st.hudT = (st.hudT || 0) + dt) > 0.25) { st.hudT = 0; const q = logic.questText(); if (q !== st.hudQ) { st.hudQ = q; game.updateHud(); } }
@@ -1882,6 +2122,7 @@ export function buildSnow(game) {
         if (Math.hypot(c.x - cam.x, c.z - cam.z) < 90) game.spawnParticle(c.x + (Math.random() - 0.5) * 0.2, c.y, c.z + (Math.random() - 0.5) * 0.2, 0.3 + Math.random() * 0.3, c.mug ? 0.5 : 1.0, (Math.random() - 0.5) * 0.3, c.mug ? 0xffffff : 0xd8dce4, c.mug ? 0.14 : 0.55, c.mug ? 1.2 : 2.6, -0.15);
       }
       for (const l of treeLights) if (l.isMesh && l.material.emissiveIntensity !== undefined) l.material.emissiveIntensity = 0.7 + Math.sin(t * 3) * 0.25;
+      if (bulbs) bulbs.material.color.setScalar(0.75 + 0.3 * Math.sin(t * 2.3) + 0.15 * Math.sin(t * 7.1));
       // drapeaux
       flags.forEach((f, i) => {
         const up = k.flags.includes(f.def.id) || f.def.id === 0 ? 1 : 0;

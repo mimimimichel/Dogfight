@@ -34,10 +34,21 @@ export function buildSeasons(game, opts) {
     const g = new THREE.BufferGeometry();
     g.setAttribute('position', new THREE.BufferAttribute(pos, 3));
     const cv = document.createElement('canvas'); cv.width = cv.height = 64; const x = cv.getContext('2d');
-    if (kind === 'snow') { const gr = x.createRadialGradient(32, 32, 0, 32, 32, 30); gr.addColorStop(0, 'rgba(255,255,255,1)'); gr.addColorStop(1, 'rgba(255,255,255,0)'); x.fillStyle = gr; x.fillRect(0, 0, 64, 64); }
+    if (kind === 'snow') { const gr = x.createRadialGradient(32, 32, 0, 32, 32, 30); gr.addColorStop(0, 'rgba(255,255,255,1)'); gr.addColorStop(0.3, 'rgba(250,252,255,0.85)'); gr.addColorStop(0.6, 'rgba(240,246,255,0.3)'); gr.addColorStop(1, 'rgba(235,242,255,0)'); x.fillStyle = gr; x.fillRect(0, 0, 64, 64); }
     else { x.fillStyle = kind === 'leaves' ? '#d8742a' : '#ffb3cf'; x.beginPath(); x.ellipse(32, 32, 26, kind === 'leaves' ? 14 : 18, 0.6, 0, Math.PI * 2); x.fill(); if (kind === 'leaves') { x.strokeStyle = '#8a3a10'; x.lineWidth = 3; x.beginPath(); x.moveTo(10, 46); x.lineTo(54, 18); x.stroke(); } }
     const tex = new THREE.CanvasTexture(cv); tex.colorSpace = THREE.SRGBColorSpace;
     const mat = new THREE.PointsMaterial({ map: tex, size: kind === 'snow' ? 0.3 : 0.55, transparent: true, depthWrite: false, alphaTest: 0.02, sizeAttenuation: true, color: kind === 'leaves' ? 0xffffff : 0xffffff });
+    if (kind === 'snow') {
+      // flocons de tailles variées (quelques gros, flous, tout près ; beaucoup de petits)
+      const sz = new Float32Array(N);
+      for (let i = 0; i < N; i++) { const u = Math.random(); sz[i] = 0.55 + u * u * 1.6; }
+      g.setAttribute('aSize', new THREE.BufferAttribute(sz, 1));
+      mat.onBeforeCompile = (sh) => {
+        sh.vertexShader = sh.vertexShader.replace('#include <common>', '#include <common>\nattribute float aSize;').replace('gl_PointSize = size;', 'gl_PointSize = size * aSize;');
+      };
+      mat.customProgramCacheKey = () => 'snowflakes';
+      mat.opacity = 0.92;
+    }
     const pts = new THREE.Points(g, mat); pts.frustumCulled = false; pts.userData.noOutline = true;
     scene.add(pts);
     fall = { pts, pos, seed, N, R, H, speed: kind === 'snow' ? 1.3 : 1.0 };
