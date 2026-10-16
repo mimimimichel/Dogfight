@@ -14,6 +14,8 @@ import * as RT from './realtex.js';
 import * as K from './parkkit.js';
 import { buildFlag } from './farmkit.js';
 import { Cinema } from './cinema.js';
+import { buildLife } from './life.js';
+import * as LIFE from './level1life.js';
 
 const clamp = (v, a, b) => (v < a ? a : v > b ? b : v);
 const lerpAngle = (a, b, t) => { const d = ((b - a + Math.PI) % (Math.PI * 2) + Math.PI * 2) % (Math.PI * 2) - Math.PI; return a + d * t; };
@@ -637,6 +639,9 @@ export function buildPark(game) {
   };
   const players = () => game.players;
   const P0 = () => game.me;
+  // --- la couche de vie : bêtes, objets, défis éclair, habitants, cachettes (life.js) ---------
+  const life = buildLife(game, { L: S, plan: LIFE.PLAN, palette: LIFE.PALETTE, lines: LIFE.LINES, surface: LIFE.surface, isWater: LIFE.isWater, grain: true, view: lite ? 80 : 140,
+    allDoneText: 'Tout le parc fait la fête : les canards dansent, les ballons s\'envolent !' });
   const dist = (a, b) => Math.hypot(a.x - b.x, a.z - b.z);
 
   function reveal(msg, sub) {
@@ -1073,7 +1078,7 @@ export function buildPark(game) {
   // Interface avec le moteur
   // =============================================================================
   const logic = {
-    moving, chars,
+    moving, chars, life,
     park: { st, boats, lanterns, rabbits, state: park, swingSeats },   // (pour les tests)
     playerStep(P, wx, wz, jumpHeld, pr, dt) {
       if (!P.ride) return false;
@@ -1089,6 +1094,7 @@ export function buildPark(game) {
       const p = park(), s = save(), out = [];
       out.push({ kind: 'lv', act: 'gaston', label: 'PARLER', x: S.npcs.gaston.x + 0.8, z: S.npcs.gaston.z, y: S.npcs.gaston.y });
       if (!s.intro) return out;
+      if (Q) out.push(...life.candidates(Q));
       out.push({ kind: 'lv', act: 'scope', label: 'REGARDER', x: S.TELESCOPE.x, z: S.TELESCOPE.z + 1, y: S.DECK.top });
       if (p.clues < 3 && game.puppy.state === 'lost') {
         const c = S.CLUES[p.clues];
@@ -1118,6 +1124,7 @@ export function buildPark(game) {
       return out;
     },
     interact(n, P) {
+      if (n.life) { life.interact(n, P); return; }
       if (n.act === 'gaston') talkGaston(P);
       else if (n.act === 'scope') lookScope(P);
       else if (n.act === 'clue') findClue(n.i);
@@ -1173,6 +1180,7 @@ export function buildPark(game) {
       trainPush();
       st.carA += dt * 0.55;
       stepRabbits(dt);
+      life.step(dt);
       // balançoires sans personne : elles s'arrêtent doucement
       for (const sw of swingSeats) if (sw.rider < 0) sw.a *= Math.max(0, 1 - dt * 1.2);
       for (const sw of swingSeats) if (sw.rider >= 0 && !PL.some(P => P.ride && P.ride.kind === 'swing' && swingSeats[P.ride.i] === sw)) sw.rider = -1;
@@ -1252,6 +1260,7 @@ export function buildPark(game) {
       const s = save(), p = park(), me = game.me;
       if (!s.intro) return 'Parle à Mamie Labrador';
       if (game.puppy && game.puppy.state === 'follow') return 'Ramène Biscotte à Mamie';
+      const lq = life.questText(); if (lq) return lq;
       if (st.run) return st.run.t < 0 ? 'Agility : prêts ?' : `Agility : ${COURSE[st.run.i].name} (${st.run.i + 1}/${COURSE.length})`;
       if (me && me.ride && me.ride.kind === 'train') return 'En voiture ! Saute pour descendre';
       if (me && me.ride && me.ride.kind === 'boat') return 'Pédalo : approche du bord pour descendre';
@@ -1278,6 +1287,7 @@ export function buildPark(game) {
       out.push([trainCars[0].position.x, trainCars[0].position.z, '#e0302a', 2.8]);
       for (const b of boats) out.push([b.x, b.z, '#ffffff', 2.2]);
       out.push([S.TELESCOPE.x, S.TELESCOPE.z, '#c8a040', 2.4]);
+      if (s.intro) for (const m of life.marks()) out.push(m);
       return out;
     },
     snapshot() {
@@ -1290,6 +1300,7 @@ export function buildPark(game) {
         rn: st.run ? [st.run.P.id || 0, st.run.i, r(st.run.t)] : 0,
         rd: players().map(P => [P.id || 0, P.ride ? P.ride.kind : 0, P.ride ? r(P.ride.speed || 0) : 0, P.ride ? r(P.ride.yaw || 0) : 0]),
         rb: rabbits.map(o => [r(o.x), r(o.z), r(o.yaw), o.hop > 0 ? 1 : 0]),
+        lf: life.snapshot(),
       };
     },
     apply(x) {
@@ -1300,6 +1311,7 @@ export function buildPark(game) {
       if (x.rn) { const P = game.party.get(x.rn[0]) || game.player; st.run = Object.assign(st.run || {}, { P, i: x.rn[1], t: x.rn[2], guest: true }); } else if (st.run) stopRun();
       for (const [id, kind, sp, yaw] of x.rd) { const P = game.party.get(id); if (!P) continue; P.ride = kind ? { kind, speed: sp, yaw, camRate: 2.2, guest: true } : null; }
       x.rb.forEach((d, i) => { const o = rabbits[i]; if (!o) return; o.x = d[0]; o.z = d[1]; o.yaw = d[2]; if (d[3] && o.hop <= 0) o.hop = 0.45; o.y = H(o.x, o.z); });
+      life.apply(x.lf);
     },
     talkMamie(first) {
       const s = save();
@@ -1343,6 +1355,7 @@ export function buildPark(game) {
       // le décor lointain est caché (grand monde)
       const far0 = lite ? 150 : 230;
       for (const c of cull) c.obj.visible = Math.hypot(c.x - cam.x, c.z - cam.z) < far0 + c.r;
+      life.render(dt, t);
       const seeIt = (x, z, r) => Math.hypot(x - cam.x, z - cam.z) < (r || (lite ? 120 : 180));
       // Biscotte reste caché tant que la piste n'est pas suivie
       if (game.puppy.state === 'lost' && p.clues < 3) { game.marks.puppy.visible = false; game.puppy.mesh.visible = false; }
