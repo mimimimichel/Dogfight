@@ -135,7 +135,7 @@ export const LINES = {
     talk: [[W('Django l\'accordéoniste')('Tralalalère… L\'accordéon, ça respire comme un gros chat qui dort.')], [W('Django l\'accordéoniste')('Le soir, je joue au kiosque. Les canards dansent !')]],
   },
   marius: {
-    ask: [W('Papi Marius')('Té ! Des chiens ! Vous savez jouer à la pétanque ?'), W('Fernand')('Il faut amener les trois boules près du cochonnet, dans le rond doré.'),
+    ask: [W('Papi Marius')('Té ! Des chiens ! Vous savez jouer à la pétanque ?'), W('Papi Fernand')('Il faut amener les trois boules près du cochonnet, dans le rond doré.'),
       W('Papi Marius')('Poussez-les avec le museau… ou tirez dedans d\'un coup de toupie ! Au signal doré, et pas de triche !')],
     thanks: [W('Papi Marius')('Les trois boules dans le rond ! Carreau ! Fernand, ces chiens jouent mieux que toi.'), W('Papi Fernand')('Hé ! C\'est le soleil qui me gênait !')],
     talk: [[W('Papi Marius')('Tu tires ou tu pointes ?')], [W('Papi Marius')('La pétanque, c\'est un sport. Surtout pour le bras qui tient la limonade.')]],
