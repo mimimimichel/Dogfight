@@ -80,7 +80,7 @@ export const VILLAGERS = [
   V('pinceau', 'Pinceau le peintre', SPOT.buis[0] - 5, SPOT.buis[1] - 2, { yaw: 1.2, act: 'paint', tool: 'brush', cap: 'beret', fur: 0x8a6a4a, cloth: 0xc87ad8, defi: 'd_buis' }),
   V('gaston', 'Gaston le garde', 10, 22, { yaw: 0, act: 'guard', tool: 'spear', cap: 'helmet', fur: 0xf4e0c0, cloth: 0x3a5ad8, defi: 'd_souris' }),
   V('ronron', 'Maestro Ronron', SPOT.orchestre[0], SPOT.orchestre[1] - 4, { yaw: 0, act: 'conduct', tool: 'baton', fur: 0x5a5458, cloth: 0x2a2a3a, busy: true, defi: 'd_orchestre' }),
-  V('melodie', 'Mélodie', SPOT.orchestre[0] - 3.5, SPOT.orchestre[1] - 7, { yaw: 0.3, act: 'play', tool: 'lute', fur: 0xffffff, cloth: 0xd84a7a, busy: true, inst: 'pluck', tune: [72, 76, 79, 76, 74, 77, 81, 0, 79, 77, 76, 74, 72, 0, 0, 0], beat: 0.32 }),
+  V('melodie', 'Mélodie', SPOT.orchestre[0] - 3.5, SPOT.orchestre[1] - 7, { yaw: 0.3, act: 'lute', tool: 'lute', fur: 0xffffff, cloth: 0xd84a7a, busy: true, inst: 'pluck', tune: [72, 76, 79, 76, 74, 77, 81, 0, 79, 77, 76, 74, 72, 0, 0, 0], beat: 0.32 }),
   V('tambourin', 'Tambourin', SPOT.orchestre[0] + 3.5, SPOT.orchestre[1] - 7, { yaw: -0.3, act: 'drum', tool: 'drumstick', fur: 0xf0b070, cloth: 0x3a8a5a, busy: true, inst: 'mallet', tune: [48, 0, 55, 0, 48, 48, 55, 0], beat: 0.32, vol: 0.05 }),
   V('fanfare', 'Fanfare', SPOT.orchestre[0], SPOT.orchestre[1] - 9, { yaw: 0, act: 'trumpet', tool: 'trumpet', fur: 0xc8a888, cloth: 0xe8b020, busy: true, inst: 'flute', tune: [0, 0, 0, 0, 0, 0, 0, 0, 84, 0, 83, 0, 81, 0, 79, 0], beat: 0.32, vol: 0.04 }),
   V('pirouette', 'Pirouette le bouffon', SPOT.orchestre[0] - 6, SPOT.orchestre[1] + 12, { yaw: 2.6, act: 'juggle', cap: 'jester', fur: 0xffffff, cloth: 0xd83a4a, defi: 'd_chaton' }),
@@ -234,8 +234,8 @@ export const DEFIS = [
   D({ id: 'd_canetons', type: 'herd', name: 'Les canetons de Madame Cane', hint: 'Touchez les canetons perdus et ramenez-les dans le rond doré', x: SPOT.canetons[0] + 3, z: SPOT.canetons[1] + 3, critter: 'duckling', time: 110, pen: { x: SPOT.canetons[0], z: SPOT.canetons[1], r: 3.4 },
     chicks: [free(48, 30, 0.5), free(58, 12, 0.5), free(20, 44, 0.5), free(62, 30, 0.5)] }),
   D({ id: 'd_coussins', type: 'pads', name: 'Les poufs rebondissants', hint: 'Rebondissez sur les 6 poufs qui brillent !', x: CO[0] + 1, z: CO[1] - 0.5, time: 35, pads: POUFS_CO.map(p => p.id) }),
-  D({ id: 'd_braseros', type: 'touch', name: 'Les braseros des douves', hint: 'Allumez les 6 braseros autour des douves : touchez-les !', x: -34, z: 15, time: 50, targets: BRAZ.map(b => b.id) }),
-  D({ id: 'd_armures', type: 'touch', name: 'Les armures qui font clong', hint: 'Faites sonner les 5 armures de la cour : foncez dedans !', x: -12, z: 9.5, time: 40, targets: ['ar_1', 'ar_2', 'ar_3', 'ar_4', 'ar_5'], exact: true }),
+  D({ id: 'd_braseros', type: 'hits', name: 'Les braseros des douves', hint: 'Allumez les 6 braseros autour des douves : touchez-les !', x: -34, z: 15, time: 50, props: BRAZ.map(b => b.id) }),
+  D({ id: 'd_armures', type: 'hits', name: 'Les armures qui font clong', hint: 'Faites sonner les 5 armures de la cour : foncez dedans !', x: -12, z: 9.5, time: 40, props: ['ar_1', 'ar_2', 'ar_3', 'ar_4', 'ar_5'], exact: true }),
 ];
 for (const d of DEFIS) d.y = ground(d.x, d.z);
 
@@ -349,11 +349,12 @@ export const PALETTE = {
     bat: { model: 'bat', ai: 'perch', sound: 'squeak', scale: 1.4 },
     rabbit: { model: 'hare', ai: 'wander', group: 2, scale: 1.2, tints: [0xc8a080, 0xe8d8c8, 0x8a6a50], hopper: true, flee: 6, run: 8, speed: 1.4, home: 8, sound: 'squeak', say: ['Hop !'] },
     squirrel: { model: 'squirrel', ai: 'wander', scale: 1.5, hopper: true, flee: 5, run: 7, speed: 2, home: 6, sound: 'squeak', say: ['Tchik !'] },
-    butterfly: { model: 'butterfly', ai: 'hover', group: 3, glow: false, scale: 1.6, colors: { wing: 0xff9ad0, spot: 0xfff4a0 } },
-    frog: { model: 'frog', ai: 'wander', hopper: true, flee: 4, run: 4, speed: 0.7, home: 4, sound: 'ribbit', say: ['Croâ !', 'Croâ croâ !'], scale: 1.3, extra: 4 },
-    carp: { model: 'fish', ai: 'jump', colors: { fur: 0xffa040 }, scale: 1.4 },
-    duck: { model: 'duck', ai: 'wander', swim: true, group: 4, brood: { scale: 0.5, tint: 0xffe060 }, tints: [0xffffff], hopper: false, speed: 0.8, run: 2.6, flee: 4, home: 6, sound: 'quack', say: ['Coin !', 'Coin coin !'] },
-    duckling: { model: 'duck', ai: 'none', tints: [0xffe060], scale: 0.55, hopper: false, extra: 6 },
+    butterfly: { model: 'butterfly', ai: 'hover', group: 3, glow: false, scale: 2.4, colors: { wing: 0xff9ad0, spots: 0x8a2a5a } },
+    frog: { model: 'frog', ai: 'hop', home: 3.5, flee: 3, sound: 'croak', scale: 1.25, extra: 4 },
+    carp: { model: 'fish', ai: 'jump', water: true, colors: { fur: 0xffa040 }, scale: 1.4 },
+    // Madame Cane et ses canetons, en file indienne sur les douves (life.js : swim, line, young)
+    duck: { model: 'duck', ai: 'swim', water: true, group: 4, line: true, gap: 0.75, young: 'duckling', home: 7, flee: 4, sound: 'quack', colors: { body: 0xf4f2ec, head: 0xf4f2ec, breast: 0xffffff, wing: 0xe8e4dc, bill: 0xf0a020 }, scale: 1.1 },
+    duckling: { model: 'duckling', ai: 'none', sound: 'peep', colors: { fur: 0xffe060 }, scale: 1.25, extra: 6 },
   },
   props: {
     pouf: { act: 'bounce', power: 16, r: 1.25, tint: true },
@@ -368,7 +369,7 @@ export const PALETTE = {
     candelabra: { act: 'light', lamp: { y: 2.12, color: 0xffc060, size: 2.4 }, burn: 240, solid: 0.3, r: 0.5 },
     portrait: { act: 'shake', tint: true, drop: 1, sound: 'meowHi', eyes: { x: 0.14, y: 2.42, z: 0.045, r: 0.045, range: 0.028 }, wall: true },
     bookcase: { act: 'slide', box: [2.4, 0.62], open: 30, sound: 'crate', say: 'Un passage secret derrière la bibliothèque !' },
-    yarnball: { act: 'push', grow: 0, r0: 0.6, tint: true },
+    yarnball: { act: 'push', grow: false, r0: 0.6, tint: true },
     dummy: { act: 'shake', solid: 0.35, drop: 1, sound: 'bump', burst: 0xf0d890 },
     pawbutton: { act: 'press', r: 0.7 },
     hole: { colors: { dark: 0x2e2a24, rim: 0xe8e0c8 } },

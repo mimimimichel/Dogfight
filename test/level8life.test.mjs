@@ -128,7 +128,7 @@ test('défis : chaque défi est complet et jouable', () => {
     }
     if (d.type === 'pads') for (const id of d.pads) assert.ok(propIds.has(id) && pk(propIds.get(id)).act === 'bounce', d.id + ' : pouf ' + id);
     if (d.type === 'xylo') { for (const id of d.chimes) assert.ok(propIds.has(id) && pk(propIds.get(id)).act === 'chime', d.id + ' : cloche ' + id); assert.ok(d.seq.every(i => i < d.chimes.length)); }
-    if (d.type === 'touch') for (const id of d.targets) assert.ok(propIds.has(id) && pk(propIds.get(id)).act, d.id + ' : ' + id);
+    if (d.type === 'hits') for (const id of d.props) assert.ok(propIds.has(id) && pk(propIds.get(id)).act, d.id + ' : ' + id);
     if (d.type === 'tag') for (const id of d.kids) assert.ok(vill.has(id) && vill.get(id).moves, d.id + ' : ' + id);
     if (d.type === 'race') { for (const [x, z] of d.path) assert.ok(LL.walkable(x, z), d.id + ' : chemin'); assert.ok(PAL.fauna[d.critter]); }
     if (d.type === 'chase') assert.ok(PAL.fauna[d.critter]);

@@ -23,6 +23,7 @@ import * as THREE from '../vendor/three.module.min.js';
 import * as FOL from './foliage.js';
 import * as M from './models.js';
 import { PointGrid } from './lifeplan.js';
+import * as KIT from './lifekit.js';
 let firMatCache = null;
 const firMat = () => firMatCache || (firMatCache = FOL.firMaterials({ snow: 0.7 }));
 
@@ -222,37 +223,6 @@ export const MODELS = {
         P(sph(0.026), 0xffffff, { x: 0.035, y: 0.32, z: 0.085 }), P(sph(0.026), 0xffffff, { x: -0.035, y: 0.32, z: 0.085 }),
         P(sph(0.014), 0x141414, { x: 0.035, y: 0.32, z: 0.105 }), P(sph(0.014), 0x141414, { x: -0.035, y: 0.32, z: 0.105 }), P(cone(0.008, 0.025, 3), 0xffffff, { x: 0.015, y: 0.26, z: 0.09, rx: Math.PI })]),
       flap: merge([P(sph(0.5, 8, 4), c.wing || 0x3a2a48, { x: 0.17, sx: 0.34, sy: 0.04, sz: 0.2 }), P(sph(0.5, 8, 4), c.wing || 0x3a2a48, { x: 0.27, z: -0.06, sx: 0.2, sy: 0.04, sz: 0.16 })]), pivots: [0.08, 0.2, 0], h: 0.45, r: 0.15,
-    };
-  },
-  frog(c) {
-    const g = c.fur || 0x5ab040, belly = 0xd8e8a0;
-    return {
-      body: merge([P(sph(0.2, 10, 8), g, { y: 0.15, sz: 1.15, sy: 0.7 }), P(sph(0.16), belly, { y: 0.11, z: 0.07, sz: 0.9, sy: 0.55 }),
-        P(sph(0.075), g, { x: 0.09, y: 0.28, z: 0.12 }), P(sph(0.075), g, { x: -0.09, y: 0.28, z: 0.12 }),
-        P(sph(0.05), 0xffffff, { x: 0.09, y: 0.3, z: 0.165 }), P(sph(0.05), 0xffffff, { x: -0.09, y: 0.3, z: 0.165 }),
-        P(sph(0.026), 0x141414, { x: 0.09, y: 0.305, z: 0.205 }), P(sph(0.026), 0x141414, { x: -0.09, y: 0.305, z: 0.205 }),
-        P(box(0.16, 0.012, 0.01), 0x2a5a20, { y: 0.17, z: 0.23 }), P(sph(0.03), 0xf4a0b0, { x: 0.1, y: 0.19, z: 0.2, sz: 0.5 }), P(sph(0.03), 0xf4a0b0, { x: -0.1, y: 0.19, z: 0.2, sz: 0.5 }),
-        P(sph(0.09), g, { x: 0.17, y: 0.07, z: -0.08, sz: 1.6, sy: 0.6 }), P(sph(0.09), g, { x: -0.17, y: 0.07, z: -0.08, sz: 1.6, sy: 0.6 }),
-        P(sph(0.05), g, { x: 0.12, y: 0.04, z: 0.15, sy: 0.6 }), P(sph(0.05), g, { x: -0.12, y: 0.04, z: 0.15, sy: 0.6 })]),
-      h: 0.4, r: 0.22,
-    };
-  },
-  duck(c) {
-    const f = 0xffffff, beak = 0xf0962a;
-    return {
-      body: merge([P(sph(0.22, 10, 8), f, { y: 0.16, sz: 1.4, sy: 0.72 }), P(cone(0.1, 0.2, 6), f, { y: 0.24, z: -0.3, rx: -1.1 }),
-        P(sph(0.13, 10, 8), f, { y: 0.42, z: 0.2 }), P(box(0.1, 0.035, 0.13), beak, { y: 0.4, z: 0.36 }), P(box(0.09, 0.02, 0.1), beak, { y: 0.375, z: 0.35 }),
-        ...eyes(0.07, 0.46, 0.3, 0.022), P(sph(0.12), f, { x: 0.14, y: 0.2, z: -0.04, sz: 1.4, sy: 0.5, rz: -0.3 }), P(sph(0.12), f, { x: -0.14, y: 0.2, z: -0.04, sz: 1.4, sy: 0.5, rz: 0.3 })]),
-      h: 0.55, r: 0.28, tint: true,
-    };
-  },
-  butterfly(c) {
-    const w = c.wing || 0xff8ac8, w2 = c.spot || 0xffffff;
-    return {
-      body: merge([P(cyl(0.018, 0.012, 0.22, 5), 0x2a2030, { rx: Math.PI / 2 }), P(sph(0.025), 0x2a2030, { z: 0.12 }),
-        P(cyl(0.004, 0.004, 0.1, 3), 0x2a2030, { x: 0.02, y: 0.04, z: 0.16, rx: 0.6 }), P(cyl(0.004, 0.004, 0.1, 3), 0x2a2030, { x: -0.02, y: 0.04, z: 0.16, rx: 0.6 })]),
-      flap: merge([P(sph(0.5, 8, 4), w, { x: 0.11, z: 0.05, sx: 0.22, sy: 0.02, sz: 0.2 }), P(sph(0.5, 8, 4), w, { x: 0.09, z: -0.07, sx: 0.16, sy: 0.02, sz: 0.14 }), P(sph(0.5, 6, 4), w2, { x: 0.13, y: 0.006, z: 0.06, sx: 0.06, sy: 0.02, sz: 0.06 })]),
-      pivots: [0.01, 0, 0], h: 0.1, r: 0.1, flapAxis: 'x',
     };
   },
   puppy(c) {
@@ -514,6 +484,11 @@ export const PROPS = {
   },
 };
 
+// les modèles du kit (parc, jardins, mares…) s'ajoutent à ceux de la neige
+for (const k in KIT.MODELS) if (!MODELS[k]) MODELS[k] = KIT.MODELS[k];
+for (const k in KIT.PROPS) if (!PROPS[k]) PROPS[k] = KIT.PROPS[k];
+for (const k in KIT.TOOLS) if (!VILLAGER[k]) VILLAGER[k] = KIT.TOOLS[k];
+
 function shadowTexture() {
   const c = document.createElement('canvas'); c.width = c.height = 64;
   const x = c.getContext('2d'), g = x.createRadialGradient(32, 32, 0, 32, 32, 32);
@@ -571,10 +546,14 @@ export function buildLife(game, cfg) {
   const sfx = () => (game.sfx && game.sfx.ok ? game.sfx : null);
   const R = Math.random;
 
+  // surface (eau comprise) et eau : par défaut, le sol et pas d'eau
+  const surface = cfg.surface || ground;
+  const isWater = cfg.isWater || (() => false);
   // --- matériaux et couches -----------------------------------------------------------------
-  const litMat = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.82 });
+  // (cfg.grain : un léger grain sur les couleurs, plus de surfaces lisses « plastique »)
+  const litMat = cfg.grain ? KIT.grainMaterial() : new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.82 });
   const unlitMat = new THREE.MeshBasicMaterial({ vertexColors: true });
-  const wingMat = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.85, side: THREE.DoubleSide });
+  const wingMat = cfg.grain ? KIT.grainMaterial({ side: true }) : new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.85, side: THREE.DoubleSide });
   const glowMat = new THREE.MeshBasicMaterial({ map: M.glowTexture(), transparent: true, depthWrite: false, blending: THREE.AdditiveBlending });
   const shadowMat = new THREE.MeshBasicMaterial({ map: shadowTexture(), color: 0x0a1a28, transparent: true, opacity: 0.26, depthWrite: false });
   const layers = new Map();
@@ -593,7 +572,10 @@ export function buildLife(game, cfg) {
   const faunaModel = {};
   const countKind = (list, k) => list.filter(e => e.kind === k).reduce((a, e) => a + (e.n || (pal.fauna[k] && pal.fauna[k].group) || 1), 0);
   const defiCritters = {};
-  for (const d of plan.defis) { const c = d.critter || (d.type === 'whack' ? 'marmot' : d.type === 'fish' ? 'fish' : null); if (c) defiCritters[c] = (defiCritters[c] || 0) + (d.chicks ? d.chicks.length : 1) + 2; }
+  for (const d of plan.defis) { const c = d.critter || (d.type === 'whack' ? 'marmot' : d.type === 'fish' ? 'fish' : null); if (c) defiCritters[c] = (defiCritters[c] || 0) + (d.chicks ? d.chicks.length : d.holes ? d.holes.length : 1) + 2; }
+  // les compagnons des promeneurs (un chien en laisse…) et les habitants-bêtes
+  for (const e of plan.fauna) { const f = pal.fauna[e.kind]; if (f && f.line && f.young) defiCritters[f.young] = (defiCritters[f.young] || 0) + (e.n || f.group || 1) - 1; }
+  for (const v of plan.villagers) { if (v.pet) defiCritters[v.pet.kind] = (defiCritters[v.pet.kind] || 0) + 1; if (v.body === 'critter' && v.model) defiCritters[v.model] = (defiCritters[v.model] || 0) + 1; }
   for (const k in pal.fauna) {
     const f = pal.fauna[k], mdl = MODELS[f.model](f.colors || {});
     const n = countKind(plan.fauna, k) + (defiCritters[k] || 0) + (f.extra || 0);
@@ -606,8 +588,15 @@ export function buildLife(game, cfg) {
   const extraProp = { marker: plan.defis.length, star: plan.defis.length, coin: 12, ring: 12, sparkle: 0, chest: plan.secrets.length, lid: plan.secrets.length, hole: 0, finish: 2 };
   for (const t of plan.trails) extraProp.sparkle += t.pts.length;
   extraProp.sparkle += 40;   // paillettes qui tombent des sapins, des coffres…
-  for (const e of plan.fauna) if (pal.fauna[e.kind] && pal.fauna[e.kind].hole) extraProp.hole++;
-  for (const d of plan.defis) if (d.holes) extraProp.hole += d.holes.length;
+  const holeKind = (f) => (typeof f.hole === 'string' ? f.hole : 'hole');
+  const addExtra = (k, n) => { propKinds.add(k); extraProp[k] = (extraProp[k] || 0) + n; };
+  for (const e of plan.fauna) { const f = pal.fauna[e.kind]; if (f && f.hole) addExtra(holeKind(f), 1); }
+  for (const d of plan.defis) {
+    if (d.holes) addExtra(d.hole || 'hole', d.holes.length);
+    // objets d'un défi : ballons, bulles, frisbees… à la place des pièces rouges ou des petits perdus
+    if (d.item) addExtra(d.item, (d.items || d.chicks || []).length + 1);
+    if (d.jack) addExtra(d.jack, 1);
+  }
   for (const k of propKinds) {
     const pk = pal.props[k] || {};
     const mdl = PROPS[pk.model || k](pk.colors || {});
@@ -623,7 +612,8 @@ export function buildLife(game, cfg) {
   const eyesN = plan.props.filter(q => (pal.props[q.kind] || {}).eyes).length;
   const pupilL = eyesN ? layer('p_pupil', PROPS.pupil().geo, litMat, eyesN * 2 + 2, false) : null;
   // habitants
-  const vill = { body: layer('v_dog', VILLAGER.dog(), litMat, 24, true), cloth: layer('v_cloth', VILLAGER.dogCloth(), litMat, 24, true), arm: layer('v_arm', VILLAGER.arm(), litMat, 48, true),
+  const nVill = Math.max(24, plan.villagers.length + 4);
+  const vill = { body: layer('v_dog', VILLAGER.dog(), litMat, nVill, true), cloth: layer('v_cloth', VILLAGER.dogCloth(), litMat, nVill, true), arm: layer('v_arm', VILLAGER.arm(), litMat, nVill * 2, true),
     snow: layer('v_snow', VILLAGER.snowman(), litMat, 3, false), snowArm: layer('v_snowarm', VILLAGER.snowArm(), litMat, 6, false), yeti: layer('v_yeti', VILLAGER.yeti(), litMat, 2, false), yetiArm: layer('v_yetiarm', VILLAGER.yetiArm(), litMat, 4, false) };
   const nCats = plan.villagers.filter(v => v.body === 'cat' && !v.ghost).length;
   if (nCats) { vill.cat = layer('v_cat', VILLAGER.cat(), furMat, nCats + 1, true); vill.catCloth = layer('v_catcloth', VILLAGER.catCloth(), MATS.cloth || litMat, nCats + 1, true); }
@@ -643,25 +633,39 @@ export function buildLife(game, cfg) {
   for (const def of plan.fauna) {
     const fm = faunaModel[def.kind]; if (!fm) continue;
     const f = fm.f, n = def.n || f.group || 1;
-    const flock = { def, cx: def.x, cz: def.z, t: 0, up: false };
+    const flock = { def, cx: def.x, cz: def.z, t: 0, up: false, members: [] };
     for (let i = 0; i < n; i++) {
-      const a = (i / n) * TAU + (def.rot || 0), rr = n > 1 ? 1 + (i % 3) * 0.9 : 0;
-      const x = def.x + Math.cos(a) * rr, z = def.z + Math.sin(a) * rr;
-      const c = { def, kind: def.kind, fm, f, flock: n > 1 ? flock : null, i, hx: def.x, hz: def.z, x, z, y: def.perch !== undefined ? def.perch : ground(x, z), yaw: a + 1.6, s: 'idle', t: R() * 3, ph: R() * 10,
-        hop: 0, vy: 0, fly: 0, tint: f.tints ? f.tints[(i + Math.round(def.x)) % f.tints.length] : null, scale: (f.scale || 1) * (0.9 + ((i * 7 + Math.round(def.z)) % 5) * 0.05), petT: -9, followT: 0, under: f.ai === 'burrow' ? 1 : 0 };
-      // une mère et ses petits (canetons…) : les petits la suivent en file
-      if (f.brood && i > 0) { c.scale *= f.brood.scale || 0.5; if (f.brood.tint !== undefined) c.tint = f.brood.tint; c.lead = creatures[creatures.length - i]; }
-      creatures.push(c);
+      // (une file : la maman devant, les petits derrière, en rang)
+      const a = (i / n) * TAU + (def.rot || 0), rr = f.line ? i * (f.gap || 0.8) : n > 1 ? 1 + (i % 3) * 0.9 : 0;
+      const x = def.x + (f.line ? -Math.sin(def.rot || 0) * rr : Math.cos(a) * rr), z = def.z + (f.line ? -Math.cos(def.rot || 0) * rr : Math.sin(a) * rr);
+      const lineF = f.line && i > 0 ? (pal.fauna[f.young] || f) : f, lineM = f.line && i > 0 && f.young && faunaModel[f.young] ? faunaModel[f.young] : fm;
+      const c = { def, kind: def.kind, fm: lineM, f, ff: lineF, flock: n > 1 ? flock : null, i, hx: def.x, hz: def.z, x, z, y: def.perch !== undefined ? def.perch : f.water ? surface(x, z) : ground(x, z), yaw: f.line ? (def.rot || 0) : a + 1.6, s: 'idle', t: R() * 3, ph: R() * 10,
+        hop: 0, vy: 0, fly: 0, tint: f.tints ? f.tints[(i + Math.round(def.x)) % f.tints.length] : null, scale: (lineM === fm ? (f.scale || 1) : (lineF.scale || 1)) * (0.9 + ((i * 7 + Math.round(def.z)) % 5) * 0.05), petT: -9, followT: 0, under: f.ai === 'burrow' ? 1 : 0 };
+      creatures.push(c); flock.members.push(c);
     }
   }
   const cGrid = new PointGrid(16);
   for (const c of creatures) cGrid.add({ x: c.hx, z: c.hz, c });
-  const isBall = (p) => (pal.props[p.kind] || {}).act === 'push';
-  const props = plan.props.map((def, i) => ({ def, i, kind: def.kind, x: def.x, y: def.y, z: def.z, yaw: def.rot || 0, wob: -9, sq: -9, broken: 0, ring: -9, r: (pal.props[def.kind] || {}).act === 'push' ? ((pal.props[def.kind] || {}).r0 || 0.5) : 0, rot: 0, bx: def.x, bz: def.z, on: false, sk: 0 }));
+  const isPush = (k) => (pal.props[k] || {}).act === 'push';
+  const r0 = (k) => (isPush(k) ? (pal.props[k].r0 || 0.5) : 0);
+  const props = plan.props.map((def, i) => ({ def, i, kind: def.kind, x: def.x, y: def.y, z: def.z, yaw: def.rot || 0, wob: -9, sq: -9, broken: 0, ring: -9, r: r0(def.kind), r0: r0(def.kind), rot: 0, bx: def.x, bz: def.z, on: false, sk: 0 }));
   const propById = new Map(props.map(p => [p.def.id, p]));
+  const pushers = props.filter(p => p.r0);
   const pGrid = new PointGrid(16);
   for (const p of props) pGrid.add({ x: p.def.x, z: p.def.z, p });
-  const villagers = plan.villagers.map((def, i) => ({ def, i, x: def.x, y: def.y, z: def.z, yaw: def.yaw || 0, ph: i * 1.7, awake: !def.sleepy, wave: -9, run: null }));
+  const villagers = plan.villagers.map((def, i) => ({ def, i, x: def.x, y: def.y, z: def.z, yaw: def.yaw || 0, ph: i * 1.7, awake: !def.sleepy, wave: -9, run: null, s: def.phase || 0, loop: def.loop ? loopOf(def.loop) : null, hold: -9 }));
+  /** Un circuit fermé (promeneurs, joggeurs) : longueurs cumulées. */
+  function loopOf(pts) {
+    const cum = [0];
+    for (let i = 0; i < pts.length; i++) { const a = pts[i], b = pts[(i + 1) % pts.length]; cum.push(cum[i] + Math.hypot(b[0] - a[0], b[1] - a[1])); }
+    return { pts, cum, total: cum[pts.length] };
+  }
+  function loopAt(lp, s) {
+    s = ((s % lp.total) + lp.total) % lp.total;
+    let i = 0; while (i < lp.pts.length - 1 && lp.cum[i + 1] < s) i++;
+    const a = lp.pts[i], b = lp.pts[(i + 1) % lp.pts.length], l = lp.cum[i + 1] - lp.cum[i] || 1, k = (s - lp.cum[i]) / l;
+    return { x: a[0] + (b[0] - a[0]) * k, z: a[1] + (b[1] - a[1]) * k, yaw: Math.atan2(b[0] - a[0], b[1] - a[1]) };
+  }
   const villById = new Map(villagers.map(v => [v.def.id, v]));
   const defis = plan.defis.map((def, i) => ({ def, i }));
   const chests = plan.secrets.map((def, i) => ({ def, i, open: -9 }));
@@ -683,7 +687,7 @@ export function buildLife(game, cfg) {
   }
 
   // --- état partagé (l'hôte décide, les amis suivent) -------------------------------------------
-  const st = { D: null, drops: [], ev: [], seq: 0, seen: 0, near: { c: [], p: [], v: [], s: [] }, nearT: 0, barkSeen: new Map(), hudT: 0, wasDone: null };
+  const st = { D: null, drops: [], floats: [], ev: [], seq: 0, seen: 0, near: { c: [], p: [], v: [], s: [] }, nearT: 0, barkSeen: new Map(), hudT: 0, wasDone: null };
   const event = (type, a, b) => { st.ev.push([++st.seq, type, a, b === undefined ? 0 : b]); if (st.ev.length > 16) st.ev.shift(); playEvent(type, a, b); };
   const PENTA = [0, 2, 4, 7, 9, 12, 14, 16, 19, 21];
   function note(midi, inst, vol) { const s = sfx(); if (s) s.note(inst || 'bell', midi, vol || 0.12, 0, 0.5); }
@@ -698,10 +702,14 @@ export function buildLife(game, cfg) {
     else if (kind === 'ting') s.note('bell', 96 + Math.floor(R() * 5), 0.06, 0, 0.3);
     else if (kind === 'splash') s.noise(0.2, { filter: 'bandpass', freq: 1400, freqTo: 400, vol: 0.12 });
     else if (kind === 'yip') s.tone(900, 0.06, { type: 'sawtooth', to: 1300, vol: 0.06 });
+    else if (kind === 'quack') { s.tone(620, 0.09, { type: 'sawtooth', to: 430, vol: 0.04 }); s.tone(600, 0.09, { type: 'sawtooth', to: 420, vol: 0.035, delay: 0.14 }); }
+    else if (kind === 'peep') { s.tone(2400, 0.05, { type: 'sine', to: 2900, vol: 0.03 }); s.tone(2500, 0.05, { type: 'sine', to: 3000, vol: 0.03, delay: 0.09 }); }
+    else if (kind === 'croak') { s.tone(180, 0.09, { type: 'square', to: 140, vol: 0.05 }); s.tone(170, 0.12, { type: 'square', to: 120, vol: 0.05, delay: 0.13 }); }
+    else if (kind === 'coo') { s.tone(520, 0.18, { type: 'sine', to: 440, vol: 0.05 }); s.tone(480, 0.25, { type: 'sine', to: 420, vol: 0.04, delay: 0.22 }); }
+    else if (kind === 'woof') { s.tone(330, 0.09, { type: 'sawtooth', to: 220, vol: 0.06 }); s.tone(320, 0.1, { type: 'sawtooth', to: 210, vol: 0.05, delay: 0.16 }); }
+    else if (kind === 'sniff') s.noise(0.12, { filter: 'bandpass', freq: 2200, vol: 0.05 });
     else if (kind === 'clank') { s.note('bell', 55 + Math.floor(R() * 4), 0.09, 0, 0.5); s.noise(0.12, { filter: 'bandpass', freq: 3200, freqTo: 1800, vol: 0.12 }); }
-    else if (kind === 'ribbit') { s.tone(260, 0.07, { type: 'square', to: 200, vol: 0.05 }); s.tone(300, 0.08, { type: 'square', to: 220, vol: 0.05, delay: 0.1 }); }
     else if (kind === 'meow') { if (game.sfx.meow) game.sfx.meow(1.2 + R() * 0.4); else s.tone(700, 0.25, { type: 'triangle', to: 500, vol: 0.06 }); }
-    else if (kind === 'quack') { s.tone(420, 0.09, { type: 'sawtooth', to: 330, vol: 0.05 }); s.tone(420, 0.09, { type: 'sawtooth', to: 330, vol: 0.04, delay: 0.14 }); }
     else if (kind === 'flutter') s.noise(0.25, { filter: 'bandpass', freq: 900, freqTo: 1800, vol: 0.06 });
   }
   /** Rejoue un effet (chez l'hôte tout de suite, chez les amis à la réception). */
@@ -712,11 +720,15 @@ export function buildLife(game, cfg) {
     else if (type === 'ring') { if (p) p.ring = game.t; note((p && p.def.note) || 79, 'bell', 0.14); }
     else if (type === 'note') note(a, 'bell', 0.12);
     else if (type === 'chest') { const c = chests[a]; if (c) c.open = game.t; }
+    else if (type === 'splash') {
+      if (p) { p.sq = game.t; const col = (pal.props[p.kind] || {}).color || 0xbfe4ff; for (let i = 0; i < 14; i++) { const an = R() * TAU, sp = 1.5 + R() * 2.5; game.spawnParticle(p.x, p.y + 0.2, p.z, Math.cos(an) * sp, 3 + R() * 3, Math.sin(an) * sp, col, 0.12 + R() * 0.08, 0.7, 12); } }
+      game.sound('splash'); chirp('splash');
+    }
     else if (type === 'press') { if (p) { p.sq = game.t; p.on = !!b; } }
     else if (type === 'wave') { const v = villagers[a]; if (v) v.wave = game.t; }
-    else if (type === 'chirp') chirp(['chirp', 'squeak', 'hoot', 'honk', 'whistle', 'grunt', 'ting', 'splash', 'yip', 'clank', 'ribbit', 'meow', 'quack', 'flutter'][a] || 'ting');
+    else if (type === 'chirp') chirp(CHIRPS[a] || 'ting');
   }
-  const CHIRPS = ['chirp', 'squeak', 'hoot', 'honk', 'whistle', 'grunt', 'ting', 'splash', 'yip', 'clank', 'ribbit', 'meow', 'quack', 'flutter'];
+  const CHIRPS = ['chirp', 'squeak', 'hoot', 'honk', 'whistle', 'grunt', 'ting', 'splash', 'yip', 'quack', 'peep', 'croak', 'coo', 'woof', 'sniff', 'clank', 'meow', 'flutter'];
 
   // --- paillettes (récompenses qui tombent, traînées) -------------------------------------------
   function gone(id) { const g = sv().gone[id]; if (!g) return false; if (Date.now() - g > REGROW_MS) { delete sv().gone[id]; return false; } return true; }
@@ -726,6 +738,11 @@ export function buildLife(game, cfg) {
       st.drops.push({ x, y: y + 0.3, z, vx: Math.cos(a) * sp, vy: 5 + R() * 3, vz: Math.sin(a) * sp, t: 0, v: value || 1 });
     }
     if (st.drops.length > 40) st.drops.splice(0, st.drops.length - 40);
+  }
+  /** Bulles de savon (machine à bulles, enfant qui souffle) : elles montent, dérivent, éclatent si on les touche. */
+  function addFloat(x, y, z, vx, vz) {
+    st.floats.push({ x, y, z, vx: vx || 0, vz: vz || 0, t: 0, life: 5 + R() * 3, s: 0.35 + R() * 0.45, ph: R() * TAU });
+    if (st.floats.length > (lite ? 24 : 48)) st.floats.shift();
   }
   function gain(P, n, x, y, z) {
     P.score = (P.score || 0) + n;
@@ -749,7 +766,7 @@ export function buildLife(game, cfg) {
 
   // --- défis éclair -----------------------------------------------------------------------------
   const defiDone = (id) => sv().defis.includes(id);
-  const KIND_NAMES = { coins: 'Les pièces rouges', rings: 'Les anneaux', race: 'La course', chase: 'Attrape-le !', pads: 'Les trampolines', whack: 'Tape-taupe', fish: 'La pêche', tag: 'Chat perché', xylo: 'La mélodie de glace', herd: 'Les petits perdus', touch: 'Touche-les tous !' };
+  const KIND_NAMES = { hits: 'Touche-tout', goal: 'Dans le rond', coins: 'Les pièces rouges', rings: 'Les anneaux', race: 'La course', chase: 'Attrape-le !', pads: 'Les trampolines', whack: 'Tape-taupe', fish: 'La pêche', tag: 'Chat perché', xylo: 'La mélodie de glace', herd: 'Les petits perdus' };
   function defiTime(d) { return game.easy ? Infinity : (d.time || 45); }
   function startDefi(def, P) {
     if (st.D) return;
@@ -757,11 +774,19 @@ export function buildLife(game, cfg) {
     if (def.type === 'race') { const p = def.path[0]; D.crit = [{ x: p[0], z: p[1], y: ground(p[0], p[1]), yaw: 0, s: 0, a: 0 }]; }
     if (def.type === 'chase') { const a = R() * TAU; D.crit = [{ x: def.x + Math.cos(a) * 6, z: def.z + Math.sin(a) * 6, y: 0, yaw: 0, a: 0 }]; }
     if (def.type === 'tag') D.crit = def.kids.map((id) => { const v = villById.get(id); return { x: v.x, z: v.z, y: v.y, yaw: 0, a: 0, id, tagged: false }; });
-    if (def.type === 'herd') D.crit = def.chicks.map(([x, z]) => ({ x, z, y: ground(x, z), yaw: R() * TAU, a: 0, st: 'lost', who: -1 }));
-    if (def.type === 'whack' || def.type === 'fish') { D.crit = def.holes.map(([x, z]) => ({ x, z, y: ground(x, z), up: 0, t: 0, yaw: R() * TAU, hit: 0 })); D.next = 1; }
+    if (def.type === 'herd') D.crit = def.chicks.map((ch) => {
+      // [x, z] ou { x, z, y, stuck } (coincé dans un objet tant qu'on ne l'a pas secoué)
+      const o = Array.isArray(ch) ? { x: ch[0], z: ch[1] } : ch;
+      return { x: o.x, z: o.z, y: o.stuck ? o.y : ground(o.x, o.z), yaw: R() * TAU, a: 0, st: o.stuck ? 'stuck' : 'lost', stuck: o.stuck, who: -1 };
+    });
+    if (def.type === 'whack' || def.type === 'fish') {
+      D.crit = def.holes.map(([x, z]) => ({ x, z, y: def.type === 'fish' ? surface(x, z) : ground(x, z), up: 0, t: 0, yaw: R() * TAU, hit: 0 }));
+      D.next = 1;
+    }
+    if (def.type === 'goal') for (const id of def.balls) { const b = propById.get(id); if (b) { b.keep = true; if (Math.hypot(b.x - def.pen.x, b.z - def.pen.z) < def.pen.r) { b.x = b.bx; b.z = b.bz; b.y = ground(b.x, b.z); } b.vx = b.vz = 0; } }
     if (def.type === 'xylo') { D.phase = 'show'; D.seq = def.seq.slice(); D.seqT = -0.8; D.k = 0; }
     // « touche-les tous » : les braseros s'éteignent, il faut tout rallumer
-    if (def.type === 'touch') for (const id of def.targets) { const p = propById.get(id); if (p && (pal.props[p.kind] || {}).act === 'light') { p.on = false; event('press', p.i, 0); } }
+    if (def.type === 'hits') for (const id of def.props) { const p = propById.get(id); if (p && (pal.props[p.kind] || {}).act === 'light') { p.on = false; event('press', p.i, 0); } }
     st.D = D;
     const easyNote = game.easy ? ' (Promenade : pas de chrono)' : '';
     game.banner('⚡ Défi éclair : ' + def.name, (def.hint || '') + easyNote, 3200);
@@ -808,8 +833,15 @@ export function buildLife(game, cfg) {
       if (D.i >= def.rings.length) endDefi(true);
     } else if (T === 'pads') {
       if (D.got.length >= def.pads.length) endDefi(true);
-    } else if (T === 'touch') {
-      if (D.got.length >= def.targets.length) endDefi(true);
+    } else if (T === 'hits') {
+      if (D.got.length >= def.props.length) endDefi(true);
+    } else if (T === 'goal') {
+      // pousser (ou lancer d'un coup de toupie) les boules dans le rond, près du but
+      const pen = def.pen;
+      const inn = def.balls.filter(id => { const b = propById.get(id); return b && Math.hypot(b.x - pen.x, b.z - pen.z) < pen.r; });
+      for (const id of inn) if (!D.got.includes(id)) { D.got.push(id); const b = propById.get(id); game.sound('cp'); game.burst(b.x, b.y + 0.6, b.z, 14, 0xffd23a, 3, 0.5); game.localBanner(`${D.got.length}/${def.balls.length}`, '', 800); }
+      D.got = D.got.filter(id => inn.includes(id));
+      if (D.got.length >= def.balls.length) { for (const id of def.balls) { const b = propById.get(id); if (b) b.keep = false; } endDefi(true); }
     } else if (T === 'race') {
       const c = D.crit[0], path = def.path, v = (def.speed || 7) * (game.easy ? 0.72 : 1);
       c.s += v * dt;
@@ -847,7 +879,7 @@ export function buildLife(game, cfg) {
       D.next -= dt;
       if (D.next <= 0) {
         const free = D.crit.filter(c => c.up <= 0);
-        if (free.length) { const c = free[Math.floor(R() * free.length)]; c.up = T === 'fish' ? 1.5 : (game.easy ? 2.2 : 1.4); c.t = 0; c.hit = 0; c.yaw = R() * TAU; if (T === 'fish') event('chirp', 7); }
+        if (free.length) { const c = free[Math.floor(R() * free.length)]; c.up = T === 'fish' ? 1.5 : (game.easy ? 2.2 : 1.4); c.t = 0; c.hit = 0; c.yaw = def.toward ? Math.atan2(def.x - c.x, def.z - c.z) + (R() - 0.5) * 0.8 : R() * TAU; if (T === 'fish') event('chirp', 7); }
         D.next = T === 'fish' ? 1.0 + R() * 0.8 : 0.6 + R() * 0.6;
       }
       for (const c of D.crit) {
@@ -855,7 +887,7 @@ export function buildLife(game, cfg) {
         c.t += dt; c.up -= dt;
         if (c.hit) continue;
         // position du poisson en l'air (un arc au-dessus du trou)
-        const k = clamp(c.t / 1.5, 0, 1), fy = c.y + (T === 'fish' ? Math.sin(k * Math.PI) * 2.6 : 0.5), fx = c.x + (T === 'fish' ? Math.sin(c.yaw) * (k - 0.5) * 2 : 0), fz = c.z + (T === 'fish' ? Math.cos(c.yaw) * (k - 0.5) * 2 : 0);
+        const k = clamp(c.t / 1.5, 0, 1), fy = c.y + (T === 'fish' ? Math.sin(k * Math.PI) * 2.6 : 0.5), fx = c.x + (T === 'fish' ? Math.sin(c.yaw) * fishOff(def, k) : 0), fz = c.z + (T === 'fish' ? Math.cos(c.yaw) * fishOff(def, k) : 0);
         for (const P of players) {
           const ok = T === 'fish' ? hit(P, fx, fy, fz, 1.5) : (Math.hypot(P.pos.x - c.x, P.pos.z - c.z) < (attacking(P) ? 2.2 : 1.3) && (attacking(P) || P.vel.y < -2 || (P.barkT || 0) > 0.55)) || ((P.barkT || 0) > 0.6 && Math.hypot(P.pos.x - c.x, P.pos.z - c.z) < 3.5);
           if (ok) {
@@ -876,10 +908,10 @@ export function buildLife(game, cfg) {
       }
     } else if (T === 'herd') {
       for (const c of D.crit) {
-        if (c.st === 'home') { c.a += dt * 3; continue; }
+        if (c.st === 'home' || c.st === 'stuck') { c.a += dt * 3; continue; }
         if (c.st === 'lost') {
           c.a += dt * 2;
-          for (const P of players) if (Math.hypot(P.pos.x - c.x, P.pos.z - c.z) < 1.8) { c.st = 'follow'; c.who = P.id || 0; event('chirp', 8); game.bubble({ pos: new THREE.Vector3(c.x, c.y + 0.8, c.z), small: true }, 'Waf !'); break; }
+          for (const P of players) if (Math.hypot(P.pos.x - c.x, P.pos.z - c.z) < 1.8 && Math.abs(P.pos.y - c.y) < 2.5) { c.st = 'follow'; c.who = P.id || 0; if (def.item) game.sound('ball'); else { event('chirp', CHIRPS.indexOf((pal.fauna[def.critter] || {}).sound || 'yip')); game.bubble({ pos: new THREE.Vector3(c.x, c.y + 0.8, c.z), small: true }, def.say || 'Waf !'); } break; }
         } else {
           const P = game.party.get(c.who) || game.player;
           const idx = D.crit.filter(q => q.st === 'follow').indexOf(c);
@@ -894,6 +926,8 @@ export function buildLife(game, cfg) {
       if (D.crit.every(c => c.st === 'home')) endDefi(true);
     }
   }
+  /** Le poisson saute : centré sur son trou, ou (def.toward) du trou vers la rive, sur def.reach × 2 m. */
+  function fishOff(def, k) { return def.toward ? k * 2 * (def.reach || 1) : (k - 0.5) * 2; }
   /** Un glaçon sonne : la mélodie de glace avance (ou on recommence). */
   function xyloRing(p) {
     const D = st.D; if (!D || D.def.type !== 'xylo' || D.phase !== 'play') return;
@@ -920,12 +954,18 @@ export function buildLife(game, cfg) {
             P.pos.y = Math.max(P.pos.y, top);
             const D = st.D;
             if (D && D.def.type === 'pads' && D.def.pads.includes(p.def.id) && !D.got.includes(p.def.id)) { D.got.push(p.def.id); game.localBanner(`${D.got.length}/${D.def.pads.length}`, '', 700); }
-            touched(p);
+            defiTouch(p);
             P.padChain = game.t - (P.padAt || -9) < 2.2 ? (P.padChain || 0) + 1 : 0; P.padAt = game.t;
             event('pad', p.i, P.padChain);
             game.sound('boing'); game.burst(p.x, top + 0.2, p.z, 10, 0xbfeaff, 3, 0.4);
             if (P.padChain === 4 && P === game.me) game.localBanner('Rebonds en chaîne !', '', 1000);
           }
+        } else if (act === 'splash') {
+          // flaques, arroseurs, bains d'oiseaux : on entre dedans (ou on y retombe, ou on tape) → plouf
+          const r = pk.r || propModel[p.kind].mdl.r || 1;
+          const touch = d < r && dy < (pk.top || 1.4) && dy > -0.6;
+          if (touch) { const fresh = !p.touching || (P.vel.y < -5 && game.t - (p.hitT || -9) > 0.5); p.touchT = game.t; p.touching = true; if (fresh) splashProp(p, P, pk); }
+          else if (attacking(P) && d < r + 1.4 && Math.abs(dy) < 2) splashProp(p, P, pk);
         } else if (act === 'shake' || act === 'break' || act === 'chime' || act === 'hat' || act === 'press' || act === 'light' || act === 'slide') {
           const r = (pk.r || propModel[p.kind].mdl.r || 0.8);
           // (un carillon sonne quand on arrive contre lui, pas tant qu'on y reste collé)
@@ -938,18 +978,20 @@ export function buildLife(game, cfg) {
       }
       for (const P2 of barks) if (P2 === P) for (const q of pGrid.within(P.pos.x, P.pos.z, 7)) { const pk = pal.props[q.p.kind] || {}; if (['shake', 'chime', 'hat', 'light', 'slide'].includes(pk.act) && q.p.broken <= game.t) hitProp(q.p, P, pk, true); }
       // boules de neige qu'on pousse : elles roulent et grossissent
-      if (P.grounded) for (const q of pGrid.within(P.pos.x, P.pos.z, 6)) {
-        const b = q.p; if (!isBall(b) || b.broken > game.t) continue;
-        const bk = pal.props[b.kind] || {};
+      if (P.grounded) for (const b of pushers) {
+        if (b.broken > game.t || Math.abs(b.x - P.pos.x) > 4 || Math.abs(b.z - P.pos.z) > 4) continue;
+        const bk = pal.props[b.kind];
         const dx = b.x - P.pos.x, dz = b.z - P.pos.z, d = Math.hypot(dx, dz);
+        // (un coup de toupie ou une charge : on tire dedans, elle roule toute seule)
+        if (bk.kick && attacking(P) && d < b.r + 1.6 && game.t - (b.kickT || -9) > 0.4) { b.kickT = game.t; const k = bk.kick * (0.8 + Math.min(1, sp / 8) * 0.4); b.vx = dx / (d || 1) * k; b.vz = dz / (d || 1) * k; b.moved = game.t; game.sound('ball'); continue; }
         if (d > b.r + 0.75 || sp < 1) continue;
         const nx = dx / (d || 1), nz = dz / (d || 1), push = Math.max(0, P.vel.x * nx + P.vel.z * nz);
         const tx = P.pos.x + nx * (b.r + 0.76) + nx * push * dt, tz = P.pos.z + nz * (b.r + 0.76) + nz * push * dt;
         if (L.blockedAt && L.blockedAt(tx, tz)) continue;
+        if (isWater(tx, tz)) continue;
         if (Math.abs(ground(tx, tz) - ground(b.x, b.z)) > 0.5) continue;
         const moved = Math.hypot(tx - b.x, tz - b.z);
-        b.x = tx; b.z = tz; b.rot += moved / b.r; b.y = ground(b.x, b.z); b.r = Math.min(1.5, b.r + moved * (bk.grow === undefined ? 0.035 : bk.grow));
-        if (moved > 0.01 && bk.grow === 0 && (b.rollT = (b.rollT || 0) - dt) < 0) { b.rollT = 0.9; touched(b); }
+        b.x = tx; b.z = tz; b.rot += moved / b.r; b.y = ground(b.x, b.z); if (bk.grow !== false) b.r = Math.min(1.5, b.r + moved * 0.035);
         b.moved = game.t;
         if (b.r >= 1.5) {
           // trop grosse : pouf ! elle éclate en paillettes
@@ -961,27 +1003,51 @@ export function buildLife(game, cfg) {
       }
     }
     for (const p of props) if (p.touching && game.t - p.touchT > 0.1) p.touching = false;
+    // boules lancées : elles roulent, ralentissent, rebondissent sur les obstacles
+    for (const b of props) {
+      if (!b.vx && !b.vz) continue;
+      const nx = b.x + b.vx * dt, nz = b.z + b.vz * dt;
+      if ((L.blockedAt && L.blockedAt(nx, nz)) || isWater(nx, nz) || Math.abs(ground(nx, nz) - ground(b.x, b.z)) > 0.5) { b.vx *= -0.4; b.vz *= -0.4; }
+      else { b.rot += Math.hypot(nx - b.x, nz - b.z) / (b.r || 1); b.x = nx; b.z = nz; b.y = ground(b.x, b.z); }
+      const f = Math.max(0, 1 - dt * ((pal.props[b.kind] || {}).friction || 1.6));
+      b.vx *= f; b.vz *= f; b.moved = game.t;
+      if (Math.hypot(b.vx, b.vz) < 0.15) { b.vx = 0; b.vz = 0; }
+    }
     // une boule abandonnée revient à sa place
-    for (const p of props) if (isBall(p) && p.moved && game.t - p.moved > 40 && game.players.every(P => Math.hypot(P.pos.x - p.x, P.pos.z - p.z) > 30)) { p.x = p.bx; p.z = p.bz; p.r = (pal.props[p.kind] || {}).r0 || 0.5; p.y = ground(p.x, p.z); p.moved = 0; }
+    for (const p of props) if (isPush(p.kind) && p.moved && !p.keep && game.t - p.moved > 40 && game.players.every(P => Math.hypot(P.pos.x - p.x, P.pos.z - p.z) > 30)) { p.x = p.bx; p.z = p.bz; p.r = p.r0; p.y = ground(p.x, p.z); p.moved = 0; }
     // braseros : ils s'éteignent tout seuls au bout d'un moment ; bibliothèques : elles se referment
     for (const p of props) {
       const pk = pal.props[p.kind] || {};
-      if (pk.act === 'light' && p.on && pk.burn && game.t - (p.litT || 0) > pk.burn && !(st.D && st.D.def.type === 'touch')) { p.on = false; event('press', p.i, 0); }
+      if (pk.act === 'light' && p.on && pk.burn && game.t - (p.litT || 0) > pk.burn && !(st.D && st.D.def.type === 'hits')) { p.on = false; event('press', p.i, 0); }
       if (pk.act === 'slide' && p.on && game.t - (p.litT || 0) > (pk.open || 30) && game.players.every(P => Math.hypot(P.pos.x - p.x, P.pos.z - p.z) > 6)) { p.on = false; event('press', p.i, 0); }
     }
   }
-  /** Un objet d'un défi « touche-les tous » vient d'être touché. */
-  function touched(p) {
+  /** Un objet du défi « hits » (flaques, buissons…) vient d'être touché. */
+  function defiTouch(p) {
     const D = st.D;
-    if (!D || D.def.type !== 'touch' || !D.def.targets.includes(p.def.id) || D.got.includes(p.def.id)) return;
-    D.got.push(p.def.id); game.localBanner(`${D.got.length}/${D.def.targets.length}`, '', 700); game.sound('cp');
+    if (!D || D.def.type !== 'hits' || !D.def.props.includes(p.def.id) || D.got.includes(p.def.id)) return;
+    D.got.push(p.def.id); game.sound('cp');
+    game.burst(p.x, p.y + 1, p.z, 14, 0xffd23a, 3.5, 0.6);
+    game.localBanner(`${D.got.length}/${D.def.props.length}`, '', 700);
+  }
+  function splashProp(p, P, pk) {
+    if (game.t - (p.hitT || -9) < 0.35) return;
+    p.hitT = game.t;
+    event('splash', p.i);
+    const id = 'p:' + p.def.id;
+    if (pk.drop && !gone(id)) { sv().gone[id] = Date.now(); dropSparkles(p.x, p.y + 1, p.z, pk.drop, 1); }
+    defiTouch(p);
+    void P;
   }
   function hitProp(p, P, pk, byBark) {
     const act = pk.act;
     if (game.t - (p.hitT || -9) < (act === 'chime' ? 0.35 : 0.9)) return;
     p.hitT = game.t;
     const snd = (dflt) => { const n = pk.sound || dflt; if (CHIRPS.includes(n)) event('chirp', CHIRPS.indexOf(n)); else game.sound(n); };
-    touched(p);
+    defiTouch(p);
+    // un objet de défi coincé dedans (le frisbee dans l'arbre…) tombe
+    const D = st.D;
+    if (D && D.def.type === 'herd') for (const c of D.crit) if (c.st === 'stuck' && c.stuck === p.def.id) { c.st = 'lost'; c.y = ground(c.x, c.z); game.burst(c.x, c.y + 1.5, c.z, 16, 0xffd23a, 3, 0.6); if (P === game.me) game.localBanner('Il est tombé !', 'Ramassez-le', 1200); }
     if (act === 'shake' || act === 'hat') {
       event('wob', p.i);
       game.burst(p.x, p.y + (propModel[p.kind].mdl.h || 2) * 0.8, p.z, act === 'hat' ? 10 : 22, pk.burst || 0xffffff, 3, 0.9);
@@ -1004,6 +1070,7 @@ export function buildLife(game, cfg) {
       const t = pk.target || p.def.target;
       if (hooks.onSwitch) hooks.onSwitch(p.def, p.on, P);
       if (p.def.effect === 'geyser') st.geyser = { x: p.def.gx || p.x, z: p.def.gz || p.z, t: game.t + 6 };
+      if (p.def.effect === 'bubbles') { st.bubbles = { x: p.def.gx || p.x, z: p.def.gz || p.z, y: p.y + 1.0, t: game.t + 10 }; if (P === game.me) game.localBanner('Des bulles !', 'Attrapez-les avant qu\'elles s\'envolent', 1600); }
       if (p.def.effect === 'lights') { for (const q of props) if ((q.kind === 'lantern' || (pal.props[q.kind] || {}).lamp) && q.def.group === (p.def.group || t)) { q.on = p.on; q.litT = game.t; } }
     } else if (act === 'light') {
       if (p.on) return;
@@ -1069,6 +1136,7 @@ export function buildLife(game, cfg) {
   function talk(v, P) {
     const def = v.def, ln = lines[def.id] || {}, k = sv();
     event('wave', v.i);
+    v.hold = game.t + 8;   // (un promeneur s'arrête pour parler)
     const who = ln.who || def.name;
     const req = def.defi && plan.defis.find(d => d.id === def.defi);
     if (req && !defiDone(req.id) && ln.ask) { game.say(ln.ask, () => { k.talk[def.id + ':asked'] = 1; game.persist(); }); return; }
@@ -1090,7 +1158,7 @@ export function buildLife(game, cfg) {
     const dx = tx - c.x, dz = tz - c.z, d = Math.hypot(dx, dz);
     if (d < 0.2) return true;
     const st2 = Math.min(d, v * dt), nx = c.x + dx / d * st2, nz = c.z + dz / d * st2;
-    if ((L.blockedAt && L.blockedAt(nx, nz)) || (c.f.ai !== 'slide' && c.f.onIce === false && L.iceAt && L.iceAt(nx, nz)) || (cfg.blocked && cfg.blocked(nx, nz, c.f))) { c.t = 0; return true; }
+    if ((L.blockedAt && L.blockedAt(nx, nz)) || (c.f.ai !== 'slide' && c.f.onIce === false && L.iceAt && L.iceAt(nx, nz)) || (c.f.water ? !isWater(nx, nz) : isWater(nx, nz))) { c.t = 0; return true; }
     c.x = nx; c.z = nz;
     c.yaw = lerpAngle(c.yaw, Math.atan2(dx, dz), Math.min(1, dt * 10));
     return false;
@@ -1108,8 +1176,67 @@ export function buildLife(game, cfg) {
   function stepCreature(c, dt, t, barks) {
     const f = c.f, ai = f.ai;
     c.ph += dt;
+    // en file indienne (canetons derrière leur maman) : on suit celui de devant
+    if (f.line && c.flock && c.i > 0) {
+      const lead = c.flock.members[c.i - 1], gap = f.gap || 0.8;
+      const dx = lead.x - c.x, dz = lead.z - c.z, d = Math.hypot(dx, dz);
+      if (d > 14) { c.x = lead.x - Math.sin(lead.yaw) * gap; c.z = lead.z - Math.cos(lead.yaw) * gap; }
+      else if (d > gap) { const sp = Math.min((d - gap) * 5, 10) * dt; c.x += dx / d * sp; c.z += dz / d * sp; c.yaw = lerpAngle(c.yaw, Math.atan2(dx, dz), Math.min(1, dt * 8)); c.hop = f.water ? 0 : Math.abs(Math.sin(c.ph * 16)) * 0.05; c.ph += dt * 2; }
+      else c.hop = 0;
+      c.y = f.water ? surface(c.x, c.z) + Math.sin(c.ph * 2.2) * 0.02 : ground(c.x, c.z);
+      c.pitch = 0; c.flapA = lead.s === 'flee' ? Math.sin(c.ph * 30) * 0.5 : 0;
+      return;
+    }
     const th = threat(c);
     const barkNear = barks.some(P => Math.hypot(P.pos.x - c.x, P.pos.z - c.z) < (f.hear || 12));
+    if (ai === 'swim') {
+      // canards : ils se promènent sur l'eau, s'écartent (en cancanant) si on approche ou si on aboie
+      const scare = barkNear || th.d < (f.flee || 4);
+      if (scare && c.s !== 'flee') {
+        const a = Math.atan2(c.x - th.P.pos.x, c.z - th.P.pos.z);
+        for (let k = 0; k < 8; k++) { const b = a + (R() - 0.5) * (1 + k * 0.4), r = 4 + R() * 4, tx = c.x + Math.sin(b) * r, tz = c.z + Math.cos(b) * r; if (isWater(tx, tz) && Math.hypot(tx - c.hx, tz - c.hz) < (f.home || 10) * 1.5) { c.tx = tx; c.tz = tz; break; } }
+        c.s = 'flee'; c.t = 2.5; if (th.d < 30 && R() < 0.7) chirp(f.sound || 'quack');
+      }
+      c.t -= dt;
+      if (c.s === 'flee' || c.s === 'walk') {
+        const done = c.tx === undefined || moveTo(c, c.tx, c.tz, c.s === 'flee' ? (f.run || 3.5) : (f.speed || 0.8), dt);
+        if (done || c.t <= 0) { c.s = 'idle'; c.t = 1.5 + R() * 3; }
+      } else if (c.t <= 0) {
+        for (let k = 0; k < 6; k++) { const a = R() * TAU, r = R() * (f.home || 10), tx = c.hx + Math.cos(a) * r, tz = c.hz + Math.sin(a) * r; if (isWater(tx, tz)) { c.tx = tx; c.tz = tz; c.s = 'walk'; c.t = 6 + R() * 4; break; } }
+        if (c.s !== 'walk') c.t = 1;
+        if (th.d < 18 && R() < 0.25) chirp(f.sound || 'quack');
+      }
+      c.hop = 0; c.pitch = c.s === 'idle' ? Math.max(0, Math.sin(c.ph * 0.9 + c.i * 2)) ** 8 * 1.2 : 0;   // (de temps en temps : la tête sous l'eau !)
+      c.flapA = c.s === 'flee' ? Math.sin(c.ph * 28) * 0.7 : 0;
+      c.y = surface(c.x, c.z) + Math.sin(c.ph * 2 + c.i) * 0.025;
+      return;
+    }
+    if (ai === 'hop') {
+      // grenouille : elle coasse (la gorge gonfle) et saute plus loin quand on approche
+      if (c.j !== undefined) {
+        c.j += dt / 0.55;
+        const k = clamp(c.j, 0, 1);
+        c.x = c.jx + (c.tx - c.jx) * k; c.z = c.jz + (c.tz - c.jz) * k;
+        c.y = surface(c.x, c.z) + Math.sin(k * Math.PI) * 0.9; c.pitch = -0.6 + k * 0.9;
+        if (c.j >= 1) { c.j = undefined; c.pitch = 0; if (isWater(c.x, c.z) && th.d < 30) game.burst(c.x, c.y + 0.05, c.z, 6, 0xbfe4ff, 1.5, 0.4); }
+        return;
+      }
+      c.t -= dt; c.puff = Math.max(0, (c.puff || 0) - dt);
+      const scare = barkNear || th.d < (f.flee || 3.5);
+      if (c.t <= 0 || scare) {
+        c.t = 2 + R() * 5;
+        if (!scare && th.d < 25 && R() < 0.7) { c.puff = 0.6; chirp(f.sound || 'croak'); }
+        if (scare || R() < 0.25) {
+          const a = scare ? Math.atan2(c.x - th.P.pos.x, c.z - th.P.pos.z) + (R() - 0.5) : R() * TAU, r = 1.5 + R() * 2;
+          let tx = c.x + Math.sin(a) * r, tz = c.z + Math.cos(a) * r;
+          const hd = Math.hypot(tx - c.hx, tz - c.hz), lim = f.home || 4;
+          if (hd > lim) { tx = c.hx + (tx - c.hx) / hd * lim; tz = c.hz + (tz - c.hz) / hd * lim; }
+          if (!(L.blockedAt && L.blockedAt(tx, tz))) { c.jx = c.x; c.jz = c.z; c.tx = tx; c.tz = tz; c.j = 0; c.yaw = Math.atan2(tx - c.x, tz - c.z); }
+        }
+      }
+      c.y = surface(c.x, c.z); c.hop = 0;
+      return;
+    }
     if (ai === 'flock') {
       const fl = c.flock;
       if (c.fly <= 0) {
@@ -1177,30 +1304,26 @@ export function buildLife(game, cfg) {
       if (c.j !== undefined) {
         c.j += dt / 1.1;
         const k = clamp(c.j, 0, 1);
-        c.x = c.hx + Math.sin(c.yaw) * (k - 0.5) * 1.6; c.z = c.hz + Math.cos(c.yaw) * (k - 0.5) * 1.6; c.y = ground(c.hx, c.hz) - 0.3 + Math.sin(k * Math.PI) * 1.8; c.pitch = (k - 0.5) * 2.2;
-        if (c.j >= 1) { c.j = undefined; c.t = 2 + R() * 4; c.y = -500; if (th.d < 30) game.burst(c.hx, ground(c.hx, c.hz) + 0.1, c.hz, 6, 0x9ad8ff, 2, 0.4); }
+        const base = f.water ? surface(c.hx, c.hz) : ground(c.hx, c.hz);
+        c.x = c.hx + Math.sin(c.yaw) * (k - 0.5) * 1.6; c.z = c.hz + Math.cos(c.yaw) * (k - 0.5) * 1.6; c.y = base - 0.3 + Math.sin(k * Math.PI) * 1.8; c.pitch = (k - 0.5) * 2.2;
+        if (c.j >= 1) { c.j = undefined; c.t = 2 + R() * 4; c.y = -500; if (th.d < 30) game.burst(c.hx, base + 0.1, c.hz, 6, 0x9ad8ff, 2, 0.4); }
       } else c.y = -500;
       return;
     }
     if (ai === 'hover') {
-      const a = c.ph * (0.6 + (c.i % 3) * 0.2) + c.i;
-      let tx = c.hx + Math.cos(a) * 2.5, tz = c.hz + Math.sin(a * 1.3) * 2.5;
+      const a = c.ph * (0.6 + (c.i % 3) * 0.2) + c.i, rg = f.range || 2.5;
+      let tx = c.hx + Math.cos(a) * rg, tz = c.hz + Math.sin(a * 1.3) * rg;
+      if (c.fm.flap) { c.flapA = 0.15 + Math.abs(Math.sin(c.ph * (f.flapRate || 16))) * 1.1; c.pitch = -0.3; }
       if (th.d < 3) { tx += (c.x - th.P.pos.x) * 2; tz += (c.z - th.P.pos.z) * 2; }
       if (barkNear && !c.sc) { c.sc = 1.5; }
       if (c.sc > 0) { c.sc -= dt; tx = c.hx + Math.cos(c.i * 2.4) * 6; tz = c.hz + Math.sin(c.i * 2.4) * 6; }
-      c.x += (tx - c.x) * dt * 1.5; c.z += (tz - c.z) * dt * 1.5; c.y = ground(c.x, c.z) + 1.2 + Math.sin(c.ph * 2 + c.i) * 0.5 + (c.sc > 0 ? 2 : 0); c.yaw = c.ph;
+      const px = c.x, pz = c.z;
+      c.x += (tx - c.x) * dt * 1.5; c.z += (tz - c.z) * dt * 1.5; c.y = ground(c.x, c.z) + (f.alt === undefined ? 1.2 : f.alt) + Math.sin(c.ph * 2 + c.i) * (f.bob || 0.5) + (c.sc > 0 ? 2 : 0);
+      c.yaw = c.fm.flap ? Math.atan2(c.x - px, c.z - pz) : c.ph;
       return;
     }
     // promeneurs (lièvre, hermine, renne, écureuil, pingouin, chiot…)
     const run = f.run || 7, walk = f.speed || 1.6;
-    const bob = f.swim ? Math.sin(c.ph * 2.2 + c.i) * 0.04 - 0.06 : 0;
-    // les petits suivent leur mère, en file
-    if (c.lead) {
-      const ld = c.lead, back = 0.55 + 0.5 * c.i, tx = ld.x - Math.sin(ld.yaw) * back, tz = ld.z - Math.cos(ld.yaw) * back, d = Math.hypot(tx - c.x, tz - c.z);
-      if (d > 0.15) moveTo(c, tx, tz, Math.min(run, d * 2.5 + 0.3), dt);
-      c.hop = 0; c.y = ground(c.x, c.z) + bob;
-      return;
-    }
     if (c.s === 'pet') {
       c.t -= dt; c.hop = Math.abs(Math.sin(c.ph * 12)) * 0.25; c.y = ground(c.x, c.z);
       if (c.t <= 0) c.s = 'idle';
@@ -1216,7 +1339,19 @@ export function buildLife(game, cfg) {
       return;
     }
     const shy = f.shy !== false && !f.pet;
-    if (barkNear && c.s !== 'flee') { flee(c, th.P, th.d, true); c.hopY = f.hopper !== false ? 0.9 : 0.3; if (th.d < 12 && R() < 0.5 && f.say) game.bubble({ pos: new THREE.Vector3(c.x, c.y + (c.fm.mdl.h || 1) * c.scale, c.z), small: true }, f.say[0]); }
+    // hérisson : il se roule en boule au lieu de fuir
+    if (f.curl && c.s !== 'curl' && (barkNear || th.d < (f.flee || 3))) { c.s = 'curl'; c.t = 2.5 + R() * 2; if (th.d < 20) chirp('sniff'); }
+    if (c.s === 'curl') { c.t -= dt; c.hop = 0; c.y = ground(c.x, c.z); if (c.t <= 0 && th.d > (f.flee || 3)) { c.s = 'idle'; c.t = 1; } return; }
+    // chien joueur : un « Ouaf ! » et il fait la fofolle autour de vous
+    if (f.playful && barkNear && c.s !== 'zoom') { c.s = 'zoom'; c.t = 2.6; c.zp = th.P; c.za = Math.atan2(c.x - th.P.pos.x, c.z - th.P.pos.z); chirp('woof'); }
+    if (c.s === 'zoom') {
+      c.t -= dt; c.za += dt * 3.2;
+      const Pz = c.zp || th.P; moveTo(c, Pz.pos.x + Math.sin(c.za) * 3, Pz.pos.z + Math.cos(c.za) * 3, run, dt);
+      c.hop = Math.abs(Math.sin(c.ph * 14)) * 0.3; c.y = ground(c.x, c.z);
+      if (c.t <= 0) { c.s = 'idle'; c.t = 1; }
+      return;
+    }
+    if (barkNear && c.s !== 'flee' && !f.playful) { flee(c, th.P, th.d, true); c.hopY = f.hopper !== false ? 0.9 : 0.3; if (th.d < 12 && R() < 0.5 && f.say) game.bubble({ pos: new THREE.Vector3(c.x, c.y + (c.fm.mdl.h || 1) * c.scale, c.z), small: true }, f.say[0]); }
     else if (shy && th.d < (f.flee || 6) && c.s !== 'flee') flee(c, th.P, th.d);
     c.t -= dt;
     if (c.s === 'flee') {
@@ -1241,7 +1376,7 @@ export function buildLife(game, cfg) {
         if (th.d < 18 && R() < 0.15) chirp(f.sound || 'squeak');
       }
     }
-    c.y = ground(c.x, c.z) + bob;
+    c.y = ground(c.x, c.z);
   }
 
   // --- habitants ------------------------------------------------------------------------------------
@@ -1253,6 +1388,23 @@ export function buildLife(game, cfg) {
     const run = D && D.def.type === 'tag' ? D.crit.find(c => c.id === def.id) : null;
     v.run = run && !run.tagged ? run : null;
     if (run) { v.x = run.x; v.z = run.z; v.y = run.y; v.yaw = run.yaw; v.act = run.tagged ? 'cheer' : 'run'; return; }
+    if (v.loop) {
+      // promeneurs et joggeurs : un tour du circuit (ils s'arrêtent pour parler)
+      const held = v.hold > game.t;
+      if (!held) v.s += (def.speed || 1.2) * dt;
+      const p = loopAt(v.loop, v.s);
+      v.x = p.x; v.z = p.z; v.y = ground(p.x, p.z);
+      v.yaw = lerpAngle(v.yaw, held ? Math.atan2(me.pos.x - v.x, me.pos.z - v.z) : p.yaw, Math.min(1, dt * 5));
+      v.act = held ? 'idle' : (def.act || 'walk');
+      if (def.pet) {
+        const q = loopAt(v.loop, v.s - (def.pet.back || 1.8));
+        if (v.petX === undefined || Math.hypot(q.x - v.petX, q.z - v.petZ) > 6) { v.petX = q.x; v.petZ = q.z; }
+        const dx = q.x - v.petX, dz = q.z - v.petZ, d = Math.hypot(dx, dz);
+        if (d > 0.1) { v.petX += dx * Math.min(1, dt * 4); v.petZ += dz * Math.min(1, dt * 4); v.petYaw = Math.atan2(dx, dz); v.petRun = Math.min(1, d * 2); } else v.petRun = 0;
+        if (held) v.petYaw = lerpAngle(v.petYaw || 0, Math.atan2(me.pos.x - v.petX, me.pos.z - v.petZ), dt * 3);
+      }
+      return;
+    }
     if (def.path === 'ellipse') {
       // patineurs : un grand tour de piste, en se balançant
       const sp = def.speed || 0.35, a = (game.t * sp + def.phase) % TAU, e = def.ellipse, sg = Math.sign(sp);
@@ -1268,11 +1420,11 @@ export function buildLife(game, cfg) {
         if (P === game.me) game.localBanner(def.name + ' s\'est réveillé !', 'Allez lui parler', 2200);
       }
     }
-    v.act = def.sleepy && !v.awake ? 'sleep' : def.act || 'idle';
+    v.act = def.sleepy && !v.awake ? 'sleep' : (def.actDone && def.defi && defiDone(def.defi) ? def.actDone : def.act) || 'idle';
     const home = def.yaw || 0;
     v.yaw = lerpAngle(v.yaw, dd < 7 && v.awake && v.act !== 'shovel' && v.act !== 'fish' && !def.busy ? Math.atan2(me.pos.x - v.x, me.pos.z - v.z) : home, Math.min(1, dt * 3));
     // les musiciens jouent leur petit air quand on s'approche (doucement)
-    if (def.tune && dd < (def.hear || 18) && (v.tuneT = (v.tuneT || 0) - dt) <= 0) {
+    if (def.tune && v.act !== 'play' && dd < (def.hear || 18) && (v.tuneT = (v.tuneT || 0) - dt) <= 0) {
       v.tuneK = ((v.tuneK || 0) + 1) % def.tune.length;
       const n = def.tune[v.tuneK];
       v.tuneT = def.beat || 0.45;
@@ -1297,10 +1449,10 @@ export function buildLife(game, cfg) {
     shadowL.push(m5);
   }
   /** Une bête (corps + deux ailes). */
-  function drawCreature(fm, x, y, z, yaw, pitch, roll, sc, sqy, flapA, tint) {
+  function drawCreature(fm, x, y, z, yaw, pitch, roll, sc, sqy, flapA, tint, noWings) {
     compose(x, y, z, yaw, pitch, roll, sc, sc * (sqy || 1), sc);
     fm.body.push(m4, tint);
-    if (fm.flap) {
+    if (fm.flap && !noWings) {
       const pv = fm.mdl.pivots, ax = fm.mdl.flapAxis === 'z';
       for (const sd of [-1, 1]) {
         m5.copy(m4).multiply(m6.compose(v4.set(pv[0] * sd, pv[1], pv[2]), q4.setFromEuler(e4.set(0, 0, ax ? -sd * (0.15 + Math.abs(flapA || 0) * 0.6) : sd * (flapA || 0), 'XYZ')), s4.set(sd, 1, 1)));
@@ -1320,7 +1472,7 @@ export function buildLife(game, cfg) {
     else if (act === 'throw') {
       const k = (ph * 0.8) % 2; armR = k < 0.3 ? -2.6 * (k / 0.3) : k < 0.5 ? -2.6 + (k - 0.3) * 13 : 0; armL = -0.3;
       // la boule part (une vraie petite boule de neige qui vole)
-      if (k >= 0.4 && (v.lastK === undefined || v.lastK < 0.4) && Math.hypot(game.me.pos.x - v.x, game.me.pos.z - v.z) < 45) game.spawnParticle(v.x + Math.sin(v.yaw) * 0.4, v.y + 1.3 * (def.scale || 1), v.z + Math.cos(v.yaw) * 0.4, Math.sin(v.yaw) * 7, 4.5, Math.cos(v.yaw) * 7, 0xffffff, 0.32, 1.1, 9);
+      if (k >= 0.4 && (v.lastK === undefined || v.lastK < 0.4) && Math.hypot(game.me.pos.x - v.x, game.me.pos.z - v.z) < 45) game.spawnParticle(v.x + Math.sin(v.yaw) * 0.4, v.y + 1.3 * (def.scale || 1), v.z + Math.cos(v.yaw) * 0.4, Math.sin(v.yaw) * (def.throwV || 7), 4.5, Math.cos(v.yaw) * (def.throwV || 7), def.ball || 0xffffff, def.ballSize || 0.32, 1.1, 9);
       v.lastK = k;
     }
     else if (act === 'chisel') { const k = Math.sin(ph * 7); armR = -1.0 + k * 0.4; armL = -1.2; lean = 0.2; }
@@ -1329,7 +1481,7 @@ export function buildLife(game, cfg) {
     else if (act === 'cheer') { armR = -2.8; armL = -2.8; bob = Math.abs(Math.sin(ph * 8)) * 0.3; toolOn = false; }
     // gestes des gens du château
     else if (act === 'juggle') { const k = Math.sin(ph * 6); armR = -1.3 + k * 0.35; armL = -1.3 - k * 0.35; bob = Math.abs(Math.sin(ph * 3)) * 0.05; }
-    else if (act === 'play') { armR = -0.9 + Math.sin(ph * 16) * 0.12; armL = -1.5; armRz = 0.25; bob = Math.abs(Math.sin(ph * 4)) * 0.03; }
+    else if (act === 'lute') { armR = -0.9 + Math.sin(ph * 16) * 0.12; armL = -1.5; armRz = 0.25; bob = Math.abs(Math.sin(ph * 4)) * 0.03; }
     else if (act === 'drum') { const k = Math.sin(ph * 9); armR = -0.9 + k * 0.45; armL = -0.9 - k * 0.45; bob = Math.abs(k) * 0.02; }
     else if (act === 'conduct') { armR = -1.9 + Math.sin(ph * 4.5) * 0.5; armRz = Math.cos(ph * 4.5) * 0.35; armL = -1.4 + Math.sin(ph * 2.25) * 0.3; lean = Math.sin(ph * 2.25) * 0.05; }
     else if (act === 'trumpet') { armR = -1.45; armL = -1.3; bob = Math.abs(Math.sin(ph * 4)) * 0.04; lean = -0.12; }
@@ -1341,10 +1493,39 @@ export function buildLife(game, cfg) {
     else if (act === 'guard') { armR = -0.25; armL = Math.sin(ph * 0.8) * 0.06; }
     else if (act === 'pole') { armR = -1.7 + Math.sin(ph * 1.6) * 0.15; armL = -0.2; }
     else if (act === 'sleep') { armR = 0.15; armL = 0.15; sy = 0.62 + Math.sin(ph * 1.6) * 0.03; bob = -0.05; toolOn = false; }
+    else if (act === 'walk') { const k = Math.sin(ph * 7); armR = k * 0.5; armL = -k * 0.5; bob = Math.abs(k) * 0.04; }
+    else if (act === 'jog') { const k = Math.sin(ph * 11); armR = -0.7 + k * 0.9; armL = -0.7 - k * 0.9; bob = Math.abs(k) * 0.1; lean = 0.15; }
+    else if (act === 'kite') { armR = -2.55 + Math.sin(ph * 1.3) * 0.15; armRz = 0.15 + Math.sin(ph * 0.9) * 0.1; armL = -0.4; }
+    else if (act === 'balloons') { armR = -2.75 + Math.sin(ph * 1.1) * 0.06; armL = -0.2; }
+    else if (act === 'sit') { sy = 0.68; bob = -0.32; armR = -0.8 + Math.max(0, Math.sin(ph * 1.6)) * 0.6; armL = -0.5; }
+    else if (act === 'sad') { armR = -2.0 + Math.sin(ph * 6) * 0.08; armL = -2.0 - Math.sin(ph * 6) * 0.08; sy = 0.96; toolOn = false; }
+    else if (act === 'look') { armR = -1.65; armL = -1.65; armRz = -0.1; bob = Math.sin(ph * 0.6) * 0.02; }
+    else if (act === 'scoop') { armR = -1.2 + Math.sin(ph * 2.5) * 0.35; armL = -0.5; lean = 0.1; }
+    else if (act === 'feed' || act === 'blow') {
+      const k = (ph * 0.7) % 2; armR = act === 'blow' ? -1.6 + Math.sin(ph * 1.5) * 0.3 : k < 0.3 ? -1.6 * (k / 0.3) : k < 0.5 ? -1.6 + (k - 0.3) * 8 : 0; armL = -0.5;
+      const near = Math.hypot(game.me.pos.x - v.x, game.me.pos.z - v.z) < 40;
+      if (act === 'feed' && k >= 0.42 && (v.lastK === undefined || v.lastK < 0.42) && near) for (let i = 0; i < 5; i++) game.spawnParticle(v.x + Math.sin(v.yaw) * 0.5, v.y + 1.2, v.z + Math.cos(v.yaw) * 0.5, Math.sin(v.yaw + (R() - 0.5)) * 3, 2.5, Math.cos(v.yaw + (R() - 0.5)) * 3, 0xe0c080, 0.07, 0.8, 9);
+      if (act === 'blow' && near && R() < (lite ? 1.2 : 2.2) / 60) addFloat(v.x + Math.sin(v.yaw) * 0.7, v.y + 1.5 * (def.scale || 1), v.z + Math.cos(v.yaw) * 0.7, Math.sin(v.yaw) * 1.2, Math.cos(v.yaw) * 1.2);
+      v.lastK = k;
+    }
+    else if (act === 'play') {
+      const k = Math.sin(ph * 3); armR = -1.3; armL = -1.3; armRz = 0.35 + k * 0.25; bob = Math.abs(Math.sin(ph * 3)) * 0.03;
+      const d = Math.hypot(game.me.pos.x - v.x, game.me.pos.z - v.z), beat = Math.floor(ph * 2.6);
+      if (beat !== v.beat) { v.beat = beat; if (d < 18 && !st.D) { const tune = def.tune || [67, 71, 74, 71, 72, 76, 74, 72, 71, 74, 79, 74, 72, 69, 67, 67]; const s = sfx(); if (s) s.note('mallet', tune[beat % tune.length], 0.05 * (1 - d / 18)); } if (d < 30 && beat % 2 === 0) game.spawnParticle(v.x, v.y + 2.1, v.z, (R() - 0.5) * 0.6, 1.2, (R() - 0.5) * 0.6, [0xffd23a, 0xff6ab0, 0x5ac8ff][beat % 3], 0.16, 1.4, -0.3); }
+    }
+    else if (act === 'rake') { const k = Math.sin(ph * 2.4); lean = 0.2; armR = -0.7 + k * 0.4; armL = -0.7 + k * 0.4; }
+    else if (act === 'jumpy') {
+      const k = Math.abs(Math.sin(ph * 4.5)); bob = k * 0.55; armR = -2.0 * k; armL = -2.0 * k; sy = 1 - (1 - k) * 0.08;
+      if (def.splash && k < 0.08 && game.t - (v.splT || 0) > 0.4 && Math.hypot(game.me.pos.x - v.x, game.me.pos.z - v.z) < 35) { v.splT = game.t; for (let i = 0; i < 8; i++) { const a = R() * TAU; game.spawnParticle(v.x + Math.cos(a) * 0.4, v.y + 0.1, v.z + Math.sin(a) * 0.4, Math.cos(a) * 2, 2.5 + R() * 2, Math.sin(a) * 2, 0xbfe4ff, 0.1, 0.6, 12); } }
+    }
     else { armR = Math.sin(ph * 1.2) * 0.08; armL = -Math.sin(ph * 1.2) * 0.08; bob = Math.sin(ph * 2) * 0.02; }
     if (waving) { armR = -2.7 + Math.sin(ph * 12) * 0.3; armRz = 0.3; }
     const sc = def.scale || 1;
-    if (def.body === 'penguin') {
+    if (def.pet && v.petX !== undefined) {
+      const fm = faunaModel[def.pet.kind];
+      if (fm) { const hop = Math.abs(Math.sin(ph * 12)) * 0.12 * (v.petRun || 0); drawCreature(fm, v.petX, ground(v.petX, v.petZ) + hop, v.petZ, v.petYaw || 0, 0, 0, def.pet.scale || fm.f.scale || 1, 1, 0, fm.mdl.tint ? C.setHex(def.pet.tint || 0xe8c49a) : undefined); shadow(v.petX, v.petZ, 0.4); }
+    }
+    if (def.body === 'penguin' || def.body === 'critter') {
       const fm = faunaModel[def.model || 'skater'] || faunaModel.penguin;
       if (fm) drawCreature(fm, v.x, v.y + bob, v.z, v.yaw, 0, act === 'skate' ? Math.sin(ph * 2.2) * 0.15 : 0, sc, 1, act === 'skate' ? 0.6 + Math.sin(ph * 2.2) * 0.4 : waving ? 1.2 : 0.1);
       shadow(v.x, v.z, 0.5 * sc);
@@ -1414,17 +1595,20 @@ export function buildLife(game, cfg) {
     for (const c of st.near.c) {
       const d2 = (c.x - me.pos.x) ** 2 + (c.z - me.pos.z) ** 2;
       if (d2 < act2) stepCreature(c, dt, t, barks);
-      if (c.f.hole) { compose(c.hx, ground(c.hx, c.hz), c.hz, 0, 0, 0, 1); propModel.hole.l.push(m4); }
+      if (c.f.hole && c.i === 0) { compose(c.hx, surface(c.hx, c.hz), c.hz, c.hx * 7.3, 0, 0, 1); propModel[holeKind(c.f)].l.push(m4); }
       if (c.y < -100) continue;
       const fm = c.fm, ai = c.f.ai;
       let pitch = c.pitch || 0, roll = 0, sqy = 1;
       if (ai === 'slide' && c.slide > 0) { pitch = 1.35; }
       if (ai === 'slide' && !(c.slide > 0)) roll = c.s === 'walk' ? Math.sin(c.ph * 9) * 0.12 : Math.sin(c.ph * 2) * 0.04;
       if (c.s === 'pet') sqy = 1 + Math.sin(c.ph * 12) * 0.08;
+      if (c.s === 'curl') { sqy = 0.72; pitch = 0.5; }
+      if (c.puff > 0) sqy = 1 + Math.sin(c.puff / 0.6 * Math.PI * 3) * 0.12;
       if (ai === 'burrow' && c.under > 0.98) continue;
-      drawCreature(fm, c.x, c.y + (c.hop || 0), c.z, c.yaw, pitch, roll, c.scale, sqy, ai === 'slide' ? (c.s === 'walk' ? Math.sin(c.ph * 8) * 0.6 : 0) : c.flapA, c.tint !== null && c.tint !== undefined ? C.setHex(c.tint) : undefined);
+      drawCreature(fm, c.x, c.y + (c.hop || 0), c.z, c.yaw, pitch, roll, c.scale, sqy, ai === 'slide' ? (c.s === 'walk' ? Math.sin(c.ph * 8) * 0.6 : 0) : c.flapA, c.tint !== null && c.tint !== undefined ? C.setHex(c.tint) : undefined,
+        lite && ai === 'flock' && !(c.fly > 0));   // (téléphone : un oiseau posé replie ses ailes — un dessin de moins)
       if (ai === 'hover') { if (c.f.glow !== false) glow(c.x, c.y, c.z, 1.2, c.f.glow || 0x9ad8ff, 0.8); }
-      else if (ai !== 'jump' && ai !== 'perch' && !(c.fly > 0 && c.y - ground(c.x, c.z) > 4)) shadow(c.x, c.z, (c.fm.mdl.r || 0.3) * c.scale);
+      else if (ai !== 'jump' && ai !== 'perch' && !c.f.water && !(c.fly > 0 && c.y - ground(c.x, c.z) > 4)) shadow(c.x, c.z, (c.fm.mdl.r || 0.3) * c.scale);
     }
     // objets
     for (const p of st.near.p) {
@@ -1435,7 +1619,7 @@ export function buildLife(game, cfg) {
       const w = game.t - p.wob; if (w < 1.2) { roll = Math.sin(w * 22) * 0.18 * (1 - w / 1.2); pitch = Math.cos(w * 19) * 0.08 * (1 - w / 1.2); }
       const s = game.t - p.sq; if (s < 0.6) { const k = Math.sin(s / 0.6 * Math.PI * 3) * (1 - s / 0.6); sy = 1 - k * 0.35; sx = 1 + k * 0.2; }
       const rg = game.t - p.ring; if (rg < 0.8) roll += Math.sin(rg * 30) * 0.05 * (1 - rg / 0.8);
-      if (isBall(p)) { compose(p.x, y + p.r, p.z, p.yaw, p.rot, 0, p.r); pm.l.push(m4, p.def.tint !== undefined ? C.setHex(p.def.tint) : undefined); shadow(p.x, p.z, p.r); continue; }
+      if (p.r0) { compose(p.x, y + p.r, p.z, p.yaw, p.rot, 0, p.r); pm.l.push(m4, p.def.tint !== undefined ? C.setHex(p.def.tint) : undefined); shadow(p.x, p.z, p.r); continue; }
       if ((p.kind === 'button' || pk.act === 'press') && p.on) sy *= 0.7;
       let ox = 0, oz = 0;
       if (pk.act === 'slide') {
@@ -1473,9 +1657,13 @@ export function buildLife(game, cfg) {
         glow(p.x, p.y + Lm.y, p.z, (Lm.size || 2.4) * fl, Lm.color || 0xffb050, 0.95);
         if (Lm.fire && !lite && R() < dt * 14) game.spawnParticle(p.x + (R() - 0.5) * 0.4, p.y + Lm.y - 0.1, p.z + (R() - 0.5) * 0.4, (R() - 0.5) * 0.4, 1.6 + R(), (R() - 0.5) * 0.4, R() < 0.5 ? 0xffc040 : 0xff7020, 0.12, 0.7, -0.4);
       }
-      if (st.D && st.D.def.type === 'touch' && st.D.def.targets.includes(p.def.id) && !st.D.got.includes(p.def.id)) glow(p.x, p.y + (pm.mdl.h || 1) + 0.6, p.z, 1.8, 0xffd23a, 0.6 + Math.sin(t * 8) * 0.3);
       if ((p.kind === 'drift' || pk.act === 'bounce') && st.D && st.D.def.type === 'pads' && st.D.def.pads.includes(p.def.id) && !st.D.got.includes(p.def.id)) glow(p.x, p.y + 0.8, p.z, 3.5, 0x8af0ff, 0.6 + Math.sin(t * 8) * 0.3);
       if (pk.shadow) shadow(p.x, p.z, pk.shadow);
+      if (pk.spray && R() < dt * (lite ? 14 : 30) && (p.x - me.pos.x) ** 2 + (p.z - me.pos.z) ** 2 < 2000) {
+        // arroseur : deux jets qui tournent
+        const a = t * (pk.spin || 1.6) + (R() < 0.5 ? 0 : Math.PI), v = 2.6 + R() * 1.2;
+        game.spawnParticle(p.x + Math.cos(a) * 0.35, p.y + 0.5, p.z + Math.sin(a) * 0.35, Math.cos(a) * v, 4.2 + R(), Math.sin(a) * v, 0xd8f0ff, 0.11, 0.95, 9);
+      }
     }
     // habitants
     for (const v of villagers) {
@@ -1526,6 +1714,19 @@ export function buildLife(game, cfg) {
     }
     // geyser de neige (interrupteur)
     if (st.geyser && st.geyser.t > game.t && R() < dt * 40) { const g = st.geyser; game.spawnParticle(g.x + (R() - 0.5) * 0.6, ground(g.x, g.z) + 0.3, g.z + (R() - 0.5) * 0.6, (R() - 0.5) * 2.5, 9 + R() * 4, (R() - 0.5) * 2.5, R() < 0.3 ? 0xbfeaff : 0xffffff, 0.35, 1.6, 9); }
+    // machine à bulles en marche
+    if (st.bubbles && st.bubbles.t > game.t && R() < dt * (lite ? 5 : 9)) { const b = st.bubbles; addFloat(b.x + (R() - 0.5) * 0.4, b.y, b.z + (R() - 0.5) * 0.4, (R() - 0.5) * 2.4, (R() - 0.5) * 2.4); }
+    // bulles de savon
+    const bm = propModel.bubble;
+    st.floats = st.floats.filter((b) => {
+      b.t += dt; b.ph += dt;
+      b.x += (b.vx + Math.sin(b.ph * 1.3) * 0.4) * dt; b.z += (b.vz + Math.cos(b.ph * 1.1) * 0.4) * dt; b.y += 0.45 * dt; b.vx *= 1 - dt * 0.5; b.vz *= 1 - dt * 0.5;
+      for (const P of game.players) if (hit(P, b.x, b.y, b.z, 0.9 + b.s * 0.5)) { game.burst(b.x, b.y, b.z, 6, 0xe8f6ff, 2, 0.35); if (P === game.me) chirp('ting'); return false; }
+      if (b.t > b.life) { game.burst(b.x, b.y, b.z, 4, 0xe8f6ff, 1.5, 0.3); return false; }
+      const k = Math.min(1, b.t * 3) * b.s;
+      if (bm) { compose(b.x, b.y, b.z, b.ph, 0, 0, k, k * (1 + Math.sin(b.ph * 7) * 0.05), k); bm.l.push(m4); } else glow(b.x, b.y, b.z, k * 2, 0xd8f0ff, 0.6);
+      return true;
+    });
     if (cfg.renderExtra) cfg.renderExtra(dt, t, { glow, layer: (n) => layers.get(n) });
     for (const l of layers.values()) l.end();
     // le bandeau de quête suit le défi (chrono)
@@ -1533,13 +1734,37 @@ export function buildLife(game, cfg) {
   }
   function drawDefi(D, t) {
     const def = D.def, T = def.type;
-    if (T === 'coins') def.items.forEach((it, i) => { if (D.got.includes(i)) return; compose(it.x, it.y + Math.sin(t * 3 + i) * 0.15, it.z, t * 3 + i, 0, 0, 1.2); propModel.coin.l.push(m4); glow(it.x, it.y, it.z, 2.0, 0xff4a5a, 0.8); });
+    if (T === 'coins') {
+      const im = propModel[def.item || 'coin'] || propModel.coin;
+      def.items.forEach((it, i) => {
+        if (D.got.includes(i)) return;
+        const col = def.colors ? def.colors[i % def.colors.length] : 0xff4a5a;
+        compose(it.x, it.y + Math.sin(t * (def.item ? 1.6 : 3) + i) * (def.item ? 0.25 : 0.15), it.z, def.item ? Math.sin(t + i) * 0.3 : t * 3 + i, 0, def.item ? Math.sin(t * 1.3 + i) * 0.12 : 0, def.item ? 1 : 1.2);
+        im.l.push(m4, def.colors ? C.setHex(col) : undefined); glow(it.x, it.y, it.z, def.item ? 1.6 : 2.0, col, def.item ? 0.35 : 0.8);
+      });
+    }
+    if (T === 'herd' && def.item) {
+      const im = propModel[def.item];
+      for (const c of D.crit) {
+        if (c.st === 'home') { compose(def.pen.x + Math.cos(D.crit.indexOf(c) * 2.1) * 1.2, ground(def.pen.x, def.pen.z) + 0.05, def.pen.z + Math.sin(D.crit.indexOf(c) * 2.1) * 1.2, c.a, 0, 0, 1); im.l.push(m4, def.colors ? C.setHex(def.colors[D.crit.indexOf(c) % def.colors.length]) : undefined); continue; }
+        const fl = c.st === 'follow', y = c.st === 'stuck' ? c.y : c.y + (fl ? 1.0 + Math.sin(t * 4) * 0.1 : 0.05);
+        compose(c.x, y, c.z, fl ? t * 4 : c.yaw, c.st === 'stuck' ? 0.5 : 0, 0, 1); im.l.push(m4, def.colors ? C.setHex(def.colors[D.crit.indexOf(c) % def.colors.length]) : undefined);
+        if (c.st !== 'follow') glow(c.x, y + 0.4, c.z, 1.6, 0xffd23a, 0.6 + Math.sin(t * 6) * 0.3);
+      }
+      const pen = def.pen; glow(pen.x, ground(pen.x, pen.z) + 0.4, pen.z, pen.r * 2.4, 0xffd23a, 0.35);
+    }
+    if (T === 'hits') for (const id of def.props) { if (D.got.includes(id)) continue; const p = propById.get(id); if (p) glow(p.x, p.y + 1.2, p.z, 2.6, 0xffd23a, 0.5 + Math.sin(t * 6) * 0.25); }
+    if (T === 'goal') {
+      const pen = def.pen, gy = ground(pen.x, pen.z);
+      glow(pen.x, gy + 0.3, pen.z, pen.r * 2.6, 0xffd23a, 0.4 + Math.sin(t * 4) * 0.15);
+      for (const id of def.balls) { const b = propById.get(id); if (b && !D.got.includes(id)) glow(b.x, b.y + b.r * 2 + 0.5, b.z, 1.2, 0xffffff, 0.5); }
+    }
     if (T === 'rings') def.rings.forEach((r, i) => { if (i < D.i) return; compose(r.x, r.y, r.z, r.yaw || 0, 0, 0, i === D.i ? 1 + Math.sin(t * 6) * 0.06 : 0.85); propModel.ring.l.push(m4); if (i === D.i) glow(r.x, r.y, r.z, 3.5, 0xffd23a, 0.5); });
     if (T === 'race') {
       const e = def.path[def.path.length - 1];
       compose(e[0], ground(e[0], e[1]), e[1], 0, 0, 0, 1); propModel.finish.l.push(m4); glow(e[0], ground(e[0], e[1]) + 3, e[1], 3, 0xffffff, 0.6);
     }
-    if (T === 'race' || T === 'chase' || T === 'herd') {
+    if (T === 'race' || T === 'chase' || (T === 'herd' && !def.item)) {
       const fm = faunaModel[def.critter]; if (!fm) return;
       for (const c of D.crit) {
         const hop = fm.f.hopper !== false ? Math.abs(Math.sin(c.a)) * 0.35 : 0;
@@ -1551,12 +1776,12 @@ export function buildLife(game, cfg) {
       if (T === 'herd') { const pen = def.pen; glow(pen.x, ground(pen.x, pen.z) + 0.4, pen.z, pen.r * 2.4, 0xffd23a, 0.35); }
     }
     if (T === 'whack' || T === 'fish') {
-      const fm = faunaModel[T === 'fish' ? (def.critter || 'fish') : (def.critter || 'marmot')];
+      const fm = faunaModel[T === 'fish' ? (def.critter || 'fish') : (def.critter || 'marmot')], hm = propModel[def.hole || 'hole'];
       for (const c of D.crit) {
-        compose(c.x, c.y, c.z, 0, 0, 0, 1); propModel.hole.l.push(m4);
+        compose(c.x, c.y, c.z, c.x * 3.1, 0, 0, 1); hm.l.push(m4);
         if (c.up <= 0 || !fm) continue;
         if (T === 'whack') { const k = c.hit ? clamp(c.up / 0.35, 0, 1) : clamp(c.t / 0.15, 0, 1); drawCreature(fm, c.x, c.y - 0.9 + k * 0.9, c.z, c.yaw, 0, 0, fm.f.scale || 1, c.hit ? 0.6 : 1, 0); glow(c.x, c.y + 0.9, c.z, 1.2, 0xffe070, 0.4); }
-        else { const k = clamp(c.t / 1.5, 0, 1); if (c.hit) continue; drawCreature(fm, c.x + Math.sin(c.yaw) * (k - 0.5) * 2, c.y + Math.sin(k * Math.PI) * 2.6, c.z + Math.cos(c.yaw) * (k - 0.5) * 2, c.yaw, (k - 0.5) * 2.4, 0, 1.6, 1, 0); }
+        else { const k = clamp(c.t / 1.5, 0, 1); if (c.hit) continue; drawCreature(fm, c.x + Math.sin(c.yaw) * fishOff(def, k), c.y + Math.sin(k * Math.PI) * 2.6, c.z + Math.cos(c.yaw) * fishOff(def, k), c.yaw, (k - 0.5) * 2.4, 0, 1.6, 1, 0); }
       }
     }
     if (T === 'xylo') for (const id of def.chimes) { const p = propById.get(id); if (p && D.phase === 'play') glow(p.x, p.y + 2.6, p.z, 0.9, 0xffffff, 0.4); }
@@ -1568,7 +1793,8 @@ export function buildLife(game, cfg) {
     const def = D.def, tm = D.t === Infinity ? '' : ` · ⏱ ${Math.max(0, Math.ceil(D.t))} s`;
     if (D.cd > 0) return `⚡ ${def.name} : attention…`;
     const T = def.type;
-    const prog = T === 'coins' ? `${D.got.length}/${def.items.length}` : T === 'rings' ? `anneau ${Math.min(D.i + 1, def.rings.length)}/${def.rings.length}` : T === 'pads' ? `${D.got.length}/${def.pads.length}` : T === 'touch' ? `${D.got.length}/${def.targets.length}`
+    const prog = T === 'coins' ? `${D.got.length}/${def.items.length}` : T === 'rings' ? `anneau ${Math.min(D.i + 1, def.rings.length)}/${def.rings.length}` : T === 'pads' ? `${D.got.length}/${def.pads.length}`
+      : T === 'hits' ? `${D.got.length}/${def.props.length}` : T === 'goal' ? `${D.got.length}/${def.balls.length}`
       : T === 'whack' || T === 'fish' ? `${D.got.length}/${def.need}` : T === 'tag' || T === 'chase' ? `${D.crit.filter(c => c.tagged).length}/${D.crit.length}` : T === 'herd' ? `${D.crit.filter(c => c.st === 'home').length}/${D.crit.length}`
         : T === 'xylo' ? (D.phase === 'show' ? 'écoutez…' : `${D.k}/${D.seq.length}`) : 'vite !';
     return `⚡ ${def.name} : ${prog}${tm}`;
@@ -1604,9 +1830,9 @@ export function buildLife(game, cfg) {
     const br = new Map((x.br || []).map(b => [b[0], b]));
     for (const p of props) {
       const b = br.get(p.i);
-      if (!b) { if (p.broken > game.t) p.broken = 0; if (isBall(p)) { p.x = p.bx; p.z = p.bz; p.r = (pal.props[p.kind] || {}).r0 || 0.5; p.y = ground(p.x, p.z); } p.on = false; continue; }
+      if (!b) { if (p.broken > game.t) p.broken = 0; if (p.r0) { p.x = p.bx; p.z = p.bz; p.r = p.r0; p.y = ground(p.x, p.z); } p.on = false; continue; }
       p.broken = b[1] > 0 ? game.t + b[1] : 0;
-      if (isBall(p)) { p.rot += Math.hypot(b[2] - p.x, b[3] - p.z) / (p.r || 1); p.x = b[2]; p.z = b[3]; p.r = b[4]; p.y = ground(p.x, p.z); }
+      if (p.r0) { p.rot += Math.hypot(b[2] - p.x, b[3] - p.z) / (p.r || 1); p.x = b[2]; p.z = b[3]; p.r = b[4]; p.y = ground(p.x, p.z); }
       p.on = !!b[5];
     }
     for (const q of props) if (q.kind === 'lantern') q.on = props.some(p => p.kind === 'button' && p.on && p.def.effect === 'lights' && p.def.group === q.def.group);

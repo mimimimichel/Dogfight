@@ -1243,8 +1243,8 @@ export function buildCastle(game) {
   const life = buildLife(game, {
     L: S, plan: LIFE.PLAN, palette: LIFE.PALETTE, lines: LIFE.LINES, ground: LIFE.ground, materials: lifeMats, cull: true,
     view: lite ? 62 : 110, active: lite ? 48 : 75,
-    // les canes restent dans l'eau, les autres bêtes n'y vont pas
-    blocked: (x, z, f) => (f.swim ? !LIFE.inWater(x, z) : S.heightAt(x, z) < 0.25),
+    // l'eau des douves et du lac : les canes et les carpes y restent, les autres bêtes n'y vont pas
+    surface: LIFE.ground, isWater: LIFE.inWater,
     allDoneText: 'Tout le château applaudit : chats et chiens, champions des défis !',
   });
 
