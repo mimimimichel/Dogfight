@@ -295,15 +295,18 @@ export const PALETTE = {
     foxcub: { model: 'fox', ai: 'none', colors: { scarf: 0xe8b020 }, scale: 0.85, extra: 1 },
   },
   props: {
-    drift: { act: 'bounce', power: 17, r: 1.3 },
+    drift: { act: 'bounce', power: 17, r: 1.3, model: 'driftHD' },
     pine: { act: 'shake', drop: 2, solid: 0.45 },
-    pile: { act: 'break', drop: 2, chance: 0.6, respawn: 45 },
-    iceblock: { act: 'break', drop: 2, chance: 0.7, respawn: 45, color: 0xbfeaff },
-    snowman: { act: 'hat', solid: 0.6, drop: 1 },
+    pile: { act: 'break', drop: 2, chance: 0.6, respawn: 45, model: 'pileHD' },
+    iceblock: { act: 'break', drop: 2, chance: 0.7, respawn: 45, color: 0xbfeaff, model: 'iceblockHD' },
+    snowman: { act: 'hat', solid: 0.6, drop: 1, model: 'snowmanHD' },
     ball: { act: 'push' },
     chime: { act: 'chime' },
     button: { act: 'press', r: 0.7 },
-    lantern: {},
+    lantern: { model: 'lanternHD' },
+    // (modèles détaillés de life.js : coffres en planches cerclés d'or)
+    chest: { model: 'chestHD' },
+    lid: { model: 'lidHD' },
   },
 };
 

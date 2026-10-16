@@ -273,7 +273,8 @@ export function rockTex() {
 // ---------------------------------------------------------------------------
 const PH = new URL('./assets/ph/', import.meta.url).href;
 export const PHOTO_NAMES = ['leafy_grass', 'forest_ground_04', 'stone_pathway', 'mossy_stone_wall', 'bark_willow_02', 'red_brick',
-  'painted_plaster_wall', 'asphalt_02', 'cobblestone_floor_04', 'rectangular_paving', 'clay_roof_tiles', 'brown_planks_03', 'mossy_rock'];
+  'painted_plaster_wall', 'asphalt_02', 'cobblestone_floor_04', 'rectangular_paving', 'clay_roof_tiles', 'brown_planks_03', 'mossy_rock',
+  'snow_02', 'rock_face_03', 'roof_slates_02'];
 const photos = {};
 let photoPromise = null;
 function loadImg(src) {
@@ -281,6 +282,8 @@ function loadImg(src) {
 }
 /** Matières propres à la ville (les autres niveaux ne les chargent pas). */
 const CITY_ONLY = ['red_brick', 'painted_plaster_wall', 'asphalt_02', 'cobblestone_floor_04', 'rectangular_paving'];
+/** Matières propres à la Station des Neiges (neige, roche de montagne, bardeaux). */
+const SNOW_ONLY = ['snow_02', 'rock_face_03', 'roof_slates_02'];
 const loading = {};
 /**
  * Charge les photos dont le niveau a besoin (une seule fois chacune). Sur téléphone et
@@ -288,7 +291,7 @@ const loading = {};
  */
 export function preloadPhotos(onProgress, level) {
   const small = document.documentElement.classList.contains('touch');
-  const names = PHOTO_NAMES.filter(n => level === 3 || !CITY_ONLY.includes(n));
+  const names = PHOTO_NAMES.filter(n => (level === 3 || !CITY_ONLY.includes(n)) && (level === 5 || !SNOW_ONLY.includes(n)));
   const jobs = [];
   for (const n of names) for (const k of ['d', 'n']) jobs.push([n + '_' + k, PH + n + '_' + k + (small ? '_s' : '') + '.jpg']);
   jobs.push(['leaves', PH + 'leaves.webp'], ['sky', PH + 'sky.jpg']);

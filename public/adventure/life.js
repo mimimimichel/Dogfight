@@ -304,6 +304,120 @@ export const PROPS = {
   },
 };
 
+// ---------------------------------------------------------------------------
+// Objets « détaillés » (au choix d'une palette : props: { snowman: { model: 'snowmanHD' } }) :
+// silhouettes plus riches, faites pour une matière « riche » (cfg.propMat, voir snowart.js) qui
+// reconnaît la neige, la glace, le bois, l'or et le charbon d'après la couleur des sommets.
+// ---------------------------------------------------------------------------
+/** Sphère (ou autre géométrie indexée) cabossée : neige tassée à la main, congère, rocher. */
+function lump(geo, amt, freq, seed) {
+  const p = geo.attributes.position, s = seed || 1;
+  for (let i = 0; i < p.count; i++) {
+    const x = p.getX(i), y = p.getY(i), z = p.getZ(i), l = Math.hypot(x, y, z) || 1;
+    const n = Math.sin(x * freq + s) * Math.sin(y * freq * 1.3 + s * 2.1) * Math.sin(z * freq * 0.9 + s * 0.7) + 0.5 * Math.sin((x + z) * freq * 2.3 + s * 3.3) * Math.sin(y * freq * 2.1);
+    const k = 1 + n * amt;
+    p.setXYZ(i, x * k, y * k, z * k);
+    void l;
+  }
+  geo.computeVertexNormals();
+  return geo;
+}
+const SNOW_C = 0xf6f9ff, COAL = 0x16161a, TWIG = 0x5a3a24;
+/** Bras de bonhomme : une branche et deux brindilles (origine : l'épaule, vers +x). */
+function stickArm(side, len) {
+  const out = [], s = side;
+  out.push(P(cyl(0.022, 0.034, len, 5), TWIG, { x: s * len * 0.48, y: len * 0.18, rz: -s * 1.2 }));
+  out.push(P(cyl(0.012, 0.018, len * 0.32, 4), TWIG, { x: s * len * 0.8, y: len * 0.42, rz: -s * 0.5 }));
+  out.push(P(cyl(0.012, 0.018, len * 0.28, 4), TWIG, { x: s * len * 0.9, y: len * 0.22, rz: -s * 1.9 }));
+  return out;
+}
+/** Bonhomme de neige soigné : boules tassées, charbons, carotte striée, écharpe à franges. */
+function snowmanParts(r1, r2, r3, o) {
+  o = o || {};
+  const y1 = r1 * 0.86, y2 = y1 + r1 * 0.78 + r2 * 0.78, y3 = y2 + r2 * 0.72 + r3 * 0.8;
+  const parts = [P(lump(sph(r1, 22, 16), 0.035, 7, 1), SNOW_C, { y: y1, sy: 0.92 }), P(lump(sph(r2, 20, 14), 0.035, 8, 2), SNOW_C, { y: y2, sy: 0.95 }),
+    P(lump(sph(r3, 18, 12), 0.03, 9, 3), SNOW_C, { y: y3 }),
+    // collerette de neige au pied
+    P(lump(tor(r1 * 0.85, r1 * 0.22, 6, 18), 0.12, 6, 4), 0xeef4ff, { y: 0.06, rx: Math.PI / 2, sz: 0.6 })];
+  // yeux, sourire, boutons (charbon)
+  for (const sx of [-1, 1]) parts.push(P(sph(r3 * 0.12, 8, 6), COAL, { x: sx * r3 * 0.36, y: y3 + r3 * 0.22, z: r3 * 0.88, sz: 0.6 }));
+  for (let i = 0; i < 5; i++) { const a = -0.55 + i * 0.275; parts.push(P(sph(r3 * 0.065, 6, 4), COAL, { x: Math.sin(a) * r3 * 0.55, y: y3 - r3 * 0.32 - Math.cos(a * 1.2) * r3 * 0.08 + r3 * 0.08, z: r3 * 0.86 })); }
+  for (let i = 0; i < 3; i++) parts.push(P(sph(r2 * 0.1, 8, 6), COAL, { y: y2 + r2 * (0.4 - i * 0.38), z: r2 * (0.95 - Math.abs(0.4 - i * 0.38) * 0.2), sz: 0.6 }));
+  // carotte (un peu tombante), avec ses stries
+  const nose = cone(r3 * 0.17, r3 * 1.15, 10);
+  parts.push(P(nose, 0xf07a1a, { y: y3 - r3 * 0.02, z: r3 * 1.45, rx: Math.PI / 2 + 0.12 }));
+  for (let i = 0; i < 3; i++) parts.push(P(tor(r3 * (0.14 - i * 0.035), r3 * 0.012, 3, 10), 0xc8540e, { y: y3 - r3 * 0.02 - i * r3 * 0.03, z: r3 * (1.05 + i * 0.22), rx: 0.12 }));
+  // écharpe (deux tons) et son pan à franges
+  if (o.scarf !== false) {
+    const sc = o.scarf || 0xd8303a, sc2 = o.scarf2 || 0xf4ece0;
+    parts.push(P(tor(r3 * 0.98, r3 * 0.24, 8, 22), sc, { y: y2 + r2 * 0.68, rx: Math.PI / 2, sz: 0.85 }));
+    for (let i = 0; i < 4; i++) parts.push(P(tor(r3 * 0.99, r3 * 0.07, 4, 22, Math.PI * 0.35), sc2, { y: y2 + r2 * 0.68, rx: Math.PI / 2, rz: i * 1.6 }));
+    parts.push(P(box(r3 * 0.42, r2 * 0.95, r3 * 0.12), sc, { x: r3 * 0.45, y: y2 + r2 * 0.25, z: r2 * 0.82, rz: 0.15, rx: -0.25 }));
+    for (let i = 0; i < 2; i++) parts.push(P(box(r3 * 0.43, r3 * 0.09, r3 * 0.13), sc2, { x: r3 * 0.43 - 0.0, y: y2 + r2 * (0.05 + i * 0.25), z: r2 * 0.84 - i * 0.02, rz: 0.15, rx: -0.25 }));
+  }
+  if (o.arms !== false) for (const s of [-1, 1]) for (const g of stickArm(s, r2 * 1.9)) { g.translate(s * r2 * 0.85, y2 + r2 * 0.15, 0); parts.push(g); }
+  return { parts, top: y3 + r3 };
+}
+Object.assign(PROPS, {
+  snowmanHD() { const s = snowmanParts(0.55, 0.4, 0.29); return { geo: merge(s.parts), h: 2.0, r: 0.6, shadow: true }; },
+  pileHD() {
+    const parts = [];
+    for (const [x, z, r, sy] of [[0, 0, 0.62, 0.72], [0.48, 0.22, 0.42, 0.65], [-0.4, -0.3, 0.44, 0.75], [0.15, -0.45, 0.3, 0.6], [-0.35, 0.38, 0.28, 0.6]]) parts.push(P(lump(sph(r, 14, 10), 0.09, 6 + r * 4, x * 9 + z), SNOW_C, { x, y: 0.02, z, sy }));
+    for (const [x, y, z, s, rz] of [[0.2, 0.5, 0.12, 0.09, 0.3], [-0.28, 0.42, 0.22, 0.07, -0.4], [0.5, 0.28, -0.1, 0.06, 0.8]]) parts.push(P(new THREE.OctahedronGeometry(s), 0xbfeaff, { x, y, z, sy: 1.8, rz }));
+    return { geo: merge(parts), h: 0.7, r: 0.8 };
+  },
+  iceblockHD() {
+    const parts = [];
+    const b = new THREE.BoxGeometry(0.98, 0.86, 0.98, 2, 2, 2), p = b.attributes.position;
+    for (let i = 0; i < p.count; i++) { const x = p.getX(i), y = p.getY(i), z = p.getZ(i), k = Math.sin(x * 11 + z * 7) * 0.035 + Math.sin(y * 13 + x * 5) * 0.03; p.setXYZ(i, x * (1 + k), y + k * 0.5, z * (1 - k)); }
+    const bn = b.toNonIndexed(); bn.computeVertexNormals();
+    parts.push(P(bn, 0x86c8ec, { y: 0.43, ry: 0.4 }));
+    // éclats de glace appuyés contre le bloc
+    for (const [x, z, h, rz, rx] of [[0.55, 0.2, 0.7, -0.35, 0.1], [-0.45, 0.45, 0.5, 0.3, -0.2], [0.2, -0.58, 0.42, 0.1, 0.35]]) parts.push(P(cyl(0.001, 0.13, h, 6).toNonIndexed(), 0xa8dcf6, { x, y: h * 0.42, z, rz, rx }));
+    // chapeau de neige qui déborde, et ses petits glaçons
+    parts.push(P(lump(sph(0.66, 16, 8, 0, TAU, 0, Math.PI / 2), 0.08, 7, 5), SNOW_C, { y: 0.84, sy: 0.32, ry: 0.4 }));
+    for (let i = 0; i < 7; i++) { const a = i / 7 * TAU + 0.3, l = 0.1 + ((i * 37) % 10) / 40; parts.push(P(cone(0.03, l, 5), 0xb8e6fa, { x: Math.cos(a) * 0.6, y: 0.82 - l / 2, z: Math.sin(a) * 0.6, rx: Math.PI })); }
+    return { geo: merge(parts), h: 1.0, r: 0.7, shadow: true };
+  },
+  driftHD(c) {
+    const top = c.top || 0x8ad8ff;
+    const parts = [P(lump(sph(1.4, 28, 10, 0, TAU, 0, Math.PI / 2), 0.06, 3.5, 7), SNOW_C, { sy: 0.36 }),
+      P(tor(0.85, 0.1, 8, 32), top, { y: 0.42, rx: Math.PI / 2 }), P(cyl(0.78, 0.8, 0.05, 28), c.mid || 0xbfeaff, { y: 0.46 }),
+      P(tor(0.42, 0.05, 6, 24), top, { y: 0.49, rx: Math.PI / 2 })];
+    for (let i = 0; i < 7; i++) { const a = i / 7 * TAU; parts.push(P(sph(0.075, 10, 8), c.dots || 0xff7ab0, { x: Math.cos(a) * 1.12, y: 0.27, z: Math.sin(a) * 1.12 })); }
+    // mottes de neige autour
+    for (let i = 0; i < 4; i++) { const a = i * 1.7 + 0.5; parts.push(P(lump(sph(0.22, 8, 6), 0.15, 9, i), SNOW_C, { x: Math.cos(a) * 1.5, y: 0.02, z: Math.sin(a) * 1.5, sy: 0.55 })); }
+    return { geo: merge(parts), h: 0.5, r: 1.3 };
+  },
+  chestHD() {
+    const W0 = 0x8a5230, W1 = 0x7a4426, G = 0xe8b83a, IRON = 0x2e2c30;
+    const parts = [P(box(0.94, 0.5, 0.64), 0x3a2414, { y: 0.28 })];
+    for (let i = 0; i < 3; i++) for (const sz of [-1, 1]) parts.push(P(box(1.0, 0.16, 0.05), i % 2 ? W1 : W0, { y: 0.1 + i * 0.17, z: sz * 0.33 }));
+    for (let i = 0; i < 3; i++) for (const sx of [-1, 1]) parts.push(P(box(0.05, 0.16, 0.66), i % 2 ? W0 : W1, { x: sx * 0.49, y: 0.1 + i * 0.17 }));
+    for (const sx of [-1, 1]) for (const sz of [-1, 1]) parts.push(P(box(0.08, 0.56, 0.08), IRON, { x: sx * 0.49, y: 0.28, z: sz * 0.33 }));
+    for (const sx of [-0.3, 0.3]) parts.push(P(box(0.07, 0.56, 0.7), G, { x: sx, y: 0.28 }));
+    parts.push(P(box(0.18, 0.2, 0.05), G, { y: 0.44, z: 0.36 }), P(cyl(0.025, 0.025, 0.02, 8), COAL, { y: 0.45, z: 0.39, rx: Math.PI / 2 }));
+    return { geo: merge(parts), h: 0.6, r: 0.6, shadow: true };
+  },
+  lidHD() {
+    const W0 = 0x8a5230, W1 = 0x7a4426, G = 0xe8b83a;
+    const parts = [];
+    for (let i = 0; i < 5; i++) { const a0 = i / 5 * Math.PI; parts.push(P(cyl(0.35, 0.35, 0.98, 3, 1, false, a0, Math.PI / 5), i % 2 ? W1 : W0, { y: 0, z: 0.35, rz: Math.PI / 2 })); }
+    for (const sx of [-0.3, 0.3]) parts.push(P(tor(0.355, 0.035, 4, 12, Math.PI), G, { x: sx, y: 0, z: 0.35, ry: Math.PI / 2 }));
+    parts.push(P(box(1.0, 0.03, 0.72), 0x3a2414, { y: 0.0, z: 0.35 }));
+    // un peu de neige sur le dessus
+    parts.push(P(lump(sph(0.3, 12, 6, 0, TAU, 0, Math.PI / 2), 0.1, 9, 2), SNOW_C, { y: 0.3, z: 0.35, sx: 1.4, sy: 0.25 }));
+    return { geo: merge(parts), h: 0.4, r: 0.6 };
+  },
+  lanternHD() {
+    const post = new THREE.LatheGeometry([[0.13, 0], [0.13, 0.1], [0.08, 0.18], [0.05, 0.3], [0.045, 2.05], [0.08, 2.1], [0.08, 2.15], [0, 2.16]].map(([x, y]) => new THREE.Vector2(x, y)), 8);
+    const parts = [P(post, 0x23262c), P(box(0.34, 0.4, 0.34), 0xffe0a0, { y: 2.35 })];
+    for (const [dx, dz] of [[1, 1], [1, -1], [-1, 1], [-1, -1]]) parts.push(P(box(0.03, 0.44, 0.03), 0x23262c, { x: dx * 0.17, y: 2.35, z: dz * 0.17 }));
+    parts.push(P(cone(0.3, 0.26, 4), 0x23262c, { y: 2.68, ry: Math.PI / 4 }), P(cone(0.28, 0.13, 4), SNOW_C, { y: 2.8, ry: Math.PI / 4 }), P(sph(0.04), 0xd8b040, { y: 2.88 }));
+    return { geo: merge(parts), h: 2.9, r: 0.2 };
+  },
+});
+VILLAGER.snowmanHD = () => merge(snowmanParts(0.6, 0.44, 0.32, { arms: false }).parts);
 // les modèles du kit (parc, jardins, mares…) s'ajoutent à ceux de la neige
 for (const k in KIT.MODELS) if (!MODELS[k]) MODELS[k] = KIT.MODELS[k];
 for (const k in KIT.PROPS) if (!PROPS[k]) PROPS[k] = KIT.PROPS[k];
@@ -379,6 +493,8 @@ export function buildLife(game, cfg) {
   // matières de détail facultatives (un monde peut habiller ses bêtes, habitants, objets) :
   // cfg.mats = { fauna, wing, props, fur, cloth, tool, platform }
   const mats = cfg.mats || {};
+  // cfg.propMat : matière des objets (et des bonshommes habitants), par ex. la matière « riche » de snowart.js
+  const propMat = cfg.propMat || mats.props || litMat;
   const glowMat = new THREE.MeshBasicMaterial({ map: M.glowTexture(), transparent: true, depthWrite: false, blending: THREE.AdditiveBlending });
   const shadowMat = new THREE.MeshBasicMaterial({ map: shadowTexture(), color: 0x0a1a28, transparent: true, opacity: 0.26, depthWrite: false });
   const layers = new Map();
@@ -422,7 +538,7 @@ export function buildLife(game, cfg) {
     const pk = pal.props[k] || {};
     const mdl = PROPS[pk.model || k](pk.colors || {});
     const n = (propCount[k] || 0) + (extraProp[k] || 0);
-    propModel[k] = { pk, mdl, l: layer('p_' + k, mdl.geo, mdl.mat || (mdl.unlit ? unlitMat : (mats.props || litMat)), n + 2, k === 'hat' || !!pk.tint) };
+    propModel[k] = { pk, mdl, l: layer('p_' + k, mdl.geo, mdl.mat || (mdl.unlit ? unlitMat : propMat), n + 2, k === 'hat' || !!pk.tint) };
     if (mdl.shadow) propModel[k].l.mesh.castShadow = true;
     if (mdl.depth) propModel[k].l.mesh.customDepthMaterial = mdl.depth;   // (feuillage découpé : ombre en feuilles)
   }
@@ -431,7 +547,7 @@ export function buildLife(game, cfg) {
   // habitants
   const nVill = Math.max(24, plan.villagers.length + 4);
   const vill = { body: layer('v_dog', VILLAGER.dog(), mats.fur || litMat, nVill, true), cloth: layer('v_cloth', VILLAGER.dogCloth(), mats.cloth || litMat, nVill, true), arm: layer('v_arm', VILLAGER.arm(), mats.cloth || litMat, nVill * 2, true),
-    snow: layer('v_snow', VILLAGER.snowman(), litMat, 3, false), snowArm: layer('v_snowarm', VILLAGER.snowArm(), litMat, 6, false), yeti: layer('v_yeti', VILLAGER.yeti(), litMat, 2, false), yetiArm: layer('v_yetiarm', VILLAGER.yetiArm(), litMat, 4, false) };
+    snow: layer('v_snow', ((cfg.villagerModels && VILLAGER[cfg.villagerModels.snowman]) || VILLAGER.snowman)(), propMat, 3, false), snowArm: layer('v_snowarm', VILLAGER.snowArm(), propMat, 6, false), yeti: layer('v_yeti', VILLAGER.yeti(), litMat, 2, false), yetiArm: layer('v_yetiarm', VILLAGER.yetiArm(), litMat, 4, false) };
   const tools = {};
   for (const v of plan.villagers) if (v.tool && !tools[v.tool]) tools[v.tool] = layer('t_' + v.tool, VILLAGER[v.tool](), mats.tool || litMat, plan.villagers.filter(q => q.tool === v.tool).length + 1, false);
   // plates-formes (nacelle du laveur de carreaux…) : le plateau, et ses câbles étirés jusqu'au toit
