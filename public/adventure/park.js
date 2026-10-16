@@ -640,7 +640,7 @@ export function buildPark(game) {
   const players = () => game.players;
   const P0 = () => game.me;
   // --- la couche de vie : bêtes, objets, défis éclair, habitants, cachettes (life.js) ---------
-  const life = buildLife(game, { L: S, plan: LIFE.PLAN, palette: LIFE.PALETTE, lines: LIFE.LINES, surface: LIFE.surface, isWater: LIFE.isWater, grain: true,
+  const life = buildLife(game, { L: S, plan: LIFE.PLAN, palette: LIFE.PALETTE, lines: LIFE.LINES, surface: LIFE.surface, isWater: LIFE.isWater, grain: true, view: lite ? 80 : 140,
     allDoneText: 'Tout le parc fait la fête : les canards dansent, les ballons s\'envolent !' });
   const dist = (a, b) => Math.hypot(a.x - b.x, a.z - b.z);
 

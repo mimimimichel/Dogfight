@@ -1199,10 +1199,10 @@ export function buildLife(game, cfg) {
     shadowL.push(m5);
   }
   /** Une bête (corps + deux ailes). */
-  function drawCreature(fm, x, y, z, yaw, pitch, roll, sc, sqy, flapA, tint) {
+  function drawCreature(fm, x, y, z, yaw, pitch, roll, sc, sqy, flapA, tint, noWings) {
     compose(x, y, z, yaw, pitch, roll, sc, sc * (sqy || 1), sc);
     fm.body.push(m4, tint);
-    if (fm.flap) {
+    if (fm.flap && !noWings) {
       const pv = fm.mdl.pivots, ax = fm.mdl.flapAxis === 'z';
       for (const sd of [-1, 1]) {
         m5.copy(m4).multiply(m6.compose(v4.set(pv[0] * sd, pv[1], pv[2]), q4.setFromEuler(e4.set(0, 0, ax ? -sd * (0.15 + Math.abs(flapA || 0) * 0.6) : sd * (flapA || 0), 'XYZ')), s4.set(sd, 1, 1)));
@@ -1326,7 +1326,8 @@ export function buildLife(game, cfg) {
       if (c.s === 'curl') { sqy = 0.72; pitch = 0.5; }
       if (c.puff > 0) sqy = 1 + Math.sin(c.puff / 0.6 * Math.PI * 3) * 0.12;
       if (ai === 'burrow' && c.under > 0.98) continue;
-      drawCreature(fm, c.x, c.y + (c.hop || 0), c.z, c.yaw, pitch, roll, c.scale, sqy, ai === 'slide' ? (c.s === 'walk' ? Math.sin(c.ph * 8) * 0.6 : 0) : c.flapA, c.tint !== null && c.tint !== undefined ? C.setHex(c.tint) : undefined);
+      drawCreature(fm, c.x, c.y + (c.hop || 0), c.z, c.yaw, pitch, roll, c.scale, sqy, ai === 'slide' ? (c.s === 'walk' ? Math.sin(c.ph * 8) * 0.6 : 0) : c.flapA, c.tint !== null && c.tint !== undefined ? C.setHex(c.tint) : undefined,
+        lite && ai === 'flock' && !(c.fly > 0));   // (téléphone : un oiseau posé replie ses ailes — un dessin de moins)
       if (ai === 'hover') { if (c.f.glow !== false) glow(c.x, c.y, c.z, 1.2, c.f.glow || 0x9ad8ff, 0.8); }
       else if (ai !== 'jump' && ai !== 'perch' && !c.f.water && !(c.fly > 0 && c.y - ground(c.x, c.z) > 4)) shadow(c.x, c.z, (c.fm.mdl.r || 0.3) * c.scale);
     }

@@ -242,17 +242,17 @@ export const MODELS = {
 export const PROPS = {
   /** Buisson : touffes du feuillage des arbres du parc (même matière), quelques baies. */
   bush(c) {
-    const d = LITE() ? 8 : 12;
+    const d = LITE() ? 6 : 12;
     const parts = [leafBlob(d, { y: 0.7, s: 1.0, sy: 0.7, tint: c.tint }), leafBlob(d, { x: 0.75, y: 0.5, z: 0.25, s: 0.7, sy: 0.65, ry: 1, tint: c.tint }), leafBlob(d, { x: -0.7, y: 0.52, z: -0.2, s: 0.75, sy: 0.65, ry: 2, tint: c.tint }),
       leafBlob(d, { x: 0.1, y: 0.45, z: 0.7, s: 0.6, sy: 0.6, ry: 3, tint: c.tint })];
-    return { geo: mergeG(parts), mat: leafMat(), h: 1.5, r: 1.3, shadow: true };
+    return { geo: mergeG(parts), mat: leafMat(), h: 1.5, r: 1.3, shadow: !LITE() };
   },
   /** Arbuste : tronc en écorce photo, feuillage du parc ; on le secoue. */
   sapling(c) {
-    const d = LITE() ? 8 : 12;
+    const d = LITE() ? 6 : 12;
     const trunk = [P(cyl(0.09, 0.15, 2.0, 8), 0xffffff, { y: 1.0 }), P(cyl(0.04, 0.07, 0.9, 6), 0xffffff, { x: 0.25, y: 1.7, rz: -0.6 }), P(cyl(0.04, 0.07, 0.8, 6), 0xffffff, { x: -0.22, y: 1.8, rz: 0.55 })];
     const leaves = [leafBlob(d, { y: 2.6, s: 1.05, tint: c.tint }), leafBlob(d, { x: 0.75, y: 2.25, z: 0.2, s: 0.7, ry: 1 }), leafBlob(d, { x: -0.7, y: 2.3, z: -0.2, s: 0.72, ry: 2 }), leafBlob(d, { z: 0.6, y: 2.2, s: 0.62, ry: 3 })];
-    return { geo: mergeG([trunk, leaves]), mat: [barkMat(), leafMat()], h: 3.4, r: 0.5, shadow: true };
+    return { geo: mergeG([trunk, leaves]), mat: [barkMat(), leafMat()], h: 3.4, r: 0.5, shadow: !LITE() };
   },
   /** Massif de fleurs : terre photo, bordure de pierres, touffes de fleurs en cartes. */
   flowers() {
@@ -291,7 +291,7 @@ export const PROPS = {
   birdbath() {
     const stone = [P(cyl(0.45, 0.55, 0.15, 12), 0xffffff, { y: 0.07 }), P(cyl(0.17, 0.24, 0.85, 10), 0xffffff, { y: 0.55 }), P(cyl(0.72, 0.4, 0.22, 16), 0xffffff, { y: 1.05 }), P(tor(0.66, 0.07, 6, 18), 0xffffff, { y: 1.16, rx: Math.PI / 2 })];
     const water = [P(cyl(0.62, 0.62, 0.02, 16), 0x7a90a0, { y: 1.14 })];
-    return { geo: mergeG([stone, water]), mat: [stoneMat(), waterMat()], h: 1.2, r: 0.7, shadow: true };
+    return { geo: mergeG([stone, water]), mat: [stoneMat(), waterMat()], h: 1.2, r: 0.7, shadow: !LITE() };
   },
   /** Champignon géant (trampoline des bois). */
   mushroom(c) {
@@ -328,7 +328,7 @@ export const PROPS = {
       P(cyl(0.04, 0.04, 1.6, 6), 0xdddddd, { x: -0.3, y: 2.1 }), P(cone(1.3, 0.55, 12), 0xff8ab0, { x: -0.3, y: 3.0 }), P(cone(1.32, 0.5, 12, 1), 0xffffff, { x: -0.3, y: 2.96, s: 0.98, ry: 0.26 }),
       P(cyl(0.03, 0.03, 0.8, 5), 0x8a8a8a, { x: -1.05, y: 1.4, rz: 1.2 }), P(sph(0.09, 8, 6, 0, TAU, 0, Math.PI / 2), 0xe8c040, { x: 0.7, y: 1.47, z: 0.3, rx: Math.PI })];
     for (const [x, col] of [[0.2, 0xffd0e0], [0.45, 0xfff0c0], [0.7, 0xc0f0d0]]) paint.push(P(cone(0.1, 0.24, 8), 0xe8b070, { x, y: 1.5, z: -0.25, rx: Math.PI }), P(sph(0.11, 8, 6), col, { x, y: 1.66, z: -0.25 }));
-    return { geo: mergeG([wood, paint]), mat: [woodMat(), grainMaterial()], h: 3.2, r: 0.9, shadow: true };
+    return { geo: mergeG([wood, paint]), mat: [woodMat(), grainMaterial()], h: 3.2, r: 0.9, shadow: !LITE() };
   },
   /** Machine à bulles : le gros bouton est dessus. */
   bubbler() {
