@@ -70,6 +70,12 @@ for (const [file, lv] of Object.entries(FILES)) {
       baseEnv.missionDef = (id) => S.MISSIONS.find(q => q.id === id);
     }
     const givers = S.GIVERS ? Object.entries(S.GIVERS) : [];
+    // raccourcis : const Si = L_('Silencio le mime') … puis Si('Texte')
+    const alias = {};
+    walk.simple(ast, { VariableDeclarator(d) {
+      const c = d.init;
+      if (d.id.type === 'Identifier' && c && c.type === 'CallExpression' && c.callee.type === 'Identifier' && ['W', 'L_'].includes(c.callee.name) && c.arguments[0] && c.arguments[0].type === 'Literal') alias[d.id.name] = c.arguments[0].value;
+    } });
     walk.ancestor(ast, {
       ObjectExpression(node, anc) {
         const w = prop(node, 'who'), t = prop(node, 'text');
@@ -88,8 +94,17 @@ for (const [file, lv] of Object.entries(FILES)) {
         for (const env of useEnvs) for (const who of variants(w.value, code, env)) for (const tx of variants(t.value, code, env)) add(who, tx, file);
       },
       CallExpression(node, anc) {
+        if (node.callee.type === 'Identifier' && alias[node.callee.name] && node.arguments[0]) {
+          for (const tx of variants(node.arguments[0], code, baseEnv)) add(alias[node.callee.name], tx, file);
+          return;
+        }
+        // T('Qui', 'Texte') (level6life.js)
+        if (node.callee.type === 'Identifier' && node.callee.name === 'T' && node.arguments.length === 2) {
+          for (const who of variants(node.arguments[0], code, baseEnv)) for (const tx of variants(node.arguments[1], code, baseEnv)) add(who, tx, file);
+          return;
+        }
         // W('Qui')('Texte') (données de la couche de vie, ex. level1life.js)
-        if (node.callee.type === 'CallExpression' && node.callee.callee.type === 'Identifier' && node.callee.callee.name === 'W') {
+        if (node.callee.type === 'CallExpression' && node.callee.callee.type === 'Identifier' && ['W', 'L_'].includes(node.callee.callee.name)) {
           const w = node.callee.arguments[0], t = node.arguments[0];
           if (w && t) for (const who of variants(w, code, baseEnv)) for (const tx of variants(t, code, baseEnv)) add(who, tx, file);
           return;
