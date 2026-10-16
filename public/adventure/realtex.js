@@ -293,6 +293,7 @@ export function preloadPhotos(onProgress, level) {
   for (const n of names) for (const k of ['d', 'n']) jobs.push([n + '_' + k, PH + n + '_' + k + (small ? '_s' : '') + '.jpg']);
   jobs.push(['leaves', PH + 'leaves.webp'], ['sky', PH + 'sky.jpg']);
   if (level === 5) for (const k of ['fir_twigs', 'fir_twigs_n', 'fir_bark', 'fir_bark_n']) jobs.push([k, PH + k + '.webp']);   // sapins (foliage.js)
+  else if (level !== 6) jobs.push(['broadleaf', PH + 'broadleaf' + (small ? '_s' : '') + '.webp']);   // feuillus (foliage.js)
   let done = 0;
   const total = jobs.length + PLANTS.length;
   const tick = () => { done++; if (onProgress) onProgress(done / total); };

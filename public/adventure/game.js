@@ -34,6 +34,7 @@ import * as W from './world.js';
 import * as T from './toon.js';
 import { Post } from './post.js';
 import * as RT from './realtex.js';
+import * as FOL from './foliage.js';
 import { Cinema } from './cinema.js';
 import { loadVoices, speak, stopVoice, prefetchVoices } from './voices.js';
 import * as WR from './wardrobe.js';
@@ -3189,6 +3190,7 @@ class Adventure {
       if (Math.random() < dt * 14) { const a = Math.random() * 6.28; this.spawnParticle(p.def.x + Math.cos(a) * 1.2, p.y + 1.7 + Math.sin(a) * 1.35, p.def.z, Math.cos(a) * 0.8, 1 + Math.random(), 0, p.mat.uniforms.uC1.value.getHex(), 0.16, 0.8); }
     }
     this.wind.value = t;
+    FOL.tickFoliage(t);                                // vent dans les feuillages (foliage.js)
     for (const c of this.clouds) { const u = c.userData, a = u.a + t * 0.004; c.position.set(Math.cos(a) * u.r, u.y, Math.sin(a) * u.r); }
     this.vista.isles.forEach((isl, i) => { isl.position.y = isl.userData.y0 + Math.sin(t * 0.35 + i * 1.7) * 1.6; });
     for (const [i, c] of this.crystals.entries()) c.children[c.children.length - 1].material.opacity = 0.4 + Math.sin(t * 2 + i) * 0.15;

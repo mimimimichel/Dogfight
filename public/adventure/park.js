@@ -11,6 +11,7 @@ import { L } from './current.js';
 import * as M from './models.js';
 import * as W from './world.js';
 import * as RT from './realtex.js';
+import * as FOL from './foliage.js';
 import * as K from './parkkit.js';
 import { buildFlag } from './farmkit.js';
 import { Cinema } from './cinema.js';
@@ -154,7 +155,8 @@ export function buildPark(game) {
       oak.add(root);
     }
     const branchTop = M.mat(0x9a6a3c, { roughness: 0.9 });
-    const leafGeo = W.leafClusterGeo(lite ? 10 : 16);
+    const CLo = real ? FOL.clump('leaf', lite, 2, 2) : null;     // (réaliste : touffes de vraies feuilles)
+    const leafGeo = CLo ? CLo.geo : W.leafClusterGeo(lite ? 10 : 16);
     for (const s of S.treeSteps) {
       const pad = new THREE.Mesh(new THREE.CylinderGeometry(1.5, 1.35, 0.5, 28), woodTop ? [barkSmall, woodTop, barkSmall] : branchTop);
       pad.position.set(s.x, s.top - 0.25, s.z);
@@ -163,8 +165,8 @@ export function buildPark(game) {
       arm.position.set(s.x * 0.62, s.top - 0.7, s.z * 0.62);
       arm.rotation.set(0, -s.a, 0); arm.rotateZ(Math.PI / 2 + 0.35);
       oak.add(arm);
-      const tuft = new THREE.Mesh(leafGeo, W.leafMaterial());
-      tuft.customDepthMaterial = W.leafDepthMaterial();
+      const tuft = new THREE.Mesh(leafGeo, CLo ? CLo.mat : W.leafMaterial());
+      tuft.customDepthMaterial = CLo ? CLo.depth : W.leafDepthMaterial();
       tuft.scale.setScalar(0.75);
       tuft.position.set(s.x * 1.35, s.top + 0.15, s.z * 1.35);
       oak.add(tuft);
@@ -176,17 +178,18 @@ export function buildPark(game) {
     const crown = [];
     for (let i = 0; i < 12; i++) { const a = (i / 12) * Math.PI * 2; crown.push([Math.cos(a) * 6.6, S.TREE_TOP - 2.6 + (i % 2) * 0.6, Math.sin(a) * 6.6, 2.1 + (i % 3) * 0.4]); }
     for (let i = 0; i < 7; i++) { const a = (i / 7) * Math.PI * 2 + 0.4; crown.push([Math.cos(a) * 6.6, S.TREE_TOP - 7 - (i % 3) * 3, Math.sin(a) * 6.6, 1.8]); }
-    const crownI = new THREE.InstancedMesh(leafGeo, W.leafMaterial(), crown.length);
-    crownI.customDepthMaterial = W.leafDepthMaterial();
+    const crownI = new THREE.InstancedMesh(leafGeo, CLo ? CLo.mat : W.leafMaterial(), crown.length);
+    crownI.customDepthMaterial = CLo ? CLo.depth : W.leafDepthMaterial();
     const cc = new THREE.Color();
     crown.forEach(([x, y, z, s], i) => {
       m4.compose(v3.set(x, y, z), q.setFromEuler(e.set(i, i * 2, 0)), sv.set(s, s * 0.85, s));
       crownI.setMatrixAt(i, m4);
       crownI.setColorAt(i, cc.set([0x4caf3a, 0x5cc046, 0x6ccf4e][i % 3]));
+      if (CLo) FOL.leafTint([0x4caf3a, 0x5cc046, 0x6ccf4e][i % 3], cc, (i % 4) * 0.03);
     });
     crownI.castShadow = crownI.receiveShadow = true;
     sc.add(crownI);
-    if (W.LOOK.real) W.buildLeafFringe(sc, crownI, crown.map(([x, y, z, s]) => ({ x, y, z, s })), { lite }, lite ? 8 : 30);
+    if (W.LOOK.real && !CLo) W.buildLeafFringe(sc, crownI, crown.map(([x, y, z, s]) => ({ x, y, z, s })), { lite }, lite ? 8 : 30);
     // le petit drapeau du sommet (le moteur le fait flotter)
     const pole = new THREE.Mesh(new THREE.CylinderGeometry(0.06, 0.06, 2.6, 10), M.mat(0xf4f4f4, { roughness: 0.4 }));
     pole.position.set(-2.8, S.TREE_TOP + 1.3, -2.8); pole.castShadow = true; sc.add(pole);
@@ -453,15 +456,17 @@ export function buildPark(game) {
     place(hm, S.MAZE.x, S.MAZE.z, S.MAZE.n * S.MAZE.cell * 0.75);
     // le jardin secret : de gros buissons ronds, serrés
     const round = S.HEDGES.filter(h => h.round);
-    const bi = new THREE.InstancedMesh(W.leafClusterGeo(lite ? 10 : 16), W.leafMaterial(), round.length * 2);
+    const CLg = real ? FOL.clump('serr', lite, 3, 1.8) : null;
+    const bi = new THREE.InstancedMesh(CLg ? CLg.geo : W.leafClusterGeo(lite ? 10 : 16), CLg ? CLg.mat : W.leafMaterial(), round.length * 2);
     const cc = new THREE.Color();
     round.forEach((h, i) => {
       for (let k = 0; k < 2; k++) {
         m4.compose(v3.set(h.x, h.y + 0.9 + k * 0.9, h.z), q.setFromEuler(e.set(i, i * 1.7 + k, 0)), sv.set(1.9 - k * 0.3, 1.4 - k * 0.2, 1.9 - k * 0.3));
         bi.setMatrixAt(i * 2 + k, m4); bi.setColorAt(i * 2 + k, cc.set(k ? 0x5cc046 : 0x3e9e34));
+        if (CLg) bi.setColorAt(i * 2 + k, cc.setScalar(k ? 1.05 : 0.85));
       }
     });
-    bi.castShadow = bi.receiveShadow = true; bi.customDepthMaterial = W.leafDepthMaterial();
+    bi.castShadow = bi.receiveShadow = true; bi.customDepthMaterial = CLg ? CLg.depth : W.leafDepthMaterial();
     place(bi, S.GARDEN.x, S.GARDEN.z, S.GARDEN.r + 4);
     // dans le jardin : une fontaine, une statue de chien, des fleurs
     put(K.fountainGeo(1.4, 0.7, 0.6), S.GARDEN.x, S.GARDEN.y, S.GARDEN.z);
@@ -492,16 +497,19 @@ export function buildPark(game) {
     const blobs = [];
     for (let i = 0; i < 9; i++) { const a = i / 9 * Math.PI * 2; blobs.push([T.x + Math.cos(a) * 3.2, S.TH_DECK.top + 4.2 + (i % 3) * 0.5, T.z + Math.sin(a) * 3.2, 1.8]); }
     blobs.push([T.x, S.TH_DECK.top + 5.6, T.z, 2.6]);
-    const li = new THREE.InstancedMesh(W.leafClusterGeo(lite ? 10 : 16), W.leafMaterial(), blobs.length);
+    const CLt = real ? FOL.clump('leaf', lite, 5, 2) : null;
+    const li = new THREE.InstancedMesh(CLt ? CLt.geo : W.leafClusterGeo(lite ? 10 : 16), CLt ? CLt.mat : W.leafMaterial(), blobs.length);
     const cc = new THREE.Color();
-    blobs.forEach(([x, y, z, s], i) => { m4.compose(v3.set(x, y, z), q.setFromEuler(e.set(i, i * 2, 0)), sv.set(s, s * 0.85, s)); li.setMatrixAt(i, m4); li.setColorAt(i, cc.set([0x4caf3a, 0x5cc046, 0x6ccf4e][i % 3])); });
-    li.castShadow = li.receiveShadow = true; li.customDepthMaterial = W.leafDepthMaterial();
+    blobs.forEach(([x, y, z, s], i) => { m4.compose(v3.set(x, y, z), q.setFromEuler(e.set(i, i * 2, 0)), sv.set(s, s * 0.85, s)); li.setMatrixAt(i, m4); li.setColorAt(i, cc.set([0x4caf3a, 0x5cc046, 0x6ccf4e][i % 3])); if (CLt) li.setColorAt(i, FOL.leafTint([0x4caf3a, 0x5cc046, 0x6ccf4e][i % 3], cc)); });
+    li.castShadow = li.receiveShadow = true; li.customDepthMaterial = CLt ? CLt.depth : W.leafDepthMaterial();
     place(li, T.x, T.z, 10);
   }
 
   // --- Les cerisiers en fleurs ------------------------------------------------------------
   {
     const list = S.CHERRY_TREES, n = list.length;
+    // rendu réaliste : de vrais cerisiers en fleurs (foliage.js)
+    if (real && FOL.hasBroadleaf()) place(FOL.broadleafMesh(list.map(t => ({ x: t.x, y: t.y, z: t.z, s: t.s, h: t.h * 0.8 })), { species: 'cherry', seed: 3, lite }), S.CHERRY.x, S.CHERRY.z, 14);
     const tk = new K.Kit();
     tk.add(new THREE.CylinderGeometry(0.22, 0.4, 1, 8), 0x6a3a2a, { y: 0.5 });
     const ti = new THREE.InstancedMesh(tk.geo(), VM, n);
@@ -511,12 +519,12 @@ export function buildPark(game) {
       m4.compose(v3.set(t.x, t.y, t.z), q.identity(), sv.set(t.s, t.h * 0.75, t.s)); ti.setMatrixAt(i, m4);
       for (let k = 0; k < 4; k++) { const a = k / 4 * Math.PI * 2 + r(); blobs.push([t.x + Math.cos(a) * (k ? 1.1 : 0) * t.s, t.y + t.h * 0.75 + (k ? 0.2 : 0.9), t.z + Math.sin(a) * (k ? 1.1 : 0) * t.s, (k ? 1.1 : 1.5) * t.s]); }
     });
-    ti.castShadow = true; place(ti, S.CHERRY.x, S.CHERRY.z, 14);
+    ti.castShadow = true; if (!(real && FOL.hasBroadleaf())) place(ti, S.CHERRY.x, S.CHERRY.z, 14);
     const li = new THREE.InstancedMesh(W.leafClusterGeo(lite ? 10 : 16), W.leafMaterial(), blobs.length);
     const cc = new THREE.Color();
     blobs.forEach(([x, y, z, s], i) => { m4.compose(v3.set(x, y, z), q.setFromEuler(e.set(i, i * 2, 0)), sv.set(s, s * 0.85, s)); li.setMatrixAt(i, m4); li.setColorAt(i, cc.set([0xffb8d8, 0xff9ac8, 0xffd0e4, 0xf8a8d0][i % 4])); });
     li.castShadow = li.receiveShadow = true; li.customDepthMaterial = W.leafDepthMaterial();
-    place(li, S.CHERRY.x, S.CHERRY.z, 14);
+    if (!(real && FOL.hasBroadleaf())) place(li, S.CHERRY.x, S.CHERRY.z, 14);
     // pétales roses au sol
     const pk = new K.Kit();
     for (let i = 0; i < 40; i++) { const a = r() * Math.PI * 2, d = r() * 11; pk.add(new THREE.CircleGeometry(0.12, 5).rotateX(-Math.PI / 2), 0xffc0dc, { x: Math.cos(a) * d, y: 0.03, z: Math.sin(a) * d }); }
