@@ -172,7 +172,11 @@ export const MODELS = {
     return {
       body: merge([P(sph(0.11), back, { y: 0.15, sz: 1.3, sy: 0.95 }), P(sph(0.1), breast, { y: 0.13, z: 0.05, sx: 0.92 }), P(sph(0.078), cap, { y: 0.27, z: 0.1 }),
         P(cone(0.03, 0.08, 5), c.beak || 0x2a2a2a, { y: 0.26, z: 0.2, rx: Math.PI / 2 }), P(box(0.1, 0.02, 0.14), cap, { y: 0.17, z: -0.18, rx: 0.3 }),
-        ...eyes(0.05, 0.29, 0.16, 0.014)]),
+        ...eyes(0.05, 0.29, 0.16, 0.014),
+        // ailes repliées le long du corps (c.fold : les ailes ne sont dessinées à part qu'en vol)
+        ...(c.fold ? [P(sph(0.07, 6, 4), back, { x: 0.085, y: 0.18, z: -0.04, sx: 0.5, sy: 0.8, sz: 2.0, rx: 0.15 }), P(sph(0.07, 6, 4), back, { x: -0.085, y: 0.18, z: -0.04, sx: 0.5, sy: 0.8, sz: 2.0, rx: 0.15 }),
+          P(box(0.06, 0.03, 0.08), c.tip || 0x1a1a1a, { x: 0.07, y: 0.19, z: -0.18 }), P(box(0.06, 0.03, 0.08), c.tip || 0x1a1a1a, { x: -0.07, y: 0.19, z: -0.18 }),
+          P(cyl(0.008, 0.008, 0.08, 3), c.beak || 0x2a2a2a, { x: 0.03, y: 0.04 }), P(cyl(0.008, 0.008, 0.08, 3), c.beak || 0x2a2a2a, { x: -0.03, y: 0.04 })] : [])]),
       flap: wingGeo(0.22, 0.13, back), pivots: [0.08, 0.18, 0.0], h: 0.35, r: 0.15,
     };
   },
@@ -1481,10 +1485,10 @@ export function buildLife(game, cfg) {
     shadowL.push(m5);
   }
   /** Une bête (corps + deux ailes). */
-  function drawCreature(fm, x, y, z, yaw, pitch, roll, sc, sqy, flapA, tint) {
+  function drawCreature(fm, x, y, z, yaw, pitch, roll, sc, sqy, flapA, tint, wings) {
     compose(x, y, z, yaw, pitch, roll, sc, sc * (sqy || 1), sc);
     fm.body.push(m4, tint);
-    if (fm.flap) {
+    if (fm.flap && wings !== false) {
       const pv = fm.mdl.pivots, ax = fm.mdl.flapAxis === 'z';
       for (const sd of [-1, 1]) {
         m5.copy(m4).multiply(m6.compose(v4.set(pv[0] * sd, pv[1], pv[2]), q4.setFromEuler(e4.set(0, 0, ax ? -sd * (0.15 + Math.abs(flapA || 0) * 0.6) : sd * (flapA || 0), 'XYZ')), s4.set(sd, 1, 1)));
@@ -1567,13 +1571,15 @@ export function buildLife(game, cfg) {
     vill.body.push(m4, furTint);
     const summer = def.outfit === 'summer' && vill.summer;
     (summer ? vill.summer : vill.cloth).push(m4, C.setHex(def.cloth || 0xd84a3a));
-    if (def.sunhat && vill.sunhat) vill.sunhat.push(m4);
+    // (sur téléphone : chapeaux et outils seulement de près)
+    const close = !lite || Math.hypot(game.me.pos.x - v.x, game.me.pos.z - v.z) < (cfg.liteDetail || 30);
+    if (def.sunhat && vill.sunhat && close) vill.sunhat.push(m4);
     const base = mB.copy(m4);
     for (const sd of [1, -1]) {
       const a = sd > 0 ? armR : armL;
       m5.copy(base).multiply(m6.compose(v4.set(sd * 0.36, 1.12, 0.04), q4.setFromEuler(e4.set(a, 0, sd * (0.18 + (sd > 0 ? armRz : 0)), 'ZYX')), one));
       vill.arm.push(m5, summer ? furTint : C.setHex(def.cloth || 0xd84a3a));
-      if (sd > 0 && toolOn && def.tool && tools[def.tool]) { m5.multiply(m6.makeTranslation(0, -0.5, 0.02)); tools[def.tool].push(m5); }
+      if (sd > 0 && toolOn && close && def.tool && tools[def.tool]) { m5.multiply(m6.makeTranslation(0, -0.5, 0.02)); tools[def.tool].push(m5); }
     }
     shadow(v.x, v.z, 0.5 * sc);
   }
@@ -1598,7 +1604,9 @@ export function buildLife(game, cfg) {
     for (const c of st.near.c) {
       const d2 = (c.x - me.pos.x) ** 2 + (c.z - me.pos.z) ** 2;
       if (d2 < act2) stepCreature(c, dt, t, barks);
-      if (c.f.hole) { compose(c.hx, ground(c.hx, c.hz), c.hz, 0, 0, 0, c.f.holeS || 1); (propModel[holeOf(c.f)] || propModel.hole).l.push(m4); }
+      // sur téléphone, les petites bêtes ne sont dessinées que de près (moins d'appels de dessin)
+      if (lite && c.f.liteNear && d2 > c.f.liteNear * c.f.liteNear) continue;
+      if (c.f.hole && !(lite && c.f.ai === 'scuttle' && !(c.under > 0.05))) { compose(c.hx, ground(c.hx, c.hz), c.hz, 0, 0, 0, c.f.holeS || 1); (propModel[holeOf(c.f)] || propModel.hole).l.push(m4); }
       if (c.y < -100) continue;
       const fm = c.fm, ai = c.f.ai;
       let pitch = c.pitch || 0, roll = 0, sqy = 1;
@@ -1608,7 +1616,7 @@ export function buildLife(game, cfg) {
       if (c.sq) sqy *= c.sq;
       if (c.roll) roll += c.roll;
       if ((ai === 'burrow' || (ai === 'scuttle' && c.f.hole)) && c.under > 0.98) continue;
-      drawCreature(fm, c.x, c.y + (c.hop || 0), c.z, c.yaw, pitch, roll, c.scale, sqy, ai === 'slide' ? (c.s === 'walk' ? Math.sin(c.ph * 8) * 0.6 : 0) : c.flapA, c.tint !== null && c.tint !== undefined ? C.setHex(c.tint) : undefined);
+      drawCreature(fm, c.x, c.y + (c.hop || 0), c.z, c.yaw, pitch, roll, c.scale, sqy, ai === 'slide' ? (c.s === 'walk' ? Math.sin(c.ph * 8) * 0.6 : 0) : c.flapA, c.tint !== null && c.tint !== undefined ? C.setHex(c.tint) : undefined, !(c.f.foldWings && !(c.fly > 0)));
       if (ai === 'hover') { if (c.f.glow !== 0) glow(c.x, c.y, c.z, c.f.glowSize || 1.2, c.f.glow || 0x9ad8ff, 0.8); }
       else if (c.f.glow) glow(c.x, c.y + (c.f.glowY || 0), c.z, (c.f.glowSize || 1.2) * c.scale, c.f.glow, 0.6);
       if (ai !== 'hover' && ai !== 'jump' && ai !== 'perch' && ai !== 'swim' && !(c.fly > 0 && c.y - ground(c.x, c.z) > 4)) shadow(c.x, c.z, (c.fm.mdl.r || 0.3) * c.scale);
@@ -1617,6 +1625,7 @@ export function buildLife(game, cfg) {
     for (const p of st.near.p) {
       const pm = propModel[p.kind]; if (!pm) continue;
       const pk = pm.pk;
+      if (lite && pk.liteNear && (p.x - me.pos.x) ** 2 + (p.z - me.pos.z) ** 2 > pk.liteNear * pk.liteNear) continue;
       if (p.broken > game.t) { if (p.kind === 'ball' && p.def) { /* elle revient bientôt */ } continue; }
       let pitch = 0, roll = 0, sy = 1, sx = 1, y = p.y;
       const w = game.t - p.wob; if (w < 1.2) { roll = Math.sin(w * 22) * 0.18 * (1 - w / 1.2); pitch = Math.cos(w * 19) * 0.08 * (1 - w / 1.2); }
@@ -1642,7 +1651,7 @@ export function buildLife(game, cfg) {
       }
       if (p.kind === 'chime' && rg < 0.8) glow(p.x, p.y + 2.0, p.z, 2.4, 0xbfeaff, 1 - rg / 0.8);
       if (p.kind === 'lantern' && p.on) glow(p.x, p.y + 2.35, p.z, 2.2, 0xffd890, 0.9);
-      if (p.kind === 'drift' && st.D && st.D.def.type === 'pads' && st.D.def.pads.includes(p.def.id) && !st.D.got.includes(p.def.id)) glow(p.x, p.y + 0.8, p.z, 3.5, 0x8af0ff, 0.6 + Math.sin(t * 8) * 0.3);
+      if (pk.act === 'bounce' && st.D && st.D.def.type === 'pads' && st.D.def.pads.includes(p.def.id) && !st.D.got.includes(p.def.id)) glow(p.x, p.y + 0.8, p.z, 3.5, 0x8af0ff, 0.6 + Math.sin(t * 8) * 0.3);
       if (pk.shadow) shadow(p.x, p.z, pk.shadow);
     }
     // habitants
