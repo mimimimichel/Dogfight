@@ -127,7 +127,7 @@ export function patchGround(mat, o) {
             vec3 saRc = saTriD(tRockD, saP, saW3);
             // roche alpine : grise et froide, un peu de la teinte d'origine
             float saL = dot(saRc, vec3(0.3, 0.59, 0.11));
-            saRc = mix(vec3(saL), saRc, 0.3) * vec3(0.86, 0.9, 1.0) * 1.3;
+            saRc = mix(vec3(saL), saRc, 0.3) * vec3(0.86, 0.9, 1.0) * 1.55;
             vec3 saRn = saTriN(tRockN, saP, saGN, saW3);
             // la neige reste accrochée aux replats de la roche
             float saHold = smoothstep(0.45, 0.75, saRn.y + saL * 0.3 + (saM - 0.45) * 0.6) * (1.0 - smoothstep(0.6, 0.95, saSlope));
@@ -144,6 +144,8 @@ export function patchGround(mat, o) {
           }
           // la neige à contre-jour garde un peu de lumière bleutée (elle diffuse la lumière)
           totalEmissiveRadiance += vec3(0.30, 0.42, 0.62) * 0.05 * (1.0 - saRk) * pow(1.0 - max(dot(saGN, saV), 0.0), 2.0);
+          // pentes dos au soleil : la lumière du ciel bleu (jamais un mur sombre)
+          totalEmissiveRadiance += vec3(0.32, 0.44, 0.64) * 0.16 * (1.0 - 0.6 * saRk) * (1.0 - smoothstep(-0.15, 0.45, dot(saGN, uSaSun)));
         }`);
     if (o.haze) {
       sh.fragmentShader = sh.fragmentShader.replace('#include <fog_fragment>', `
@@ -281,7 +283,7 @@ export function buildRanges(sc, o) {
   const lite = !!o.lite, haze = o.hazeColor;
   const out = [];
   const RANKS = [
-    { e0: o.inner || 200, e1: 560, segA: lite ? 240 : 400, segR: lite ? 24 : 40, h0: 10, h1: 240, f: 0.0105, seed: 3, near: 200, far: 700, max: 0.55 },
+    { e0: o.inner || 200, e1: 560, segA: lite ? 240 : 400, segR: lite ? 24 : 40, h0: 10, h1: 240, f: 0.0105, seed: 3, near: 40, far: 650, max: 0.62 },
     { e0: 600, e1: 1080, segA: lite ? 170 : 260, segR: lite ? 12 : 18, h0: 40, h1: 420, f: 0.0052, seed: 11, near: 400, far: 1150, max: 0.8 },
   ];
   for (const R of RANKS) {
@@ -311,7 +313,7 @@ export function buildRanges(sc, o) {
     g.setAttribute('position', new THREE.BufferAttribute(pos, 3));
     g.setIndex(idx); g.computeVertexNormals();
     // forêts sombres au pied, neige au-dessus (la roche des pentes raides vient du shader)
-    const nr = g.attributes.normal, c = new THREE.Color(), SNOW = new THREE.Color(0.95, 0.97, 1.0), FOREST = new THREE.Color(0.10, 0.15, 0.13);
+    const nr = g.attributes.normal, c = new THREE.Color(), SNOW = new THREE.Color(0.95, 0.97, 1.0), FOREST = new THREE.Color(0.2, 0.27, 0.25);
     for (let v = 0; v < pos.length / 3; v++) {
       const y = pos[v * 3 + 1], ny = nr.getY(v);
       const nz = h2(Math.floor(pos[v * 3] * 0.05), Math.floor(pos[v * 3 + 2] * 0.05));

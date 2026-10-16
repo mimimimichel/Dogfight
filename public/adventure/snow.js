@@ -383,7 +383,7 @@ export function buildSnow(game) {
   }
 
   // --- la glace : lac, rivière, patinoire, mare de la cascade ---------------------------------
-  const iceMat = std({ map: iceTexture(), color: 0xd4ecfa, roughness: 0.12, metalness: 0.05 });
+  const iceMat = std({ map: iceTexture(), color: art ? 0xc4e2f6 : 0xd4ecfa, roughness: art ? 0.05 : 0.12, metalness: 0.05, envMapIntensity: art ? 1.5 : 1 });
   const flatUV = (g, k) => { const uv = g.attributes.uv, p = g.attributes.position; for (let i = 0; i < uv.count; i++) uv.setXY(i, p.getX(i) / k, p.getZ(i) / k); return g; };
   {
     const LK = S.LAKE;
@@ -499,7 +499,7 @@ export function buildSnow(game) {
     const tint = (hex, k) => { const c = new THREE.Color(hex).multiplyScalar(k); return new THREE.Color(Math.min(1, c.r), Math.min(1, c.g), Math.min(1, c.b)); };
     const R = rng(808), LOG = 0.18, STEP = 0.34;
     for (const c of S.CHALETS) {
-      const logCol = tint(c.col, 1.45), dark = tint(c.col, 0.35), paint2 = tint(c.roof, 1.5);
+      const logCol = tint(c.col, 1.75), dark = tint(c.col, 0.35), paint2 = tint(c.roof, 1.5);
       // âme sombre (entre les rondins) et soubassement de pierre
       wood.push({ geo: paint(new THREE.BoxGeometry(c.w - 0.2, c.h, c.d - 0.2), dark), x: c.x, y: c.y + c.h / 2, z: c.z });
       stone.push({ geo: paint(uvs(new THREE.BoxGeometry(c.w + 0.55, 0.5, c.d + 0.55), (c.w + 0.5) / 2.5, 0.2), 0xd8d4cc), x: c.x, y: c.y + 0.1, z: c.z });
