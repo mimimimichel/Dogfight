@@ -3732,6 +3732,7 @@ class Adventure {
         Biscotte : « Retriever » par doinspire<br>
         Habitants : « Doge » par kitsuneko_3d, « Riley » par lopuh22721, « Bulldog Puppy » par doinspire<br>
         Matières, ciel, arbres et fougères scannés : Poly Haven (CC0)<br>
+        Feuilles des arbres et des buissons : Poly Haven « island_tree_01 » et « shrub_01 » (CC0)<br>
         Voix : synthèse vocale Chatterbox (Resemble AI, MIT), d'après des lecteurs du corpus Multilingual LibriSpeech (CC BY 4.0)<br>
         Aboiements : Amada44, Wikimedia Commons (CC BY-SA 3.0)<br>
         Instruments de la musique : banque FluidR3_GM de Frank Wen (CC BY 3.0)</div>

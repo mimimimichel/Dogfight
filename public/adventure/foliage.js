@@ -260,7 +260,7 @@ function core(B, C, R, cellC, anchor, rnd, scale) {
       const d = v3(p.getX(i), p.getY(i), p.getZ(i)).normalize();
       const bump = 0.82 + rnd() * 0.32;
       const q = v3(C.x + d.x * R[0] * scale * bump, C.y + d.y * R[1] * scale * bump, C.z + d.z * R[2] * scale * bump);
-      const sh = 0.4 + 0.24 * (d.y * 0.5 + 0.5);
+      const sh = 0.72 + 0.3 * (d.y * 0.5 + 0.5);   // (la case dense de l'atlas est déjà sombre)
       // (uv : un petit morceau de la case de feuillage dense)
       const u = cellC[0] + (d.x + d.z * 0.5) * 0.07, w = cellC[1] + (d.y + d.z * 0.3) * 0.07;
       map.set(key, B.v(q, v3(d.x, d.y + 0.25, d.z).normalize(), u, w, sh, 1, 1, anchor));
@@ -313,14 +313,14 @@ function canopy(B, C, R, n, size, cells, anchor, rnd) {
 /** Touffe : cœur dense + rameaux et touffes rondes tout autour. */
 function clumpInto(B, C, R, kind, rnd, n, anchor, big = 1) {
   const cells = kind === 'blossom' ? ['cherry'] : kind === 'serr' ? ['serr', 'clumpSerr', 'clumpSerr'] : ['oval', 'clumpOval', 'clumpOval'];
-  core(B, C, R, CORE[kind === 'blossom' ? 'pink' : 'green'], anchor, rnd, 0.8);
+  core(B, C, R, CORE[kind === 'blossom' ? 'pink' : 'green'], anchor, rnd, 0.6);
   const golden = Math.PI * (3 - Math.sqrt(5));
   for (let i = 0; i < n; i++) {
     const y = 1 - (i + 0.5) / n * 1.6, rr = Math.sqrt(Math.max(0, 1 - y * y)), a = i * golden + rnd() * 0.6;
     const d = v3(Math.cos(a) * rr, y, Math.sin(a) * rr);
-    const depth = big > 1 ? 0.55 + rnd() * 0.3 : 0.3 + rnd() * 0.25;
+    const depth = 0.25 + rnd() * 0.3;
     const from = v3(C.x + d.x * R[0] * depth, C.y + d.y * R[1] * depth, C.z + d.z * R[2] * depth);
-    const L = (R[0] + R[1]) * (0.55 + rnd() * 0.25) / big;
+    const L = (R[0] + R[1]) * (0.45 + rnd() * 0.2) / big;
     card(B, from, v3(d.x, d.y + 0.3, d.z), L, cells[(rnd() * cells.length) | 0], C, R, anchor, rnd, 0.92 + rnd() * 0.16);
   }
 }
@@ -385,7 +385,7 @@ export function broadleafGeometry(species = 'round', seed = 1, opts = {}) {
  */
 export function clumpGeometry(kind = 'leaf', seed = 1, cards = 20, big = 1) {
   const B = builder(), rnd = rng(seed * 7717 + 3);
-  clumpInto(B, v3(0, 0, 0), [1.0, 0.85, 1.0], kind === 'leaf' ? 'oval' : kind, rnd, Math.round(cards * Math.min(3, Math.sqrt(big))), 0, Math.pow(big, 0.7));
+  clumpInto(B, v3(0, 0, 0), [0.95, 0.82, 0.95], kind === 'leaf' ? 'oval' : kind, rnd, Math.round(cards * Math.min(3.5, Math.pow(big, 0.8))), 0, Math.pow(big, 0.4));
   const g = B.geometry();
   g.userData.clump = kind;
   return g;
@@ -410,7 +410,8 @@ export function treeMatrix(m4, species, x, y, z, s, h, rotY, tilt = 0) {
 
 /** Teinte douce d'une instance d'après une couleur de palette (les feuilles sont déjà vertes). */
 export function leafTint(hex, out = new THREE.Color(), vary = 0) {
-  const c = new THREE.Color(hex), m = Math.max(c.r, c.g, c.b, 1e-3), k = 0.3;
+  const c = new THREE.Color(hex), m = Math.max(c.r, c.g, c.b, 1e-3);
+  const k = c.r >= c.g * 0.95 ? 0.5 : 0.3;                 // (feuillage roux ou doré de la palette : bien marqué)
   out.setRGB(1 - k + k * c.r / m, 1 - k + k * c.g / m, 1 - k + k * c.b / m);
   return out.multiplyScalar(1.02 + vary);
 }
