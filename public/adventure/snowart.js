@@ -145,7 +145,7 @@ export function patchGround(mat, o) {
           // la neige à contre-jour garde un peu de lumière bleutée (elle diffuse la lumière)
           totalEmissiveRadiance += vec3(0.30, 0.42, 0.62) * 0.05 * (1.0 - saRk) * pow(1.0 - max(dot(saGN, saV), 0.0), 2.0);
           // pentes dos au soleil : la lumière du ciel bleu (jamais un mur sombre)
-          totalEmissiveRadiance += vec3(0.32, 0.44, 0.64) * 0.16 * (1.0 - 0.6 * saRk) * (1.0 - smoothstep(-0.15, 0.45, dot(saGN, uSaSun)));
+          totalEmissiveRadiance += vec3(0.32, 0.44, 0.64) * 0.45 * (1.0 - 0.5 * saRk) * (1.0 - smoothstep(-0.15, 0.45, dot(saGN, uSaSun)));
         }`);
     if (o.haze) {
       sh.fragmentShader = sh.fragmentShader.replace('#include <fog_fragment>', `
