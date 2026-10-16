@@ -78,7 +78,7 @@ export const VILLAGERS = [
   V('croquette', 'Cheffe Croquette', SPOT.cuisine[0], SPOT.cuisine[1], { yaw: 0.9, act: 'stir', tool: 'ladle', cap: 'toque', fur: 0xf0a050, cloth: 0xf4f0e8, defi: 'd_pre' }),
   V('plume', 'Dame Plume', SPOT.potager[0] - 4, SPOT.potager[1] - 3, { yaw: 0.6, act: 'water', tool: 'can', cap: 'beret', fur: 0xd8d0c8, cloth: 0x5aa060, defi: 'd_potager' }),
   V('pinceau', 'Pinceau le peintre', SPOT.buis[0] - 5, SPOT.buis[1] - 2, { yaw: 1.2, act: 'paint', tool: 'brush', cap: 'beret', fur: 0x8a6a4a, cloth: 0xc87ad8, defi: 'd_buis' }),
-  V('gaston', 'Gaston le garde', 10, 22, { yaw: 0, act: 'guard', tool: 'spear', cap: 'helmet', fur: 0xf4e0c0, cloth: 0x3a5ad8, defi: 'd_souris' }),
+  V('anatole', 'Anatole le garde', 10, 22, { yaw: 0, act: 'guard', tool: 'spear', cap: 'helmet', fur: 0xf4e0c0, cloth: 0x3a5ad8, defi: 'd_souris' }),
   V('ronron', 'Maestro Ronron', SPOT.orchestre[0], SPOT.orchestre[1] - 4, { yaw: 0, act: 'conduct', tool: 'baton', fur: 0x5a5458, cloth: 0x2a2a3a, busy: true, defi: 'd_orchestre' }),
   V('melodie', 'Mélodie', SPOT.orchestre[0] - 3.5, SPOT.orchestre[1] - 7, { yaw: 0.3, act: 'lute', tool: 'lute', fur: 0xffffff, cloth: 0xd84a7a, busy: true, inst: 'pluck', tune: [72, 76, 79, 76, 74, 77, 81, 0, 79, 77, 76, 74, 72, 0, 0, 0], beat: 0.32 }),
   V('tambourin', 'Tambourin', SPOT.orchestre[0] + 3.5, SPOT.orchestre[1] - 7, { yaw: -0.3, act: 'drum', tool: 'drumstick', fur: 0xf0b070, cloth: 0x3a8a5a, busy: true, inst: 'mallet', tune: [48, 0, 55, 0, 48, 48, 55, 0], beat: 0.32, vol: 0.05 }),
@@ -89,17 +89,17 @@ export const VILLAGERS = [
   V('minet', 'Gros Minet', SPOT.coussins[0] - 7, SPOT.coussins[1] + 7, { yaw: 0.8, sleepy: true, act: 'idle', fur: 0xf0a050, cloth: 0xf4c0d0, scale: 1.2 }),
   V('fantomette', 'Fantômette', SPOT.fantome[0], SPOT.fantome[1], { yaw: 0.2, ghost: true, hidden: 16, act: 'idle', busy: false }),
 ];
-// Barnabé pêche au bord du lac, côté sud-est (face à l'eau)
+// Ernest pêche au bord du lac, côté sud-est (face à l'eau)
 {
   const e = lakeEdge(0.55, 0.9);
   const [x, z] = free(e.shore[0], e.shore[1], 0.9);
-  VILLAGERS.push({ id: 'barnabe', name: 'Barnabé le pêcheur', body: 'cat', x, z, yaw: Math.atan2(S.LAKE.x - x, S.LAKE.z - z), act: 'fish', tool: 'rod', cap: 'beret', fur: 0x8a6a4a, cloth: 0x3a7a5a, defi: 'd_grenouilles' });
+  VILLAGERS.push({ id: 'ernest', name: 'Ernest le pêcheur', body: 'cat', x, z, yaw: Math.atan2(S.LAKE.x - x, S.LAKE.z - z), act: 'fish', tool: 'rod', cap: 'beret', fur: 0x8a6a4a, cloth: 0x3a7a5a, defi: 'd_grenouilles' });
 }
 for (const v of VILLAGERS) v.y = ground(v.x, v.z);
 
 const W = (who) => (text) => ({ who, text });
-const MOU = W('Sire Moustachu'), CRO = W('Cheffe Croquette'), PLU = W('Dame Plume'), PIN = W('Pinceau le peintre'), GAS = W('Gaston le garde'), RON = W('Maestro Ronron'),
-  PIR = W('Pirouette le bouffon'), LIL = W('Lili la blanchisseuse'), LUC = W('Lucien l\'allumeur'), BAR = W('Barnabé le pêcheur'), MIN = W('Gros Minet'), FAN = W('Fantômette'),
+const MOU = W('Sire Moustachu'), CRO = W('Cheffe Croquette'), PLU = W('Dame Plume'), PIN = W('Pinceau le peintre'), ANA = W('Anatole le garde'), RON = W('Maestro Ronron'),
+  PIR = W('Pirouette le bouffon'), LIL = W('Lili la blanchisseuse'), LUC = W('Lucien l\'allumeur'), ERN = W('Ernest le pêcheur'), MIN = W('Gros Minet'), FAN = W('Fantômette'),
   MAT = W('Matcha'), AIN = W('Ainu');
 export const LINES = {
   moustachu: {
@@ -125,10 +125,10 @@ export const LINES = {
     thanks: [PIN('Magnifique ! Quelle grâce ! Je vais vous peindre en train de voler. Ce sera mon chef-d\'œuvre.')],
     talk: [[PIN('Vous avez vu les portraits du château ? Leurs yeux vous suivent. C\'est mon petit secret de peintre.')], [PIN('Du rose, du doré, un peu de bleu… La Capitaine adore les couleurs vives.')]],
   },
-  gaston: {
-    ask: [GAS('Halte-là ! Qui va là ? … Ah, c\'est vous, les toutous. Bonjour.'), GAS('Une souris me nargue tous les jours : elle court du pont-levis jusqu\'au potager, et je n\'arrive jamais à la battre.'), GAS('Vous, vous êtes rapides ! Arrivez au drapeau à damier avant elle, au signal doré !')],
-    thanks: [GAS('Battue ! La souris n\'en revient pas. Elle dit que c\'était de la triche… mais elle rigole.')],
-    talk: [[GAS('Je garde le pont-levis. Il ne se passe jamais rien. Sauf quand il se passe quelque chose.')], [GAS('Les gardes du château font leur ronde. Caressez-les, ils adorent ça. Mais chut, ils sont en service.')]],
+  anatole: {
+    ask: [ANA('Halte-là ! Qui va là ? … Ah, c\'est vous, les toutous. Bonjour.'), ANA('Une souris me nargue tous les jours : elle court du pont-levis jusqu\'au potager, et je n\'arrive jamais à la battre.'), ANA('Vous, vous êtes rapides ! Arrivez au drapeau à damier avant elle, au signal doré !')],
+    thanks: [ANA('Battue ! La souris n\'en revient pas. Elle dit que c\'était de la triche… mais elle rigole.')],
+    talk: [[ANA('Je garde le pont-levis. Il ne se passe jamais rien. Sauf quand il se passe quelque chose.')], [ANA('Les gardes du château font leur ronde. Caressez-les, ils adorent ça. Mais chut, ils sont en service.')]],
   },
   ronron: {
     ask: [RON('Silence, silence ! L\'orchestre du château répète pour la grande fête.'), RON('Il me manque un carillonneur. Écoutez la mélodie des cloches, puis refaites-la dans le même ordre !')],
@@ -153,10 +153,10 @@ export const LINES = {
     thanks: [LUC('Six petites flammes qui dansent ! Le château est tout doré. Merci, les toutous.')],
     talk: [[LUC('Les candélabres du donjon s\'allument aussi d\'une patte. Et il y a une patte dorée qui les allume tous d\'un coup !')], [LUC('Un « Ouaf ! » bien fort, et pfff… un brasero s\'allume. Vous êtes magiques, les chiens.')]],
   },
-  barnabe: {
-    ask: [BAR('Chut… Les grenouilles sautent hors de l\'eau, juste au bord. Moi, je suis trop lent pour les attraper.'), BAR('Attrapez-en cinq au vol, au signal doré ! Et après, on les relâche, promis.')],
-    thanks: [BAR('Cinq grenouilles au vol ! Elles ont fait « croâ » de bonheur. Plouf, plouf, toutes retournées dans le lac.')],
-    talk: [[BAR('Pêcher, c\'est surtout attendre. Et faire la sieste. Surtout faire la sieste.')], [BAR('Sur l\'île du lac, il y a un kiosque. On dit qu\'un trésor y dort… et pas seulement la plume de la Capitaine.')]],
+  ernest: {
+    ask: [ERN('Chut… Les grenouilles sautent hors de l\'eau, juste au bord. Moi, je suis trop lent pour les attraper.'), ERN('Attrapez-en cinq au vol, au signal doré ! Et après, on les relâche, promis.')],
+    thanks: [ERN('Cinq grenouilles au vol ! Elles ont fait « croâ » de bonheur. Plouf, plouf, toutes retournées dans le lac.')],
+    talk: [[ERN('Pêcher, c\'est surtout attendre. Et faire la sieste. Surtout faire la sieste.')], [ERN('Sur l\'île du lac, il y a un kiosque. On dit qu\'un trésor y dort… et pas seulement la plume de la Capitaine.')]],
   },
   minet: {
     talk: [[MIN('Mmmh ? Qui me réveille ? Ah… des chiens. Bonjour, bonjour.'), MIN('Je suis Gros Minet. Je fais la sieste depuis… euh… quel jour on est ?')], [MIN('Les poufs, là, sont parfaits pour rebondir. Moi, je préfère m\'endormir dessus.')], [AIN('Tu dors encore ?'), MIN('Non, non, je réfléchis. Les yeux fermés. Très fort.')]],

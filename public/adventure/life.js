@@ -50,6 +50,7 @@ function P(geo, color, o) {
   const g = paint(geo, color);
   _m.compose(_v.set(o.x || 0, o.y || 0, o.z || 0), _q.setFromEuler(_e.set(o.rx || 0, o.ry || 0, o.rz || 0, 'YXZ')), _s.set(o.sx || o.s || 1, o.sy || o.s || 1, o.sz || o.s || 1));
   g.applyMatrix4(_m);
+  if (o.uvKeep) g.userData.uvKeep = true;   // (un tableau, une affiche : ses propres coordonnées de texture, pas « en boîte »)
   return g;
 }
 function merge(list) {
@@ -58,8 +59,20 @@ function merge(list) {
     let n = 0; for (const g of list) n += g.attributes.position.count;
     const a = new Float32Array(n * k); let o = 0;
     for (const g of list) { const at = g.attributes[name]; if (at) a.set(at.array, o); o += g.attributes.position.count * k; }
-    out.setAttribute(name, new THREE.BufferAttribute(a, k));
+    if (name !== 'uv') out.setAttribute(name, new THREE.BufferAttribute(a, k));
   }
+  // coordonnées de texture « en boîte » (1 unité = 1 m) : une matière de détail (grain, fourrure,
+  // bois…) peut ainsi habiller n'importe quel modèle peint (cfg.mats, mdl.mat)
+  const pos = out.attributes.position.array, nor = out.attributes.normal.array, nn = pos.length / 3, uv = new Float32Array(nn * 2);
+  for (let i = 0; i < nn; i++) {
+    const ax = Math.abs(nor[i * 3]), ay = Math.abs(nor[i * 3 + 1]), az = Math.abs(nor[i * 3 + 2]);
+    if (ay >= ax && ay >= az) { uv[i * 2] = pos[i * 3]; uv[i * 2 + 1] = pos[i * 3 + 2]; }
+    else if (ax >= az) { uv[i * 2] = pos[i * 3 + 2]; uv[i * 2 + 1] = pos[i * 3 + 1]; }
+    else { uv[i * 2] = pos[i * 3]; uv[i * 2 + 1] = pos[i * 3 + 1]; }
+  }
+  let o = 0;
+  for (const g of list) { if (g.userData.uvKeep && g.attributes.uv) uv.set(g.attributes.uv.array, o * 2); o += g.attributes.position.count; }
+  out.setAttribute('uv', new THREE.BufferAttribute(uv, 2));
   out.computeBoundingSphere();
   return out;
 }
@@ -328,6 +341,8 @@ const VILLAGER = {
     return merge([P(sph(0.25, 12, 8), 0xd8dce4, { y: 0.24, sy: 1.12 }), P(box(0.34, 0.05, 0.1), 0x2a2a30, { y: 0.27, z: 0.22 }), P(box(0.3, 0.035, 0.1), 0x2a2a30, { y: 0.19, z: 0.22 }),
       P(cyl(0.04, 0.06, 0.12, 6), 0xffd23a, { y: 0.52 }), P(sph(0.12, 8, 6), 0xd83a3a, { y: 0.66, z: -0.08, sz: 1.8, sy: 0.8 })]);
   },
+  /** Câble d'une plate-forme suspendue (hauteur 1 : étiré à la demande). */
+  cable() { return merge([P(cyl(0.025, 0.025, 1, 4), 0x3a3a40, { y: 0.5 })]); },
 };
 
 // Objets
@@ -364,7 +379,7 @@ export const PROPS = {
     for (let i = 0; i < 5; i++) { const len = 0.55 + (i % 3) * 0.22 + i * 0.05; parts.push(P(cone(0.07, len, 5), [0x9ae0ff, 0xc8b8ff, 0x9affe0, 0xffe09a, 0xffb0d8][i], { x: -0.64 + i * 0.32, y: 2.22 - len / 2, rx: Math.PI })); }
     return { geo: merge(parts), h: 2.4, r: 0.4 };
   },
-  // --- le château (matières : tex = nom d'une matière fournie par le monde, cfg.materials) -------
+  // --- le château (matières : tex = nom d'une matière fournie par le monde, dans cfg.mats) --------
   /** Gros pouf moelleux : on rebondit dessus. */
   pouf() {
     const parts = [P(sph(1.3, 18, 8, 0, TAU, 0, Math.PI / 2), 0xffffff, { sy: 0.48 }), P(tor(1.24, 0.08, 6, 28), 0xffe6a0, { y: 0.06, rx: Math.PI / 2 }), P(sph(0.09), 0xffe6a0, { y: 0.63 })];
@@ -434,7 +449,7 @@ export const PROPS = {
     const fr = 0xffffff, frame = [];
     for (const [x, y, w, h] of [[0, 1.42, 1.3, 0.14], [0, 2.98, 1.3, 0.14], [-0.6, 2.2, 0.12, 1.6], [0.6, 2.2, 0.12, 1.6]]) frame.push(P(box(w, h, 0.12), fr, { x, y, z: 0.0 }));
     frame.push(P(sph(0.1, 8, 6), fr, { y: 3.1, z: 0.02 }));
-    const pic = [P(new THREE.PlaneGeometry(1.1, 1.45), 0xffffff, { y: 2.2, z: 0.02 })];
+    const pic = [P(new THREE.PlaneGeometry(1.1, 1.45), 0xffffff, { y: 2.2, z: 0.02, uvKeep: true })];
     return { geo: mergeGroups([frame, pic]), h: 3.1, r: 0.3, tex: ['gold', 'portrait'] };
   },
   pupil() { return { geo: merge([P(sph(1, 8, 6), 0x141414, { sz: 0.3 })]), h: 0.1, r: 0.05 }; },
@@ -484,10 +499,127 @@ export const PROPS = {
   },
 };
 
+// ---------------------------------------------------------------------------
+// Objets « détaillés » (au choix d'une palette : props: { snowman: { model: 'snowmanHD' } }) :
+// silhouettes plus riches, faites pour une matière « riche » (cfg.propMat, voir snowart.js) qui
+// reconnaît la neige, la glace, le bois, l'or et le charbon d'après la couleur des sommets.
+// ---------------------------------------------------------------------------
+/** Sphère (ou autre géométrie indexée) cabossée : neige tassée à la main, congère, rocher. */
+function lump(geo, amt, freq, seed) {
+  const p = geo.attributes.position, s = seed || 1;
+  for (let i = 0; i < p.count; i++) {
+    const x = p.getX(i), y = p.getY(i), z = p.getZ(i), l = Math.hypot(x, y, z) || 1;
+    const n = Math.sin(x * freq + s) * Math.sin(y * freq * 1.3 + s * 2.1) * Math.sin(z * freq * 0.9 + s * 0.7) + 0.5 * Math.sin((x + z) * freq * 2.3 + s * 3.3) * Math.sin(y * freq * 2.1);
+    const k = 1 + n * amt;
+    p.setXYZ(i, x * k, y * k, z * k);
+    void l;
+  }
+  geo.computeVertexNormals();
+  return geo;
+}
+const SNOW_C = 0xf6f9ff, COAL = 0x16161a, TWIG = 0x5a3a24;
+/** Bras de bonhomme : une branche et deux brindilles (origine : l'épaule, vers +x). */
+function stickArm(side, len) {
+  const out = [], s = side;
+  out.push(P(cyl(0.022, 0.034, len, 5), TWIG, { x: s * len * 0.48, y: len * 0.18, rz: -s * 1.2 }));
+  out.push(P(cyl(0.012, 0.018, len * 0.32, 4), TWIG, { x: s * len * 0.8, y: len * 0.42, rz: -s * 0.5 }));
+  out.push(P(cyl(0.012, 0.018, len * 0.28, 4), TWIG, { x: s * len * 0.9, y: len * 0.22, rz: -s * 1.9 }));
+  return out;
+}
+/** Bonhomme de neige soigné : boules tassées, charbons, carotte striée, écharpe à franges. */
+function snowmanParts(r1, r2, r3, o) {
+  o = o || {};
+  const y1 = r1 * 0.86, y2 = y1 + r1 * 0.78 + r2 * 0.78, y3 = y2 + r2 * 0.72 + r3 * 0.8;
+  const parts = [P(lump(sph(r1, 22, 16), 0.035, 7, 1), SNOW_C, { y: y1, sy: 0.92 }), P(lump(sph(r2, 20, 14), 0.035, 8, 2), SNOW_C, { y: y2, sy: 0.95 }),
+    P(lump(sph(r3, 18, 12), 0.03, 9, 3), SNOW_C, { y: y3 }),
+    // collerette de neige au pied
+    P(lump(tor(r1 * 0.85, r1 * 0.22, 6, 18), 0.12, 6, 4), 0xeef4ff, { y: 0.06, rx: Math.PI / 2, sz: 0.6 })];
+  // yeux, sourire, boutons (charbon)
+  for (const sx of [-1, 1]) parts.push(P(sph(r3 * 0.12, 8, 6), COAL, { x: sx * r3 * 0.36, y: y3 + r3 * 0.22, z: r3 * 0.88, sz: 0.6 }));
+  for (let i = 0; i < 5; i++) { const a = -0.55 + i * 0.275; parts.push(P(sph(r3 * 0.065, 6, 4), COAL, { x: Math.sin(a) * r3 * 0.55, y: y3 - r3 * 0.32 - Math.cos(a * 1.2) * r3 * 0.08 + r3 * 0.08, z: r3 * 0.86 })); }
+  for (let i = 0; i < 3; i++) parts.push(P(sph(r2 * 0.1, 8, 6), COAL, { y: y2 + r2 * (0.4 - i * 0.38), z: r2 * (0.95 - Math.abs(0.4 - i * 0.38) * 0.2), sz: 0.6 }));
+  // carotte (un peu tombante), avec ses stries
+  const nose = cone(r3 * 0.17, r3 * 1.15, 10);
+  parts.push(P(nose, 0xf07a1a, { y: y3 - r3 * 0.02, z: r3 * 1.45, rx: Math.PI / 2 + 0.12 }));
+  for (let i = 0; i < 3; i++) parts.push(P(tor(r3 * (0.14 - i * 0.035), r3 * 0.012, 3, 10), 0xc8540e, { y: y3 - r3 * 0.02 - i * r3 * 0.03, z: r3 * (1.05 + i * 0.22), rx: 0.12 }));
+  // écharpe (deux tons) et son pan à franges
+  if (o.scarf !== false) {
+    const sc = o.scarf || 0xd8303a, sc2 = o.scarf2 || 0xf4ece0;
+    parts.push(P(tor(r3 * 0.98, r3 * 0.24, 8, 22), sc, { y: y2 + r2 * 0.68, rx: Math.PI / 2, sz: 0.85 }));
+    for (let i = 0; i < 4; i++) parts.push(P(tor(r3 * 0.99, r3 * 0.07, 4, 22, Math.PI * 0.35), sc2, { y: y2 + r2 * 0.68, rx: Math.PI / 2, rz: i * 1.6 }));
+    parts.push(P(box(r3 * 0.42, r2 * 0.95, r3 * 0.12), sc, { x: r3 * 0.45, y: y2 + r2 * 0.25, z: r2 * 0.82, rz: 0.15, rx: -0.25 }));
+    for (let i = 0; i < 2; i++) parts.push(P(box(r3 * 0.43, r3 * 0.09, r3 * 0.13), sc2, { x: r3 * 0.43 - 0.0, y: y2 + r2 * (0.05 + i * 0.25), z: r2 * 0.84 - i * 0.02, rz: 0.15, rx: -0.25 }));
+  }
+  if (o.arms !== false) for (const s of [-1, 1]) for (const g of stickArm(s, r2 * 1.9)) { g.translate(s * r2 * 0.85, y2 + r2 * 0.15, 0); parts.push(g); }
+  return { parts, top: y3 + r3 };
+}
+Object.assign(PROPS, {
+  snowmanHD() { const s = snowmanParts(0.55, 0.4, 0.29); return { geo: merge(s.parts), h: 2.0, r: 0.6, shadow: true }; },
+  pileHD() {
+    const parts = [];
+    for (const [x, z, r, sy] of [[0, 0, 0.62, 0.72], [0.48, 0.22, 0.42, 0.65], [-0.4, -0.3, 0.44, 0.75], [0.15, -0.45, 0.3, 0.6], [-0.35, 0.38, 0.28, 0.6]]) parts.push(P(lump(sph(r, 14, 10), 0.09, 6 + r * 4, x * 9 + z), SNOW_C, { x, y: 0.02, z, sy }));
+    for (const [x, y, z, s, rz] of [[0.2, 0.5, 0.12, 0.09, 0.3], [-0.28, 0.42, 0.22, 0.07, -0.4], [0.5, 0.28, -0.1, 0.06, 0.8]]) parts.push(P(new THREE.OctahedronGeometry(s), 0xbfeaff, { x, y, z, sy: 1.8, rz }));
+    return { geo: merge(parts), h: 0.7, r: 0.8 };
+  },
+  iceblockHD() {
+    const parts = [];
+    const b = new THREE.BoxGeometry(0.98, 0.86, 0.98, 2, 2, 2), p = b.attributes.position;
+    for (let i = 0; i < p.count; i++) { const x = p.getX(i), y = p.getY(i), z = p.getZ(i), k = Math.sin(x * 11 + z * 7) * 0.035 + Math.sin(y * 13 + x * 5) * 0.03; p.setXYZ(i, x * (1 + k), y + k * 0.5, z * (1 - k)); }
+    const bn = b.toNonIndexed(); bn.computeVertexNormals();
+    parts.push(P(bn, 0x86c8ec, { y: 0.43, ry: 0.4 }));
+    // éclats de glace appuyés contre le bloc
+    for (const [x, z, h, rz, rx] of [[0.55, 0.2, 0.7, -0.35, 0.1], [-0.45, 0.45, 0.5, 0.3, -0.2], [0.2, -0.58, 0.42, 0.1, 0.35]]) parts.push(P(cyl(0.001, 0.13, h, 6).toNonIndexed(), 0xa8dcf6, { x, y: h * 0.42, z, rz, rx }));
+    // chapeau de neige qui déborde, et ses petits glaçons
+    parts.push(P(lump(sph(0.66, 16, 8, 0, TAU, 0, Math.PI / 2), 0.08, 7, 5), SNOW_C, { y: 0.84, sy: 0.32, ry: 0.4 }));
+    for (let i = 0; i < 7; i++) { const a = i / 7 * TAU + 0.3, l = 0.1 + ((i * 37) % 10) / 40; parts.push(P(cone(0.03, l, 5), 0xb8e6fa, { x: Math.cos(a) * 0.6, y: 0.82 - l / 2, z: Math.sin(a) * 0.6, rx: Math.PI })); }
+    return { geo: merge(parts), h: 1.0, r: 0.7, shadow: true };
+  },
+  driftHD(c) {
+    const top = c.top || 0x8ad8ff;
+    const parts = [P(lump(sph(1.4, 28, 10, 0, TAU, 0, Math.PI / 2), 0.06, 3.5, 7), SNOW_C, { sy: 0.36 }),
+      P(tor(0.85, 0.1, 8, 32), top, { y: 0.42, rx: Math.PI / 2 }), P(cyl(0.78, 0.8, 0.05, 28), c.mid || 0xbfeaff, { y: 0.46 }),
+      P(tor(0.42, 0.05, 6, 24), top, { y: 0.49, rx: Math.PI / 2 })];
+    for (let i = 0; i < 7; i++) { const a = i / 7 * TAU; parts.push(P(sph(0.075, 10, 8), c.dots || 0xff7ab0, { x: Math.cos(a) * 1.12, y: 0.27, z: Math.sin(a) * 1.12 })); }
+    // mottes de neige autour
+    for (let i = 0; i < 4; i++) { const a = i * 1.7 + 0.5; parts.push(P(lump(sph(0.22, 8, 6), 0.15, 9, i), SNOW_C, { x: Math.cos(a) * 1.5, y: 0.02, z: Math.sin(a) * 1.5, sy: 0.55 })); }
+    return { geo: merge(parts), h: 0.5, r: 1.3 };
+  },
+  chestHD() {
+    const W0 = 0x8a5230, W1 = 0x7a4426, G = 0xe8b83a, IRON = 0x2e2c30;
+    const parts = [P(box(0.94, 0.5, 0.64), 0x3a2414, { y: 0.28 })];
+    for (let i = 0; i < 3; i++) for (const sz of [-1, 1]) parts.push(P(box(1.0, 0.16, 0.05), i % 2 ? W1 : W0, { y: 0.1 + i * 0.17, z: sz * 0.33 }));
+    for (let i = 0; i < 3; i++) for (const sx of [-1, 1]) parts.push(P(box(0.05, 0.16, 0.66), i % 2 ? W0 : W1, { x: sx * 0.49, y: 0.1 + i * 0.17 }));
+    for (const sx of [-1, 1]) for (const sz of [-1, 1]) parts.push(P(box(0.08, 0.56, 0.08), IRON, { x: sx * 0.49, y: 0.28, z: sz * 0.33 }));
+    for (const sx of [-0.3, 0.3]) parts.push(P(box(0.07, 0.56, 0.7), G, { x: sx, y: 0.28 }));
+    parts.push(P(box(0.18, 0.2, 0.05), G, { y: 0.44, z: 0.36 }), P(cyl(0.025, 0.025, 0.02, 8), COAL, { y: 0.45, z: 0.39, rx: Math.PI / 2 }));
+    return { geo: merge(parts), h: 0.6, r: 0.6, shadow: true };
+  },
+  lidHD() {
+    const W0 = 0x8a5230, W1 = 0x7a4426, G = 0xe8b83a;
+    const parts = [];
+    for (let i = 0; i < 5; i++) { const a0 = i / 5 * Math.PI; parts.push(P(cyl(0.35, 0.35, 0.98, 3, 1, false, a0, Math.PI / 5), i % 2 ? W1 : W0, { y: 0, z: 0.35, rz: Math.PI / 2 })); }
+    for (const sx of [-0.3, 0.3]) parts.push(P(tor(0.355, 0.035, 4, 12, Math.PI), G, { x: sx, y: 0, z: 0.35, ry: Math.PI / 2 }));
+    parts.push(P(box(1.0, 0.03, 0.72), 0x3a2414, { y: 0.0, z: 0.35 }));
+    // un peu de neige sur le dessus
+    parts.push(P(lump(sph(0.3, 12, 6, 0, TAU, 0, Math.PI / 2), 0.1, 9, 2), SNOW_C, { y: 0.3, z: 0.35, sx: 1.4, sy: 0.25 }));
+    return { geo: merge(parts), h: 0.4, r: 0.6 };
+  },
+  lanternHD() {
+    const post = new THREE.LatheGeometry([[0.13, 0], [0.13, 0.1], [0.08, 0.18], [0.05, 0.3], [0.045, 2.05], [0.08, 2.1], [0.08, 2.15], [0, 2.16]].map(([x, y]) => new THREE.Vector2(x, y)), 8);
+    const parts = [P(post, 0x23262c), P(box(0.34, 0.4, 0.34), 0xffe0a0, { y: 2.35 })];
+    for (const [dx, dz] of [[1, 1], [1, -1], [-1, 1], [-1, -1]]) parts.push(P(box(0.03, 0.44, 0.03), 0x23262c, { x: dx * 0.17, y: 2.35, z: dz * 0.17 }));
+    parts.push(P(cone(0.3, 0.26, 4), 0x23262c, { y: 2.68, ry: Math.PI / 4 }), P(cone(0.28, 0.13, 4), SNOW_C, { y: 2.8, ry: Math.PI / 4 }), P(sph(0.04), 0xd8b040, { y: 2.88 }));
+    return { geo: merge(parts), h: 2.9, r: 0.2 };
+  },
+});
+VILLAGER.snowmanHD = () => merge(snowmanParts(0.6, 0.44, 0.32, { arms: false }).parts);
 // les modèles du kit (parc, jardins, mares…) s'ajoutent à ceux de la neige
 for (const k in KIT.MODELS) if (!MODELS[k]) MODELS[k] = KIT.MODELS[k];
 for (const k in KIT.PROPS) if (!PROPS[k]) PROPS[k] = KIT.PROPS[k];
 for (const k in KIT.TOOLS) if (!VILLAGER[k]) VILLAGER[k] = KIT.TOOLS[k];
+/** Le petit kit de modelage de life.js, pour les mondes qui ajoutent leurs propres modèles (citylife.js). */
+export const SHAPES = { P, merge, sph, cyl, cone, box, tor, eyes, wingGeo, paint, TAU };
+export { VILLAGER };
 
 function shadowTexture() {
   const c = document.createElement('canvas'); c.width = c.height = 64;
@@ -554,14 +686,17 @@ export function buildLife(game, cfg) {
   const litMat = cfg.grain ? KIT.grainMaterial() : new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.82 });
   const unlitMat = new THREE.MeshBasicMaterial({ vertexColors: true });
   const wingMat = cfg.grain ? KIT.grainMaterial({ side: true }) : new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.85, side: THREE.DoubleSide });
+  // matières de détail facultatives (un monde peut habiller ses bêtes, habitants, objets) :
+  // cfg.mats = { fauna, wing, props, fur, cloth, tool, platform }
+  const mats = cfg.mats || {};
+  // cfg.propMat : matière des objets (et des bonshommes habitants), par ex. la matière « riche » de snowart.js
+  const propMat = cfg.propMat || mats.props || litMat;
   const glowMat = new THREE.MeshBasicMaterial({ map: M.glowTexture(), transparent: true, depthWrite: false, blending: THREE.AdditiveBlending });
   const shadowMat = new THREE.MeshBasicMaterial({ map: shadowTexture(), color: 0x0a1a28, transparent: true, opacity: 0.26, depthWrite: false });
   const layers = new Map();
   const layer = (name, geo, mat, max, tint) => { if (!layers.has(name)) layers.set(name, new Layer(sc, geo, mat, max, tint, cfg.cull)); return layers.get(name); };
-  // matières du monde (bois, métal, feuillage, fourrure…) : cfg.materials[nom] ; sinon la peinture
-  const MATS = cfg.materials || {};
-  const matFor = (tex, dflt) => (Array.isArray(tex) ? tex.map(t => MATS[t] || dflt) : (tex && MATS[tex]) || dflt);
-  const furMat = MATS.fur || litMat;
+  // (objets à vraie matière : tex = nom d'une matière de cfg.mats — bois, métal, feuillage…)
+  const matFor = (tex, dflt) => (Array.isArray(tex) ? tex.map(t => mats[t] || dflt) : (tex && mats[tex]) || dflt);
   const quad = new THREE.PlaneGeometry(1, 1);
   const glowL = layer('glow', quad, glowMat, 260, true);
   const shadowGeo = new THREE.PlaneGeometry(1, 1); shadowGeo.rotateX(-Math.PI / 2);
@@ -579,7 +714,7 @@ export function buildLife(game, cfg) {
   for (const k in pal.fauna) {
     const f = pal.fauna[k], mdl = MODELS[f.model](f.colors || {});
     const n = countKind(plan.fauna, k) + (defiCritters[k] || 0) + (f.extra || 0);
-    faunaModel[k] = { f, mdl, body: layer('f_' + k, mdl.body, mdl.unlit ? unlitMat : f.shiny ? litMat : furMat, n + 2, !!mdl.tint), flap: mdl.flap ? layer('w_' + k, mdl.flap, MATS.wing || wingMat, (n + 2) * 2, false) : null };
+    faunaModel[k] = { f, mdl, body: layer('f_' + k, mdl.body, mdl.mat || (mdl.unlit ? unlitMat : f.shiny ? litMat : (mats.fauna || litMat)), n + 2, !!mdl.tint), flap: mdl.flap ? layer('w_' + k, mdl.flap, mdl.flapMat || mats.wing || wingMat, (n + 2) * 2, false) : null };
   }
   const propModel = {};
   const propCount = {};
@@ -601,8 +736,9 @@ export function buildLife(game, cfg) {
     const pk = pal.props[k] || {};
     const mdl = PROPS[pk.model || k](pk.colors || {});
     const n = (propCount[k] || 0) + (extraProp[k] || 0);
-    propModel[k] = { pk, mdl, l: layer('p_' + k, mdl.geo, mdl.mat || matFor(pk.tex || mdl.tex, mdl.unlit ? unlitMat : litMat), n + 2, k === 'hat' || !!pk.tint) };
+    propModel[k] = { pk, mdl, l: layer('p_' + k, mdl.geo, mdl.mat || matFor(pk.tex || mdl.tex, mdl.unlit ? unlitMat : propMat), n + 2, k === 'hat' || !!pk.tint) };
     if (mdl.shadow) propModel[k].l.mesh.castShadow = true;
+    if (mdl.depth) propModel[k].l.mesh.customDepthMaterial = mdl.depth;   // (feuillage découpé : ombre en feuilles)
   }
   // chapeaux des bonshommes (teintés)
   const hatL = layer('p_hat', VILLAGER.hat(), litMat, (propCount.snowman || 0) + 6, true);
@@ -613,16 +749,19 @@ export function buildLife(game, cfg) {
   const pupilL = eyesN ? layer('p_pupil', PROPS.pupil().geo, litMat, eyesN * 2 + 2, false) : null;
   // habitants
   const nVill = Math.max(24, plan.villagers.length + 4);
-  const vill = { body: layer('v_dog', VILLAGER.dog(), litMat, nVill, true), cloth: layer('v_cloth', VILLAGER.dogCloth(), litMat, nVill, true), arm: layer('v_arm', VILLAGER.arm(), litMat, nVill * 2, true),
-    snow: layer('v_snow', VILLAGER.snowman(), litMat, 3, false), snowArm: layer('v_snowarm', VILLAGER.snowArm(), litMat, 6, false), yeti: layer('v_yeti', VILLAGER.yeti(), litMat, 2, false), yetiArm: layer('v_yetiarm', VILLAGER.yetiArm(), litMat, 4, false) };
+  const vill = { body: layer('v_dog', VILLAGER.dog(), mats.fur || litMat, nVill, true), cloth: layer('v_cloth', VILLAGER.dogCloth(), mats.cloth || litMat, nVill, true), arm: layer('v_arm', VILLAGER.arm(), mats.cloth || litMat, nVill * 2, true),
+    snow: layer('v_snow', ((cfg.villagerModels && VILLAGER[cfg.villagerModels.snowman]) || VILLAGER.snowman)(), propMat, 3, false), snowArm: layer('v_snowarm', VILLAGER.snowArm(), propMat, 6, false), yeti: layer('v_yeti', VILLAGER.yeti(), litMat, 2, false), yetiArm: layer('v_yetiarm', VILLAGER.yetiArm(), litMat, 4, false) };
+  const tools = {};
+  for (const v of plan.villagers) if (v.tool && !tools[v.tool]) tools[v.tool] = layer('t_' + v.tool, VILLAGER[v.tool](), mats.tool || litMat, plan.villagers.filter(q => q.tool === v.tool).length + 1, false);
+  // plates-formes (nacelle du laveur de carreaux…) : le plateau, et ses câbles étirés jusqu'au toit
+  const platforms = {};
+  for (const v of plan.villagers) if (v.platform && !platforms[v.platform]) platforms[v.platform] = { base: layer('pl_' + v.platform, VILLAGER[v.platform](), mats.platform || litMat, 4, false), cable: layer('pc_' + v.platform, VILLAGER.cable(), mats.platform || litMat, 8, false) };
   const nCats = plan.villagers.filter(v => v.body === 'cat' && !v.ghost).length;
-  if (nCats) { vill.cat = layer('v_cat', VILLAGER.cat(), furMat, nCats + 1, true); vill.catCloth = layer('v_catcloth', VILLAGER.catCloth(), MATS.cloth || litMat, nCats + 1, true); }
+  if (nCats) { vill.cat = layer('v_cat', VILLAGER.cat(), mats.fur || litMat, nCats + 1, true); vill.catCloth = layer('v_catcloth', VILLAGER.catCloth(), mats.cloth || litMat, nCats + 1, true); }
   if (plan.villagers.some(v => v.ghost)) {
     const gm = new THREE.MeshStandardMaterial({ vertexColors: true, transparent: true, opacity: 0.55, roughness: 0.6, emissive: 0x9ac8ff, emissiveIntensity: 0.45, depthWrite: false });
     vill.ghost = layer('v_ghost', VILLAGER.cat(), gm, 3, false);
   }
-  const tools = {};
-  for (const v of plan.villagers) if (v.tool && !tools[v.tool]) tools[v.tool] = layer('t_' + v.tool, VILLAGER[v.tool](), litMat, plan.villagers.filter(q => q.tool === v.tool).length + 1, false);
   const caps = {};
   for (const v of plan.villagers) if (v.cap && !caps[v.cap]) caps[v.cap] = layer('c_' + v.cap, VILLAGER[v.cap](), litMat, plan.villagers.filter(q => q.cap === v.cap).length + 1, false);
   const jballL = plan.villagers.some(v => v.act === 'juggle') ? layer('v_jball', VILLAGER.jball(), litMat, 12, true) : null;
@@ -708,8 +847,8 @@ export function buildLife(game, cfg) {
     else if (kind === 'coo') { s.tone(520, 0.18, { type: 'sine', to: 440, vol: 0.05 }); s.tone(480, 0.25, { type: 'sine', to: 420, vol: 0.04, delay: 0.22 }); }
     else if (kind === 'woof') { s.tone(330, 0.09, { type: 'sawtooth', to: 220, vol: 0.06 }); s.tone(320, 0.1, { type: 'sawtooth', to: 210, vol: 0.05, delay: 0.16 }); }
     else if (kind === 'sniff') s.noise(0.12, { filter: 'bandpass', freq: 2200, vol: 0.05 });
+    else if (kind === 'meow') { s.tone(620, 0.18, { type: 'triangle', to: 980, vol: 0.05 }); s.tone(980, 0.22, { type: 'triangle', to: 560, vol: 0.045, delay: 0.17 }); }
     else if (kind === 'clank') { s.note('bell', 55 + Math.floor(R() * 4), 0.09, 0, 0.5); s.noise(0.12, { filter: 'bandpass', freq: 3200, freqTo: 1800, vol: 0.12 }); }
-    else if (kind === 'meow') { if (game.sfx.meow) game.sfx.meow(1.2 + R() * 0.4); else s.tone(700, 0.25, { type: 'triangle', to: 500, vol: 0.06 }); }
     else if (kind === 'flutter') s.noise(0.25, { filter: 'bandpass', freq: 900, freqTo: 1800, vol: 0.06 });
   }
   /** Rejoue un effet (chez l'hôte tout de suite, chez les amis à la réception). */
@@ -728,7 +867,7 @@ export function buildLife(game, cfg) {
     else if (type === 'wave') { const v = villagers[a]; if (v) v.wave = game.t; }
     else if (type === 'chirp') chirp(CHIRPS[a] || 'ting');
   }
-  const CHIRPS = ['chirp', 'squeak', 'hoot', 'honk', 'whistle', 'grunt', 'ting', 'splash', 'yip', 'quack', 'peep', 'croak', 'coo', 'woof', 'sniff', 'clank', 'meow', 'flutter'];
+  const CHIRPS = ['chirp', 'squeak', 'hoot', 'honk', 'whistle', 'grunt', 'ting', 'splash', 'yip', 'quack', 'peep', 'croak', 'coo', 'woof', 'sniff', 'meow', 'clank', 'flutter'];
 
   // --- paillettes (récompenses qui tombent, traînées) -------------------------------------------
   function gone(id) { const g = sv().gone[id]; if (!g) return false; if (Date.now() - g > REGROW_MS) { delete sv().gone[id]; return false; } return true; }
@@ -865,9 +1004,11 @@ export function buildLife(game, cfg) {
         const ox = c.x - def.x, oz = c.z - def.z, od = Math.hypot(ox, oz);
         if (od > (def.leash || 16) * 0.75) { const tx = -oz / od, tz = ox / od, sgn = tx * ax + tz * az >= 0 ? 1 : -1; ax = ax * 0.3 + tx * sgn - ox / od * 0.6; az = az * 0.3 + tz * sgn - oz / od * 0.6; const l2 = Math.hypot(ax, az) || 1; ax /= l2; az /= l2; }
         const nx = c.x + ax * v * dt, nz = c.z + az * v * dt;
-        if (!(L.blockedAt && L.blockedAt(nx, nz))) { c.x = nx; c.z = nz; }
-        c.y = ground(c.x, c.z); c.yaw = lerpAngle(c.yaw, Math.atan2(ax, az), Math.min(1, dt * 8)); c.a += dt * (v > 3 ? 14 : 6);
-        if (bd < (attacking(best) ? 2.2 : 1.5) && Math.abs(best.pos.y - c.y) < 2) {
+        if (!(L.blockedAt && L.blockedAt(nx, nz)) && !isWater(nx, nz)) { c.x = nx; c.z = nz; }
+        // (en vol, il pique de temps en temps vers le sol : c'est le moment de sauter !)
+        c.y = ground(c.x, c.z) + (def.air ? def.air * (0.55 + 0.45 * Math.sin(game.t * 1.4)) : 0); c.yaw = lerpAngle(c.yaw, Math.atan2(ax, az), Math.min(1, dt * 8)); c.a += dt * (v > 3 ? 14 : 6);
+        const reach = def.air ? best.pos.y + 1.9 > c.y : Math.abs(best.pos.y - c.y) < 2;
+        if (bd < (attacking(best) ? 2.2 : 1.5) + (def.air ? 0.4 : 0) && reach) {
           c.tagged = true;
           game.burst(c.x, c.y + 1, c.z, 16, 0xffffff, 4, 0.6); game.sound('poof');
           if (T === 'tag') { game.bubble({ pos: new THREE.Vector3(c.x, c.y + 1.2, c.z), small: true }, 'Touché !'); game.localBanner(`Touché ! ${D.crit.filter(q => q.tagged).length}/${D.crit.length}`, '', 900); }
@@ -942,7 +1083,7 @@ export function buildLife(game, cfg) {
     const players = game.players;
     const barks = players.filter(barked);
     for (const P of players) {
-      if (P.ride) continue;
+      if (P.ride || P.kart) continue;
       const sp = Math.hypot(P.vel.x, P.vel.z);
       for (const q of pGrid.within(P.pos.x, P.pos.z, 4.5)) {
         const p = q.p, pk = pal.props[p.kind] || {}, act = pk.act, d = Math.hypot(P.pos.x - p.x, P.pos.z - p.z), dy = P.pos.y - p.y;
@@ -1050,8 +1191,9 @@ export function buildLife(game, cfg) {
     if (D && D.def.type === 'herd') for (const c of D.crit) if (c.st === 'stuck' && c.stuck === p.def.id) { c.st = 'lost'; c.y = ground(c.x, c.z); game.burst(c.x, c.y + 1.5, c.z, 16, 0xffd23a, 3, 0.6); if (P === game.me) game.localBanner('Il est tombé !', 'Ramassez-le', 1200); }
     if (act === 'shake' || act === 'hat') {
       event('wob', p.i);
-      game.burst(p.x, p.y + (propModel[p.kind].mdl.h || 2) * 0.8, p.z, act === 'hat' ? 10 : 22, pk.burst || 0xffffff, 3, 0.9);
+      game.burst(p.x, p.y + (propModel[p.kind].mdl.h || 2) * 0.8, p.z, act === 'hat' ? 10 : 22, pk.burst || pk.color || 0xffffff, 3, 0.9);
       snd(act === 'hat' ? 'boing' : 'poof');
+      if (pk.gush && !byBark) st.geyser = { x: p.x, z: p.z, t: game.t + pk.gush, y: p.y + (pk.gushY || 0.5) };
       const id = 'p:' + p.def.id;
       if (pk.drop && !gone(id)) { sv().gone[id] = Date.now(); dropSparkles(p.x, p.y + 1.5, p.z, pk.drop, 1); if (P === game.me && !st.shakeTold) { st.shakeTold = true; game.localBanner('Des paillettes !', 'Secouez les sapins, cassez les tas de neige : il y a des trésors partout', 2600); } }
     } else if (act === 'break') {
@@ -1069,7 +1211,7 @@ export function buildLife(game, cfg) {
       game.sound('switch');
       const t = pk.target || p.def.target;
       if (hooks.onSwitch) hooks.onSwitch(p.def, p.on, P);
-      if (p.def.effect === 'geyser') st.geyser = { x: p.def.gx || p.x, z: p.def.gz || p.z, t: game.t + 6 };
+      if (p.def.effect === 'geyser') st.geyser = { x: p.def.gx || p.x, z: p.def.gz || p.z, t: game.t + 6, y: p.def.gy };
       if (p.def.effect === 'bubbles') { st.bubbles = { x: p.def.gx || p.x, z: p.def.gz || p.z, y: p.y + 1.0, t: game.t + 10 }; if (P === game.me) game.localBanner('Des bulles !', 'Attrapez-les avant qu\'elles s\'envolent', 1600); }
       if (p.def.effect === 'lights') { for (const q of props) if ((q.kind === 'lantern' || (pal.props[q.kind] || {}).lamp) && q.def.group === (p.def.group || t)) { q.on = p.on; q.litT = game.t; } }
     } else if (act === 'light') {
@@ -1160,7 +1302,7 @@ export function buildLife(game, cfg) {
     const st2 = Math.min(d, v * dt), nx = c.x + dx / d * st2, nz = c.z + dz / d * st2;
     if ((L.blockedAt && L.blockedAt(nx, nz)) || (c.f.ai !== 'slide' && c.f.onIce === false && L.iceAt && L.iceAt(nx, nz)) || (c.f.water ? !isWater(nx, nz) : isWater(nx, nz))) { c.t = 0; return true; }
     c.x = nx; c.z = nz;
-    c.yaw = lerpAngle(c.yaw, Math.atan2(dx, dz), Math.min(1, dt * 10));
+    c.yaw = lerpAngle(c.yaw, Math.atan2(dx, dz) + (c.f.sideways ? Math.PI / 2 : 0), Math.min(1, dt * 10));
     return false;
   }
   function flee(c, P, dist, long) {
@@ -1266,6 +1408,22 @@ export function buildLife(game, cfg) {
         c.yaw = Math.atan2(c.vx, c.vz); c.pitch = -0.2; c.flapA = Math.sin(c.ph * 30) * 0.9;
         if (c.fly <= 0) { c.y = gy; c.fly = 0; }
       }
+      return;
+    }
+    if (ai === 'perch' && f.lounge) {
+      // chat sur un auvent, un balcon, un rebord : il somnole, suit des yeux, et bondit en feulant si on le surprend
+      c.y = c.def.perch; c.flapA = 0; c.pitch = 0;
+      const close = th.d < 2.6 && Math.abs(th.P.pos.y - c.y) < 2.5;
+      if ((barkNear || (close && c.s !== 'pet')) && game.t - (c.startT || -9) > 2.5) {
+        c.startT = game.t;
+        if (th.d < 25) chirp(f.sound || 'yip');
+        if (f.say && th.d < 16) game.bubble({ pos: new THREE.Vector3(c.x, c.y + (c.fm.mdl.h || 0.6) * c.scale + 0.2, c.z), small: true }, f.say[Math.floor(R() * f.say.length)]);
+      }
+      const s = game.t - (c.startT || -9);
+      c.hop = s < 0.6 ? Math.sin(s / 0.6 * Math.PI) * 0.7 : 0;
+      if (c.s === 'pet') { c.t -= dt; if (c.t <= 0) c.s = 'idle'; }
+      const look = th.d < 14 ? Math.atan2(th.P.pos.x - c.x, th.P.pos.z - c.z) : (c.def.rot || 0) + Math.sin(c.ph * 0.25) * 0.5;
+      c.yaw = lerpAngle(c.yaw, s < 0.6 ? look + Math.PI : look, dt * (s < 0.6 ? 10 : 1.5));
       return;
     }
     if (ai === 'perch') {
@@ -1395,7 +1553,8 @@ export function buildLife(game, cfg) {
       const p = loopAt(v.loop, v.s);
       v.x = p.x; v.z = p.z; v.y = ground(p.x, p.z);
       v.yaw = lerpAngle(v.yaw, held ? Math.atan2(me.pos.x - v.x, me.pos.z - v.z) : p.yaw, Math.min(1, dt * 5));
-      v.act = held ? 'idle' : (def.act || 'walk');
+      v.act = held ? (def.actStop || 'idle') : (def.act || 'walk');
+      shout(v, dd);
       if (def.pet) {
         const q = loopAt(v.loop, v.s - (def.pet.back || 1.8));
         if (v.petX === undefined || Math.hypot(q.x - v.petX, q.z - v.petZ) > 6) { v.petX = q.x; v.petZ = q.z; }
@@ -1420,9 +1579,16 @@ export function buildLife(game, cfg) {
         if (P === game.me) game.localBanner(def.name + ' s\'est réveillé !', 'Allez lui parler', 2200);
       }
     }
+    if (def.lift) {
+      // nacelle : on monte et on descend le long de la façade (pause en bas pour bavarder)
+      const Lf = def.lift, p = ((game.t + (Lf.phase || 0)) % Lf.period) / Lf.period;
+      const kk = p < 0.25 ? 0 : p < 0.45 ? (p - 0.25) / 0.2 : p < 0.8 ? 1 : 1 - (p - 0.8) / 0.2;
+      v.y = Lf.y0 + (Lf.y1 - Lf.y0) * (kk * kk * (3 - 2 * kk));
+    }
     v.act = def.sleepy && !v.awake ? 'sleep' : (def.actDone && def.defi && defiDone(def.defi) ? def.actDone : def.act) || 'idle';
     const home = def.yaw || 0;
-    v.yaw = lerpAngle(v.yaw, dd < 7 && v.awake && v.act !== 'shovel' && v.act !== 'fish' && !def.busy ? Math.atan2(me.pos.x - v.x, me.pos.z - v.z) : home, Math.min(1, dt * 3));
+    v.yaw = lerpAngle(v.yaw, dd < 7 && v.awake && Math.abs(me.pos.y - v.y) < 3 && v.act !== 'shovel' && v.act !== 'fish' && !def.busy ? Math.atan2(me.pos.x - v.x, me.pos.z - v.z) : home, Math.min(1, dt * 3));
+    shout(v, dd);
     // les musiciens jouent leur petit air quand on s'approche (doucement)
     if (def.tune && v.act !== 'play' && dd < (def.hear || 18) && (v.tuneT = (v.tuneT || 0) - dt) <= 0) {
       v.tuneK = ((v.tuneK || 0) + 1) % def.tune.length;
@@ -1433,6 +1599,13 @@ export function buildLife(game, cfg) {
     // ronrons et petites bulles de sommeil
     if (v.act === 'sleep' && dd < 30 && R() < dt * 0.8) game.spawnParticle(v.x + (R() - 0.5) * 0.4, v.y + 1.4, v.z, 0.2, 0.5, 0, 0xffffff, 0.14, 2.0, -0.05);
     void t;
+  }
+  /** Les marchands crient leur marchandise (une bulle de temps en temps, quand on passe). */
+  function shout(v, dd) {
+    const sh = v.def.shout; if (!sh || dd > 20) return;
+    if ((v.shoutT = (v.shoutT === undefined ? 1 + (v.i % 4) : v.shoutT) - 1 / 60) > 0) return;
+    v.shoutT = 6 + (v.i % 3) * 2; v.shoutAt = game.t;
+    game.bubble({ pos: new THREE.Vector3(v.x, v.y + 2.3 * (v.def.scale || 1), v.z), small: true }, sh[(v.shoutK = ((v.shoutK | 0) + 1)) % sh.length]);
   }
 
   // --- rendu ------------------------------------------------------------------------------------------
@@ -1463,7 +1636,7 @@ export function buildLife(game, cfg) {
   const furTint = new THREE.Color();
   function drawVillager(v, t) {
     const def = v.def, act = v.act, ph = v.ph;
-    let bob = 0, lean = 0, armR = 0, armL = 0, armRz = 0, toolOn = true, sy = 1;
+    let bob = 0, lean = 0, armR = 0, armL = 0, armRz = 0, armLz = 0, toolOn = true, sy = 1;
     const waving = game.t - v.wave < 1.6;
     if (act === 'shovel') { const k = Math.sin(ph * 3); lean = 0.25 + k * 0.15; armR = -0.6 + k * 0.5; armL = -0.6 + k * 0.5; bob = Math.abs(k) * 0.03; if (k > 0.97 && (v.puffT = (v.puffT || 0) - 1) < 0 && Math.hypot(game.me.pos.x - v.x, game.me.pos.z - v.z) < 40) { v.puffT = 1; game.spawnParticle(v.x + Math.sin(v.yaw + 0.8) * 1.2, v.y + 0.8, v.z + Math.cos(v.yaw + 0.8) * 1.2, Math.sin(v.yaw + 1.2) * 2, 3, Math.cos(v.yaw + 1.2) * 2, 0xffffff, 0.35, 0.8, 8); } }
     else if (act === 'fish') { armR = -1.1 + Math.sin(ph * 1.5) * 0.08; armL = -0.9; sy = 0.82; bob = -0.25; if ((v.fishT = (v.fishT === undefined ? 4 + (v.i % 5) : v.fishT) - 1 / 60) < 0) { v.fishT = 6 + (v.i % 4) * 2; v.wave = game.t; } }
@@ -1518,6 +1691,15 @@ export function buildLife(game, cfg) {
       const k = Math.abs(Math.sin(ph * 4.5)); bob = k * 0.55; armR = -2.0 * k; armL = -2.0 * k; sy = 1 - (1 - k) * 0.08;
       if (def.splash && k < 0.08 && game.t - (v.splT || 0) > 0.4 && Math.hypot(game.me.pos.x - v.x, game.me.pos.z - v.z) < 35) { v.splT = game.t; for (let i = 0; i < 8; i++) { const a = R() * TAU; game.spawnParticle(v.x + Math.cos(a) * 0.4, v.y + 0.1, v.z + Math.sin(a) * 0.4, Math.cos(a) * 2, 2.5 + R() * 2, Math.sin(a) * 2, 0xbfe4ff, 0.1, 0.6, 12); } }
     }
+    // gestes de la ville : peindre, servir, mimer, laver les vitres, marelle, accordéon, crier, arroser, lire
+    else if (act === 'paint') { armR = -1.25 + Math.sin(ph * 4.5) * 0.22; armRz = Math.sin(ph * 2.3) * 0.15; armL = -0.7; lean = 0.08; }
+    else if (act === 'serve') { armR = -1.55; armRz = 0.25; armL = Math.sin(ph * 2) * 0.15; }
+    else if (act === 'mime') { const k = ph * 1.6; armR = -1.5 + Math.sin(k) * 0.35; armL = -1.5 + Math.sin(k + 1.6) * 0.35; armRz = -0.25; armLz = -0.25; bob = Math.abs(Math.sin(k * 0.5)) * 0.04; lean = Math.sin(k * 0.5) * 0.08; }
+    else if (act === 'wipe') { armR = -2.0 + Math.sin(ph * 4) * 0.35; armRz = Math.cos(ph * 4) * 0.35; armL = -0.4; }
+    else if (act === 'hop') { const k = (ph * 1.1) % 3; bob = k < 2 ? Math.abs(Math.sin(k * Math.PI * 1.5)) * 0.32 : 0; armR = -0.6; armL = -0.6; armRz = 0.5; armLz = 0.5; sy = k < 2 && bob < 0.05 ? 0.92 : 1; }
+    else if (act === 'call') { const s = game.t - (v.shoutAt || -9); armR = s < 1.4 ? -2.1 : Math.sin(ph * 1.2) * 0.1; armRz = s < 1.4 ? -0.5 : 0; armL = -0.5; bob = s < 1.4 ? Math.abs(Math.sin(ph * 8)) * 0.05 : 0; }
+    else if (act === 'water') { armR = -0.95 + Math.sin(ph * 0.8) * 0.12; armL = -0.3; lean = 0.12; }
+    else if (act === 'read') { armR = -1.15; armL = -1.15; armRz = -0.3; armLz = -0.3; bob = Math.sin(ph * 1.5) * 0.01; }
     else { armR = Math.sin(ph * 1.2) * 0.08; armL = -Math.sin(ph * 1.2) * 0.08; bob = Math.sin(ph * 2) * 0.02; }
     if (waving) { armR = -2.7 + Math.sin(ph * 12) * 0.3; armRz = 0.3; }
     const sc = def.scale || 1;
@@ -1568,9 +1750,17 @@ export function buildLife(game, cfg) {
     }
     for (const sd of [1, -1]) {
       const a = sd > 0 ? armR : armL;
-      m5.copy(base).multiply(m6.compose(v4.set(sd * 0.36, 1.12, 0.04), q4.setFromEuler(e4.set(a, 0, sd * (0.18 + (sd > 0 ? armRz : 0)), 'ZYX')), one));
+      m5.copy(base).multiply(m6.compose(v4.set(sd * 0.36, 1.12, 0.04), q4.setFromEuler(e4.set(a, 0, sd * (0.18 + (sd > 0 ? armRz : armLz)), 'ZYX')), one));
       vill.arm.push(m5, C.setHex(def.cloth || 0xd84a3a));
       if (sd > 0 && toolOn && def.tool && tools[def.tool]) { m5.multiply(m6.makeTranslation(0, -0.5, 0.02)); tools[def.tool].push(m5); }
+    }
+    if (def.platform && platforms[def.platform]) {
+      // la nacelle sous ses pieds, et deux câbles jusqu'au toit
+      const pf = platforms[def.platform], top = def.lift ? def.lift.top : v.y + 6;
+      compose(v.x, v.y, v.z, def.yaw || 0, 0, 0, 1); pf.base.push(m4);
+      const hh = Math.max(0.1, top - v.y - 1.0);
+      for (const sd of [-1, 1]) { compose(v.x + Math.cos(def.yaw || 0) * sd * 1.1, v.y + 1.0, v.z - Math.sin(def.yaw || 0) * sd * 1.1, 0, 0, 0, 1, hh, 1); pf.cable.push(m4); }
+      return;
     }
     shadow(v.x, v.z, 0.5 * sc);
   }
@@ -1586,7 +1776,7 @@ export function buildLife(game, cfg) {
     const me = game.me; if (!me) return;
     camQ.copy(game.camera.quaternion);
     // le voisinage (recalculé quatre fois par seconde)
-    if ((st.nearT -= dt) <= 0) { st.nearT = 0.25; refreshNear(); }
+    if ((st.nearT -= dt) <= 0 || Math.abs(me.pos.x - (st.nearX || 0)) + Math.abs(me.pos.z - (st.nearZ || 0)) > 20) { st.nearT = 0.25; st.nearX = me.pos.x; st.nearZ = me.pos.z; refreshNear(); }
     // événements de l'hôte (chez un ami)
     for (const l of layers.values()) l.begin();
     const barks = game.players.filter((P) => { const prev = P._lifeBark || 0, b = P.barkT || 0; P._lifeBark = b; return b > prev + 0.3; });
@@ -1713,7 +1903,7 @@ export function buildLife(game, cfg) {
       shadow(def.x, def.z, 0.6);
     }
     // geyser de neige (interrupteur)
-    if (st.geyser && st.geyser.t > game.t && R() < dt * 40) { const g = st.geyser; game.spawnParticle(g.x + (R() - 0.5) * 0.6, ground(g.x, g.z) + 0.3, g.z + (R() - 0.5) * 0.6, (R() - 0.5) * 2.5, 9 + R() * 4, (R() - 0.5) * 2.5, R() < 0.3 ? 0xbfeaff : 0xffffff, 0.35, 1.6, 9); }
+    if (st.geyser && st.geyser.t > game.t && R() < dt * 40) { const g = st.geyser; game.spawnParticle(g.x + (R() - 0.5) * 0.6, g.y !== undefined ? g.y : ground(g.x, g.z) + 0.3, g.z + (R() - 0.5) * 0.6, (R() - 0.5) * 2.5, 9 + R() * 4, (R() - 0.5) * 2.5, R() < 0.3 ? 0xbfeaff : 0xffffff, 0.35, 1.6, 9); }
     // machine à bulles en marche
     if (st.bubbles && st.bubbles.t > game.t && R() < dt * (lite ? 5 : 9)) { const b = st.bubbles; addFloat(b.x + (R() - 0.5) * 0.4, b.y, b.z + (R() - 0.5) * 0.4, (R() - 0.5) * 2.4, (R() - 0.5) * 2.4); }
     // bulles de savon
@@ -1767,9 +1957,9 @@ export function buildLife(game, cfg) {
     if (T === 'race' || T === 'chase' || (T === 'herd' && !def.item)) {
       const fm = faunaModel[def.critter]; if (!fm) return;
       for (const c of D.crit) {
-        const hop = fm.f.hopper !== false ? Math.abs(Math.sin(c.a)) * 0.35 : 0;
-        drawCreature(fm, c.x, c.y + hop, c.z, c.yaw, fm.f.ai === 'slide' && T === 'race' ? 1.35 : 0, 0, (fm.f.scale || 1) * (T === 'chase' ? 1.1 : 1), 1, 0, fm.mdl.tint ? C.setHex(c.tint || 0xe8c49a) : undefined);
-        shadow(c.x, c.z, fm.mdl.r);
+        const hop = fm.f.hopper !== false && !def.air ? Math.abs(Math.sin(c.a)) * 0.35 : 0;
+        drawCreature(fm, c.x, c.y + hop, c.z, c.yaw, fm.f.ai === 'slide' && T === 'race' ? 1.35 : 0, 0, (fm.f.scale || 1) * (T === 'chase' ? 1.1 : 1), 1, def.air ? Math.sin(c.a * 1.6) * 0.9 : 0, fm.mdl.tint ? C.setHex(c.tint || 0xe8c49a) : undefined);
+        shadow(c.x, c.z, fm.mdl.r * (def.air ? 1.6 : 1));
         if (T === 'herd' && c.st === 'lost') glow(c.x, c.y + 1.3, c.z, 1.4, 0xffd23a, 0.6 + Math.sin(t * 6) * 0.3);
         if (T === 'chase') glow(c.x, c.y + 1.2, c.z, 1.2, 0x40c060, 0.6);
       }

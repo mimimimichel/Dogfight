@@ -12,6 +12,7 @@ import { L } from './current.js';
 import * as M from './models.js';
 import * as W from './world.js';
 import * as RT from './realtex.js';
+import * as FOL from './foliage.js';
 import * as N from './npcs.js';
 import { buildCaptain } from './forest.js';
 import { buildCitizen } from './citykit.js';
@@ -538,8 +539,10 @@ export function buildCastle(game) {
     paint.push({ geo: new THREE.CylinderGeometry(0.05, 0.05, plen, 5), x: PL.x + sx * (PL.w / 2 + 0.1), y: PL.top + 1.0, z: (PL.z0 + PL.z1) / 2, rx: Math.PI / 2, color: 0xe8d8b0 });
     for (const z of [PL.z0 - 0.2, (PL.z0 + PL.z1) / 2, PL.z1 + 0.2]) wood.push({ geo: boxGeo(0.14, 1.1, 0.14, 1), x: PL.x + sx * (PL.w / 2 + 0.1), y: PL.top + 0.5, z });
   }
-  // buissons ronds du jardin
+  // buissons ronds du jardin (réaliste : touffes de vraies feuilles, foliage.js)
+  const CLc = real ? FOL.clump('leaf', lite, 6, 1.2) : null, clumps = [];
   for (const [x, z, r] of [[-19.5, -37.5, 1.2], [19.5, -37.5, 1.1], [-19.6, -49.4, 1.3], [19.6, -49.6, 1.2], [-8, -50, 0.9], [8, -50.2, 1.0]]) {
+    if (CLc) { clumps.push([x, FL + r * 0.75, z, r * 1.05], [x + r * 0.5, FL + r * 0.5, z + 0.3, r * 0.72]); continue; }
     paint.push({ geo: new THREE.IcosahedronGeometry(r, 1), x, y: FL + r * 0.7, z, color: 0x5aa83c });
     paint.push({ geo: new THREE.IcosahedronGeometry(r * 0.7, 1), x: x + r * 0.5, y: FL + r * 0.5, z: z + 0.3, color: 0x6ab848 });
   }
@@ -650,10 +653,17 @@ export function buildCastle(game) {
     for (let c = 0; c <= Mz.cols; c++) for (let rr = 0; rr <= Mz.rows; rr++) {
       const x = Mz.x0 + c * Mz.cell, z = Mz.z0 + rr * Mz.cell;
       if (!S.hedges.some(hd => S.inside(hd, x, z, 0.05))) continue;
-      hedgeParts.push({ geo: new THREE.IcosahedronGeometry(0.75, 1), x, y: Mz.y + Mz.hedge + 0.35, z, color: 0x5aa840 });
+      if (CLc) clumps.push([x, Mz.y + Mz.hedge + 0.35, z, 0.72]);
+      else hedgeParts.push({ geo: new THREE.IcosahedronGeometry(0.75, 1), x, y: Mz.y + Mz.hedge + 0.35, z, color: 0x5aa840 });
     }
     const hedgeMat = new THREE.MeshStandardMaterial({ map: hedgeTexture(), vertexColors: true, roughness: 0.95 });
     addMesh(mergeUV(hedgeParts), hedgeMat);
+    if (CLc && clumps.length) {
+      const ci = new THREE.InstancedMesh(CLc.geo, CLc.mat, clumps.length), cm = new THREE.Matrix4(), cq = new THREE.Quaternion(), cc = new THREE.Color();
+      clumps.forEach(([x, y, z, s], i) => { ci.setMatrixAt(i, cm.compose(new THREE.Vector3(x, y, z), cq.setFromEuler(new THREE.Euler(0, i * 2.1, 0)), new THREE.Vector3(s, s * 0.9, s))); ci.setColorAt(i, cc.setScalar(0.9 + (i % 3) * 0.08)); });
+      ci.customDepthMaterial = CLc.depth; ci.castShadow = ci.receiveShadow = true; ci.userData.noOutline = true; ci.computeBoundingSphere();
+      sc.add(ci);
+    }
     // arche fleurie à l'entrée
     const ez = Mz.z0 + (S.MAZE_ENTRY.r + 0.5) * Mz.cell, ex = Mz.x0;
     const arch = new THREE.TorusGeometry(2.4, 0.35, 8, 20, Math.PI);
@@ -1231,6 +1241,7 @@ export function buildCastle(game) {
       wood: woodMat, stone: stoneMat, yarn: yarnMat,
       leaves: m({ map: leaves, roughness: 0.95 }),
       fur: m({ map: fur, roughness: 0.95 }),
+      fauna: m({ map: fur, roughness: 0.95 }),   // (le pelage des bêtes, et « fur » celui des chats debout)
       cloth: m({ map: fab, roughness: 0.9 }),
       fabric: m({ map: fab, normalMap: real ? RT.normalFor(fab, 1.2) : null, roughness: 0.75 }),
       hay: m({ map: straw, roughness: 1 }),
@@ -1241,7 +1252,7 @@ export function buildCastle(game) {
     };
   })();
   const life = buildLife(game, {
-    L: S, plan: LIFE.PLAN, palette: LIFE.PALETTE, lines: LIFE.LINES, ground: LIFE.ground, materials: lifeMats, cull: true,
+    L: S, plan: LIFE.PLAN, palette: LIFE.PALETTE, lines: LIFE.LINES, ground: LIFE.ground, mats: lifeMats, cull: true,
     view: lite ? 62 : 110, active: lite ? 48 : 75,
     // l'eau des douves et du lac : les canes et les carpes y restent, les autres bêtes n'y vont pas
     surface: LIFE.ground, isWater: LIFE.inWater,

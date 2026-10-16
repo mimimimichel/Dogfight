@@ -9,6 +9,7 @@ import * as M from './models.js';
 const smooth = (a, b, x) => { const t = Math.min(1, Math.max(0, (x - a) / (b - a))); return t * t * (3 - 2 * t); };
 
 import * as RT from './realtex.js';
+import * as FOL from './foliage.js';
 
 /** Style de rendu : réaliste (par défaut) ou dessin animé. */
 export const LOOK = { real: true };
@@ -425,6 +426,7 @@ export function buildFlowers(scene, quality) {
 // Arbres : troncs + feuillages ronds (instanciés), buissons
 // ---------------------------------------------------------------------------
 export function buildTrees(scene, quality) {
+  if (LOOK.real && FOL.hasBroadleaf()) return buildBroadleaves(scene, quality);
   const r = rng(5);
   const n = L.trees.length;
   const trunkGeo = new THREE.CylinderGeometry(0.32, 0.55, 5.2, 10, 4);
@@ -472,7 +474,14 @@ export function buildTrees(scene, quality) {
   });
   trunks.castShadow = leaves.castShadow = true;
   if (LOOK.real) buildFerns(scene, quality, r);
-  if (LOOK.real && RT.isUltra() && RT.scanTree()) buildScanTrees(scene, trunks, leaves, blobs);
+  if (LOOK.real && RT.isUltra() && RT.scanTree()) {
+    const zero = new THREE.Matrix4().makeScale(0, 0, 0);
+    buildScanTrees(scene, (i, t) => {
+      trunks.setMatrixAt(i, zero);
+      blobs.forEach((b, k) => { if (Math.hypot(b.x - t.x, b.z - t.z) < 4 && !b.bush) leaves.setMatrixAt(k, zero); });
+      trunks.instanceMatrix.needsUpdate = true; leaves.instanceMatrix.needsUpdate = true;
+    });
+  }
   if (LOOK.real) buildLeafFringe(scene, leaves, blobs, quality, L.WORLD ? (quality && quality.lite ? 0 : 12) : quality && quality.lite ? 4 : 22);
   if (false) {
     // (feuilles détaillées autour de chaque touffe : retiré, ça faisait des taches sombres sur téléphone)
@@ -754,24 +763,57 @@ function vine(x0, y0, z0, len, seed) {
  * Mode ultra : les plus grands arbres deviennent de vrais jacarandas scannés
  * (les autres gardent leur forme simple, plus légère).
  */
-function buildScanTrees(scene, trunks, leaves, blobs) {
+/**
+ * Rendu réaliste : de vrais feuillus (rameaux de feuilles scannées, écorce photo, vent : foliage.js).
+ * Un InstancedMesh par espèce (bois + feuillage : 2 appels de dessin), buisson au pied compris.
+ */
+function buildBroadleaves(scene, quality) {
+  const r = rng(5), lite = !!(quality && quality.lite);
+  const greens = (L.PALETTE && L.PALETTE.leaves) || [0x4caf3a, 0x5cc046, 0x3e9e34, 0x6ccf4e, 0x56b83e];
+  const ST = Object.assign({ bushes: 2 }, L.TREE_STYLE || {});
+  const groups = { round: [], cherry: [], fruit: [] };
+  L.trees.forEach((t, i) => {
+    const col = greens[i % greens.length];
+    const sp = t.apple ? 'fruit' : FOL.isBlossom(col) ? 'cherry' : 'round';
+    groups[sp].push({ t, i, col });
+  });
+  const meshes = [];
+  let seed = 1;
+  for (const sp in groups) {
+    const list = groups[sp];
+    if (!list.length) continue;
+    const inst = FOL.broadleafMesh(list.map(e => e.t), {
+      species: sp, seed: seed++, lite, bush: sp === 'round' && ST.bushes > 0,
+      rot: () => r() * 6.28,
+      tint: (k, t, c) => FOL.leafTint(list[k].col, c, (r() - 0.5) * 0.12),
+    });
+    meshes.push({ inst, list });
+    scene.add(inst);
+  }
+  if (LOOK.real) buildFerns(scene, quality, r);
+  if (RT.isUltra() && RT.scanTree()) {
+    const zero = new THREE.Matrix4().makeScale(0, 0, 0);
+    buildScanTrees(scene, (i) => {
+      for (const { inst, list } of meshes) { const k = list.findIndex(e => e.i === i); if (k >= 0) { inst.setMatrixAt(k, zero); inst.instanceMatrix.needsUpdate = true; } }
+    });
+  }
+}
+
+function buildScanTrees(scene, hide) {
   const T = RT.scanTree();
   const want = L.ID === 3 ? 0 : 8;
   if (!want) return;
   // les arbres les plus proches du départ (on les voit le plus)
   const order = L.trees.map((t, i) => [Math.hypot(t.x - L.START.x, t.z - L.START.z), i]).sort((a, b) => a[0] - b[0]).slice(0, want).map(e => e[1]);
-  const m4 = new THREE.Matrix4(), q = new THREE.Quaternion(), v = new THREE.Vector3(), sv = new THREE.Vector3(), e = new THREE.Euler(), zero = new THREE.Matrix4().makeScale(0, 0, 0);
+  const m4 = new THREE.Matrix4(), q = new THREE.Quaternion(), v = new THREE.Vector3(), sv = new THREE.Vector3(), e = new THREE.Euler();
   const parts = { trunk: [], branches: [], leaves: [] };
   for (const i of order) {
     const t = L.trees[i];
-    // l'ancien arbre disparaît (tronc et touffes autour)
-    trunks.setMatrixAt(i, zero);
-    blobs.forEach((b, k) => { if (Math.hypot(b.x - t.x, b.z - t.z) < 4 && !b.bush) leaves.setMatrixAt(k, zero); });
+    hide(i, t);                       // l'ancien arbre disparaît
     const k = (t.h || 6) / 19 * 1.15;
     m4.compose(v.set(t.x, t.y - 0.1, t.z), q.setFromEuler(e.set(0, (t.x * 13 + t.z * 7) % 6.28, 0)), sv.set(k, k, k));
     for (const p in parts) parts[p].push(m4.clone());
   }
-  trunks.instanceMatrix.needsUpdate = true; leaves.instanceMatrix.needsUpdate = true;
   for (const p of ['trunk', 'branches', 'leaves']) {
     const leaf = p === 'leaves';
     const mat = new THREE.MeshStandardMaterial({ map: T[p].tex, roughness: leaf ? 0.75 : 0.9, side: THREE.DoubleSide, alphaTest: leaf ? 0.5 : 0 });

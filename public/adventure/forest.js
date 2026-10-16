@@ -10,6 +10,7 @@ import { L } from './current.js';
 import * as M from './models.js';
 import * as W from './world.js';
 import * as RT from './realtex.js';
+import * as FOL from './foliage.js';
 import * as K from './farmkit.js';
 import * as FK from './forestkit.js';
 import { buildLife, ICON_ACORN } from './forestlife.js';
@@ -276,7 +277,17 @@ export function buildForest(game) {
     for (const t of S.trees) { const k = Math.floor(t.x / CH) + ',' + Math.floor(t.z / CH); if (!chunks.has(k)) chunks.set(k, []); chunks.get(k).push(t); }
     const c = new THREE.Color();
     let bi = 0;
+    // rendu réaliste : de vrais feuillus (foliage.js), une forme d'arbre par quartier (2 appels de dessin)
+    const BLG = real && FOL.hasBroadleaf() ? [1, 2, 3].map(sd => FOL.broadleafGeometry('round', sd, { bush: ST.bushes > 0 })) : null;
     for (const list of chunks.values()) {
+      if (BLG) {
+        list.forEach((t, ti) => { t._ck = treeChunks.length; t._ti = ti; });
+        const inst = FOL.broadleafMesh(list, { geo: BLG[treeChunks.length % 3], seed: treeChunks.length + 1, lite, tint: (i, t, cc) => FOL.leafTint(greens[(bi++) % greens.length], cc, (r() - 0.5) * 0.12) });
+        const g = new THREE.Group(); g.add(inst); sc.add(g);
+        let cx = 0, cz = 0; for (const t of list) { cx += t.x; cz += t.z; } cx /= list.length; cz /= list.length;
+        treeChunks.push({ g, inst, hi: null, lo: null, trunks: null, blobs: [], fringe: null, x: cx, z: cz });
+        continue;
+      }
       const blobs = [];
       list.forEach((t, ti) => {
         t._ck = treeChunks.length; t._ti = ti; t._b0 = blobs.length;
@@ -322,9 +333,12 @@ export function buildForest(game) {
       const order = S.trees.slice().sort((a, b) => Math.hypot(a.x - S.START.x, a.z - S.START.z) - Math.hypot(b.x - S.START.x, b.z - S.START.z)).slice(0, 8);
       for (const t of order) {
         const ch = treeChunks[t._ck];
+        if (ch.inst) { ch.inst.setMatrixAt(t._ti, zero); ch.inst.instanceMatrix.needsUpdate = true; }
+        if (ch.trunks) {
         ch.trunks.setMatrixAt(t._ti, zero);
         for (let k = t._b0; k < t._b1; k++) if (!ch.blobs[k].bush) { ch.hi.setMatrixAt(k, zero); ch.lo.setMatrixAt(k, zero); }
         ch.trunks.instanceMatrix.needsUpdate = ch.hi.instanceMatrix.needsUpdate = ch.lo.instanceMatrix.needsUpdate = true;
+        }
         const k = t.h / 19 * 1.15;
         m4.compose(v.set(t.x, t.y - 0.1, t.z), q.setFromEuler(e.set(0, (t.x * 13 + t.z * 7) % 6.28, 0)), sv.set(k, k, k));
         for (const p in parts) parts[p].push(m4.clone());
@@ -341,6 +355,7 @@ export function buildForest(game) {
     }
     // rendu réaliste : une frange de feuilles autour des couronnes proches (ordinateur)
     if (real && !lite) for (const ch of treeChunks) {
+      if (!ch.hi) continue;
       const fg = new THREE.Group();
       W.buildLeafFringe(fg, ch.hi, ch.blobs, { lite }, 6);
       if (fg.children.length) { ch.fringe = fg; ch.g.add(fg); fg.traverse(o => { o.userData.noOutline = true; }); }
@@ -594,7 +609,8 @@ export function buildForest(game) {
   // --- Arbres géants (et les 4 arbres des cabanes) -------------------------------
   {
     const bark = barkMat(0x6a4428, 3, 5);
-    const blobGeo = W.leafClusterGeo(lite ? 6 : 10);
+    const CL = real ? FOL.clump('leaf', lite, 4, 3.4) : null;     // (réaliste : vraies feuilles)
+    const blobGeo = CL ? CL.geo : W.leafClusterGeo(lite ? 6 : 10);
     const blobs = [], trunkM = [], rootM = [];
     const list = S.giants.concat(S.TREEHOUSES.map(t => ({ x: t.x, z: t.z, y: t.y, s: 1.1 })));
     for (const g of list) {
@@ -618,18 +634,19 @@ export function buildForest(game) {
       const o = new THREE.Object3D(); o.position.set(x, y, z); o.rotation.set(0, -a, 0); o.rotateZ(Math.PI / 2 - 0.4); o.scale.setScalar(s); o.updateMatrix();
       rI.setMatrixAt(i, o.matrix);
     });
-    const inst = new THREE.InstancedMesh(blobGeo, W.leafMaterial(), blobs.length);
-    inst.customDepthMaterial = W.leafDepthMaterial();
+    const inst = new THREE.InstancedMesh(blobGeo, CL ? CL.mat : W.leafMaterial(), blobs.length);
+    inst.customDepthMaterial = CL ? CL.depth : W.leafDepthMaterial();
     const c = new THREE.Color();
     const cols = S.PALETTE.leaves;
     blobs.forEach(([x, y, z, s], i) => {
       m4.compose(v.set(x, y, z), q.setFromEuler(e.set(i, i * 1.7, 0)), sv.set(s, s * 0.8, s));
       inst.setMatrixAt(i, m4);
       inst.setColorAt(i, c.set(cols[(i * 3) % cols.length]).offsetHSL(0, real ? -0.14 : 0, 0));
+      if (CL) FOL.leafTint(cols[(i * 3) % cols.length], c);
     });
     for (const o of [tI, rI, inst]) { o.castShadow = o.receiveShadow = true; o.computeBoundingSphere(); sc.add(o); }
     inst.userData.noOutline = true;
-    if (real && !lite) W.buildLeafFringe(sc, inst, blobs.map(([x, y, z, s]) => ({ x, y, z, s })), { lite }, 12);
+    if (real && !lite && !CL) W.buildLeafFringe(sc, inst, blobs.map(([x, y, z, s]) => ({ x, y, z, s })), { lite }, 12);
   }
 
   // --- Rochers à grimper (lanterne de la plage, croquettes) ---------------
@@ -1835,7 +1852,7 @@ export function buildForest(game) {
         const d = Math.hypot(ch.x - cam.x, ch.z - cam.z);
         ch.g.visible = d < far + 40;
         const hi = d < hiR;
-        ch.hi.visible = hi; ch.lo.visible = !hi;
+        if (ch.hi) { ch.hi.visible = hi; ch.lo.visible = !hi; }
         if (ch.fringe) ch.fringe.visible = hi;
       }
       // les chats très loin ne sont pas dessinés (ils sont détaillés : ça coûte cher)

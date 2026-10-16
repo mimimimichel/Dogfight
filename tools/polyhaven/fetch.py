@@ -14,6 +14,8 @@ TEXTURES = {
     'mossy_stone_wall': 'ruines', 'bark_willow_02': 'écorce', 'red_brick': 'briques',
     'painted_plaster_wall': 'enduit', 'asphalt_02': 'asphalte', 'cobblestone_floor_04': 'pavés',
     'rectangular_paving': 'trottoir', 'clay_roof_tiles': 'tuiles', 'brown_planks_03': 'bois', 'mossy_rock': 'roche',
+    # Station des Neiges (niveau 5 seulement) : neige, roche de montagne, bardeaux des chalets
+    'snow_02': 'neige', 'rock_face_03': 'roche de montagne', 'roof_slates_02': 'bardeaux',
 }
 SIZE = 1024
 
@@ -34,6 +36,12 @@ for key in TEXTURES:
         img = Image.open(io.BytesIO(get(url))).resize((SIZE, SIZE), Image.LANCZOS)
         save(img, key + suffix, q)
         print('ok', key + suffix, os.path.getsize(dst) // 1024, 'Ko')
+    # variantes demi-taille (_s) pour les téléphones
+    for suffix, q in (('_d', 78), ('_n', 80)):
+        src, dst = os.path.join(OUT, key + suffix + '.jpg'), os.path.join(OUT, key + suffix + '_s.jpg')
+        if os.path.exists(dst) or not os.path.exists(src): continue
+        save(Image.open(src).resize((SIZE // 2, SIZE // 2), Image.LANCZOS), key + suffix + '_s.jpg', q)
+        print('ok', key + suffix + '_s.jpg', os.path.getsize(dst) // 1024, 'Ko')
 
 # feuilles (couleur + transparence) d'un arbre scanné
 dst = os.path.join(OUT, 'leaves.webp')
