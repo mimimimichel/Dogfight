@@ -1214,7 +1214,7 @@ export function buildLife(game, cfg) {
         if (c.t <= 0) { c.t = 0.4 + R() * 1.6; const a = R() * TAU; c.tx = c.hx + Math.cos(a) * (1 + R() * 2.5); c.tz = c.hz + Math.sin(a) * (1 + R() * 2.5); c.hop = 0; }
         if (c.tx !== undefined && !moveTo(c, c.tx, c.tz, 2.2, dt)) c.hop = Math.abs(Math.sin(c.ph * 14)) * 0.08;
         else c.hop = 0;
-        c.y = ground(c.x, c.z); c.pitch = Math.max(0, Math.sin(c.ph * 6 + c.i)) * 0.5; c.flapA = 0;
+        c.y = ground(c.x, c.z); c.pitch = Math.max(0, Math.sin(c.ph * 6 + c.i)) * 0.5; c.flapA = -(f.fold || 0);   // (f.fold : ailes repliées au sol)
       } else {
         // en vol : on tourne au-dessus de la maison, puis on se repose
         c.fly -= dt;
@@ -1233,7 +1233,7 @@ export function buildLife(game, cfg) {
       if (c.fly <= 0) {
         c.y = c.def.perch;
         c.yaw = lerpAngle(c.yaw, th.d < 25 ? Math.atan2(th.P.pos.x - c.x, th.P.pos.z - c.z) : c.yaw + Math.sin(c.ph * 0.5) * 0.02, dt * 2);
-        c.flapA = 0; c.pitch = 0; c.head = Math.sin(c.ph * 0.7) * 0.3;
+        c.flapA = -(f.fold || 0); c.pitch = 0; c.head = Math.sin(c.ph * 0.7) * 0.3;
         if (th.d < 22 && (c.hootT = (c.hootT || 3 + R() * 8) - dt) <= 0) { c.hootT = 8 + R() * 10; if (th.P === game.me) chirp(f.sound || 'hoot'); }
         if (barkNear || (th.d < 3 && Math.abs(th.P.pos.y - c.y) < 3)) { c.fly = 7; c.circ = R() < 0.5 ? -1 : 1; c.vx = 0; c.vz = 0; c.vy = 3; game.bubble({ pos: new THREE.Vector3(c.x, c.y + 1, c.z), small: true }, (f.say && f.say[0]) || 'Hou-hou !'); }
       } else {
@@ -1606,7 +1606,7 @@ export function buildLife(game, cfg) {
       for (const c of D.crit) {
         if (c.st === 'gone') continue;
         const sit = c.st === 'sit';
-        drawCreature(fm, c.x, c.y + (sit ? Math.abs(Math.sin(c.a * 5)) * 0.04 : 0), c.z, c.yaw + (sit ? Math.sin(c.a * 0.8) * 0.6 : 0), sit ? Math.max(0, Math.sin(c.a * 4)) * 0.6 : -0.2, 0, (fm.f.scale || 1) * 1.1, 1, sit ? 0 : Math.sin(t * 30) * 0.9);
+        drawCreature(fm, c.x, c.y + (sit ? Math.abs(Math.sin(c.a * 5)) * 0.04 : 0), c.z, c.yaw + (sit ? Math.sin(c.a * 0.8) * 0.6 : 0), sit ? Math.max(0, Math.sin(c.a * 4)) * 0.6 : -0.2, 0, (fm.f.scale || 1) * 1.1, 1, sit ? -(fm.f.fold || 0) : Math.sin(t * 30) * 0.9);
         if (sit) { shadow(c.x, c.z, 0.25); glow(c.x, c.y + 1.0, c.z, 0.9, 0xffd23a, 0.4 + Math.sin(t * 6 + c.a) * 0.2); }
       }
     }
