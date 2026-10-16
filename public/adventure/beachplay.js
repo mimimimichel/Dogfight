@@ -989,7 +989,7 @@ export function buildPlay(game, decor) {
   const fortFree = () => S.cats.filter(c => c.group === 'clearing').every(c => save().cats.includes(c.id)) && S.FORT_FLAGS.every(f => beach().flags.includes(f.id));
 
   // --- la couche de vie : bêtes, objets, défis éclair, habitants, cachettes (life.js) ---------
-  const life = buildLife(game, { L: S, plan: LIFE.PLAN, palette: LIFE.PALETTE, lines: LIFE.LINES, waterY: S.WATER_Y, view: lite ? 70 : undefined, active: lite ? 55 : undefined, allDoneText: 'Toute la plage fait la fête : les dauphins sautent pour vous !' });
+  const life = buildLife(game, { L: S, plan: LIFE.PLAN, palette: LIFE.PALETTE, lines: LIFE.LINES, surface: (x, z) => Math.max(S.heightAt(x, z), S.WATER_Y), isWater: (x, z) => S.heightAt(x, z) < S.WATER_Y - 0.02, view: lite ? 70 : undefined, active: lite ? 55 : undefined, allDoneText: 'Toute la plage fait la fête : les dauphins sautent pour vous !' });
 
   const logic = {
     moving, chars, life,

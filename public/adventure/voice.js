@@ -130,25 +130,60 @@ class Voice {
     if (this.ctx && this.ctx.state === 'suspended') this.ctx.resume();
     return this.ctx;
   }
+  /** Écouteurs branchés (réglage) : pas d'écho possible, donc pas d'anti-écho du téléphone. */
+  static headset() { try { return localStorage.getItem('dogfight.headset') === '1'; } catch (e) { return false; } }
+
+  async grab() {
+    // iPhone : le micro a besoin d'une session « lecture et enregistrement »
+    try { if (navigator.audioSession) navigator.audioSession.type = 'play-and-record'; } catch (e) { /* ignore */ }
+    const hs = Voice.headset();
+    return navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: !hs, noiseSuppression: true, autoGainControl: true, channelCount: 1 }, video: false });
+  }
+  /**
+   * Coupe vraiment le micro (et pas seulement le son) : tant qu'un micro est ouvert, le
+   * téléphone traite tout le son comme un appel (son « téléphone », écouteurs Bluetooth
+   * ignorés). Micro coupé : le jeu redevient un média normal.
+   */
+  release() {
+    for (const c of this.out.values()) { try { c.close(); } catch (e) { /* ignore */ } }
+    this.out.clear();
+    if (this.stream) for (const t of this.stream.getTracks()) t.stop();
+    this.stream = null; this.on = false; this.myLevel = 0;
+    try { if (navigator.audioSession) navigator.audioSession.type = 'playback'; } catch (e) { /* ignore */ }
+  }
+  /** Un appareil audio arrive ou part (écouteurs Bluetooth…) : on rouvre le micro dessus. */
+  async reroute() {
+    if (!this.stream || this.rerouting) return;
+    this.rerouting = true;
+    try {
+      const fresh = await this.grab(), track = fresh.getAudioTracks()[0];
+      for (const c of this.out.values()) {
+        const pc = c.peerConnection; if (!pc) continue;
+        for (const sd of pc.getSenders()) if (sd.track && sd.track.kind === 'audio') await sd.replaceTrack(track).catch(() => {});
+      }
+      for (const t of this.stream.getTracks()) t.stop();
+      this.stream = fresh;
+    } catch (e) { /* on garde l'ancien micro */ }
+    for (const e of this.in.values()) e.audio.play().catch(() => {});
+    this.rerouting = false;
+  }
   /** Allume ou coupe mon micro. Renvoie 'on', 'off' ou un message d'erreur. */
   async toggle() {
-    if (!this.stream) {
-      if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) return 'Ce navigateur ne permet pas d\'utiliser le micro.';
-      // iPhone : le micro a besoin d'une session « lecture et enregistrement »
-      try { if (navigator.audioSession) navigator.audioSession.type = 'play-and-record'; } catch (e) { /* ignore */ }
-      try {
-        this.stream = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true, channelCount: 1 }, video: false });
-      } catch (e) {
-        try { if (navigator.audioSession) navigator.audioSession.type = 'playback'; } catch (err) { /* ignore */ }
-        return e && e.name === 'NotAllowedError' ? 'Le micro a été refusé. Autorise-le dans le navigateur pour parler.' : 'Pas de micro trouvé.';
-      }
-      this.on = true;
-      this.callAll();
-      return 'on';
+    if (this.on) { this.release(); return 'off'; }
+    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) return 'Ce navigateur ne permet pas d\'utiliser le micro.';
+    try {
+      this.stream = await this.grab();
+    } catch (e) {
+      try { if (navigator.audioSession) navigator.audioSession.type = 'playback'; } catch (err) { /* ignore */ }
+      return e && e.name === 'NotAllowedError' ? 'Le micro a été refusé. Autorise-le dans le navigateur pour parler.' : 'Pas de micro trouvé.';
     }
-    this.on = !this.on;
-    for (const t of this.stream.getAudioTracks()) t.enabled = this.on;
-    return this.on ? 'on' : 'off';
+    if (!this.onDevices && navigator.mediaDevices.addEventListener) {
+      this.onDevices = () => { clearTimeout(this.devT); this.devT = setTimeout(() => this.reroute(), 600); };
+      navigator.mediaDevices.addEventListener('devicechange', this.onDevices);
+    }
+    this.on = true;
+    this.callAll();
+    return 'on';
   }
 
   /** Liste des joueurs présents : [{ pid, id }] (pid = identifiant PeerJS). */
@@ -329,6 +364,7 @@ class Voice {
 
   close() {
     try { this.peer.off('call', this.onCall); } catch (e) { /* ignore */ }
+    if (this.onDevices) { try { navigator.mediaDevices.removeEventListener('devicechange', this.onDevices); } catch (e) { /* ignore */ } }
     window.removeEventListener('pointerdown', this.retry);
     window.removeEventListener('keydown', this.retry);
     clearInterval(this.health);

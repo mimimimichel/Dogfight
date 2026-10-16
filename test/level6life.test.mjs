@@ -43,8 +43,8 @@ test('au moins 12 défis éclair, 8 sortes de bêtes, 40 objets, 8 habitants (5 
   assert.ok(P.secrets.length >= 5);
   assert.ok(P.trails.length >= 8 && P.trails.reduce((a, t) => a + t.pts.length, 0) >= 60, 'traînées de paillettes');
   assert.ok(new Set(P.defis.map(d => d.type)).size >= 10, 'des défis variés');
-  for (const k of ['bounce', 'shake', 'break', 'chime', 'kick', 'press', 'build']) assert.ok(P.props.some(p => (LL.PALETTE.props[p.kind] || {}).act === k), 'aucun objet « ' + k + ' »');
-  for (const ai of ['scuttle', 'swim', 'bask', 'flock', 'wander', 'hover']) assert.ok(P.fauna.some(f => LL.PALETTE.fauna[f.kind].ai === ai), 'aucune bête « ' + ai + ' »');
+  for (const k of ['bounce', 'shake', 'break', 'chime', 'push', 'press', 'build']) assert.ok(P.props.some(p => (LL.PALETTE.props[p.kind] || {}).act === k), 'aucun objet « ' + k + ' »');
+  for (const ai of ['scuttle', 'sea', 'bask', 'flock', 'wander', 'hover']) assert.ok(P.fauna.some(f => LL.PALETTE.fauna[f.kind].ai === ai), 'aucune bête « ' + ai + ' »');
 });
 
 test('des traînées de paillettes mènent à chaque cachette', () => {
@@ -77,7 +77,7 @@ test('rien dans un mur, un palmier, une cabine ni dans la mer ; les bêtes de me
 
 test('les quêtes restent dégagées : personnages, tas à creuser, crabes, drapeaux, portail, médailles', () => {
   const spots = [...Object.values(S.GIVERS), S.npcs.mamie, S.START, ...S.PORTALS, ...S.CHECKPOINTS, ...S.MOUNDS, S.PIECE_MOUND, S.CHEST, ...S.CRABS, ...S.LENSES, ...S.MAP_PIECES, ...S.medals, S.SEAL, ...S.crates];
-  const solidLike = (k) => { const a = (LL.PALETTE.props[k] || {}); return a.solid || a.act === 'bounce' || a.act === 'build' || a.act === 'kick' || a.act === 'break'; };
+  const solidLike = (k) => { const a = (LL.PALETTE.props[k] || {}); return a.solid || a.act === 'bounce' || a.act === 'build' || a.act === 'push' || a.act === 'break'; };
   for (const e of [...P.props, ...P.defis, ...P.villagers.filter(v => !v.ellipse), ...P.secrets]) {
     for (const q of spots) assert.ok(Math.hypot(q.x - e.x, q.z - e.z) > (e.kind && !solidLike(e.kind) ? 2 : 2.4), `${e.id} trop près d'un point de quête (${q.id || q.name || ''} ${q.x.toFixed(0)},${q.z.toFixed(0)})`);
     if (e.kind) assert.ok(Math.hypot(e.x - S.FORT.x, e.z - S.FORT.z) > S.FORT.r + 3, `${e.id} dans le fort des chats`);
@@ -122,7 +122,7 @@ test('défis : chaque défi est complet et jouable', () => {
     if (d.type === 'race') { for (const [x, z] of d.path) assert.ok(LL.walkable(x, z), d.id + ' : chemin'); assert.ok(LL.PALETTE.fauna[d.critter]); }
     if (d.type === 'chase') { assert.ok(LL.PALETTE.fauna[d.critter]); for (let a = 0; a < 6.28; a += 0.5) assert.ok(S.heightAt(d.x + Math.cos(a) * d.leash * 0.75, d.z + Math.sin(a) * d.leash * 0.75) > 0.1, d.id + ' : la course part dans la mer'); }
     if (d.type === 'herd') { for (const [x, z] of d.chicks) assert.ok(LL.walkable(x, z)); assert.ok(LL.walkable(d.pen.x, d.pen.z)); assert.ok(S.fromShore(d.pen.x, d.pen.z) < 8, 'les bébés tortues vont vers la mer'); }
-    if (d.type === 'whack' || d.type === 'fish') { assert.ok(d.holes.length >= 4 && d.need >= 4); for (const [x, z] of d.holes) assert.ok(LL.walkable(x, z), d.id + ' : trou'); assert.ok(LL.PALETTE.props[d.holeKind], d.id + ' : sorte de trou'); }
+    if (d.type === 'whack' || d.type === 'fish') { assert.ok(d.holes.length >= 4 && d.need >= 4); for (const [x, z] of d.holes) assert.ok(LL.walkable(x, z), d.id + ' : trou'); assert.ok(LL.PALETTE.props[d.hole], d.id + ' : sorte de trou'); }
     if (d.type === 'fish') assert.ok(d.holes.filter(([x, z]) => S.POOLS.some(p => Math.hypot(p.x - x, p.z - z) < p.r)).length >= 3, 'les poissons sautent dans les flaques des rochers');
     if (d.time !== undefined) assert.ok(d.time >= 25 && d.time <= 120);
   }
