@@ -11,9 +11,9 @@
  */
 import * as THREE from '../vendor/three.module.min.js';
 import * as RT from './realtex.js';
-import { KIT, MODELS, PROPS, VILLAGER } from './life.js';
+import { SHAPES, MODELS, PROPS, VILLAGER } from './life.js';
 
-const { P, merge, sph, cyl, cone, box, tor, eyes, wingGeo, TAU } = KIT;
+const { P, merge, sph, cyl, cone, box, tor, eyes, wingGeo, TAU } = SHAPES;
 
 // ===========================================================================
 // Matières de détail (une par sorte de surface ; en niveaux de gris, la couleur vient des sommets)

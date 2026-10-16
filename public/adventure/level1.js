@@ -484,6 +484,8 @@ function groundY(x, z) {
   return Math.max(best, WATER_Y + 0.4);
 }
 indexAll();
+/** Obstacles ajoutés après coup (la couche de vie : arbustes, habitants immobiles, coffres). */
+export function addColliders(list) { for (const c of list) colliders.push(c); indexAll(); }
 
 // ---------------------------------------------------------------------------
 // Les missions

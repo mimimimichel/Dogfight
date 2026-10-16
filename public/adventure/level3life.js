@@ -128,22 +128,22 @@ const KI = S.KIOSK, TB = S.TOWERS[0];
 export const VILLAGERS = [
   { id: 'silencio', name: 'Silencio le mime', body: 'dog', x: -47.5, z: -4.5, yaw: Math.PI / 2, act: 'mime', fur: 0xf8f6f2, cloth: 0x22242e, defi: 'd_fontaine' },
   { id: 'gege', name: 'Gégé des frites', body: 'dog', x: -30, z: 108, yaw: Math.PI, act: 'call', tool: 'pc_fries', fur: 0xc89a6a, cloth: 0xe8b020, defi: 'd_goeland', shout: ['Frites !', 'Chaudes !', 'Bien dorées !'] },
-  { id: 'pepe', name: 'Pépé Mouette', body: 'dog', x: -75.5, z: 116, yaw: 0, act: 'fish', tool: 'rod', fur: 0xb8b0a8, cloth: 0x2a5a8a, focus: true, defi: 'd_peche' },
-  { id: 'jules', name: 'Jules le serveur', body: 'dog', x: -64, z: 102, act: 'serve', tool: 'pc_tray', fur: 0x3a2a24, cloth: 0xf4f0e8, moves: true, route: { pts: [[-64, 102], [-52, 102], [-52, 108.5], [-64, 108.5]], speed: 1.25, pause: 1.8 } },
+  { id: 'pepe', name: 'Pépé Mouette', body: 'dog', x: -75.5, z: 116, yaw: 0, act: 'fish', tool: 'rod', fur: 0xb8b0a8, cloth: 0x2a5a8a, busy: true, defi: 'd_peche' },
+  { id: 'jules', name: 'Jules le serveur', body: 'dog', x: -64, z: 102, act: 'serve', tool: 'pc_tray', fur: 0x3a2a24, cloth: 0xf4f0e8, moves: true, loop: [[-64, 102], [-52, 102], [-52, 108.5], [-64, 108.5]], speed: 1.25 },
   { id: 'leon', name: 'Léon l\'accordéoniste', body: 'dog', x: KI.x, z: KI.z, yaw: Math.PI, act: 'play', tool: 'pc_accordion', fur: 0x9a7a5a, cloth: 0x2a3a6a, defi: 'd_cloches' },
   { id: 'zoe', name: 'Zoé', body: 'dog', x: -6, z: 100, yaw: 0.5, act: 'hop', fur: 0xf2d0a0, cloth: 0xff6ab0, scale: 0.68, moves: true, defi: 'd_marelle' },
   { id: 'tom', name: 'Tom', body: 'dog', x: -2, z: 103, yaw: -2.2, act: 'cheer', fur: 0x6a4a3a, cloth: 0x3ac0e0, scale: 0.64, moves: true },
   { id: 'lila', name: 'Lila', body: 'dog', x: -9, z: 104, yaw: 2.4, act: 'hop', fur: 0xe8e0d8, cloth: 0xf0c030, scale: 0.62, moves: true },
-  { id: 'gaston', name: 'Gaston le jardinier', body: 'dog', x: 46, z: -8, yaw: 2.2, act: 'water', tool: 'pc_can', fur: 0xa87850, cloth: 0x3a8a4a, focus: true, defi: 'd_canetons' },
+  { id: 'hector', name: 'Hector le jardinier', body: 'dog', x: 46, z: -8, yaw: 2.2, act: 'water', tool: 'pc_can', fur: 0xa87850, cloth: 0x3a8a4a, busy: true, defi: 'd_canetons' },
   { id: 'bob', name: 'Bob le maître-nageur', body: 'dog', x: 116, z: 103, yaw: Math.PI, act: 'flag', tool: 'pc_whistle', fur: 0xd8a060, cloth: 0xe83a3a, defi: 'd_crabes' },
   { id: 'coco', name: 'Coco la glacière', body: 'dog', x: 60, z: 104, yaw: Math.PI, act: 'call', tool: 'pc_icecream', fur: 0xf6ecdc, cloth: 0x7ad0f0, defi: 'd_bouees', shout: ['Glaces !', 'Vanille !', 'Fraise !'] },
   { id: 'lili', name: 'Lili des ballons', body: 'dog', x: 62, z: 52, yaw: 0.6, act: 'call', tool: 'pc_balloons', fur: 0xe0b890, cloth: 0xc050c0, defi: 'd_foire', shout: ['Ballons !', 'Qui en veut ?'] },
-  { id: 'firmin', name: 'Firmin le facteur', body: 'dog', x: 110, z: -36, act: 'idle', tool: 'pc_letter', fur: 0x8a6a4a, cloth: 0x2a4ab0, moves: true, defi: 'd_lettres', route: { pts: [[110, -36], [144, -36], [144, -10], [110, -10]], speed: 1.35, pause: 2.2 } },
+  { id: 'paulo', name: 'Paulo le facteur', body: 'dog', x: 110, z: -36, tool: 'pc_letter', fur: 0x8a6a4a, cloth: 0x2a4ab0, moves: true, defi: 'd_lettres', loop: [[110, -36], [144, -36], [144, -10], [110, -10]], speed: 1.35 },
   { id: 'chaussette', name: 'Madame Chaussette', body: 'dog', x: -186, z: -44.5, yaw: 0, act: 'idle', fur: 0xd8d0c8, cloth: 0x9a6ae0, defi: 'd_chatons' },
   { id: 'margot', name: 'Margot la poissonnière', body: 'dog', x: -17, z: 31, yaw: Math.PI, act: 'call', fur: 0xc8a070, cloth: 0x3a7ad8, defi: 'd_poisson', shout: ['Poissons !', 'Sardines !'] },
   { id: 'fanny', name: 'Fanny la primeur', body: 'dog', x: -17, z: 19.5, yaw: 0, act: 'call', tool: 'pc_bouquet', fur: 0xf0c890, cloth: 0x40a050, shout: ['Fraises !', 'Melons !', 'Tomates !'] },
-  { id: 'rosalie', name: 'Rosalie la peintre', body: 'dog', x: -56, z: -112, yaw: Math.PI * 0.85, act: 'paint', tool: 'pc_brush', fur: 0xe8c8a8, cloth: 0xd84a6a, focus: true, defi: 'd_collines' },
-  { id: 'gerard', name: 'Gérard le laveur de carreaux', body: 'dog', x: TB.x0 - 0.7, z: (TB.z0 + TB.z1) / 2, yaw: -Math.PI / 2, act: 'wipe', tool: 'pc_squeegee', fur: 0xa0a0a8, cloth: 0xf08a20, moves: true, focus: true, platform: 'pc_nacelle',
+  { id: 'rosalie', name: 'Rosalie la peintre', body: 'dog', x: -56, z: -112, yaw: Math.PI * 0.85, act: 'paint', tool: 'pc_brush', fur: 0xe8c8a8, cloth: 0xd84a6a, busy: true, defi: 'd_collines' },
+  { id: 'gerard', name: 'Gérard le laveur de carreaux', body: 'dog', x: TB.x0 - 0.7, z: (TB.z0 + TB.z1) / 2, yaw: -Math.PI / 2, act: 'wipe', tool: 'pc_squeegee', fur: 0xa0a0a8, cloth: 0xf08a20, moves: true, busy: true, platform: 'pc_nacelle',
     lift: { y0: G, y1: TB.top - 6, top: TB.top, period: 46, phase: 0 } },
   { id: 'marius', name: 'Marius du kiosque', body: 'dog', x: -100, z: 101, yaw: 0, act: 'read', tool: 'pc_paper', fur: 0x5a4a3a, cloth: 0x7a5a3a, shout: ['Le journal !', 'Demandez !'] },
   { id: 'rose', name: 'Mamie Rose', body: 'dog', x: 165, z: -35.5, yaw: 0, act: 'water', tool: 'pc_can', fur: 0xf0ece6, cloth: 0xe87aa8, defi: 'd_taupes' },
@@ -152,7 +152,7 @@ for (const v of VILLAGERS) v.y = gy(v.x, v.z);
 
 const L_ = (who) => (text) => ({ who, text });
 const Si = L_('Silencio le mime'), Ge = L_('Gégé des frites'), Pe = L_('Pépé Mouette'), Ju = L_('Jules le serveur'), Le = L_('Léon l\'accordéoniste'), Zo = L_('Zoé'), To = L_('Tom'), Li = L_('Lila'),
-  Ga = L_('Gaston le jardinier'), Bo = L_('Bob le maître-nageur'), Co = L_('Coco la glacière'), Ll = L_('Lili des ballons'), Fi = L_('Firmin le facteur'), Ch = L_('Madame Chaussette'),
+  Ga = L_('Hector le jardinier'), Bo = L_('Bob le maître-nageur'), Co = L_('Coco la glacière'), Ll = L_('Lili des ballons'), Fi = L_('Paulo le facteur'), Ch = L_('Madame Chaussette'),
   Ma = L_('Margot la poissonnière'), Fa = L_('Fanny la primeur'), Ro = L_('Rosalie la peintre'), Gr = L_('Gérard le laveur de carreaux'), Mr = L_('Marius du kiosque'), Rs = L_('Mamie Rose'),
   Mt = L_('Matcha'), Ai = L_('Ainu');
 export const LINES = {
@@ -189,7 +189,7 @@ export const LINES = {
   },
   tom: { talk: [[To('Moi, je saute à cloche-pied jusqu\'au phare !')], [To('Hé, t\'as vu ? Il y a un chat qui dort sur l\'auvent de la boulangerie !')]] },
   lila: { talk: [[Li('Hi hi ! Je suis la plus petite, mais la plus rapide !')], [Li('J\'ai lancé mon caillou dans la case 7. C\'est un record !')]] },
-  gaston: {
+  hector: {
     ask: [Ga('Oh là là, quelle histoire ! Les canetons de Madame Cane se sont sauvés dans tout le parc.'), Ga('Touchez chaque caneton pour qu\'il vous suive, et ramenez-les près de moi, au bord du lac. Le rond doré, là !')],
     thanks: [Ga('Toute la famille est réunie ! Coin coin, dit Madame Cane. Ça veut dire merci, je crois.')],
     talk: [[Ga('J\'arrose les fleurs du matin au soir. Elles me le rendent bien : regardez ces couleurs !')], [Ga('Ne marchez pas sur les massifs, hein… Bon, si, un peu, pour voir les papillons s\'envoler.')]],
@@ -209,7 +209,7 @@ export const LINES = {
     thanks: [Ll('Vous avez volé ! Comme de vrais ballons. Je vous en garde un rouge, promis.')],
     talk: [[Ll('Un ballon s\'est échappé ce matin. Il doit être tout là-haut, au-dessus de la grande roue !')], [Ll('Le rouge, c\'est mon préféré. Et vous ?')]],
   },
-  firmin: {
+  paulo: {
     ask: [Fi('Bonjour, bonjour ! Catastrophe : un coup de vent a ouvert ma sacoche !'), Fi('Mes lettres se sont envolées dans tout le quartier des maisons. Vous me les ramassez avant la tournée ? Le signal doré est au coin de la rue.')],
     thanks: [Fi('Toutes mes lettres ! Pas une de perdue. Tenez, il y en a même une pour vous : « Merci les toutous ! »')],
     talk: [[Fi('Une lettre pour le numéro 3, un colis pour le numéro 7… et une caresse pour le chat du numéro 12.')], [Fi('Je fais le tour du quartier deux fois par jour. Bonjour Madame, bonjour Monsieur !')]],
@@ -247,13 +247,13 @@ export const LINES = {
 const up = (x, z, hh) => ({ x, z, y: gy(x, z) + (hh === undefined ? 1.1 : hh) });
 const ringAt = (x, z, hh, yaw) => ({ x, z, y: gy(x, z) + hh, yaw: yaw || 0 });
 const FO = S.FOUNTAIN, LK = S.LAKE;
-const WATER = S.WATER_Y;
+
 export const DEFIS = [
-  { id: 'd_fontaine', type: 'coins', name: 'Les pièces du mime', hint: 'Les pigeons ont éparpillé les 8 pièces du chapeau de Silencio autour de la fontaine !', x: -41.5, z: -8.5, time: 40, model: 'pc_wishcoin', glow: 0xffd23a,
+  { id: 'd_fontaine', type: 'coins', name: 'Les pièces du mime', hint: 'Les pigeons ont éparpillé les 8 pièces du chapeau de Silencio autour de la fontaine !', x: -41.5, z: -8.5, time: 40, item: 'pc_wishcoin', colors: [0xffd23a, 0xffc020],
     items: [0, 1, 2, 3, 4, 5, 6, 7].map(i => { const a = i / 8 * Math.PI * 2 + 0.3, r = i % 2 ? 6.4 : 5.6; return up(FO.x + Math.cos(a) * r, FO.z + Math.sin(a) * r); }) },
   { id: 'd_goeland', type: 'chase', name: 'Le goéland voleur', hint: 'Il a chipé les frites de Gégé ! Sautez pour l\'attraper quand il pique vers vous', x: -36, z: 102.5, critter: 'goeland_voleur', air: 2.7, time: 45, leash: 13, speed: 6.0 },
-  { id: 'd_peche', type: 'fish', name: 'La pêche au ponton', hint: 'Les poissons sautent autour du ponton : attrapez-en 5 au vol !', x: -68.5, z: 113.5, critter: 'poisson_peche', time: 50, need: 5, noHole: true,
-    holes: [[-74.6, 122], [-69.4, 124.5], [-74.6, 127.5], [-69.4, 130], [-74.6, 132.5], [-69.4, 120.5]].map(([x, z]) => [x, z, WATER]) },
+  { id: 'd_peche', type: 'fish', name: 'La pêche au ponton', hint: 'Les poissons sautent autour du ponton : attrapez-en 5 au vol !', x: -68.5, z: 113.5, critter: 'poisson_peche', time: 50, need: 5, hole: 'ripple',
+    holes: [[-74.6, 122], [-69.4, 124.5], [-74.6, 127.5], [-69.4, 130], [-74.6, 132.5], [-69.4, 120.5]] },
   { id: 'd_cloches', type: 'xylo', name: 'Les cloches du kiosque', hint: 'Écoutez la mélodie de Léon, puis faites sonner les cloches dans le même ordre', x: KI.x - 5.5, z: KI.z - 5, chimes: ['cl_1', 'cl_2', 'cl_3', 'cl_4', 'cl_5'], seq: [0, 2, 4, 1, 3], time: 90 },
   { id: 'd_marelle', type: 'tag', name: 'Chat perché sur la promenade', hint: 'Touchez Zoé, Tom et Lila avant la fin du chrono !', x: -13, z: 99.5, time: 40, leash: 12, speed: 6.0, kids: ['zoe', 'tom', 'lila'] },
   { id: 'd_canetons', type: 'herd', name: 'Les canetons du parc', hint: 'Touchez les canetons perdus et ramenez-les dans le rond doré, au bord du lac', x: 53, z: -2, critter: 'caneton', time: 120, pen: { x: 49, z: -9.5, r: 3.6 },
@@ -263,7 +263,7 @@ export const DEFIS = [
   { id: 'd_bouees', type: 'pads', name: 'Les bouées géantes', hint: 'Rebondissez sur les 6 bouées qui brillent !', x: 46, z: 101, time: 35, pads: ['bo_1', 'bo_2', 'bo_3', 'bo_4', 'bo_5', 'bo_6'] },
   { id: 'd_foire', type: 'rings', name: 'Les anneaux de la foire', hint: 'Rebondissez sur les châteaux gonflables et passez dans les anneaux, dans l\'ordre !', x: 71, z: 53, time: 45,
     rings: [ringAt(75, 57, 1.6), ringAt(80, 56, 4.6), ringAt(86, 57.5, 2.0), ringAt(92, 60, 4.8, 0.6), ringAt(95, 66, 2.0, 1.4), ringAt(96, 72, 4.8, 1.6), ringAt(91, 77, 2.0, 2.4), ringAt(84, 78, 4.6, 3.0)] },
-  { id: 'd_lettres', type: 'coins', name: 'Les lettres envolées', hint: 'Ramassez les 8 lettres de Firmin dans le quartier des maisons !', x: 108.5, z: -44, time: 75, model: 'pc_letteritem', glow: 0xfff0c0,
+  { id: 'd_lettres', type: 'coins', name: 'Les lettres envolées', hint: 'Ramassez les 8 lettres de Paulo dans le quartier des maisons !', x: 108.5, z: -44, time: 75, item: 'pc_letteritem', colors: [0xfff6e0, 0xffe8b0],
     items: [up(112, -48), up(132, -48), up(118, -36), up(140, -22), up(112, -22), up(126, -10), up(140, 16), up(116, 16)] },
   { id: 'd_chatons', type: 'herd', name: 'Les chatons de Madame Chaussette', hint: 'Touchez les chatons perdus dans les ruelles et ramenez-les dans le rond doré', x: -198, z: -36, critter: 'chaton', time: 150, pen: { x: -198.5, z: -46, r: 3.2 },
     chicks: [[-180, -30], [-198, -12], [-180, 0], [-198, -60]] },
@@ -309,7 +309,7 @@ const PROPS = [
   { id: 'pl_s1', kind: 'chateausable', x: 34, z: 114 }, { id: 'pl_s2', kind: 'chateausable', x: 94, z: 104 }, { id: 'pl_s3', kind: 'chateausable', x: 150, z: 118 },
   { id: 'pl_b1', kind: 'ballon', x: 70, z: 108 + 2.5 }, { id: 'pl_b2', kind: 'ballon', x: 118, z: 114 }, { id: 'pl_b3', kind: 'ballon', x: 176, z: 108 },
   { id: 'pl_t1', kind: 'transat', x: 84, z: 116, rot: 3.3 }, { id: 'pl_t2', kind: 'transat', x: 87, z: 116, rot: 3.1 }, { id: 'pl_t3', kind: 'transat', x: 160, z: 114, rot: 2.9 },
-  // le jardin de Mamie Rose, le quartier de Firmin
+  // le jardin de Mamie Rose, le quartier de Paulo
   { id: 'r_f1', kind: 'fleurs', x: 171, z: -22.5 }, { id: 'r_f2', kind: 'fleurs', x: 156.5, z: -31.5 }, { id: 'r_b1', kind: 'buisson', x: 160.5, z: -34.5 },
   { id: 'f_m1', kind: 'boiteauxlettres', x: 109.2, z: -38.5 }, { id: 'f_m2', kind: 'boiteauxlettres', x: 141.5, z: -12.5 },
   // les cordes à linge des ruelles de l'ouest
@@ -374,8 +374,8 @@ export const PALETTE = {
     goeland: { model: 'pc_gull', ai: 'flock', group: 3, scale: 1.25, flee: 6, sound: 'honk' },
     chat: { model: 'pc_cat', ai: 'wander', pet: true, shy: false, hopper: false, speed: 0.9, run: 5, home: 6, sound: 'meow', say: ['Miaou !', 'Mrrr…'], follow: 12, tints: CAT_TINTS, scale: 1.0 },
     chatperche: { model: 'pc_catloaf', ai: 'perch', lounge: true, pet: true, sound: 'meow', say: ['Mrraou !', 'Pfff !', 'Miaou ?'], tints: CAT_TINTS, scale: 1.05 },
-    canard: { model: 'pc_duck', ai: 'wander', water: WATER, group: 2, shy: true, hopper: false, flee: 4, run: 2.6, speed: 0.6, home: 7, sound: 'honk', say: ['Coin !'] },
-    cane: { model: 'pc_duck', ai: 'wander', water: WATER, group: 2, shy: true, hopper: false, flee: 4, run: 2.6, speed: 0.6, home: 7, sound: 'honk', say: ['Coin coin !'], colors: { female: true } },
+    canard: { model: 'pc_duck', ai: 'swim', water: true, group: 2, shy: true, hopper: false, flee: 4, run: 2.6, speed: 0.6, home: 7, sound: 'honk', say: ['Coin !'] },
+    cane: { model: 'pc_duck', ai: 'swim', water: true, group: 2, shy: true, hopper: false, flee: 4, run: 2.6, speed: 0.6, home: 7, sound: 'honk', say: ['Coin coin !'], colors: { female: true } },
     caneton: { model: 'pc_duckling', ai: 'none', hopper: false, scale: 1.3 },
     crabe: { model: 'pc_crab', ai: 'wander', sideways: true, shy: true, hopper: false, flee: 3.5, run: 4, speed: 0.8, home: 4, sound: 'squeak', say: ['Clac !'], scale: 1.4 },
     papillon: { model: 'pc_butterfly', ai: 'hover', group: 2, glow: false, alt: 1.0, scale: 1.7 },
@@ -383,7 +383,7 @@ export const PALETTE = {
     ecureuil: { model: 'squirrel', ai: 'wander', scale: 1.5, hopper: true, flee: 5, run: 7, speed: 2, home: 6, sound: 'squeak', say: ['Tchik !'] },
     lievre: { model: 'hare', ai: 'wander', group: 2, scale: 1.25, tints: [0xc8a880, 0xa88a68, 0xd8c8b0], hopper: true, flee: 6.5, run: 8.5, speed: 1.6, home: 9, sound: 'squeak', say: ['Couic !', 'Hop !'], colors: { fur: 0xffffff, tip: 0x2a2a2e } },
     chien: { model: 'puppy', ai: 'wander', pet: true, shy: false, hopper: false, speed: 1.4, run: 6, home: 6, sound: 'yip', say: ['Waf !', 'Wouf !'], follow: 18, tints: [0xe8c49a, 0xf6f0e8, 0x8a5a3a, 0x3a3030, 0xd8a070] },
-    poisson: { model: 'fish', ai: 'jump', water: WATER, colors: { fur: 0x9ab4c8 } },
+    poisson: { model: 'fish', ai: 'jump', water: true, colors: { fur: 0x9ab4c8 } },
     poisson_peche: { model: 'fish', ai: 'none', colors: { fur: 0xb8c8d4 } },
     goeland_voleur: { model: 'pc_gull', ai: 'none', scale: 1.5 },
     chat_voleur: { model: 'pc_cat', ai: 'none', hopper: false, scale: 1.0 },
@@ -406,7 +406,7 @@ export const PALETTE = {
     chateau: { model: 'pc_bouncy', act: 'bounce', power: 19, r: 1.25 },
     trampo: { model: 'pc_trampo', act: 'bounce', power: 17, r: 1.15 },
     bouee: { model: 'pc_float', act: 'bounce', power: 15.5, r: 1.05 },
-    ballon: { model: 'pc_beachball', act: 'push', grow: false, r0: 0.45, friction: 0.8 },
+    ballon: { model: 'pc_beachball', act: 'push', grow: false, kick: 12, r0: 0.45, friction: 0.8 },
     chateausable: { model: 'pc_sandcastle', act: 'break', drop: 2, chance: 0.8, respawn: 50, color: 0xe2c48a },
     transat: { model: 'pc_deckchair', act: 'shake', drop: 1, color: 0x7ab0e8 },
     cloche: { model: 'pc_bell', act: 'chime', solid: 0.15 },
@@ -417,7 +417,7 @@ export const PALETTE = {
     plot: { model: 'pc_cone', act: 'break', drop: 1, chance: 0.35, respawn: 30, color: 0xf06a1a },
     buisson: { model: 'pc_bush', act: 'shake', drop: 1, solid: 0.55, color: 0x7ab050 },
     fleurs: { model: 'pc_flowers', act: 'shake', drop: 1, color: 0xf0d040 },
-    borne: { model: 'pc_hydrant', act: 'shake', spray: 3.5, sprayY: 0.9, solid: 0.25, sound: 'switch', color: 0xbfeaff },
+    borne: { model: 'pc_hydrant', act: 'shake', gush: 3.5, gushY: 0.9, solid: 0.25, sound: 'switch', color: 0xbfeaff },
     charrette: { model: 'pc_ballooncart', act: 'shake', drop: 2, solid: 0.7, color: 0xff7ab0 },
     piquenique: { model: 'pc_picnic', act: 'shake', drop: 1, color: 0xd83a3a },
     marelle: { model: 'pc_marelle' },

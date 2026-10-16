@@ -44,7 +44,7 @@ test('au moins 12 défis éclair, 8 sortes de bêtes, 40 objets, 8 habitants (5 
   assert.ok(P.props.filter(act).length >= 40, P.props.length + ' objets');
   assert.ok(P.villagers.length >= 8);
   assert.ok(P.villagers.filter(v => v.defi).length >= 5);
-  assert.ok(P.villagers.filter(v => v.act && v.act !== 'idle' || v.route).length >= 8, 'habitants occupés');
+  assert.ok(P.villagers.filter(v => v.act && v.act !== 'idle' || v.loop).length >= 8, 'habitants occupés');
   assert.ok(P.secrets.length >= 5);
   assert.ok(P.trails.length >= 8 && P.trails.reduce((a, t) => a + t.pts.length, 0) >= 60, 'traînées de paillettes');
   assert.ok(new Set(P.defis.map(d => d.type)).size >= 8, 'des défis variés');
@@ -81,7 +81,7 @@ test('rien dans un mur, un arbre ou la mer ; rien sur les rues, le circuit, la p
   for (const f of P.fauna) {
     if (f.perch !== undefined) continue;
     const pk = LL.PALETTE.fauna[f.kind];
-    if (pk.water !== undefined) assert.ok(S.groundY(f.x, f.z) < pk.water - 0.3, `${f.id} (nageur) pas dans l'eau`);
+    if (pk.water) assert.ok(S.groundY(f.x, f.z) < S.WATER_Y - 0.3, `${f.id} (nageur) pas dans l'eau`);
     else assert.ok(LL.walkable(f.x, f.z), `${f.id} pas sur la terre ferme`);
   }
 });
@@ -121,7 +121,7 @@ test('défis : chaque défi est complet et jouable', () => {
     if (d.type === 'fish') {
       assert.ok(d.holes.length >= 4 && d.need >= 4);
       // les poissons sautent de l'eau, à portée de saut depuis le ponton
-      for (const [x, z, y] of d.holes) { assert.ok(S.groundY(x, z) < 0.3 && y === S.WATER_Y, d.id + ' : pas dans l\'eau'); let near = 9; for (let a = 0; a < 6.3; a += 0.3) for (const r of [1, 1.5, 2]) if (LL.walkable(x + Math.cos(a) * r, z + Math.sin(a) * r)) near = Math.min(near, r); assert.ok(near <= 2, d.id + ' : trou trop loin du ponton'); }
+      for (const [x, z] of d.holes) { assert.ok(S.groundY(x, z) < 0.3, d.id + ' : pas dans l\'eau'); let near = 9; for (let a = 0; a < 6.3; a += 0.3) for (const r of [1, 1.5, 2]) if (LL.walkable(x + Math.cos(a) * r, z + Math.sin(a) * r)) near = Math.min(near, r); assert.ok(near <= 2, d.id + ' : trou trop loin du ponton'); }
     }
     if (d.type === 'rings' || d.type === 'coins') assert.ok(d.time >= 25 && d.time <= 90);
   }
@@ -134,7 +134,7 @@ test('habitants : des répliques (qui / texte), une demande pour ceux qui propos
     for (const group of [...l.talk, l.ask || [], l.thanks || []]) for (const ln of group) assert.ok(typeof ln.who === 'string' && ln.who && typeof ln.text === 'string' && ln.text.length > 5, v.id + ' : réplique mal formée');
     if (v.defi) { assert.ok(P.defis.some(d => d.id === v.defi), v.id + ' : défi inconnu'); assert.ok(l.ask && l.thanks, v.id + ' : pas de demande / merci'); }
     if (v.shout) for (const s of v.shout) assert.ok(s.length <= 14, v.id + ' : cri trop long pour la bulle « ' + s + ' »');
-    if (v.route) for (const [x, z] of v.route.pts) { assert.ok(LL.walkable(x, z) && !S.onRoad(x, z, 0.4), v.id + ' : tournée hors du trottoir ' + x + ',' + z); for (const q of v.route.pts) void q; }
+    if (v.loop) for (const [x, z] of v.loop) assert.ok(LL.walkable(x, z) && !S.onRoad(x, z, 0.4), v.id + ' : tournée hors du trottoir ' + x + ',' + z);
     if (v.lift) assert.ok(v.lift.y1 < v.lift.top && v.lift.y0 >= S.GROUND - 0.1, v.id + ' : nacelle');
   }
   assert.ok(P.villagers.filter(v => v.shout).length >= 4, 'des marchands qui crient');

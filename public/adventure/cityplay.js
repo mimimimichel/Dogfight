@@ -1008,8 +1008,8 @@ export function buildPlay(game, decor) {
   const wet = (x, z) => S.groundY(x, z) < 0.4;
   const life = buildLife(game, {
     L: S, plan: LIFE.PLAN, palette: LIFE.PALETTE, lines: LIFE.LINES, ground: LIFE.ground, mats: cityMats(),
-    creatureBlocked: (x, z, f) => !(f && f.water !== undefined) && wet(x, z),
-    propBlocked: (x, z) => LIFE.ground(x, z) < 0.9,
+    // la mer et le lac : les canards nagent à la surface, les poissons en sautent, les ballons n'y vont pas
+    isWater: wet, surface: (x, z) => (wet(x, z) ? S.WATER_Y : LIFE.ground(x, z)),
     allDoneText: 'Toute la ville fait la fête : feu d\'artifice au-dessus du port !',
   });
 
