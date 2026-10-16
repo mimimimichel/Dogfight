@@ -45,8 +45,8 @@ export const VILLAGERS = [
   { id: 'lola', name: 'Lola', body: 'dog', x: 9, z: 52, yaw: 2.6, act: 'throw', outfit: 'summer', fur: 0xc08a5a, cloth: 0xffd23a, scale: 0.7, moves: true, puff: 0xff5a3a, defi: 'd_chat' },
   { id: 'tom', name: 'Tom', body: 'dog', x: 15, z: 58, yaw: -0.4, act: 'throw', outfit: 'summer', fur: 0x8a5a3a, cloth: 0x5ac8ff, scale: 0.66, moves: true, puff: 0x3a8ae0 },
   { id: 'zoe', name: 'Zoé', body: 'dog', x: 4, z: 59, yaw: 1.2, act: 'throw', outfit: 'summer', fur: 0xf2e6d0, cloth: 0x7ad83a, scale: 0.64, moves: true, puff: 0xffd23a },
-  { id: 'mouna', name: 'Mouna la volleyeuse', body: 'dog', x: -84, z: 10, yaw: Math.PI / 2, act: 'serve', tool: 'vball', outfit: 'summer', fur: 0x5a4030, cloth: 0xe84a3a, defi: 'd_volley' },
-  { id: 'nino', name: 'Nino', body: 'dog', x: -83, z: 4, yaw: Math.PI / 2 + 0.3, act: 'serve', outfit: 'summer', fur: 0xd8a070, cloth: 0xe84a3a, scale: 0.9 },
+  { id: 'mouna', name: 'Mouna la volleyeuse', body: 'dog', x: -84, z: 10, yaw: Math.PI / 2, act: 'volley', tool: 'vball', outfit: 'summer', fur: 0x5a4030, cloth: 0xe84a3a, defi: 'd_volley' },
+  { id: 'nino', name: 'Nino', body: 'dog', x: -83, z: 4, yaw: Math.PI / 2 + 0.3, act: 'volley', outfit: 'summer', fur: 0xd8a070, cloth: 0xe84a3a, scale: 0.9 },
   { id: 'coralie', name: 'Coralie des flaques', body: 'dog', x: -126, z: 1, yaw: -2.2, act: 'net', tool: 'shrimpnet', outfit: 'summer', sunhat: true, fur: 0xf4ecdc, cloth: 0x3ac0c0, defi: 'd_flaques' },
   { id: 'zephyr', name: 'Papi Zéphyr', body: 'dog', x: -70, z: 84, yaw: Math.PI + 0.3, act: 'kite', tool: 'spool', outfit: 'summer', sunhat: true, fur: 0xd8d0c8, cloth: 0x8a6ae0, defi: 'd_dunes' },
   { id: 'kai', name: 'Kaï le surfeur', body: 'dog', x: -100, z: 121, yaw: 1.4, act: 'carry', tool: 'surfboard', outfit: 'summer', fur: 0xb07040, cloth: 0x3ab0e8, defi: 'd_matelas' },
@@ -275,9 +275,12 @@ const TRAILS = [
 // ---------------------------------------------------------------------------
 // Palette : bêtes et objets de la plage
 // ---------------------------------------------------------------------------
+/** Matières des habitants (cfg.mats de life.js) : vrai pelage, vrai tissu, vraie paille. */
+export const MATS = { fur: ['fur', { k: 0.45, scale: 6 }], cloth: ['fabric', { k: 0.45, scale: 7 }], hat: ['grain', {}] };
+
 export const PALETTE = {
   fauna: {
-    crab: { model: 'crab', ai: 'scuttle', side: true, hole: 'burrow', flee: 4.5, run: 6, speed: 1.3, home: 4, scale: 1.1, sound: 'squeak', say: ['Clic clac !', 'Pinces en l\'air !'], skin: 'shell', skinOpts: { roughness: 0.45, scale: 3 } },
+    crab: { model: 'crab', ai: 'scuttle', sideways: true, hole: 'burrow', flee: 4.5, run: 6, speed: 1.3, home: 4, scale: 1.1, sound: 'squeak', say: ['Clic clac !', 'Pinces en l\'air !'], skin: 'shell', skinOpts: { roughness: 0.45, scale: 3 } },
     hermit: { model: 'hermit', ai: 'scuttle', liteNear: 45, shell: true, sink: 0.14, flee: 3.5, speed: 0.5, home: 3, scale: 1.2, colors: { shell: 0xf0dcc0, band: 0xc89070 }, say: ['…'], skin: 'shell', skinOpts: { roughness: 0.5, scale: 4 } },
     starfish: { model: 'starfish', ai: 'wander', liteNear: 40, pet: true, shy: false, hopper: false, speed: 0.12, run: 0.3, home: 1.2, scale: 1.3, sound: 'ting', say: ['Bloup !', 'Coucou !'], tints: [0xff8a4a, 0xff6a8a, 0xb07ad8, 0xffc040, 0xe8503a], skin: 'skin', skinOpts: { roughness: 0.75, scale: 6 } },
     gull: { model: 'bird', ai: 'flock', group: 4, scale: 2.5, flee: 5, sound: 'chirp', foldWings: true, colors: { back: 0xb8c0c8, breast: 0xffffff, cap: 0xffffff, beak: 0xf0b020, fold: true }, skin: 'fur', skinOpts: { k: 0.35, scale: 6 } },
@@ -315,7 +318,6 @@ export const PALETTE = {
     burrow: { model: 'hole', colors: { inner: 0x5a4028, rim: 0xd8bc80 } },
     pool: { model: 'hole', colors: { inner: 0x2a7a98, rim: 0x8a8278 } },
   },
-  villagers: { skin: 'fur', skinOpts: { k: 0.45, scale: 6 }, clothSkin: 'fabric', clothOpts: { k: 0.45, scale: 7 }, hatSkin: 'grain' },
 };
 
 // ---------------------------------------------------------------------------
