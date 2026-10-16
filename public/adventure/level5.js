@@ -40,7 +40,7 @@ export const GATES_NEEDED = 8;         // portes à passer pendant la descente p
 
 // Ambiance : grand ciel bleu d'hiver, lumière blanche et froide
 export const SKY = { top: 0x3f7fd8, horizon: 0xe4eefa, bottom: 0xf2f6fc, sunDir: [0.42, 0.5, 0.5] };
-export const LIGHT = { hemi: [0xeaf2ff, 0x8a98b8, 0.9], sun: [0xfff2e2, 2.1], fog: [100, 340] };
+export const LIGHT = { hemi: [0xeaf2ff, 0x8a98b8, 0.9], sun: [0xfff2e2, 2.1], fog: [70, 560] };
 export const GRADE = { bloom: 0.45, saturation: 1.04, highTint: [0.0, 0.004, 0.014], shadowTint: [0.0, 0.01, 0.04] };
 
 const clamp = (v, a, b) => (v < a ? a : v > b ? b : v);

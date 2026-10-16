@@ -8,6 +8,9 @@ import * as THREE from '../vendor/three.module.min.js';
 import { L } from './current.js';
 import * as M from './models.js';
 import * as K from './citykit.js';
+import { buildLife } from './life.js';
+import { cityMats } from './citylife.js';
+import * as LIFE from './level3life.js';
 
 const { clamp, lerpAngle, angDiff, hex, fmtTime } = K;
 const KP = K.K;                                  // réglages des karts
@@ -549,6 +552,7 @@ export function buildPlay(game, decor) {
   // =============================================================================
   const lapPath = (laps) => { const pts = []; for (let l = 0; l < laps; l++) for (let i = 1; i <= S.TRACK.length; i += 4) pts.push(S.TRACK[(4 + i) % S.TRACK.length]); return pts; };
   function start(id, P) {
+    if (life.active) life.stopDefi();
     const m = { id, ph: 'run', t: -1, by: P ? P.id : 0 };
     if (id === 'delivery') { m.t = S.DELIVERY.time; m.done = []; }
     if (id === 'race') { m.ph = 'ready'; m.prog = {}; m.path = S.RACE.cps.slice(1); placeRivals(S.RACE.rivals, m.path, S.RACE.start, 1); }
@@ -1000,8 +1004,17 @@ export function buildPlay(game, decor) {
   // =============================================================================
   // Interface avec le moteur
   // =============================================================================
+  // --- la couche de vie : pigeons, goélands, chats des toits, marchands, défis éclair, cachettes (life.js) ---
+  const wet = (x, z) => S.groundY(x, z) < 0.4;
+  const life = buildLife(game, {
+    L: S, plan: LIFE.PLAN, palette: LIFE.PALETTE, lines: LIFE.LINES, ground: LIFE.ground, mats: cityMats(),
+    // la mer et le lac : les canards nagent à la surface, les poissons en sautent, les ballons n'y vont pas
+    isWater: wet, surface: (x, z) => (wet(x, z) ? S.WATER_Y : LIFE.ground(x, z)),
+    allDoneText: 'Toute la ville fait la fête : feu d\'artifice au-dessus du port !',
+  });
+
   const logic = {
-    moving, chars,
+    moving, chars, life,
     playerStep(P, wx, wz, jumpHeld, pr, dt) {
       const k = P.kart;
       if (!k) return false;
@@ -1027,14 +1040,15 @@ export function buildPlay(game, decor) {
       if (distXZ(Q.pos, tx.x, tx.z) < 6 && !(st.m && st.m.id === 'taxi')) return { kind: 'lv', act: 'giver', id: 'taxi', label: 'TAXI', x: tx.x, z: tx.z, y: tx.y };
       return { kind: 'lv', act: 'exit', label: 'DESCENDRE', x: Q.pos.x, z: Q.pos.z, y: Q.pos.y };
     },
-    extraCandidates() {
-      const out = [];
+    extraCandidates(Q) {
+      const out = Q && !Q.kart ? life.candidates(Q) : [];
       for (const k of karts) if (k.driver < 0) out.push({ kind: 'lv', act: 'kart', k: k.i, label: 'MONTER', x: k.x, z: k.z, y: k.y });
       for (const k of planes) if (k.driver < 0) out.push({ kind: 'lv', act: 'plane', k: k.i, label: 'PILOTER', x: k.x, z: k.z, y: k.y });
       for (const id in citizens) { const g = S.GIVERS[id]; out.push({ kind: 'lv', act: 'giver', id, label: id === 'shop' ? 'BOUTIQUE' : 'PARLER', x: g.x, z: g.z, y: g.y }); }
       return out;
     },
     interact(n, P) {
+      if (n.life) { life.interact(n, P); return; }
       if (n.act === 'kart') enterKart(P, karts[n.k]);
       else if (n.act === 'plane') enterPlane(P, planes[n.k]);
       else if (n.act === 'exit') { if (P.kart && P.kart.plane) exitPlane(P); else exitKart(P); }
@@ -1067,10 +1081,12 @@ export function buildPlay(game, decor) {
       stepCars(dt);
       stepMission(dt);
       stepPosters();
+      life.step(dt);
     },
     questText() {
       const s = save();
       if (st.m) return missionDef(st.m.id).title;
+      const lq = life.questText(); if (lq) return lq;
       if (!s.intro) return 'Parle à Mamie Labrador';
       if (owned('boss')) return `Ville sauvée ! Trophées ${s.medals.length}/${S.medals.length}`;
       if (unlocked('boss')) return 'Mamie t\'attend : la Capitaine est aux docks !';
@@ -1085,6 +1101,7 @@ export function buildPlay(game, decor) {
       for (const r of rivals) if (r.on) out.push([r.x, r.z, '#ffffff', 2.6]);
       for (const k of planes) out.push([k.x, k.z, hex(k.def.color), 3.2]);
       for (const [x, z, col] of targets()) out.push([x, z, col, 4.2, true]);
+      if (!st.m) for (const m of life.marks()) out.push(m);
       return out;
     },
     reveal() { const o = {}; for (const m of S.medals) o[m.id] = false; return o; },
@@ -1105,6 +1122,7 @@ export function buildPlay(game, decor) {
           kt: m.kt ? [r(m.kt.x), r(m.kt.y), r(m.kt.z), m.kt.carrier] : null,
           path: m.path ? m.path.length : 0,
         } : 0,
+        lf: life.snapshot(),
       };
     },
     apply(x) {
@@ -1137,6 +1155,7 @@ export function buildPlay(game, decor) {
         if (m.kt) st.m.kt = { x: m.kt[0], y: m.kt[1], z: m.kt[2], carrier: m.kt[3] };
       }
       if ((st.m ? st.m.id + st.m.ph : '') !== prevId) game.updateHud();
+      life.apply(x.lf);
     },
     talkMamie(first) {
       const s = save(), k = game.controlsHelp();
@@ -1187,6 +1206,7 @@ export function buildPlay(game, decor) {
       // masquage au loin
       const far = (lite ? 240 : 330);
       for (const c of cullList) c.obj.visible = Math.hypot(c.x - cam.x, c.z - cam.z) < far + c.r;
+      life.render(dt, t);
       const seeIt = (x, z, r) => Math.hypot(x - cam.x, z - cam.z) < (r || SEE);
       // boutons tactiles en kart
       const vk = me.kart ? (me.kart.plane ? 'plane' : 'kart') : '';

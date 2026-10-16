@@ -325,11 +325,22 @@ export const crates = [
 const CELL = 16, OFF = 32;
 const grid = new Map();
 const key = (i, j) => (i + OFF) * 128 + (j + OFF);
-for (const c of colliders) {
-  const [x0, x1, z0, z1] = c.type === 'box' ? [c.x - c.w / 2, c.x + c.w / 2, c.z - c.d / 2, c.z + c.d / 2] : [c.x - c.r, c.x + c.r, c.z - c.r, c.z + c.r];
-  for (let i = Math.floor(x0 / CELL); i <= Math.floor(x1 / CELL); i++) for (let j = Math.floor(z0 / CELL); j <= Math.floor(z1 / CELL); j++) {
-    const k = key(i, j); if (!grid.has(k)) grid.set(k, []); grid.get(k).push(c);
+function indexAll() {
+  grid.clear();
+  for (const c of colliders) {
+    const [x0, x1, z0, z1] = c.type === 'box' ? [c.x - c.w / 2, c.x + c.w / 2, c.z - c.d / 2, c.z + c.d / 2] : [c.x - c.r, c.x + c.r, c.z - c.r, c.z + c.r];
+    for (let i = Math.floor(x0 / CELL); i <= Math.floor(x1 / CELL); i++) for (let j = Math.floor(z0 / CELL); j <= Math.floor(z1 / CELL); j++) {
+      const k = key(i, j); if (!grid.has(k)) grid.set(k, []); grid.get(k).push(c);
+    }
   }
+}
+indexAll();
+/** Obstacles ajoutés après coup (la couche de vie : habitants, coffres, objets solides). */
+export function addColliders(list) {
+  // (on rejoue le niveau : les anciens obstacles de la couche de vie sont remplacés)
+  for (let i = colliders.length - 1; i >= 0; i--) if (colliders[i].life) colliders.splice(i, 1);
+  for (const c of list) colliders.push(c);
+  indexAll();
 }
 let stamp = 1;
 /** Obstacles proches de (x, z) dans un rayon r. */

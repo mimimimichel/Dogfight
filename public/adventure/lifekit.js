@@ -16,6 +16,7 @@
 import * as THREE from '../vendor/three.module.min.js';
 import * as RT from './realtex.js';
 import * as W from './world.js';
+import * as FOL from './foliage.js';
 
 const TAU = Math.PI * 2;
 const _m = new THREE.Matrix4(), _q = new THREE.Quaternion(), _e = new THREE.Euler(), _v = new THREE.Vector3(), _s = new THREE.Vector3();
@@ -242,6 +243,8 @@ export const MODELS = {
 export const PROPS = {
   /** Buisson : touffes du feuillage des arbres du parc (même matière), quelques baies. */
   bush(c) {
+    const R = W.LOOK.real ? FOL.propBush(LITE()) : null;     // (réaliste : vraies feuilles, foliage.js)
+    if (R) return { geo: R.geo, mat: R.mat, depth: R.depth, h: 1.5, r: 1.3, shadow: !LITE() };
     const d = LITE() ? 6 : 12;
     const parts = [leafBlob(d, { y: 0.7, s: 1.0, sy: 0.7, tint: c.tint }), leafBlob(d, { x: 0.75, y: 0.5, z: 0.25, s: 0.7, sy: 0.65, ry: 1, tint: c.tint }), leafBlob(d, { x: -0.7, y: 0.52, z: -0.2, s: 0.75, sy: 0.65, ry: 2, tint: c.tint }),
       leafBlob(d, { x: 0.1, y: 0.45, z: 0.7, s: 0.6, sy: 0.6, ry: 3, tint: c.tint })];
@@ -249,6 +252,8 @@ export const PROPS = {
   },
   /** Arbuste : tronc en écorce photo, feuillage du parc ; on le secoue. */
   sapling(c) {
+    const R = W.LOOK.real ? FOL.propSapling(LITE()) : null;
+    if (R) return { geo: R.geo, mat: R.mat, depth: R.depth, h: 3.4, r: 0.5, shadow: !LITE() };
     const d = LITE() ? 6 : 12;
     const trunk = [P(cyl(0.09, 0.15, 2.0, 8), 0xffffff, { y: 1.0 }), P(cyl(0.04, 0.07, 0.9, 6), 0xffffff, { x: 0.25, y: 1.7, rz: -0.6 }), P(cyl(0.04, 0.07, 0.8, 6), 0xffffff, { x: -0.22, y: 1.8, rz: 0.55 })];
     const leaves = [leafBlob(d, { y: 2.6, s: 1.05, tint: c.tint }), leafBlob(d, { x: 0.75, y: 2.25, z: 0.2, s: 0.7, ry: 1 }), leafBlob(d, { x: -0.7, y: 2.3, z: -0.2, s: 0.72, ry: 2 }), leafBlob(d, { z: 0.6, y: 2.2, s: 0.62, ry: 3 })];

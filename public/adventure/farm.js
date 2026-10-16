@@ -9,7 +9,7 @@ import { L } from './current.js';
 import * as M from './models.js';
 import * as W from './world.js';
 import * as K from './farmkit.js';
-import { buildLife } from './life.js';
+import { buildLife, skinMaterial } from './life.js';
 import * as LIFE from './level7life.js';
 
 const clamp = (v, a, b) => (v < a ? a : v > b ? b : v);
@@ -454,6 +454,7 @@ export function buildFarm(game) {
   const life = buildLife(game, {
     L: { heightAt: S.heightAt, blockedAt: S.lifeBlockedAt, addColliders: S.addColliders, WATER_Y: S.WATER_Y },
     plan: LIFE.PLAN, palette: LIFE.PALETTE, lines: LIFE.LINES, ground: LIFE.ground, surface: LIFE.ground, isWater: LIFE.wet, real: true, grain: true,
+    mats: { fur: skinMaterial('fur'), cloth: skinMaterial('fabric'), tool: skinMaterial('wood'), hat: skinMaterial('fabric') },
     view: lite ? 78 : 130, active: lite ? 55 : 80,
     shakeText: 'Secouez les buissons, les arbres et les ruches, cassez les bottes de paille : il y a des trésors partout',
     allDoneText: 'Toute la ferme fait la fête : les animaux dansent !',
