@@ -58,20 +58,20 @@ export const PLACES = { CARROTS, BROOD, DUCKPEN, CROWFIELD, HIVES, BELLS, HAYFIE
 // Les habitants (et leurs répliques)
 // ---------------------------------------------------------------------------
 export const VILLAGERS = [
-  { id: 'rosalie', name: 'Rosalie la fermière', body: 'dog', x: -92, z: 36, yaw: 0.6, act: 'scatter', tool: 'basket', fur: 0xd8a070, cloth: 0xe86a8a, throwColor: 0xf0d070, defi: 'd_oeufs' },
-  { id: 'cocotte', name: 'Mémé Cocotte', body: 'dog', x: -31, z: 20, yaw: -2.2, act: 'scatter', tool: 'basket', fur: 0xf0e6d6, cloth: 0x8a6ae0, scale: 0.92, defi: 'd_poussins' },
-  { id: 'lucien', name: 'Lucien le jardinier', body: 'dog', x: 27, z: 121, yaw: 0.9, act: 'rake', tool: 'rake', fur: 0x8a6a4a, cloth: 0x4a8a4a, defi: 'd_lapins' },
-  { id: 'firmin', name: 'Firmin le muletier', body: 'dog', x: -34, z: -115, yaw: -1.6, act: 'idle', tool: 'crook', fur: 0xc08a5a, cloth: 0x3a6ab0, defi: 'd_ane' },
+  { id: 'rosalie', name: 'Rosalie la fermière', body: 'dog', x: -92, z: 36, yaw: 0.6, act: 'scatter', busy: true, tool: 'basket', fur: 0xd8a070, cloth: 0xe86a8a, throwColor: 0xf0d070, defi: 'd_oeufs' },
+  { id: 'cocotte', name: 'Mémé Cocotte', body: 'dog', x: -31, z: 20, yaw: -2.2, act: 'scatter', busy: true, tool: 'basket', fur: 0xf0e6d6, cloth: 0x8a6ae0, scale: 0.92, defi: 'd_poussins' },
+  { id: 'lucien', name: 'Lucien le jardinier', body: 'dog', x: 27, z: 121, yaw: 0.9, act: 'rake', busy: true, tool: 'rake', fur: 0x8a6a4a, cloth: 0x4a8a4a, defi: 'd_lapins' },
+  { id: 'basile', name: 'Basile le muletier', body: 'dog', x: -34, z: -115, yaw: -1.6, act: 'idle', tool: 'crook', fur: 0xc08a5a, cloth: 0x3a6ab0, defi: 'd_ane' },
   { id: 'blaise', name: 'Blaise le chevrier', body: 'dog', x: 128, z: -42, yaw: 0.8, act: 'flag', tool: 'crook', fur: 0x5a4030, cloth: 0xc8a040, defi: 'd_chevrette' },
   { id: 'melodie', name: 'Mélodie la vachère', body: 'dog', x: 133, z: 70, yaw: 0.7, act: 'idle', tool: 'mallet', fur: 0xe8c49a, cloth: 0xd84a3a, defi: 'd_cloches' },
   { id: 'capucine', name: 'Capucine la cane', body: 'critter', model: 'capucine', x: 106, z: 99, yaw: -2.6, scale: 1.7, act: 'idle', defi: 'd_canetons' },
-  { id: 'pirouette', name: 'Pirouette', body: 'dog', x: -32, z: 128, yaw: 2.4, act: 'hop', fur: 0xc08a5a, cloth: 0xff6ab0, scale: 0.72, moves: true, defi: 'd_enfants' },
-  { id: 'brindille', name: 'Brindille', body: 'dog', x: -24, z: 135, yaw: -2.2, act: 'hop', fur: 0x8a5a3a, cloth: 0x5ac8ff, scale: 0.68, moves: true },
-  { id: 'galopin', name: 'Galopin', body: 'dog', x: -38, z: 137, yaw: 0.8, act: 'hop', fur: 0xf2e6d0, cloth: 0xffb020, scale: 0.66, moves: true },
+  { id: 'pirouette', name: 'Pirouette', body: 'dog', x: -32, z: 128, yaw: 2.4, act: 'jumpy', fur: 0xc08a5a, cloth: 0xff6ab0, scale: 0.72, moves: true, defi: 'd_enfants' },
+  { id: 'brindille', name: 'Brindille', body: 'dog', x: -24, z: 135, yaw: -2.2, act: 'jumpy', fur: 0x8a5a3a, cloth: 0x5ac8ff, scale: 0.68, moves: true },
+  { id: 'galopin', name: 'Galopin', body: 'dog', x: -38, z: 137, yaw: 0.8, act: 'jumpy', fur: 0xf2e6d0, cloth: 0xffb020, scale: 0.66, moves: true },
   { id: 'epouvantail', name: 'Monsieur Épouvantail', body: 'scarecrow', x: -120, z: 4, yaw: 0.9, sleepy: true, hat: 0x5a4a3a, defi: 'd_corbeaux' },
-  { id: 'gaston', name: 'Gaston le pêcheur', body: 'dog', x: 99.5, z: 131, yaw: Math.PI + 0.3, act: 'fish', tool: 'rod', fur: 0x9a7a5a, cloth: 0x3a7a8a, defi: 'd_peche' },
+  { id: 'hippolyte', name: 'Hippolyte le pêcheur', body: 'dog', x: 99.5, z: 131, yaw: Math.PI + 0.3, act: 'fish', busy: true, tool: 'rod', fur: 0x9a7a5a, cloth: 0x3a7a8a, defi: 'd_peche' },
   { id: 'jules', name: 'Jules le meunier', body: 'dog', x: 82, z: -90, yaw: 0.4, act: 'idle', tool: 'sack', fur: 0xf4ecdc, cloth: 0xd8d0c0, defi: 'd_epis' },
-  { id: 'miel', name: 'Mamie Miel l\'apicultrice', body: 'dog', x: 141, z: 7, yaw: 2.2, act: 'water', tool: 'can', fur: 0xe8b060, cloth: 0xf2f0e6 },
+  { id: 'miel', name: 'Mamie Miel l\'apicultrice', body: 'dog', x: 141, z: 7, yaw: 2.2, act: 'water', busy: true, tool: 'can', fur: 0xe8b060, cloth: 0xf2f0e6 },
 ];
 for (const v of VILLAGERS) v.y = g(v.x, v.z);
 
@@ -98,12 +98,12 @@ export const LINES = {
     talk: [[W('Lucien le jardinier', 'Un coup de râteau ici, un coup de râteau là… et ça pousse !')],
       [W('Lucien le jardinier', 'Les carottes, il faut les tirer d\'un coup sec. Essayez, pour voir !')]],
   },
-  firmin: {
-    ask: [W('Firmin le muletier', 'Pompon, mon âne, veut faire la course. Il est têtu… mais il court vite quand il veut !'),
-      W('Firmin le muletier', 'Battez-le jusqu\'au drapeau à damier, près du Rocher aux Corbeaux. Le signal doré, c\'est le départ.')],
-    thanks: [W('Firmin le muletier', 'Battu, Pompon ! Il boude un peu… Une carotte, et il ira mieux.')],
-    talk: [[W('Firmin le muletier', 'Hi-han ! C\'est comme ça qu\'il dit bonjour. Et au revoir. Et j\'ai faim.')],
-      [W('Firmin le muletier', 'Caressez-le : il vous suivra partout, comme un gros chien gris.')]],
+  basile: {
+    ask: [W('Basile le muletier', 'Pompon, mon âne, veut faire la course. Il est têtu… mais il court vite quand il veut !'),
+      W('Basile le muletier', 'Battez-le jusqu\'au drapeau à damier, près du Rocher aux Corbeaux. Le signal doré, c\'est le départ.')],
+    thanks: [W('Basile le muletier', 'Battu, Pompon ! Il boude un peu… Une carotte, et il ira mieux.')],
+    talk: [[W('Basile le muletier', 'Hi-han ! C\'est comme ça qu\'il dit bonjour. Et au revoir. Et j\'ai faim.')],
+      [W('Basile le muletier', 'Caressez-le : il vous suivra partout, comme un gros chien gris.')]],
   },
   blaise: {
     ask: [W('Blaise le chevrier', 'Ma chevrette Noisette s\'est encore échappée ! Elle a filé avec mon foulard dans la bouche.'),
@@ -142,12 +142,12 @@ export const LINES = {
     talk: [[W('Monsieur Épouvantail', 'Je suis rempli de paille. Ça gratte un peu, mais c\'est très confortable.')],
       [W('Matcha', 'Il parle, l\'épouvantail !'), W('Monsieur Épouvantail', 'Bien sûr. Mais seulement quand on me réveille poliment.')]],
   },
-  gaston: {
-    ask: [W('Gaston le pêcheur', 'Chut… Les poissons de la mare sautent tout près du ponton. Moi, je n\'en attrape jamais !'),
-      W('Gaston le pêcheur', 'Montez sur le ponton et attrapez-en cinq au vol, au signal doré. Ne tombez pas à l\'eau, hein !')],
-    thanks: [W('Gaston le pêcheur', 'Cinq poissons au vol ! Et hop, tous relâchés dans la mare. Vous êtes champions !')],
-    talk: [[W('Gaston le pêcheur', 'La pêche, c\'est de la patience. Et une bonne casquette contre le soleil.')],
-      [W('Gaston le pêcheur', 'Les canards me volent toujours mes vers de terre. Coin coin, qu\'ils disent. Tu parles !')]],
+  hippolyte: {
+    ask: [W('Hippolyte le pêcheur', 'Chut… Les poissons de la mare sautent tout près du ponton. Moi, je n\'en attrape jamais !'),
+      W('Hippolyte le pêcheur', 'Montez sur le ponton et attrapez-en cinq au vol, au signal doré. Ne tombez pas à l\'eau, hein !')],
+    thanks: [W('Hippolyte le pêcheur', 'Cinq poissons au vol ! Et hop, tous relâchés dans la mare. Vous êtes champions !')],
+    talk: [[W('Hippolyte le pêcheur', 'La pêche, c\'est de la patience. Et une bonne casquette contre le soleil.')],
+      [W('Hippolyte le pêcheur', 'Les canards me volent toujours mes vers de terre. Coin coin, qu\'ils disent. Tu parles !')]],
   },
   jules: {
     ask: [W('Jules le meunier', 'Bonjour, les farinés ! Le vent a soufflé si fort qu\'il a éparpillé mes épis dorés sur la colline du moulin.'),
@@ -213,7 +213,7 @@ const PROPS = [
   { id: 'ep_1', kind: 'scarecrow', x: -134, z: 28, rot: 0.5, hat: 0x6a4a2a }, { id: 'ep_2', kind: 'scarecrow', x: -142, z: -4, rot: 1.4, hat: 0x2a4a8a },
   // le rucher de Mamie Miel
   { id: 'ru_1', kind: 'hive', x: HIVES.x, z: HIVES.z }, { id: 'ru_2', kind: 'hive', x: HIVES.x + 3.2, z: HIVES.z - 1.5 }, { id: 'ru_3', kind: 'hive', x: HIVES.x + 1.2, z: HIVES.z - 4.2 },
-  ...[[HIVES.x - 4, HIVES.z - 4], [HIVES.x + 5, HIVES.z + 2.5], [HIVES.x - 3, HIVES.z + 4]].map(([x, z], i) => ({ id: 'ru_f' + i, kind: 'flowers', x, z })),
+  ...[[HIVES.x - 4, HIVES.z - 4], [HIVES.x + 5, HIVES.z + 2.5], [HIVES.x - 3, HIVES.z + 4]].map(([x, z], i) => ({ id: 'ru_f' + i, kind: 'wildflowers', x, z })),
   // le puits (un gros bouton : de l'eau qui jaillit) et la girouette
   { id: 'puits', kind: 'well', x: -40, z: 34, effect: 'fountain', rot: 0.3 },
   { id: 'girouette', kind: 'vane', x: 42, z: 88 },
@@ -223,9 +223,9 @@ const PROPS = [
   ...[[-48, 76], [-54, 72], [-44, 70], [-58, 80]].map(([x, z], i) => ({ id: 'ci_' + i, kind: 'pumpkin', x, z, rot: i })),
   ...[[-80, 64], [-84, 40], [-64, 20]].map(([x, z], i) => ({ id: 'bo_' + i, kind: 'bale', x, z, rot: i * 1.3 })),
   // les flaques des porcelets
-  { id: 'fl_1', kind: 'puddle', x: 20, z: 100 }, { id: 'fl_2', kind: 'puddle', x: 72, z: 92 },
+  { id: 'fl_1', kind: 'mudpuddle', x: 20, z: 100 }, { id: 'fl_2', kind: 'mudpuddle', x: 72, z: 92 },
   // le nid de Capucine (des fleurs autour) et la caisse de Mémé Cocotte
-  { id: 'nid_f', kind: 'flowers', x: DUCKPEN.x + 4, z: DUCKPEN.z - 2 }, { id: 'cai_b', kind: 'bale', x: BROOD.x - 4.5, z: BROOD.z - 2, rot: 0.4 },
+  { id: 'nid_f', kind: 'wildflowers', x: DUCKPEN.x + 4, z: DUCKPEN.z - 2 }, { id: 'cai_b', kind: 'bale', x: BROOD.x - 4.5, z: BROOD.z - 2, rot: 0.4 },
 ];
 for (const p of PROPS) p.y = g(p.x, p.z);
 
@@ -281,10 +281,10 @@ const TRAILS = [
 // ---------------------------------------------------------------------------
 export const PALETTE = {
   fauna: {
-    hens: { model: 'hen', ai: 'wander', group: 4, line: true, babies: 'chick', gap: 0.75, hopper: false, flee: 4, run: 4.5, speed: 1.0, home: 7, sound: 'cluck', say: ['Cot cot !', 'Codêêêt !'], tints: [0xffffff, 0xd08a50, 0xf0d8b0, 0x9a5a34] },
+    hens: { model: 'hen', ai: 'wander', group: 4, line: true, young: 'chick', gap: 0.75, hopper: false, flee: 4, run: 4.5, speed: 1.0, home: 7, sound: 'cluck', say: ['Cot cot !', 'Codêêêt !'], tints: [0xffffff, 0xd08a50, 0xf0d8b0, 0x9a5a34] },
     chick: { model: 'chick', ai: 'wander', pet: true, shy: false, hopper: true, speed: 1.4, run: 5, home: 4, sound: 'peep', say: ['Piou !', 'Piou piou !'], follow: 15, scale: 1.2, tints: [0xffffff, 0xfff0c0], extra: 4 },
-    ducks: { model: 'duck', ai: 'swim', group: 4, line: true, babies: 'duckling', gap: 0.65, speed: 0.7, run: 3.2, home: 5.5, sound: 'quack', say: ['Coin !', 'Coin coin !'] },
-    duckling: { model: 'duck', ai: 'swim', scale: 0.48, colors: { fur: 0xffe070, bill: 0xf09a2a }, extra: 4 },
+    ducks: { model: 'duck', ai: 'swim', water: true, group: 4, line: true, young: 'duckling', gap: 0.65, speed: 0.7, run: 3.2, home: 5.5, flee: 3, sound: 'quack', say: ['Coin !', 'Coin coin !'], colors: { body: 0xf6f2e8, head: 0xfbfaf4, breast: 0xf0ebe0, wing: 0xe6e0d4, bill: 0xf09a2a } },
+    duckling: { model: 'duckling', ai: 'swim', water: true, colors: { fur: 0xffe070 }, extra: 4 },
     goats: { model: 'goat', ai: 'wander', group: 2, pet: true, shy: false, hopper: false, speed: 1.0, run: 5.5, home: 10, sound: 'bleat', say: ['Bêêh !', 'Mêêê !'], butt: 5, buttText: ['Boing !', 'Les chèvres adorent jouer à coups de tête'], tints: [0xffffff, 0xf0e2c8, 0x9a6a4a, 0x6a5a52] },
     goatkid: { model: 'goat', ai: 'none', scale: 0.62, extra: 1 },
     donkey: { model: 'donkey', ai: 'wander', pet: true, shy: false, hopper: false, speed: 0.9, run: 4, home: 10, sound: 'bray', say: ['Hi-han !', 'Hiiii-han !'], follow: 18, extra: 1 },
@@ -293,15 +293,15 @@ export const PALETTE = {
     mice: { model: 'mouse', ai: 'wander', group: 2, hopper: false, flee: 4, run: 7, speed: 1.8, home: 4, sound: 'squeak', say: ['Couic !'] },
     rabbits: { model: 'hare', ai: 'wander', group: 2, scale: 1.0, colors: { fur: 0xb89470, tip: 0x5a4030 }, hopper: true, flee: 6, run: 8, speed: 1.5, home: 8, sound: 'squeak', say: ['Hop !'] },
     rabbitwhack: { model: 'hare', ai: 'none', colors: { fur: 0xb08a62, tip: 0x5a4030 }, scale: 1.1 },
-    sparrows: { model: 'bird', fold: 1.3, ai: 'flock', group: 5, scale: 1.4, flee: 5, sound: 'chirp', colors: { back: 0x8a6a4a, breast: 0xe8d8c0, cap: 0x6a4a34 } },
-    crows: { model: 'bird', fold: 1.3, ai: 'flock', group: 4, scale: 2.2, flee: 6, sound: 'caw', colors: { back: 0x22222a, breast: 0x2e2e36, cap: 0x18181e } },
-    crow: { model: 'bird', fold: 1.3, ai: 'perch', scale: 2.2, sound: 'caw', say: ['Croâ !'], colors: { back: 0x22222a, breast: 0x2e2e36, cap: 0x18181e } },
-    crowdefi: { model: 'bird', fold: 1.3, ai: 'none', scale: 2.2, colors: { back: 0x22222a, breast: 0x2e2e36, cap: 0x18181e } },
-    bees: { model: 'bee', ai: 'hover', group: 4, glow: false, flapRate: 70, hoverH: 1.1, range: 2.2, scale: 1.6, sound: 'buzz' },
-    butterflies: { model: 'butterfly', ai: 'hover', group: 2, glow: false, flapRate: 13, hoverH: 0.9, range: 3, scale: 1.8, tints: [0xffb020, 0xff6a8a, 0x8ab0ff, 0xffffff, 0xffe040] },
-    frogs: { model: 'frog', ai: 'wander', group: 2, hopper: true, flee: 3.5, run: 5, speed: 0.8, home: 4, sound: 'croak', say: ['Croâ !'], scale: 1.5 },
-    fish: { model: 'fish', ai: 'jump', hole: true, colors: { fur: 0xff8a3a } },
-    capucine: { model: 'duck', ai: 'none', colors: { fur: 0xfbfaf4, bill: 0xf09a2a }, extra: 1 },
+    sparrows: { model: 'songbird', fold: 1.3, ai: 'flock', group: 5, scale: 1.1, flyH: 9, flee: 5, sound: 'chirp', colors: { back: 0x8a6a4a, breast: 0xe8d8c0, cap: 0x6a4a34 } },
+    crows: { model: 'songbird', fold: 1.3, ai: 'flock', group: 4, scale: 1.7, flyH: 10, flee: 6, sound: 'caw', colors: { back: 0x22222a, breast: 0x2e2e36, cap: 0x18181e, beak: 0x2a2a2a } },
+    crow: { model: 'songbird', fold: 1.3, ai: 'perch', scale: 1.7, sound: 'caw', say: ['Croâ !'], colors: { back: 0x22222a, breast: 0x2e2e36, cap: 0x18181e, beak: 0x2a2a2a } },
+    crowdefi: { model: 'songbird', fold: 1.3, ai: 'none', scale: 1.7, colors: { back: 0x22222a, breast: 0x2e2e36, cap: 0x18181e, beak: 0x2a2a2a } },
+    bees: { model: 'bee', ai: 'hover', group: 4, glow: false, flapRate: 70, alt: 1.1, range: 2.2, scale: 1.6, sound: 'buzz' },
+    butterflies: { model: 'butterfly', ai: 'hover', group: 2, glow: false, flapRate: 13, alt: 0.9, range: 3, scale: 1.2, colors: { wing: 0xffb020 } },
+    frogs: { model: 'frog', ai: 'hop', group: 2, flee: 3.5, home: 4, sound: 'croak', say: ['Croâ !'], scale: 1.2 },
+    fish: { model: 'fish', ai: 'jump', water: true, hole: true, colors: { fur: 0xff8a3a } },
+    capucine: { model: 'duck', ai: 'none', colors: { body: 0xf6f2e8, head: 0xfbfaf4, breast: 0xf0ebe0, wing: 0xe6e0d4, bill: 0xf09a2a, ring: 0xff6ab0 }, extra: 1 },
   },
   props: {
     haystack: { act: 'bounce', power: 17, r: 1.3 },
@@ -310,13 +310,13 @@ export const PALETTE = {
     carrots: { act: 'break', drop: 1, chance: 0.6, respawn: 40, color: 0xf07a20 },
     bush: { act: 'shake', drop: 2, solid: 0.6, burst: 0x6ac04a },
     fruittree: { act: 'shake', drop: 2, solid: 0.35, burst: 0x6ac04a },
-    flowers: { act: 'shake', drop: 1, burst: 0xffb0d0 },
+    wildflowers: { act: 'shake', drop: 1, burst: 0xffb0d0 },
     scarecrow: { act: 'hat', solid: 0.4, drop: 1, hatY: 2.45 },
     hive: { act: 'shake', drop: 1, solid: 0.6, burst: 0xffd23a, chirp: 'buzz' },
     well: { act: 'press', r: 1.1, solid: 1.0 },
     vane: { act: 'spin', solid: 0.2, burst: 0xffe070 },
     cowbell: { act: 'chime', solid: 0.15 },
-    puddle: { act: 'splash', r: 1.35, color: 0x6a4a2a, mud: true },
+    mudpuddle: { act: 'splash', r: 1.35, top: 0.6, color: 0x6a4a2a, mud: true },
     hole: { colors: { dark: 0x1e3a3a, rim: 0x9ac8c8 } },
     coin: { model: 'egg' },
     marker: {},
@@ -382,7 +382,7 @@ export const SPEC = {
     { type: 'fauna', kind: 'bees', w: 0.8, min: 26, when: (x, z, i) => !i.wet && i.forest >= 1 },
     { type: 'props', kind: 'haystack', w: 1.6, min: 26, when: (x, z, i) => i.flat && !i.farm },
     { type: 'props', kind: 'bush', w: 2.2, min: 12, when: (x, z, i) => !i.wet },
-    { type: 'props', kind: 'flowers', w: 2.4, min: 9, when: (x, z, i) => !i.wet },
+    { type: 'props', kind: 'wildflowers', w: 2.4, min: 9, when: (x, z, i) => !i.wet },
     { type: 'props', kind: 'fruittree', w: 1.4, min: 20, when: (x, z, i) => !i.wet && i.forest < 4 },
     { type: 'props', kind: 'bale', w: 1.2, min: 16, when: (x, z, i) => !i.wet && i.flat },
     { type: 'props', kind: 'pumpkin', w: 0.8, min: 18, when: (x, z, i) => !i.wet && i.farm },

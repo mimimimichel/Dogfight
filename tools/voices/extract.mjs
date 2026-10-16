@@ -16,7 +16,7 @@ const walk = require('acorn-walk');
 const DIR = path.join(path.dirname(new URL(import.meta.url).pathname), '../../public/adventure');
 const levels = {};
 for (const n of [1, 2, 3, 4, 5, 6, 7, 8]) levels[n] = await import(path.join(DIR, `level${n}.js`));
-const FILES = { 'game.js': 1, 'level1.js': 1, 'park.js': 1, 'parkkit.js': 1, 'level2.js': 2, 'forest.js': 2, 'level3.js': 3, 'cityplay.js': 3, 'city.js': 3, 'level4.js': 4, 'sky.js': 4, 'sky_boss.js': 4, 'level5.js': 5, 'snow.js': 5, 'level5life.js': 5, 'level6.js': 6, 'beach.js': 6, 'beachplay.js': 6, 'level7.js': 7, 'farm.js': 7, 'farmkit.js': 7, 'level8.js': 8, 'castle.js': 8, 'forestkit.js': 2, 'forestlife.js': 2, 'story.js': 0 };
+const FILES = { 'game.js': 1, 'level1.js': 1, 'park.js': 1, 'parkkit.js': 1, 'level2.js': 2, 'forest.js': 2, 'level3.js': 3, 'cityplay.js': 3, 'city.js': 3, 'level4.js': 4, 'sky.js': 4, 'sky_boss.js': 4, 'level5.js': 5, 'snow.js': 5, 'level5life.js': 5, 'level1life.js': 1, 'lifekit.js': 1, 'level6.js': 6, 'beach.js': 6, 'beachplay.js': 6, 'level7.js': 7, 'farm.js': 7, 'farmkit.js': 7, 'level8.js': 8, 'castle.js': 8, 'forestkit.js': 2, 'forestlife.js': 2, 'story.js': 0 };
 const KEYS = [{ jump: 'ESPACE', attack: 'J', dash: 'K' }, { jump: 'SAUT', attack: 'ATTAQUE', dash: 'CHARGE' }];
 const NARRATOR = '';
 
@@ -88,6 +88,12 @@ for (const [file, lv] of Object.entries(FILES)) {
         for (const env of useEnvs) for (const who of variants(w.value, code, env)) for (const tx of variants(t.value, code, env)) add(who, tx, file);
       },
       CallExpression(node, anc) {
+        // W('Qui')('Texte') (données de la couche de vie, ex. level1life.js)
+        if (node.callee.type === 'CallExpression' && node.callee.callee.type === 'Identifier' && node.callee.callee.name === 'W') {
+          const w = node.callee.arguments[0], t = node.arguments[0];
+          if (w && t) for (const who of variants(w, code, baseEnv)) for (const tx of variants(t, code, baseEnv)) add(who, tx, file);
+          return;
+        }
         // say([...]) et thanks('...') des habitants (cityplay.js : talkGiver)
         if (node.callee.type !== 'Identifier' || !['say', 'thanks'].includes(node.callee.name) || !S.GIVERS) return;
         const sc = [...anc].reverse().find(a => a.type === 'SwitchCase' && a.test && a.test.type === 'Literal');

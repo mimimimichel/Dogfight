@@ -453,7 +453,7 @@ export function buildFarm(game) {
   // (avant les obstacles des animaux : moutons et poules contournent aussi les arbres fruitiers, ruches, épouvantails…)
   const life = buildLife(game, {
     L: { heightAt: S.heightAt, blockedAt: S.lifeBlockedAt, addColliders: S.addColliders, WATER_Y: S.WATER_Y },
-    plan: LIFE.PLAN, palette: LIFE.PALETTE, lines: LIFE.LINES, ground: LIFE.ground, dry: LIFE.dry, waterY: S.WATER_Y, real: true,
+    plan: LIFE.PLAN, palette: LIFE.PALETTE, lines: LIFE.LINES, ground: LIFE.ground, surface: LIFE.ground, isWater: LIFE.wet, real: true, grain: true,
     view: lite ? 78 : 130, active: lite ? 55 : 80,
     shakeText: 'Secouez les buissons, les arbres et les ruches, cassez les bottes de paille : il y a des trésors partout',
     allDoneText: 'Toute la ferme fait la fête : les animaux dansent !',
