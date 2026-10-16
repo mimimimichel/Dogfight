@@ -1197,7 +1197,8 @@ export function buildLife(game, cfg) {
     const me = game.me; if (!me) return;
     camQ.copy(game.camera.quaternion);
     // le voisinage (recalculé quatre fois par seconde)
-    if ((st.nearT -= dt) <= 0) { st.nearT = 0.25; refreshNear(); }
+    // (tout de suite après un grand saut : téléportation, réapparition…)
+    if ((st.nearT -= dt) <= 0 || Math.abs(me.pos.x - (st.nearX || 0)) + Math.abs(me.pos.z - (st.nearZ || 0)) > 20) { st.nearT = 0.25; st.nearX = me.pos.x; st.nearZ = me.pos.z; refreshNear(); }
     // événements de l'hôte (chez un ami)
     for (const l of layers.values()) l.begin();
     const barks = game.players.filter((P) => { const prev = P._lifeBark || 0, b = P.barkT || 0; P._lifeBark = b; return b > prev + 0.3; });
