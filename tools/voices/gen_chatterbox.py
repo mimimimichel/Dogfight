@@ -119,6 +119,19 @@ CAST = {
     'Gérard le laveur de carreaux': ('barnabe', 0.65, 0.5),
     'Marius du kiosque': ('lunette', 0.65, 0.5),
     'Mamie Rose': ('mamie', 0.65, 0.5),
+    'Sacha': ('biscotte', 0.65, 0.5),
+    'Lola': ('biscotte', 0.65, 0.5),
+    'Nino': ('zazou', 0.65, 0.5),
+    'Mouna la volleyeuse': ('rita', 0.65, 0.5),
+    'Coralie des flaques': ('persane', 0.65, 0.5),
+    'Papi Zéphyr': ('loup', 0.65, 0.5),
+    'Kaï le surfeur': ('turbo', 0.65, 0.5),
+    'Léon des tortues': ('bruno', 0.65, 0.5),
+    'Pépé Hameçon': ('fernand', 0.65, 0.5),
+    'Madame Odette': ('mamie', 0.65, 0.5),
+    "Hugo l'ukulélé": ('zazou', 0.65, 0.5),
+    'Marius des chouchous': ('bruno', 0.65, 0.5),
+    'Gros-Câlin le phoque': ('pataud', 0.65, 0.5),
 }
 # les rôles principaux d'abord
 ORDER = ['', 'Mamie Labrador', 'Matcha', 'Ainu', 'Biscotte', 'Capitaine Moustache']
