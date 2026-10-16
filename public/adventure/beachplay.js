@@ -14,6 +14,8 @@ import * as K from './citykit.js';
 import * as N from './npcs.js';
 import * as W from './world.js';
 import { shellGeometry, paint } from './beach.js';
+import { buildLife, skinMaterial } from './life.js';
+import * as LIFE from './level6life.js';
 
 const clamp = (v, a, b) => (v < a ? a : v > b ? b : v);
 const lerpAngle = (a, b, t) => { const d = ((b - a + Math.PI) % (Math.PI * 2) + Math.PI * 2) % (Math.PI * 2) - Math.PI; return a + d * t; };
@@ -986,8 +988,11 @@ export function buildPlay(game, decor) {
   const lab = (btn, tx) => { const e = game.dom.root.querySelector(`.adv-btn.${btn} span`); if (e && e.textContent !== tx) e.textContent = tx; };
   const fortFree = () => S.cats.filter(c => c.group === 'clearing').every(c => save().cats.includes(c.id)) && S.FORT_FLAGS.every(f => beach().flags.includes(f.id));
 
+  // --- la couche de vie : bêtes, objets, défis éclair, habitants, cachettes (life.js) ---------
+  const life = buildLife(game, { L: S, plan: LIFE.PLAN, palette: LIFE.PALETTE, lines: LIFE.LINES, mats: Object.fromEntries(Object.entries(LIFE.MATS).map(([k, [skin, o]]) => [k, skinMaterial(skin, o)])), surface: (x, z) => Math.max(S.heightAt(x, z), S.WATER_Y), isWater: (x, z) => S.heightAt(x, z) < S.WATER_Y - 0.02, view: lite ? 60 : undefined, active: lite ? 50 : undefined, liteDetail: 20, allDoneText: 'Toute la plage fait la fête : les dauphins sautent pour vous !' });
+
   const logic = {
-    moving, chars,
+    moving, chars, life,
     playerStep(P, wx, wz, jumpHeld, pr, dt) {
       if (P.board) {
         if (pr.has('talk') && !game.dialog && game.freeze <= 0) {
@@ -1015,7 +1020,7 @@ export function buildPlay(game, decor) {
       return undefined;
     },
     extraCandidates(Q) {
-      const out = [], b = beach();
+      const out = Q ? life.candidates(Q) : [], b = beach();
       const d = moundNear(Q);
       if (d) out.push({ kind: 'lv', act: 'dig', id: d.id, label: 'CREUSER', x: Q.pos.x + (d.x - Q.pos.x) * 0.2, z: Q.pos.z + (d.z - Q.pos.z) * 0.2, y: d.y });
       if (boards.some(bd => bd.driver < 0)) out.push({ kind: 'lv', act: 'board', label: 'SURFER', x: RK.x, z: RK.z, y: RK.y });
@@ -1027,6 +1032,7 @@ export function buildPlay(game, decor) {
       return out;
     },
     interact(n, P) {
+      if (n.life) { life.interact(n, P); return; }
       if (n.act === 'dig') { const d = moundDefs.find(q => q.id === n.id); if (d && !P.board) startDig(P, d); }
       else if (n.act === 'board') mountBoard(P, n.i !== undefined ? boards[n.i] : freeBoard());
       else if (n.act === 'unboard') unmountBoard(P);
@@ -1046,6 +1052,7 @@ export function buildPlay(game, decor) {
       stepFort();
       stepCans(dt);
       stepPickups();
+      life.step(dt);
       const me = game.me;
       if (!st.hints.water && !me.board && me.pos.y < S.WATER_Y - 0.35 && save().intro) { st.hints.water = 1; game.localBanner('Attention, ça devient profond !', 'Pour aller dans les vagues : prends un bodyboard au poste de secours.', 3000); }
       if (st.chestT >= 0) st.chestT += dt;
@@ -1053,6 +1060,7 @@ export function buildPlay(game, decor) {
     questText() {
       const s = save(), b = beach(), n = s.medals.length;
       if (!s.intro) return 'Parle à Mamie Labrador';
+      const lq = life.questText(); if (lq) return lq;
       if (st.race) {
         const lesson = st.race.kind === 'lesson';
         if (st.race.ph === 'ready') return lesson ? 'Sur une planche, va aux bouées vertes devant le poste' : 'Sur une planche, rejoins Mistral à la bouée de départ';
@@ -1104,6 +1112,7 @@ export function buildPlay(game, decor) {
       if (st.race && st.race.ph === 'go') { const i = st.race.next[game.me.id], list = course(); if (i !== undefined && i < list.length) out.push([list[i].x, list[i].z, '#ffd23a', 4.5, true]); }
       else if (st.race) { const p = st.race.kind === 'lesson' ? S.LESSON[0] : RC.start; out.push([p.x, p.z, '#ffd23a', 4.5, true]); }
       if (rival.on) out.push([rival.x, rival.z, '#ffffff', 2.8]);
+      for (const m of life.marks()) out.push(m);
       return out;
     },
     snapshot() {
@@ -1118,6 +1127,7 @@ export function buildPlay(game, decor) {
         d: players().filter(p => p.digT > 0).map(p => [p.id, r(p.digT)]),
         ch: st.chestT >= 0 ? r(st.chestT) : -1,
         cn: stacks.map(s => (s.down ? 1 : 0)),
+        lf: life.snapshot(),
       };
     },
     apply(x) {
@@ -1136,6 +1146,7 @@ export function buildPlay(game, decor) {
       for (const P of players()) P.digT = digs.get(P.id) || 0;
       st.chestT = x.ch;
       (x.cn || []).forEach((v, i) => { if (stacks[i]) stacks[i].down = !!v; });
+      life.apply(x.lf);
     },
     talkMamie(first) {
       const s = save(), k = game.controlsHelp();
@@ -1459,6 +1470,7 @@ export function buildPlay(game, decor) {
       decor.boat.position.y = S.WATER_Y + Math.sin(t * 1.3) * 0.08; decor.boat.rotation.z = Math.sin(t * 1.1) * 0.04;
       for (const s of decor.sails) { s.position.y = Math.sin(t * 0.9 + s.userData.ph) * 0.15; s.rotation.z = Math.sin(t * 0.8 + s.userData.ph) * 0.05; }
       if (decor.wreck.rag) decor.wreck.rag.rotation.y = Math.sin(t * 2) * 0.3;
+      life.render(dt, t);
     },
   };
 

@@ -248,7 +248,7 @@ const PORTRAITS = [
   [-17.5, -14.92, Math.PI, 0xe0ffd8], [12.2, -14.92, Math.PI, 0xffe8b0], [-15, -33.08, 0, 0xd8d8ff], [15, -33.08, 0, 0xffd8c8],
   [21.08, -63.5, -Math.PI / 2, 0xffe0c0], [-21.08, -58.5, Math.PI / 2, 0xe8d8ff],
 ].map(([x, z, rot, tint], i) => ({ id: 'pt_' + (i + 1), kind: 'portrait', x, z, rot, tint, wall: true }));
-const KITCHEN = [[-4, -3, 'barrel'], [-5, 1, 'barrel'], [-6.5, -1, 'caisse'], [3.5, -4, 'urn'], [4.5, -2.4, 'urn'], [-2, 5, 'caisse'], [3.5, 4.5, 'barrel'], [-6, 5, 'hay']]
+const KITCHEN = [[-4, -3, 'cask'], [-5, 1, 'cask'], [-6.5, -1, 'caisse'], [3.5, -4, 'urn'], [4.5, -2.4, 'urn'], [-2, 5, 'caisse'], [3.5, 4.5, 'cask'], [-6, 5, 'hay']]
   .map(([dx, dz, kind], i) => ({ id: 'k_' + (i + 1), kind, x: r1(SPOT.cuisine[0] + dx), z: r1(SPOT.cuisine[1] + dz), rot: i * 0.8 }));
 const PROPS = [
   ...BELLS, ...POUFS_BUIS, ...POUFS_CO, ...POUFS_NORD, ...BRAZ, ...ARMOURS, ...PORTRAITS, ...KITCHEN,
@@ -266,7 +266,7 @@ const PROPS = [
   { id: 'bib', kind: 'bookcase', x: -20.05, z: -64.5, rot: Math.PI / 2, slide: [0, 2.9] },
   // quelques poufs et jarres dans la cour et le jardin
   { id: 'c_po1', kind: 'pouf', x: 15.5, z: -38.5, tint: 0xd8b0ff }, { id: 'c_u1', kind: 'urn', x: -19.8, z: 5.6 }, { id: 'c_u2', kind: 'urn', x: 19.8, z: 5.2 },
-  { id: 'c_b1', kind: 'barrel', x: 13.6, z: 10, rot: 0.4 }, { id: 'c_b2', kind: 'caisse', x: -13.6, z: 10.2, rot: 0.2 },
+  { id: 'c_b1', kind: 'cask', x: 13.6, z: 10, rot: 0.4 }, { id: 'c_b2', kind: 'caisse', x: -13.6, z: 10.2, rot: 0.2 },
 ];
 for (const p of PROPS) p.y = ground(p.x, p.z);
 
@@ -359,7 +359,7 @@ export const PALETTE = {
   props: {
     pouf: { act: 'bounce', power: 16, r: 1.25, tint: true },
     topiary: { act: 'shake', drop: 2, solid: 0.7, burst: 0x8ac860 },
-    barrel: { act: 'break', drop: 2, chance: 0.6, respawn: 45, color: 0xc89a6a },
+    cask: { act: 'break', drop: 2, chance: 0.6, respawn: 45, color: 0xc89a6a },
     caisse: { act: 'break', drop: 2, chance: 0.6, respawn: 45, color: 0xd8b080 },
     urn: { act: 'break', drop: 2, chance: 0.7, respawn: 45, color: 0xd88a5a },
     hay: { act: 'break', drop: 1, chance: 0.5, respawn: 40, color: 0xf0d890 },
@@ -372,7 +372,7 @@ export const PALETTE = {
     yarnball: { act: 'push', grow: false, r0: 0.6, tint: true },
     dummy: { act: 'shake', solid: 0.35, drop: 1, sound: 'bump', burst: 0xf0d890 },
     pawbutton: { act: 'press', r: 0.7 },
-    hole: { colors: { dark: 0x2e2a24, rim: 0xe8e0c8 } },
+    hole: { colors: { inner: 0x2e2a24, rim: 0xe8e0c8 } },
     chest: { tex: 'wood' },
     lid: { tex: 'wood' },
   },
@@ -444,7 +444,7 @@ export const SPEC = {
     { type: 'fauna', kind: 'frog', w: 4, min: 9, when: (x, z, i) => i.shore },
     { type: 'props', kind: 'topiary', w: 1.2, min: 18, when: (x, z, i) => i.meadow },
     { type: 'props', kind: 'hay', w: 1.2, min: 16, when: (x, z, i) => i.meadow && !i.shore },
-    { type: 'props', kind: 'barrel', w: 1.0, min: 14, when: (x, z, i) => !i.shore },
+    { type: 'props', kind: 'cask', w: 1.0, min: 14, when: (x, z, i) => !i.shore },
     { type: 'props', kind: 'urn', w: 1.0, min: 14, when: (x, z, i) => i.castle || i.meadow },
     { type: 'props', kind: 'caisse', w: 0.8, min: 14, when: (x, z, i) => !i.beach },
     { type: 'props', kind: 'pouf', w: 0.9, min: 22, when: (x, z, i) => !i.shore, data: { tint: 0xff9ab8 } },
