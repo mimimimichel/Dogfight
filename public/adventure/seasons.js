@@ -6,6 +6,7 @@
  */
 import * as THREE from '../vendor/three.module.min.js';
 import * as M from './models.js';
+import { FOLIAGE } from './foliage.js';
 
 /** Saison et moment de la journée d'après la date (ou l'adresse, pour tester). */
 export function moment(now) {
@@ -22,6 +23,8 @@ export function buildSeasons(game, opts) {
   const mo = moment();
   const scene = game.scene, lite = !!(opts && opts.lite);
   const parts = [];
+  // les feuillus dorent un peu en automne, reverdissent au printemps (foliage.js)
+  FOLIAGE.uTint.value.setRGB(...(mo.season === 'automne' ? [1.07, 0.97, 0.8] : mo.season === 'printemps' ? [0.97, 1.03, 0.94] : [1, 1, 1]));
 
   // --- ce qui tombe du ciel, dans une boîte qui suit la caméra -------------------------
   // (à la Station des Neiges, il neige toute l'année)

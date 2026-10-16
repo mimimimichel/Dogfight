@@ -14,7 +14,7 @@
  */
 'use strict';
 
-const VERSION = 'v16';
+const VERSION = 'v17';
 const ASSETS_VERSION = 'v1';
 const PREFIX = 'matcha-';
 const CORE = PREFIX + 'core-' + VERSION;

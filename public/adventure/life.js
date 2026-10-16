@@ -424,6 +424,7 @@ export function buildLife(game, cfg) {
     const n = (propCount[k] || 0) + (extraProp[k] || 0);
     propModel[k] = { pk, mdl, l: layer('p_' + k, mdl.geo, mdl.mat || (mdl.unlit ? unlitMat : (mats.props || litMat)), n + 2, k === 'hat' || !!pk.tint) };
     if (mdl.shadow) propModel[k].l.mesh.castShadow = true;
+    if (mdl.depth) propModel[k].l.mesh.customDepthMaterial = mdl.depth;   // (feuillage découpé : ombre en feuilles)
   }
   // chapeaux des bonshommes (teintés)
   const hatL = layer('p_hat', VILLAGER.hat(), litMat, (propCount.snowman || 0) + 6, true);
