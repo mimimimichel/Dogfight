@@ -132,6 +132,23 @@ CAST = {
     "Hugo l'ukulélé": ('zazou', 0.65, 0.5),
     'Marius des chouchous': ('bruno', 0.65, 0.5),
     'Gros-Câlin le phoque': ('pataud', 0.65, 0.5),
+    'Sire Moustachu': ('pataud', 0.65, 0.5),
+    'Réglisse': ('filou', 0.65, 0.5),
+    'Câpre': ('biscotte', 0.65, 0.5),
+    'Cheffe Croquette': ('rita', 0.65, 0.5),
+    'Dame Plume': ('maire', 0.65, 0.5),
+    'Pinceau le peintre': ('lunette', 0.65, 0.5),
+    'Anatole le garde': ('fernand', 0.65, 0.5),
+    'Maestro Ronron': ('loup', 0.65, 0.5),
+    'Mélodie': ('mimi', 0.65, 0.5),
+    'Tambourin': ('bruno', 0.65, 0.5),
+    'Fanfare': ('turbo', 0.65, 0.5),
+    'Pirouette le bouffon': ('zazou', 0.65, 0.5),
+    'Lili la blanchisseuse': ('persane', 0.65, 0.5),
+    "Lucien l'allumeur": ('barnabe', 0.65, 0.5),
+    'Ernest le pêcheur': ('loup', 0.65, 0.5),
+    'Gros Minet': ('pataud', 0.65, 0.5),
+    'Fantômette': ('mimi', 0.65, 0.5),
 }
 # les rôles principaux d'abord
 ORDER = ['', 'Mamie Labrador', 'Matcha', 'Ainu', 'Biscotte', 'Capitaine Moustache']

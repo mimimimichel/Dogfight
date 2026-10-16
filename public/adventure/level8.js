@@ -335,6 +335,13 @@ export function blockedAt(x, z) {
   return false;
 }
 
+/** Obstacles ajoutés après coup (la couche de vie : armures, tonneaux, habitants…). Le module survit
+ *  d'une partie à l'autre : on retire d'abord ceux d'une partie précédente. */
+export function addColliders(list) {
+  for (let i = colliders.length - 1; i >= 0; i--) if (colliders[i].life) colliders.splice(i, 1);
+  for (const c of list) colliders.push(c);
+}
+
 function groundY(x, z) {
   let best = heightAt(x, z);
   for (const c of colliders) if (!c.off && !c.moving && c.kind !== 'catpile' && c.kind !== 'door' && c.kind !== 'gate' && c.y1 > best && c.y1 < best + 6 && inside(c, x, z, 0.2)) best = c.y1;
