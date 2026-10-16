@@ -516,3 +516,25 @@ export function broadleafMesh(list, opts = {}) {
   inst.computeBoundingSphere();
   return inst;
 }
+
+/** Géométrie mise à l'échelle (l'ancre de la couronne suit). */
+function scaled(g, k, dy = 0) {
+  g.scale(k, k, k); g.translate(0, dy, 0);
+  const f = g.attributes.fol;
+  for (let i = 0; i < f.count; i++) f.setZ(i, f.getZ(i) * k + dy);
+  g.computeBoundingSphere(); g.computeBoundingBox();
+  return g;
+}
+/** Objets de la couche de vie (lifekit.js) : buisson et arbuste en vraies feuilles, ou null (dessin animé). */
+export function propBush(lite, seed = 9) {
+  if (!hasBroadleaf()) return null;
+  const M = broadleafMaterials({ lite });
+  const g = clumpGeometry('serr', seed, lite ? 16 : 22, 1.2);
+  g.scale(1.25, 0.8, 1.25);
+  return { geo: scaled(g, 1, 0.62), mat: M.leaves, depth: M.depth };
+}
+export function propSapling(lite, seed = 5) {
+  if (!hasBroadleaf()) return null;
+  const M = broadleafMaterials({ lite });
+  return { geo: scaled(broadleafGeometry('fruit', seed), 0.5), mat: M.list, depth: M.depth };
+}

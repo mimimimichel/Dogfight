@@ -41,6 +41,8 @@ import * as WR from './wardrobe.js';
 import { storyShots } from './story.js';
 import { buildSeasons } from './seasons.js';
 import * as N from './npcs.js';
+/** Réglage « j'ai des écouteurs » (voir voice.js). */
+const headsetOn = () => { try { return localStorage.getItem('dogfight.headset') === '1'; } catch (e) { return false; } };
 
 const STEP = 1 / 60;
 const GRAVITY = 32;
@@ -1507,7 +1509,7 @@ class Adventure {
     const v = this.vc;
     if ((this.voiceT = (this.voiceT || 0) + 1) % 6) return;
     // micro allumé : le son du jeu passe par le chemin que l'anti-écho connaît (voir audio.js)
-    if (this.sfx && this.sfx.echoSafe) this.sfx.echoSafe(!!(v && v.on));
+    if (this.sfx && this.sfx.echoSafe) this.sfx.echoSafe(!!(v && v.on) && !headsetOn());
     if (!v || this.party.size < 2) {
       if (this.chatDuck !== 0 && this.sfx && this.sfx.duck) { this.chatDuck = 0; this.sfx.duck(false, 'chat'); this.sfx.duck(false, 'chatting'); }
       return;
@@ -3703,6 +3705,7 @@ class Adventure {
         <div class="adv-grid2">
           <button class="btn" data-a="music">🎵 Musique : ${this.sfx && this.sfx.musicOn === false ? 'non' : 'oui'}</button>
           <button class="btn" data-a="mic">🎤 Micro : ${this.vc && this.vc.on ? 'oui' : 'non'}</button>
+          <button class="btn" data-a="headset">🎧 Écouteurs : ${headsetOn() ? 'oui' : 'non'}</button>
           ${this.guest ? '' : `<button class="btn" data-a="mode">${{ promenade: '🐣', aventure: '🐶', defi: '🏆' }[this.mode]} ${MODES[this.mode]}</button>`}
           ${this.guest ? '' : `<button class="btn" data-a="style">🎨 ${this.realistic ? 'Réaliste' : 'Dessin animé'}</button>`}
           ${this.isTouch ? '' : `<button class="btn" data-a="quality">✨ Qualité : ${RT.isUltra() ? 'ultra' : 'normale'}</button>`}
@@ -3816,6 +3819,12 @@ class Adventure {
         this.hideOverlay(); this.switchLevel(L.ID);
         break;
       case 'mic': this.toggleMic().then(() => { if (this.dom.overlay.dataset.kind === 'settings') this.showOverlay('settings'); }); break;
+      case 'headset': {
+        try { localStorage.setItem('dogfight.headset', headsetOn() ? '0' : '1'); } catch (e) { /* ignore */ }
+        if (this.vc && this.vc.on) this.vc.reroute();   // le micro repart avec (ou sans) l'anti-écho
+        this.localBanner('Écouteurs', headsetOn() ? 'Le son du jeu reste un vrai son « média », même quand tu parles' : 'Sans écouteurs, le téléphone enlève l\'écho quand tu parles', 3200);
+        this.showOverlay('settings'); break;
+      }
       case 'voicecmd': {
         const on = !this.voiceCmdOn();
         try { localStorage.setItem('dogfight.voicecmd', on ? '1' : '0'); } catch (e) { /* ignore */ }
