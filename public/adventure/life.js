@@ -1860,7 +1860,7 @@ export function buildLife(game, cfg) {
       if (c.puff > 0) sqy = 1 + Math.sin(c.puff / 0.6 * Math.PI * 3) * 0.12;
       if ((ai === 'burrow' || (ai === 'scuttle' && c.f.hole)) && c.under > 0.98) continue;
       drawCreature(fm, c.x, c.y + (c.hop || 0), c.z, c.yaw, pitch, roll, c.scale, sqy, ai === 'slide' ? (c.s === 'walk' ? Math.sin(c.ph * 8) * 0.6 : 0) : c.flapA, c.tint !== null && c.tint !== undefined ? C.setHex(c.tint) : undefined,
-        (lite && ai === 'flock' && !(c.fly > 0)) || (c.f.foldWings && !(c.fly > 0)));   // (un oiseau posé replie ses ailes — un dessin de moins)
+        (lite && ai === 'flock' && !(c.fly > 0)) || (c.f.foldWings && !(c.fly > 0)) || (lite && c.f.flapNear && d2 > c.f.flapNear * c.f.flapNear));   // (f.flapNear : pinces, nageoires de près seulement)   // (un oiseau posé replie ses ailes — un dessin de moins)
       if (ai === 'hover') { if (c.f.glow !== false) glow(c.x, c.y, c.z, c.f.glowSize || 1.2, c.f.glow || 0x9ad8ff, 0.8); }
       else if (c.f.glow) glow(c.x, c.y + (c.f.glowY || 0), c.z, (c.f.glowSize || 1.2) * c.scale, c.f.glow, 0.6);
       if (ai !== 'hover' && ai !== 'jump' && ai !== 'perch' && !c.f.water && !(c.fly > 0 && c.y - ground(c.x, c.z) > 4)) shadow(c.x, c.z, (c.fm.mdl.r || 0.3) * c.scale);
