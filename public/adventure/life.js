@@ -2604,7 +2604,8 @@ export function buildLife(game, cfg) {
       propModel.chest.l.push(m4);
       const oa = opened ? clamp((game.t - c.open) / 0.6, 0, 1) : 0, lidA = opened ? (c.open < 0 ? 1 : oa) * 1.9 : (d < 6 ? Math.abs(Math.sin(t * 6)) * 0.08 : 0);
       m5.copy(m4).multiply(m6.compose(v4.set(0, 0.56, -0.35), q4.setFromEuler(e4.set(-lidA, 0, 0)), one));
-      propModel.lid.l.push(m5);
+      // (cfg.lidNear, téléphone : de loin, un coffre fermé sans son couvercle à part — un dessin de moins)
+      if (!(lite && cfg.lidNear && d > cfg.lidNear)) propModel.lid.l.push(m5);
       if (!opened && d < 18) glow(def.x, def.y + 0.9, def.z, 1.6 + Math.sin(t * 4) * 0.3, 0xffd23a, 0.55);
       shadow(def.x, def.z, 0.6);
     }
