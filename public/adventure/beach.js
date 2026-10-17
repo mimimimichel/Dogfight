@@ -11,6 +11,7 @@ import * as M from './models.js';
 import * as W from './world.js';
 import * as RT from './realtex.js';
 import * as K from './citykit.js';
+import * as SC from './sculpt.js';
 import { buildCaptain } from './forest.js';
 import { buildPlay } from './beachplay.js';
 
@@ -158,20 +159,6 @@ function woodTex() {
     x.fillStyle = 'rgba(60,36,16,0.55)';
     for (let i = 0; i <= 8; i++) x.fillRect(i * 16, 0, 1.5, h);
   }, true);
-}
-/** Feuille de palmier (penne) : nervure centrale et folioles, sur fond transparent. */
-function frondTex() {
-  return canvasTex(64, 256, (x, w, h) => {
-    x.clearRect(0, 0, w, h);
-    x.strokeStyle = '#ffffff'; x.lineCap = 'round';
-    for (let i = 0; i < 34; i++) {
-      const y = 10 + i * 7, len = 28 * Math.sin(Math.min(1, (i + 2) / 30) * Math.PI) + 3;
-      x.lineWidth = 4;
-      x.beginPath(); x.moveTo(w / 2, y); x.lineTo(w / 2 - len, y + 10); x.stroke();
-      x.beginPath(); x.moveTo(w / 2, y); x.lineTo(w / 2 + len, y + 10); x.stroke();
-    }
-    x.lineWidth = 4; x.beginPath(); x.moveTo(w / 2, 0); x.lineTo(w / 2, h); x.stroke();
-  });
 }
 function pawFlagTex() {
   return canvasTex(128, 64, (x) => {
@@ -548,42 +535,19 @@ function buildDecor(game) {
   }
 
   // --- Palmiers -----------------------------------------------------------------------
+  // (sculpt.js : tronc annelé et courbé, collerette fibreuse, noix de coco cabossées, palmes
+  //  arquées pliées en V aux folioles dentelées ; deux appels de dessin par tuile, comme avant)
   {
-    const trunkGeos = [], frondGeos = [], nutGeos = [];
-    const ringed = (c, x, y) => c.set(0x9a7a52).multiplyScalar(0.85 + 0.2 * (Math.sin(y * 9) * 0.5 + 0.5));
-    const frond = (len) => {
-      const seg = 6, g = new THREE.PlaneGeometry(1.3, len, 1, seg);
-      g.translate(0, len / 2, 0);
-      const p = g.attributes.position;
-      for (let i = 0; i < p.count; i++) { const y = p.getY(i), k = y / len; p.setZ(i, -k * k * len * 0.55); p.setX(i, p.getX(i) * (0.5 + Math.sin(k * Math.PI) * 0.7)); }
-      g.rotateX(-Math.PI / 2 + 0.55);
-      return g;
-    };
+    const trunkGeos = [], frondGeos = [];
     S.palms.forEach((pl, pi) => {
-      // tronc courbé : une suite de tronçons
-      const n = 8, segH = pl.h / n;
-      let x = 0, y = 0, z = 0;
-      const dirA = pl.rot;
-      for (let i = 0; i < n; i++) {
-        const k = i / n, lean = pl.lean * (1 + k * 1.6);
-        const g = new THREE.CylinderGeometry(0.26 - k * 0.07, 0.3 - k * 0.07, segH * 1.06, 9, 2);
-        g.rotateZ(-lean); g.rotateY(dirA);
-        trunkGeos.push({ geo: paint(g, ringed), x: pl.x + x, y: pl.y + y + segH / 2, z: pl.z + z });
-        x += Math.cos(dirA) * Math.sin(lean) * segH; z -= Math.sin(dirA) * Math.sin(lean) * segH; y += Math.cos(lean) * segH;
-      }
-      const top = [pl.x + x, pl.y + y, pl.z + z];
-      pl.topX = top[0]; pl.topY = top[1]; pl.topZ = top[2];
-      const r = rng(300 + pi), nf = lite ? 7 : 9;
-      for (let i = 0; i < nf; i++) {
-        const g = frond(2.6 + r() * 0.9);
-        g.rotateY(i / nf * Math.PI * 2 + r() * 0.3);
-        frondGeos.push({ geo: paint(g, (c) => c.setHSL(0.27 + r() * 0.04, 0.55, real ? 0.32 : 0.42)), x: top[0], y: top[1] - 0.05, z: top[2] });
-      }
-      for (let i = 0; i < 3; i++) { const a = i * 2.1; nutGeos.push({ geo: paint(new THREE.SphereGeometry(0.17, 8, 6), 0x6a4a28), x: top[0] + Math.cos(a) * 0.25, y: top[1] - 0.25, z: top[2] + Math.sin(a) * 0.25 }); }
+      const P = SC.palmGeometry(pl, 300 + pi, { lite });
+      pl.topX = pl.x + P.top[0]; pl.topY = pl.y + P.top[1]; pl.topZ = pl.z + P.top[2];
+      trunkGeos.push({ geo: P.trunk, x: pl.x, y: pl.y, z: pl.z });
+      frondGeos.push({ geo: P.fronds, x: pl.x, y: pl.y, z: pl.z });
     });
-    tiled(trunkGeos.concat(nutGeos), vmat({ roughness: 0.9 }));
-    const fm = new THREE.MeshStandardMaterial({ vertexColors: true, map: frondTex(), alphaTest: 0.4, side: THREE.DoubleSide, roughness: 0.75 });
-    tiled(frondGeos, fm, { uv: true, depth: new THREE.MeshDepthMaterial({ depthPacking: THREE.RGBADepthPacking, map: fm.map, alphaTest: 0.4 }) });
+    const PM = SC.palmMaterials(lite);
+    tiled(trunkGeos, PM.trunk, { uv: true });
+    tiled(frondGeos, PM.frond, { uv: true, depth: PM.depth, noOutline: true });
   }
 
   // --- Parasols, serviettes, cabines --------------------------------------------------
@@ -607,18 +571,10 @@ function buildDecor(game) {
     sc.add(poles, tops, towels);
     // cabines rayées
     const hutGeos = [];
-    for (const h of S.huts) {
-      hutGeos.push({ geo: paint(new THREE.BoxGeometry(2.6, 2.6, 2.2), h.color), x: h.x, y: h.y + 1.3, z: h.z });
-      // rayures blanches (des lattes posées sur les murs)
-      for (let k = -1.05; k <= 1.06; k += 0.7) {
-        hutGeos.push({ geo: paint(new THREE.BoxGeometry(0.32, 2.5, 2.26), 0xffffff), x: h.x + k, y: h.y + 1.3, z: h.z });
-        if (Math.abs(k) < 1) hutGeos.push({ geo: paint(new THREE.BoxGeometry(2.66, 2.5, 0.32), 0xffffff), x: h.x, y: h.y + 1.3, z: h.z + k * 0.8 });
-      }
-      const roof = new THREE.CylinderGeometry(0.01, 2.1, 1.0, 4, 1); roof.rotateY(Math.PI / 4);
-      hutGeos.push({ geo: paint(roof, h.color), x: h.x, y: h.y + 3.1, z: h.z, sx: 1.05, sz: 0.95 });
-      const door = new THREE.BoxGeometry(1.0, 1.8, 0.08);
-      hutGeos.push({ geo: paint(door, 0xf6eedc), x: h.x, y: h.y + 0.95, z: h.z - 1.12 });
-    }
+    // cabines (sculpt.js : planches peintes une sur deux, toit à deux pans qui déborde, porte à hublot)
+    const hutB = SC.builder(1);
+    for (const h of S.huts) SC.addBeachHut(hutB, h, { lite });
+    { const hm = new THREE.Mesh(hutB.geometry(), SC.paintedWoodMaterial(lite)); hm.castShadow = hm.receiveShadow = true; sc.add(hm); }
     // les maisons du village : murs colorés, toit, porte, fenêtres et volets
     for (const h of S.houses) {
       const ca = Math.cos(h.rot), sa = Math.sin(h.rot), P = (dx, dz) => ({ x: h.x + ca * dx + sa * dz, z: h.z - sa * dx + ca * dz });

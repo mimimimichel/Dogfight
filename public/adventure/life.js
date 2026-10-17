@@ -25,6 +25,7 @@ import * as M from './models.js';
 import * as RT from './realtex.js';
 import { PointGrid } from './lifeplan.js';
 import * as KIT from './lifekit.js';
+import * as SC from './sculpt.js';
 let firMatCache = null;
 const firMat = () => firMatCache || (firMatCache = FOL.firMaterials({ snow: 0.7 }));
 
@@ -1061,6 +1062,8 @@ VILLAGER.snowmanHD = () => merge(snowmanParts(0.6, 0.44, 0.32, { arms: false }).
 // les modèles du kit (parc, jardins, mares…) s'ajoutent à ceux de la neige
 for (const k in KIT.MODELS) if (!MODELS[k]) MODELS[k] = KIT.MODELS[k];
 for (const k in KIT.PROPS) if (!PROPS[k]) PROPS[k] = KIT.PROPS[k];
+// objets sculptés (sculpt.js : pouf capitonné, pelote enroulée…), au choix d'une palette (model)
+for (const k in SC.LIFE_PROPS) if (!PROPS[k]) PROPS[k] = SC.LIFE_PROPS[k];
 for (const k in KIT.TOOLS) if (!VILLAGER[k]) VILLAGER[k] = KIT.TOOLS[k];
 /** Le petit kit de modelage de life.js, pour les mondes qui ajoutent leurs propres modèles (citylife.js). */
 export const SHAPES = { P, merge, sph, cyl, cone, box, tor, eyes, wingGeo, paint, TAU };

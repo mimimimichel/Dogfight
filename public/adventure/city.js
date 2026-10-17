@@ -8,6 +8,7 @@ import * as THREE from '../vendor/three.module.min.js';
 import { L } from './current.js';
 import * as M from './models.js';
 import * as K from './citykit.js';
+import * as SC from './sculpt.js';
 import * as RT from './realtex.js';
 import { LOOK } from './world.js';
 import { buildPlay } from './cityplay.js';
@@ -373,13 +374,11 @@ function buildDecor(game) {
   anim.awnings = S.awnings.map(a => {
     const g = new THREE.Group();
     const along = a.nx === 0;
-    const w = along ? a.w : a.d, d = along ? a.d : a.w;
-    const cloth = new THREE.Mesh(new THREE.BoxGeometry(along ? w : d, 0.18, along ? d : w), new THREE.MeshStandardMaterial({ map: K.stripeTex(K.hex(a.color), '#ffffff', 8), roughness: 0.6 }));
-    if (!along) cloth.rotation.y = Math.PI / 2;
-    cloth.position.y = -0.09;
-    const lip = new THREE.Mesh(new THREE.BoxGeometry(along ? w : 0.06, 0.3, along ? 0.06 : w), M.mat(a.color));
-    lip.position.set(a.nx * d / 2, -0.25, a.nz * d / 2);
-    g.add(cloth, lip);
+    const len = along ? a.w : a.d, dep = along ? a.d : a.w;
+    // (sculpt.js : toile rayée tendue en pente, lambrequin à festons, bras de fer forgé)
+    const aw = SC.shopAwning(len, dep, a.color, { lite });
+    aw.rotation.y = Math.atan2(a.nx, a.nz);
+    g.add(aw);
     g.position.set(a.x, a.top, a.z);
     place(shadowy(g), a.x, a.z, 3);
     return { def: a, g };
@@ -416,19 +415,10 @@ function buildDecor(game) {
   });
 
   // --- Marché, fontaine, kiosque, champignons, trampolines -------------------------
+  // (sculpt.js : comptoir en planches, poteaux tournés, toile rayée bombée à festons, cagettes de fruits)
+  let stallSeed = 0;
   const stall = (s) => {
-    const g = new THREE.Group();
-    const counter = new THREE.Mesh(new THREE.BoxGeometry(s.w, s.top - G, s.d), M.mat(0xa87a50, { roughness: 0.85 }));
-    counter.position.y = (s.top - G) / 2;
-    const goods = new THREE.Mesh(new THREE.BoxGeometry(s.w - 0.4, 0.2, s.d - 0.6), M.mat([0xf06a3a, 0x7ad04a, 0xf0d040, 0xd04a8a][Math.abs(Math.floor(s.x + s.z)) & 3]));
-    goods.position.y = s.top - G + 0.1;
-    const roof = new THREE.Mesh(new THREE.BoxGeometry(s.w + 0.6, 0.2, s.d + 0.8), new THREE.MeshStandardMaterial({ map: K.stripeTex(K.hex(s.color), '#ffffff', 6), roughness: 0.6 }));
-    roof.position.y = s.canopy - G - 0.1;
-    g.add(counter, goods, roof);
-    for (const [px, pz] of [[-1, -1], [1, -1], [-1, 1], [1, 1]]) {
-      const post = new THREE.Mesh(new THREE.CylinderGeometry(0.06, 0.06, s.canopy - s.top, 6), M.mat(0x6a4a30));
-      post.position.set(px * (s.w / 2 - 0.1), (s.top + s.canopy) / 2 - G, pz * (s.d / 2 - 0.1)); g.add(post);
-    }
+    const g = SC.marketStall({ w: s.w, d: s.d, top: s.top - G, canopy: s.canopy - G, color: s.color }, { lite, seed: ++stallSeed });
     g.position.set(s.x, G, s.z);
     place(shadowy(g), s.x, s.z, 4);
   };

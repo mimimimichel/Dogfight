@@ -13,6 +13,7 @@ import * as RT from './realtex.js';
 import * as FOL from './foliage.js';
 import * as K from './farmkit.js';
 import * as FK from './forestkit.js';
+import * as SC from './sculpt.js';
 import { buildLife, ICON_ACORN } from './forestlife.js';
 
 const clamp = (v, a, b) => (v < a ? a : v > b ? b : v);
@@ -77,14 +78,6 @@ function ringsTexture() {
   for (let r = 6; r < 64; r += 6 + (r % 4)) { x.strokeStyle = r % 12 ? '#c89a60' : '#b0844c'; x.lineWidth = 2; x.beginPath(); x.arc(64, 64, r, 0, 7); x.stroke(); }
   x.strokeStyle = '#8a5a30'; x.lineWidth = 6; x.beginPath(); x.arc(64, 64, 62, 0, 7); x.stroke();
   const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace;
-  return t;
-}
-
-function stripesTexture(a, b) {
-  const c = document.createElement('canvas'); c.width = 128; c.height = 8;
-  const x = c.getContext('2d');
-  for (let i = 0; i < 8; i++) { x.fillStyle = i % 2 ? b : a; x.fillRect(i * 16, 0, 16, 8); }
-  const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace; t.wrapS = THREE.RepeatWrapping;
   return t;
 }
 
@@ -543,18 +536,14 @@ export function buildForest(game) {
 
   // --- Campement des chats ---------------------------------------------------
   const campG = area(S.CAMPFIRE.x, S.CAMPFIRE.z, 18);
-  const tentMat = new THREE.MeshStandardMaterial({ map: stripesTexture('#d83a3a', '#f6efe0'), roughness: 0.8 });
-  for (const t of S.tents) {
-    const tent = new THREE.Mesh(new THREE.ConeGeometry(2, 2.6, 6, 1, true), tentMat);
-    tent.material.side = THREE.DoubleSide;
-    tent.position.set(t.x, t.y + 1.3, t.z); tent.rotation.y = t.rot;
-    campG.add(shadowy(tent));
-    const door = new THREE.Mesh(new THREE.CircleGeometry(0.55, 3), M.mat(0x2a1608));
-    door.position.set(t.x + Math.sin(t.rot) * 1.55, t.y + 0.45, t.z + Math.cos(t.rot) * 1.55);
-    door.rotation.y = t.rot; door.rotation.z = Math.PI / 2;
-    campG.add(door);
-    const tip = new THREE.Mesh(new THREE.SphereGeometry(0.14, 10, 8), M.mat(0xffc830, { metalness: 0.6, roughness: 0.3 }));
-    tip.position.set(t.x, t.y + 2.65, t.z); campG.add(tip);
+  // (sculpt.js : toile rayée qui se creuse entre les mâts, ourlet à festons, porte relevée, haubans)
+  {
+    const Cl = SC.builder(1), Wd = SC.builder(1);
+    S.tents.forEach((t, i) => SC.addTent(Cl, Wd, t.x, t.y, t.z, t.rot, { lite, seed: i + 1 }));
+    const TM = SC.tentMaterials(0xd83a3a, lite);
+    const cm = new THREE.Mesh(Cl.geometry(), TM.cloth), wm = new THREE.Mesh(Wd.geometry(), TM.wood);
+    cm.userData.noOutline = wm.userData.noOutline = true;
+    campG.add(shadowy(cm), shadowy(wm));
   }
   const CF = S.CAMPFIRE;
   const makeFire = (scale) => {
@@ -1005,7 +994,13 @@ export function buildForest(game) {
   // --- Le Village des Hérissons ---------------------------------------------------
   const VG = S.SPOTS.village;
   const villageG = area(VG.x, VG.z, 22);
-  for (const h of S.MUSH_HOUSES) { const m = FK.buildMushHouse(h); m.position.set(h.x, h.y, h.z); villageG.add(m); }
+  {
+    // (sculpt.js : pied crépi, chapeau charnu à pois en relief et lamelles, porte en planches, fenêtres allumées)
+    const Bs = [SC.builder(1), SC.builder(1), SC.builder(1), SC.builder(1)];
+    for (const h of S.MUSH_HOUSES) SC.addMushHouse(Bs, h, { lite });
+    const MM = SC.mushHouseMaterials(lite);
+    Bs.forEach((B, i) => { const m = new THREE.Mesh(B.geometry(), MM[i]); m.castShadow = i < 3; m.receiveShadow = true; m.userData.noOutline = true; villageG.add(m); });
+  }
   // la grande marmite, sur son feu
   const PT = S.POT;
   const potFire = makeFire(0.9);
@@ -1046,12 +1041,27 @@ export function buildForest(game) {
   }
 
   // --- Buissons à baies --------------------------------------------------------------
-  const bushI = new THREE.InstancedMesh(FK.bushGeometry(), FK.vmat(0.85), S.BUSHES.length);
+  // (sculpt.js : touffe de mottes feuillues, feuilles en écailles au bord, texture de feuilles ;
+  //  grappes de baies brillantes posées sur le feuillage)
+  const bushGeo = SC.berryBushGeometry(3, lite);
+  const bushI = new THREE.InstancedMesh(bushGeo, SC.leafMaterial(lite), S.BUSHES.length);
   S.BUSHES.forEach((b, i) => { m4.compose(v.set(b.x, b.y - 0.1, b.z), q.setFromEuler(e.set(0, i * 1.3, 0)), sv.set(1.25, 1.1, 1.25)); bushI.setMatrixAt(i, m4); });
   bushI.castShadow = bushI.receiveShadow = true; bushI.computeBoundingSphere();
+  bushI.userData.noOutline = true;
   sc.add(bushI);
-  const BPB = 7, BMAX = S.BUSHES.length * BPB + 24;   // baies dessinées par buisson (et dans les paniers)
-  const berryI = new THREE.InstancedMesh(new THREE.SphereGeometry(0.15, 10, 8), new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.3, emissive: 0x200810, emissiveIntensity: 0.4 }), BMAX);
+  const BPB = 7, BMAX = S.BUSHES.length * BPB + 24;   // grappes dessinées par buisson (et dans les paniers)
+  const berryI = new THREE.InstancedMesh(SC.berryClusterGeometry(lite), new THREE.MeshStandardMaterial({ color: 0xffffff, vertexColors: true, roughness: 0.22, emissive: 0x200810, emissiveIntensity: 0.3 }), BMAX);
+  // où poser les grappes : sur la surface du feuillage (repère du buisson, puis du monde)
+  const berrySpots = S.BUSHES.map((b, i) => {
+    const out = [], c0 = new THREE.Vector3(0, 0.55, 0), rot = new THREE.Matrix4().makeRotationY(i * 1.3);
+    for (let k = 0; k < BPB; k++) {
+      const a = k * 2.4 + i * 0.7, el = 0.22 + (k % 3) * 0.36;
+      const p = SC.surfacePoint(bushGeo, c0, new THREE.Vector3(Math.cos(a) * Math.cos(el), Math.sin(el), Math.sin(a) * Math.cos(el)));
+      p.applyMatrix4(rot);
+      out.push(new THREE.Vector3(b.x + p.x * 1.25, b.y - 0.1 + p.y * 1.1, b.z + p.z * 1.25));
+    }
+    return out;
+  });
   {
     const c = new THREE.Color();
     for (let i = 0; i < BMAX; i++) berryI.setColorAt(i, c.set(i < S.BUSHES.length * BPB ? S.BUSHES[Math.floor(i / BPB)].col : [0x3a5ad8, 0xe0304a, 0x8a3ab8][i % 3]));
@@ -1946,9 +1956,8 @@ export function buildForest(game) {
         const full = S.BUSHES.map(bushFull);
         S.BUSHES.forEach((b, i) => {
           for (let k = 0; k < BPB; k++) {
-            const a = k * 2.4 + i, up = 0.45 + (k % 3) * 0.3, rr = 0.95 - (k % 3) * 0.15;
-            const sc2 = full[i] ? 1 + Math.sin(t * 3 + k + i) * 0.05 : 0.0001;
-            m4.compose(v.set(b.x + Math.cos(a) * rr * 1.25, b.y + up * 1.1, b.z + Math.sin(a) * rr * 1.25), q.identity(), sv.setScalar(sc2));
+            const sc2 = full[i] ? 1.35 * (1 + Math.sin(t * 3 + k + i) * 0.05) : 0.0001;
+            m4.compose(v.copy(berrySpots[i][k]), q.setFromEuler(e.set(0, k * 1.7 + i, 0)), sv.setScalar(sc2));
             berryI.setMatrixAt(j++, m4);
           }
         });
