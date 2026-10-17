@@ -9,6 +9,8 @@ import { L } from './current.js';
 import * as M from './models.js';
 import * as W from './world.js';
 import * as K from './farmkit.js';
+import { buildLife, skinMaterial } from './life.js';
+import * as LIFE from './level7life.js';
 
 const clamp = (v, a, b) => (v < a ? a : v > b ? b : v);
 const lerpAngle = (a, b, t) => { const d = ((b - a + Math.PI) % (Math.PI * 2) + Math.PI * 2) % (Math.PI * 2) - Math.PI; return a + d * t; };
@@ -447,6 +449,20 @@ export function buildFarm(game) {
   // =============================================================================
   // État et règles
   // =============================================================================
+  // --- la couche de vie : bêtes, objets, défis éclair, habitants, cachettes (life.js) ---------
+  // (avant les obstacles des animaux : moutons et poules contournent aussi les arbres fruitiers, ruches, épouvantails…)
+  const life = buildLife(game, {
+    L: { heightAt: S.heightAt, blockedAt: S.lifeBlockedAt, addColliders: S.addColliders, WATER_Y: S.WATER_Y },
+    plan: LIFE.PLAN, palette: LIFE.PALETTE, lines: LIFE.LINES, ground: LIFE.ground, surface: LIFE.ground, isWater: LIFE.wet, real: true, grain: true,
+    mats: { fur: skinMaterial('fur'), cloth: skinMaterial('fabric'), tool: skinMaterial('wood'), hat: skinMaterial('fabric') },
+    view: lite ? 66 : 130, active: lite ? 50 : 80, lidNear: 22,
+    shakeText: 'Secouez les buissons, les arbres et les ruches, cassez les bottes de paille : il y a des trésors partout',
+    allDoneText: 'Toute la ferme fait la fête : les animaux dansent !',
+    hooks: {
+      // une flaque de boue : on en ressort tout crotté (et la mare lave tout, comme d'habitude)
+      onSplash(P) { if (P.kart) return; if (!(P.mudT > 0)) snd.squelch(); P.mudT = 14; P.shakeT = 0; },
+    },
+  });
   const st = { lastBark: new Map(), cp: 0, millSpin: 0, millK: farm().fixed.length >= S.SAIL_PARTS.length ? 1 : 0, hint: {}, guestLerp: false };
   const players = () => game.players;
   const meFarm = () => game.me;
@@ -1023,7 +1039,7 @@ export function buildFarm(game) {
   // Interface avec le moteur
   // =============================================================================
   const logic = {
-    moving, chars,
+    moving, chars, life,
     farm: { sheep, hens, piglet, tractor: TR, apples, parts, state: farm },   // (pour les tests)
     playerStep(P, wx, wz, jumpHeld, pr, dt) {
       if (!P.kart) return false;
@@ -1039,16 +1055,17 @@ export function buildFarm(game) {
       return { kind: 'lv', act: 'exit', label: 'DESCENDRE', x: Q.pos.x, z: Q.pos.z, y: Q.pos.y };
     },
     extraCandidates(Q) {
-      const out = [
+      const out = Q && !Q.kart ? life.candidates(Q) : [];
+      out.push(
         { kind: 'lv', act: 'papi', label: 'PARLER', x: S.npcs.papi.x, z: S.npcs.papi.z + 0.6, y: S.npcs.papi.y },
-        { kind: 'lv', act: 'margot', label: 'PARLER', x: margot.def.x, z: margot.def.z, y: margot.def.y },
-      ];
+        { kind: 'lv', act: 'margot', label: 'PARLER', x: margot.def.x, z: margot.def.z, y: margot.def.y });
       for (const c of cows) if (c !== margot) out.push({ kind: 'lv', act: 'cow', label: 'CARESSER', i: cows.indexOf(c), x: c.def.x, z: c.def.z, y: c.def.y });
       if (TR.driver < 0 && !Q.kart) out.push({ kind: 'lv', act: 'tractor', label: 'MONTER', x: TR.x, z: TR.z, y: TR.y });
       if (piglet.state === 'lost') out.push({ kind: 'lv', act: 'piglet', label: 'PARLER', x: piglet.x, z: piglet.z, y: piglet.y });
       return out;
     },
     interact(n, P) {
+      if (n.life) { life.interact(n, P); return; }
       if (n.act === 'papi') talkPapi(P);
       else if (n.act === 'margot') talkMargot();
       else if (n.act === 'cow') { const c = cows[n.i]; c.moo = game.t; snd.moo(); game.bubble({ pos: new THREE.Vector3(c.def.x, c.def.y + 1.4, c.def.z) }, 'Meuh !'); P.cheerT = 0.6; }
@@ -1079,6 +1096,7 @@ export function buildFarm(game) {
         stepParts();
       }
       stepMud(dt);
+      life.step(dt);
       // tracteur sans chauffeur : il s'arrête doucement
       if (TR.driver >= 0 && !game.party.has(TR.driver)) TR.driver = -1;
       if (TR.driver < 0 && Math.abs(TR.speed) > 0.01) { TR.speed -= Math.sign(TR.speed) * Math.min(Math.abs(TR.speed), 12 * dt); TR.x += Math.sin(TR.yaw) * TR.speed * dt; TR.z += Math.cos(TR.yaw) * TR.speed * dt; TR.y = game.support(TR.x, TR.z, TR.y + 0.5).y; }
@@ -1156,6 +1174,7 @@ export function buildFarm(game) {
     questText() {
       const s = save(), f = farm(), me = game.me;
       if (!s.intro) return 'Parle à Mamie Labrador';
+      const lq = life.questText(); if (lq) return lq;
       if (!f.metPapi) return 'Va voir Papi Berger devant sa maison';
       if (piglet.state === 'follow') return 'Ramène Caramel à l\'enclos des cochons';
       if (sheep.some(o => o.state === 'follow')) return 'Ramène l\'agneau à l\'enclos des moutons';
@@ -1176,6 +1195,7 @@ export function buildFarm(game) {
       for (const p of parts) if (!f.parts.includes(p.def.id)) out.push([p.def.x, p.def.z, '#ffd23a', 2.6]);
       if (!f.metPapi) out.push([S.npcs.papi.x, S.npcs.papi.z, '#8ad0ff', 3.2]);
       out.push([TR.x, TR.z, '#e0302a', 2.6]);
+      for (const m of life.marks()) out.push(m);
       return out;
     },
     snapshot() {
@@ -1188,6 +1208,7 @@ export function buildFarm(game) {
         ap: apples.map(a => (a.s === 0 ? 0 : [a.s, r(a.x), r(a.y), r(a.z)])),
         pl: players().map(P => [P.id, P.eggs || 0, r(P.mudT || 0), r(P.shakeT || 0)]),
         mk: [margot.eat > 0 ? 1 : 0],
+        lf: life.snapshot(),
       };
     },
     apply(x) {
@@ -1204,6 +1225,7 @@ export function buildFarm(game) {
       x.ap.forEach((d, i) => { const a = apples[i]; if (!a) return; if (!d) { a.s = 0; a.x = a.hx; a.y = a.hy; a.z = a.hz; } else { a.s = d[0]; a.x = d[1]; a.y = d[2]; a.z = d[3]; } });
       for (const [id, eg, md, sk] of x.pl) { const P = game.party.get(id); if (P) { P.eggs = eg; if (md > 0 && !(P.mudT > 0)) snd.squelch(); P.mudT = md; P.shakeT = sk; } }
       if (x.mk && x.mk[0]) margot.eat = 0.5;
+      life.apply(x.lf);
     },
     talkMamie(first) {
       const s = save();
@@ -1237,6 +1259,7 @@ export function buildFarm(game) {
       ];
     },
     render(dt, t) {
+      life.render(dt, t);
       const guest = game.guest;
       const k = guest ? 1 - Math.exp(-dt * 10) : 1;
       blobN = 0;

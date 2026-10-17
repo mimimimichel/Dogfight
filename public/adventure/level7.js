@@ -462,3 +462,23 @@ export function mapColor(x, z) {
   return null;
 }
 export { clamp as _clamp };
+
+// ---------------------------------------------------------------------------
+// Obstacles proches (grille) : pour les petites bêtes de la couche de vie (life.js)
+// ---------------------------------------------------------------------------
+const OCELL = 8, ogrid = new Map();
+function oindex(c) {
+  const hx = c.type === 'box' ? c.w / 2 : c.r, hz = c.type === 'box' ? c.d / 2 : c.r;
+  for (let i = Math.floor((c.x - hx) / OCELL); i <= Math.floor((c.x + hx) / OCELL); i++) for (let j = Math.floor((c.z - hz) / OCELL); j <= Math.floor((c.z + hz) / OCELL); j++) {
+    const k = i * 4096 + j; if (!ogrid.has(k)) ogrid.set(k, []); ogrid.get(k).push(c);
+  }
+}
+for (const c of colliders) oindex(c);
+/** Une bête de la couche de vie ne traverse pas les murs, barrières, troncs, rochers ni bottes de foin (pas « blockedAt » : le moteur garde le comportement des chats). */
+export function lifeBlockedAt(x, z) {
+  const list = ogrid.get(Math.floor(x / OCELL) * 4096 + Math.floor(z / OCELL));
+  if (list) for (const c of list) if (!c.off && c.kind !== 'plank' && inside(c, x, z, 0.3)) return true;
+  return false;
+}
+/** Obstacles ajoutés après coup (la couche de vie : arbres fruitiers, épouvantails, habitants…). */
+export function addColliders(list) { for (const c of list) { colliders.push(c); oindex(c); } }

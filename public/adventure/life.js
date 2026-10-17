@@ -131,6 +131,25 @@ function skinCanvas(kind) {
   } else if (kind === 'skin' || kind === 'shell') {
     for (let i = 0; i < 2500; i++) dot(r() * N, r() * N, 2 + r() * 3, 2 + r() * 3, 90 + r() * 80, 0.25);
     if (kind === 'shell') for (let y = 0; y < N; y += 6) dot(0, y, N, 1.5, 70, 0.35);
+  } else if (kind === 'feather') {
+    // plumes : écailles en quinconce, bord sombre
+    for (let j = -1; j < N / 10 + 1; j++) for (let i = -1; i < N / 12 + 1; i++) {
+      const cx = i * 12 + (j % 2) * 6, cy = j * 10, g = x.createRadialGradient(cx, cy, 1, cx, cy, 9), v = 150 + r() * 40;
+      g.addColorStop(0, `rgb(${v | 0},${v | 0},${v | 0})`); g.addColorStop(0.8, `rgb(${(v - 40) | 0},${(v - 40) | 0},${(v - 40) | 0})`); g.addColorStop(1, 'rgb(60,60,60)');
+      x.fillStyle = g; x.beginPath(); x.arc(cx, cy, 8.5, 0, Math.PI); x.fill();
+    }
+  } else if (kind === 'straw') {
+    // paille : longs brins clairs et sombres, presque à plat
+    for (let i = 0; i < 1600; i++) { const px = r() * N, py = r() * N, l = 12 + r() * 36, a = (r() - 0.5) * 0.7, v = r() < 0.5 ? 60 + r() * 50 : 170 + r() * 70; x.strokeStyle = `rgba(${v | 0},${v | 0},${v | 0},0.6)`; x.lineWidth = 1 + r() * 1.6; x.beginPath(); x.moveTo(px, py); x.lineTo(px + Math.cos(a) * l, py + Math.sin(a) * l); x.stroke(); }
+  } else if (kind === 'leaf') {
+    // feuillage : petites feuilles serrées
+    for (let i = 0; i < 1400; i++) { const v = 50 + r() * 170; x.fillStyle = `rgba(${v | 0},${v | 0},${v | 0},0.8)`; x.beginPath(); x.ellipse(r() * N, r() * N, 3 + r() * 3, 1.5 + r() * 1.5, r() * 6.28, 0, 6.28); x.fill(); }
+  } else if (kind === 'mud') {
+    for (let i = 0; i < 90; i++) { const v = 60 + r() * 140, rr = 4 + r() * 18; x.fillStyle = `rgba(${v | 0},${v | 0},${v | 0},0.45)`; x.beginPath(); x.ellipse(r() * N, r() * N, rr, rr * (0.5 + r() * 0.5), r() * 3, 0, 6.28); x.fill(); }
+  } else if (kind === 'pumpkin') {
+    // côtes de citrouille (dans le sens vertical) et petites taches
+    for (let i = 0; i < N; i++) { const v = 70 + Math.abs(Math.sin(i / N * Math.PI * 8)) * 110; dot(i, 0, 1, N, v | 0, 1); }
+    for (let i = 0; i < 600; i++) dot(r() * N, r() * N, 2, 1, 220, 0.25);
   } else {   // rock, stone (sans photo)
     for (let i = 0; i < 1800; i++) dot(r() * N, r() * N, 3 + r() * 7, 3 + r() * 7, 60 + r() * 140, 0.22);
     for (let i = 0; i < 6000; i++) dot(r() * N, r() * N, 1, 1, r() * 255, 0.3);
@@ -178,6 +197,12 @@ const eyes = (x, y, z, r) => [P(sph(r, 6, 4), 0x141414, { x, y, z }), P(sph(r, 6
 // dessinée deux fois (miroir) et animée.
 // ---------------------------------------------------------------------------
 const wingGeo = (len, w, col) => merge([P(sph(0.5, 8, 4), col, { x: len * 0.5, sx: len, sy: 0.18 * w, sz: w })]);
+/** Aile d'oiseau en plumes étagées (couvertures, puis rémiges de plus en plus fines au bout) : pas une planche. */
+const featherWing = (len, w, col, tip) => {
+  const parts = [P(sph(0.5, 8, 4), col, { x: len * 0.32, sx: len * 0.68, sy: 0.16 * w, sz: w * 0.95 }), P(sph(0.5, 8, 4), col, { x: len * 0.55, z: -w * 0.12, sx: len * 0.7, sy: 0.12 * w, sz: w * 0.7 })];
+  for (let i = 0; i < 4; i++) parts.push(P(sph(0.5, 6, 3), tip, { x: len * (0.68 + i * 0.12), z: -w * (0.22 + i * 0.07), sx: len * (0.55 - i * 0.06), sy: 0.07 * w, sz: w * 0.3, ry: -0.25 - i * 0.12 }));
+  return merge(parts);
+};
 export const MODELS = {
   hare(c) {
     const fur = c.fur || 0xffffff, tip = c.tip || 0x2a2a2e;
@@ -187,7 +212,7 @@ export const MODELS = {
         P(sph(0.035), tip, { x: 0.1, y: 0.99, z: 0.1 }), P(sph(0.035), tip, { x: -0.1, y: 0.99, z: 0.1 }),
         ...eyes(0.1, 0.59, 0.38, 0.032), P(sph(0.028), 0xf09aa8, { y: 0.53, z: 0.44 }),
         P(sph(0.09), 0xffffff, { y: 0.36, z: -0.34 }), P(sph(0.08), fur, { x: 0.13, y: 0.06, z: -0.06, sz: 2.2 }), P(sph(0.08), fur, { x: -0.13, y: 0.06, z: -0.06, sz: 2.2 })]),
-      h: 1.0, r: 0.35,
+      h: 1.0, r: 0.35, skin: 'fur',
     };
   },
   bird(c) {
@@ -200,7 +225,7 @@ export const MODELS = {
         ...(c.fold ? [P(sph(0.07, 6, 4), back, { x: 0.085, y: 0.18, z: -0.04, sx: 0.5, sy: 0.8, sz: 2.0, rx: 0.15 }), P(sph(0.07, 6, 4), back, { x: -0.085, y: 0.18, z: -0.04, sx: 0.5, sy: 0.8, sz: 2.0, rx: 0.15 }),
           P(box(0.06, 0.03, 0.08), c.tip || 0x1a1a1a, { x: 0.07, y: 0.19, z: -0.18 }), P(box(0.06, 0.03, 0.08), c.tip || 0x1a1a1a, { x: -0.07, y: 0.19, z: -0.18 }),
           P(cyl(0.008, 0.008, 0.08, 3), c.beak || 0x2a2a2a, { x: 0.03, y: 0.04 }), P(cyl(0.008, 0.008, 0.08, 3), c.beak || 0x2a2a2a, { x: -0.03, y: 0.04 })] : [])]),
-      flap: wingGeo(0.22, 0.13, back), pivots: [0.08, 0.18, 0.0], h: 0.35, r: 0.15,
+      flap: featherWing(0.22, 0.13, back, c.tip || cap), pivots: [0.08, 0.18, 0.0], h: 0.35, r: 0.15, skin: 'feather',
     };
   },
   owl(c) {
@@ -282,7 +307,7 @@ export const MODELS = {
   },
   fish(c) {
     const f = c.fur || 0xff8a3a;
-    return { body: merge([P(sph(0.13), f, { sx: 0.5, sz: 2.2 }), P(cone(0.12, 0.18, 4), f, { z: -0.32, rx: -Math.PI / 2, sx: 0.3 }), ...eyes(0.05, 0.03, 0.18, 0.02)]), h: 0.3, r: 0.2 };
+    return { body: merge([P(sph(0.13), f, { sx: 0.5, sz: 2.2 }), P(cone(0.12, 0.18, 4), f, { z: -0.32, rx: -Math.PI / 2, sx: 0.3 }), ...eyes(0.05, 0.03, 0.18, 0.02)]), h: 0.3, r: 0.2, skin: 'skin' };
   },
   sprite(c) { return { body: merge([P(new THREE.IcosahedronGeometry(0.12, 0), c.fur || 0xbfeaff)]), h: 0.3, r: 0.2, unlit: true }; },
   /** Chat à quatre pattes (pelage teinté par bête) ; casque de garde, collier, foulard en option. */
@@ -329,6 +354,66 @@ export const MODELS = {
     if (c.bonnet) parts.push(P(sph(0.17, 8, 5, 0, TAU, 0, Math.PI / 2), c.bonnet, { y: 0.68, z: 0.26 }), P(sph(0.06), 0xfff0f0, { y: 0.86, z: 0.26 }));
     if (c.collar) parts.push(P(tor(0.16, 0.035, 5, 12), c.collar, { y: 0.47, z: 0.2, rx: Math.PI / 2 + 0.5 }));
     return { body: merge(parts), h: 0.9, r: 0.3, tint: true };
+  },
+  // --- la ferme (niveau 7) : poules, poussins, chèvres, âne, porcelets, abeille (canards, grenouilles, papillons : lifekit.js ; moineaux : bird ; chat, souris : ceux du château)
+  // « skin » : la matière (skinMaterial) posée sur le modèle quand le monde le demande (cfg.real) : pelage, plumes, peau
+  hen(c) {
+    const f = c.fur || 0xffffff, red = 0xd8302a, y = 0xe8a830;
+    const parts = [P(sph(0.27, 12, 9), f, { y: 0.44, sz: 1.25, sy: 0.92 }), P(sph(0.17, 10, 8), f, { y: 0.74, z: 0.24 }),
+      P(sph(0.2, 8, 6), f, { y: 0.62, z: -0.3, sx: 0.55, sy: 1.3, rx: -0.6 }),
+      P(sph(0.12, 8, 6), f, { x: 0.22, y: 0.46, z: -0.02, sx: 0.4, sy: 0.8, sz: 1.6 }), P(sph(0.12, 8, 6), f, { x: -0.22, y: 0.46, z: -0.02, sx: 0.4, sy: 0.8, sz: 1.6 }),
+      P(sph(0.05, 6, 4), red, { y: 0.93, z: 0.25, sx: 0.5, sz: 1.6 }), P(sph(0.04, 6, 4), red, { y: 0.92, z: 0.16, sx: 0.5 }), P(sph(0.04, 6, 4), red, { y: 0.63, z: 0.36, sx: 0.6, sy: 1.5 }),
+      P(cone(0.045, 0.11, 5), y, { y: 0.73, z: 0.42, rx: Math.PI / 2 }), ...eyes(0.09, 0.79, 0.34, 0.024)];
+    for (const s of [-1, 1]) parts.push(P(cyl(0.022, 0.022, 0.26, 4), y, { x: s * 0.08, y: 0.13 }), P(box(0.09, 0.02, 0.13), y, { x: s * 0.08, y: 0.01, z: 0.04 }));
+    return { body: merge(parts), h: 0.95, r: 0.3, tint: true, skin: 'feather' };
+  },
+  chick(c) {
+    const f = c.fur || 0xffe060, o = 0xf09a20;
+    return {
+      body: merge([P(sph(0.14, 10, 8), f, { y: 0.16, sz: 1.1 }), P(sph(0.1, 10, 8), f, { y: 0.33, z: 0.07 }), P(cone(0.03, 0.06, 4), o, { y: 0.32, z: 0.18, rx: Math.PI / 2 }),
+        ...eyes(0.05, 0.36, 0.14, 0.016), P(sph(0.05, 6, 4), f, { x: 0.12, y: 0.18, sx: 0.4, sz: 1.4 }), P(sph(0.05, 6, 4), f, { x: -0.12, y: 0.18, sx: 0.4, sz: 1.4 }),
+        P(cyl(0.012, 0.012, 0.06, 4), o, { x: 0.05, y: 0.02 }), P(cyl(0.012, 0.012, 0.06, 4), o, { x: -0.05, y: 0.02 })]),
+      h: 0.45, r: 0.15, skin: 'feather',
+    };
+  },
+  goat(c) {
+    const f = c.fur || 0xffffff, horn = 0xb8a890, hoof = 0x3a3028, pink = 0xe8b0a0;
+    const parts = [P(sph(0.42, 12, 9), f, { y: 0.88, sx: 0.72, sy: 0.75, sz: 1.35 }), P(cyl(0.12, 0.17, 0.5, 8), f, { y: 1.2, z: 0.45, rx: 0.55 }),
+      P(sph(0.19, 10, 8), f, { y: 1.42, z: 0.62, sz: 1.35, rx: 0.3 }), P(sph(0.1, 8, 6), pink, { y: 1.33, z: 0.84, sx: 0.9, sy: 0.7 }), P(sph(0.025), 0x2a1a14, { x: 0.035, y: 1.36, z: 0.92 }), P(sph(0.025), 0x2a1a14, { x: -0.035, y: 1.36, z: 0.92 }),
+      P(cone(0.06, 0.2, 5), f, { y: 1.16, z: 0.74, rx: Math.PI }), ...eyes(0.12, 1.5, 0.7, 0.03), P(sph(0.07, 6, 4), f, { y: 1.08, z: -0.58, sy: 1.6, rx: -0.6 })];
+    for (const s of [-1, 1]) {
+      parts.push(P(cone(0.045, 0.32, 5), horn, { x: s * 0.08, y: 1.66, z: 0.5, rx: -0.9, rz: -s * 0.15 }));
+      parts.push(P(sph(0.06, 6, 4), f, { x: s * 0.2, y: 1.48, z: 0.55, sx: 2.2, sy: 0.5, rz: s * 0.3 }));
+    }
+    for (const [x, z] of [[0.18, 0.4], [-0.18, 0.4], [0.18, -0.38], [-0.18, -0.38]]) parts.push(P(cyl(0.06, 0.05, 0.62, 6), f, { x, y: 0.34, z }), P(cyl(0.055, 0.06, 0.08, 6), hoof, { x, y: 0.04, z }));
+    return { body: merge(parts), h: 1.8, r: 0.55, tint: true, skin: 'fur' };
+  },
+  donkey(c) {
+    const f = c.fur || 0x9a948c, light = 0xe8e2d8, dark = 0x3a3430;
+    const parts = [P(sph(0.5, 12, 9), f, { y: 1.2, sx: 0.75, sy: 0.78, sz: 1.5 }), P(sph(0.36, 10, 8), light, { y: 1.02, sx: 0.85, sy: 0.6, sz: 1.3 }),
+      P(cyl(0.18, 0.26, 0.75, 8), f, { y: 1.62, z: 0.66, rx: 0.6 }), P(sph(0.26, 10, 8), f, { y: 1.95, z: 0.92, sz: 1.5, rx: 0.4 }), P(sph(0.18, 10, 8), light, { y: 1.82, z: 1.22, sz: 1.1 }),
+      P(sph(0.03), dark, { x: 0.07, y: 1.84, z: 1.38 }), P(sph(0.03), dark, { x: -0.07, y: 1.84, z: 1.38 }), ...eyes(0.15, 2.05, 1.0, 0.04),
+      P(box(0.06, 0.18, 0.7), dark, { y: 1.95, z: 0.6, rx: 0.6 }), P(cyl(0.035, 0.02, 0.6, 5), f, { y: 1.05, z: -0.85, rx: 0.35 }), P(sph(0.07, 6, 4), dark, { y: 0.78, z: -0.95, sy: 1.6 })];
+    for (const s of [-1, 1]) parts.push(P(sph(0.08, 8, 6), f, { x: s * 0.16, y: 2.35, z: 0.78, sy: 3.2, sx: 0.9, rz: -s * 0.25, rx: -0.3 }), P(sph(0.05, 6, 4), dark, { x: s * 0.2, y: 2.58, z: 0.72, sy: 1.5 }));
+    for (const [x, z] of [[0.22, 0.5], [-0.22, 0.5], [0.22, -0.52], [-0.22, -0.52]]) parts.push(P(cyl(0.08, 0.07, 0.9, 6), f, { x, y: 0.48, z }), P(cyl(0.08, 0.085, 0.1, 6), dark, { x, y: 0.05, z }));
+    return { body: merge(parts), h: 2.7, r: 0.8, skin: 'fur' };
+  },
+  piglet(c) {
+    const f = c.fur || 0xf4b0a8, dark = 0x5a2a28, mud = c.mud || 0x7a5232;
+    const parts = [P(sph(0.3, 12, 9), f, { y: 0.36, sz: 1.35, sy: 0.92 }), P(sph(0.21, 10, 8), f, { y: 0.44, z: 0.36 }), P(cyl(0.09, 0.1, 0.1, 10), 0xf09a98, { y: 0.4, z: 0.57, rx: Math.PI / 2 }),
+      P(sph(0.02), dark, { x: 0.035, y: 0.41, z: 0.63 }), P(sph(0.02), dark, { x: -0.035, y: 0.41, z: 0.63 }), ...eyes(0.09, 0.52, 0.5, 0.026),
+      P(cone(0.08, 0.14, 4), f, { x: 0.12, y: 0.64, z: 0.3, rz: -0.4, rx: 0.4 }), P(cone(0.08, 0.14, 4), f, { x: -0.12, y: 0.64, z: 0.3, rz: 0.4, rx: 0.4 }),
+      P(tor(0.05, 0.015, 4, 8), f, { y: 0.44, z: -0.42, ry: Math.PI / 2 }), P(sph(0.17, 8, 6), mud, { x: 0.12, y: 0.22, z: -0.1, sx: 1.3, sy: 0.6, sz: 1.6 })];
+    for (const [x, z] of [[0.14, 0.22], [-0.14, 0.22], [0.14, -0.22], [-0.14, -0.22]]) parts.push(P(cyl(0.055, 0.05, 0.2, 6), f, { x, y: 0.1, z }));
+    return { body: merge(parts), h: 0.75, r: 0.35, skin: 'skin' };
+  },
+  bee() {
+    const y = 0xf2c020, k = 0x2a2420;
+    return {
+      body: merge([P(sph(0.08, 8, 6), y, { sz: 1.35 }), P(cyl(0.079, 0.079, 0.03, 8), k, { z: -0.02, rx: Math.PI / 2 }), P(cyl(0.07, 0.07, 0.03, 8), k, { z: -0.07, rx: Math.PI / 2 }),
+        P(sph(0.05, 6, 4), k, { z: 0.1 }), ...eyes(0.03, 0.02, 0.13, 0.012)]),
+      flap: wingGeo(0.12, 0.07, 0xf4f8ff), pivots: [0.02, 0.06, 0], h: 0.2, r: 0.1, skin: 'skin',
+    };
   },
   // --- bord de mer ---
   /** Crabe : carapace, yeux sur pédoncules, six pattes ; les pinces (flap) claquent. */
@@ -501,6 +586,21 @@ const VILLAGER = {
     return merge([P(sph(0.25, 12, 8), 0xd8dce4, { y: 0.24, sy: 1.12 }), P(box(0.34, 0.05, 0.1), 0x2a2a30, { y: 0.27, z: 0.22 }), P(box(0.3, 0.035, 0.1), 0x2a2a30, { y: 0.19, z: 0.22 }),
       P(cyl(0.04, 0.06, 0.12, 6), 0xffd23a, { y: 0.52 }), P(sph(0.12, 8, 6), 0xd83a3a, { y: 0.66, z: -0.08, sz: 1.8, sy: 0.8 })]);
   },
+  // outils de la ferme
+  pitchfork() { return merge([P(cyl(0.025, 0.025, 1.6, 5), 0x9a6a3a, { y: 0.1 }), P(box(0.3, 0.04, 0.04), 0x707078, { y: -0.72 }), ...[-0.13, 0, 0.13].map(x => P(cyl(0.012, 0.006, 0.36, 4), 0x707078, { x, y: -0.92 }))]); },
+  basket() { return merge([P(cyl(0.22, 0.16, 0.22, 10, 1, true), 0xb88a50, { y: -0.6, z: 0.12 }), P(cyl(0.16, 0.16, 0.02, 10), 0xa07a40, { y: -0.7, z: 0.12 }), P(tor(0.2, 0.02, 4, 12, Math.PI), 0xa07a40, { y: -0.5, z: 0.12 }), P(sph(0.06), 0xf8f0dc, { x: 0.05, y: -0.52, z: 0.12, sy: 1.25 }), P(sph(0.06), 0xf0e0c0, { x: -0.06, y: -0.53, z: 0.16, sy: 1.25 })]); },
+  crook() { return merge([P(cyl(0.025, 0.025, 1.8, 5), 0x8a5a30, { y: 0.2 }), P(tor(0.12, 0.025, 4, 10, Math.PI * 1.2), 0x8a5a30, { y: 1.15, x: 0.12 })]); },
+  sack() { return merge([P(sph(0.28, 9, 7), 0xd8c49a, { y: -0.2, z: -0.1, sy: 1.3 }), P(cyl(0.06, 0.1, 0.12, 6), 0xc8b48a, { y: 0.17, z: -0.1 })]); },
+  scarecrow() {
+    const straw = 0xe8c860, shirt = 0xc84838, jeans = 0x4a6a9a;
+    const parts = [P(cyl(0.06, 0.07, 2.0, 6), 0x8a6040, { y: 1.0 }), P(cyl(0.3, 0.36, 0.7, 8), shirt, { y: 1.45 }), P(cyl(0.24, 0.3, 0.45, 8), jeans, { y: 0.95 }),
+      P(sph(0.27, 10, 8), 0xf0dca0, { y: 2.05 }), ...eyes(0.09, 2.1, 0.23, 0.04), P(tor(0.06, 0.012, 4, 8, Math.PI), 0x3a2a1a, { y: 1.98, z: 0.25, rz: Math.PI }),
+      P(cone(0.05, 0.14, 5), 0xf07a1a, { y: 2.03, z: 0.32, rx: Math.PI / 2 })];
+    for (let i = 0; i < 8; i++) { const a = i / 8 * TAU; parts.push(P(cone(0.04, 0.22, 4), straw, { x: Math.cos(a) * 0.3, y: 0.75, z: Math.sin(a) * 0.3, rx: Math.PI + Math.sin(a) * 0.3, rz: Math.cos(a) * 0.3 })); }
+    for (let i = 0; i < 6; i++) { const a = i / 6 * TAU; parts.push(P(cone(0.04, 0.2, 4), straw, { x: Math.cos(a) * 0.2, y: 1.8, z: Math.sin(a) * 0.2, rx: Math.PI })); }
+    return merge(parts);
+  },
+  scarecrowArm() { return merge([P(cyl(0.09, 0.08, 0.75, 6), 0xc84838, { y: -0.36 }), P(cone(0.08, 0.22, 5), 0xe8c860, { y: -0.82, rx: Math.PI })]); },
   // tenue d'été (teintée) : tee-shirt à manches courtes, short ; chapeau de paille et lunettes noires
   summer() {
     const w = 0xffffff;
@@ -757,6 +857,85 @@ export const PROPS = {
   star() { return { geo: merge([P(new THREE.OctahedronGeometry(0.32), 0xffe24a, { sy: 1.3 })]), h: 0.4, r: 0.3, unlit: true }; },
   coin() { return { geo: merge([P(new THREE.OctahedronGeometry(0.3), 0xff3a4a, { sz: 0.35, sy: 1.25 })]), h: 0.4, r: 0.3, unlit: true }; },
   ring() { return { geo: merge([P(tor(1.25, 0.13, 6, 22), 0xffc830, {})]), h: 2.5, r: 1.3 }; },
+  // --- la ferme : meules, bottes, citrouilles, carottes, buissons, arbres fruitiers, épouvantails, ruches, puits,
+  // girouettes, cloches, flaques, fleurs, œufs et pommes dorés (chaque objet porte sa matière : paille, bois, pierre…)
+  haystack() {
+    const s = 0xf0d070, parts = [P(sph(1.35, 16, 8, 0, TAU, 0, Math.PI / 2), s, { sy: 0.78 }), P(cyl(1.32, 1.4, 0.3, 16), 0xe0bc58, { y: 0.1 }),
+      P(cone(0.5, 0.55, 10), 0xf4dc80, { y: 1.15 }), P(tor(1.0, 0.05, 4, 20), 0xb08a40, { y: 0.62, rx: Math.PI / 2 })];
+    for (let i = 0; i < 9; i++) { const a = i / 9 * TAU; parts.push(P(cone(0.1, 0.45, 4), 0xf4dc80, { x: Math.cos(a) * 1.35, y: 0.12, z: Math.sin(a) * 1.35, rz: -Math.cos(a) * 1.2, rx: Math.sin(a) * 1.2 })); }
+    return { geo: merge(parts), h: 1.1, r: 1.3, skin: 'straw' };
+  },
+  bale() {
+    return { geo: merge([P(box(1.2, 0.6, 0.65), 0xf0d478, { y: 0.3 }), P(box(0.05, 0.62, 0.67), 0x9a7838, { x: 0.32, y: 0.3 }), P(box(0.05, 0.62, 0.67), 0x9a7838, { x: -0.32, y: 0.3 }),
+      P(cone(0.08, 0.3, 4), 0xf4dc80, { x: 0.62, y: 0.4, rz: -1.4 }), P(cone(0.08, 0.25, 4), 0xf4dc80, { x: -0.6, y: 0.2, rz: 1.3 })]), h: 0.65, r: 0.7, skin: 'straw' };
+  },
+  pumpkin() {
+    const o = 0xf08a28, parts = [];
+    for (let i = 0; i < 6; i++) { const a = i / 6 * TAU; parts.push(P(sph(0.3, 10, 8), o, { x: Math.cos(a) * 0.16, y: 0.3, z: Math.sin(a) * 0.16, sy: 0.85 })); }
+    parts.push(P(sph(0.3, 10, 8), 0xf89a38, { y: 0.32, sy: 0.9 }), P(cyl(0.04, 0.06, 0.18, 5), 0x6a7a30, { y: 0.62, rz: 0.3 }), P(sph(0.15, 6, 4), 0x4a8a30, { x: 0.22, y: 0.5, z: 0.15, sy: 0.15 }));
+    return { geo: merge(parts), h: 0.7, r: 0.5, skin: 'pumpkin' };
+  },
+  carrots() {
+    const parts = [P(sph(0.55, 12, 6, 0, TAU, 0, Math.PI / 2), 0x7a5232, { sy: 0.32 })];
+    for (let i = 0; i < 5; i++) {
+      const a = i * 2.4, r = i ? 0.3 : 0, x = Math.cos(a) * r, z = Math.sin(a) * r;
+      parts.push(P(cone(0.06, 0.16, 6), 0xf07a20, { x, y: 0.2, z }));
+      for (let k = 0; k < 3; k++) parts.push(P(cone(0.035, 0.38, 4), 0x4a9a34, { x: x + Math.cos(k * 2.1) * 0.04, y: 0.42, z: z + Math.sin(k * 2.1) * 0.04, rx: Math.cos(k * 2.1) * 0.35, rz: Math.sin(k * 2.1) * 0.35 }));
+    }
+    return { geo: merge(parts), h: 0.6, r: 0.55, skin: 'leaf' };
+  },
+  fruittree() {
+    const parts = [P(cyl(0.16, 0.24, 1.9, 8), 0x7a5a3a, { y: 0.95 }), P(cyl(0.07, 0.1, 0.9, 6), 0x7a5a3a, { x: 0.3, y: 1.9, rz: -0.6 })];
+    const g = [0x5aa842, 0x4c9a3a, 0x68b84a];
+    for (let i = 0; i < 7; i++) { const a = i * 2.3, r = i ? 0.8 : 0; parts.push(P(sph(0.9 - (i ? 0.25 : 0), 12, 9), g[i % 3], { x: Math.cos(a) * r, y: 2.6 + (i ? Math.sin(i * 1.7) * 0.35 : 0.3), z: Math.sin(a) * r })); }
+    for (let i = 0; i < 12; i++) { const a = i * 2.4, e = Math.sin(i * 1.3) * 0.5; parts.push(P(sph(0.1, 8, 6), 0xe0302a, { x: Math.cos(a) * 1.05, y: 2.5 + e, z: Math.sin(a) * 1.05 })); }
+    return { geo: merge(parts), h: 3.6, r: 0.4, skin: 'leaf' };
+  },
+  scarecrow() {
+    const straw = 0xf0d070, parts = [P(cyl(0.07, 0.08, 2.5, 6), 0x8a6a48, { y: 1.25 }), P(box(2.2, 0.1, 0.1), 0x8a6a48, { y: 1.7 }),
+      P(cyl(0.32, 0.4, 0.8, 8), 0xc84838, { y: 1.45 }), P(box(2.0, 0.24, 0.26), 0xc84838, { y: 1.7 }), P(sph(0.3, 10, 8), 0xf2dca0, { y: 2.2 }),
+      ...eyes(0.1, 2.25, 0.26, 0.045), P(cone(0.05, 0.16, 5), 0xf07a1a, { y: 2.18, z: 0.36, rx: Math.PI / 2 })];
+    for (const s of [-1, 1]) for (let i = 0; i < 3; i++) parts.push(P(cone(0.05, 0.3, 4), straw, { x: s * 1.1, y: 1.66 + (i - 1) * 0.08, z: (i - 1) * 0.08, rz: s * Math.PI / 2 }));
+    for (let i = 0; i < 7; i++) { const a = i / 7 * TAU; parts.push(P(cone(0.05, 0.3, 4), straw, { x: Math.cos(a) * 0.3, y: 0.98, z: Math.sin(a) * 0.3, rx: Math.PI })); }
+    return { geo: merge(parts), h: 2.6, r: 0.4, skin: 'fabric' };
+  },
+  hive() {
+    const parts = [P(box(1.0, 0.1, 1.0), 0x8a6a48, { y: 0.55 }), ...[[0.4, 0.4], [-0.4, 0.4], [0.4, -0.4], [-0.4, -0.4]].map(([x, z]) => P(box(0.1, 0.55, 0.1), 0x7a5a38, { x, y: 0.27, z }))];
+    for (let i = 0; i < 5; i++) parts.push(P(tor(0.45 - i * 0.07, 0.12, 6, 16), 0xe8c060, { y: 0.72 + i * 0.17, rx: Math.PI / 2 }));
+    parts.push(P(sph(0.2, 8, 6), 0xe8c060, { y: 1.42, sy: 0.6 }), P(box(0.2, 0.12, 0.1), 0x2a1a10, { y: 0.72, z: 0.45 }));
+    return { geo: merge(parts), h: 1.5, r: 0.6, skin: 'straw' };
+  },
+  well() {
+    const st = 0xd8d0c4, wd = 0x8a6040, parts = [P(cyl(1.0, 1.08, 0.9, 16, 1, true), st, { y: 0.45 }), P(cyl(0.82, 0.82, 0.9, 16, 1, true), 0xb0a89c, { y: 0.45 }),
+      P(tor(0.92, 0.12, 6, 18), st, { y: 0.92, rx: Math.PI / 2 }), P(cyl(0.82, 0.82, 0.04, 16), 0x2a4a5a, { y: 0.3 })];
+    for (const s of [-1, 1]) parts.push(P(box(0.14, 2.0, 0.14), wd, { x: s * 0.95, y: 1.6 }));
+    parts.push(P(cyl(0.06, 0.06, 2.0, 6), wd, { y: 2.2, rz: Math.PI / 2 }), P(box(2.4, 0.08, 0.95), 0x9a4a32, { y: 2.85, z: 0.38, rx: 0.55 }), P(box(2.4, 0.08, 0.95), 0x9a4a32, { y: 2.85, z: -0.38, rx: -0.55 }),
+      P(cyl(0.18, 0.14, 0.26, 8), 0x8a7a68, { y: 1.55 }), P(cyl(0.01, 0.01, 0.6, 3), 0xd8c49a, { y: 1.95 }));
+    return { geo: merge(parts), h: 3.1, r: 1.1, skin: 'stone' };
+  },
+  vane() {
+    const k = 0x2a2a30, parts = [P(cyl(0.05, 0.07, 3.2, 6), 0x7a5a3a, { y: 1.6 }), P(cyl(0.025, 0.025, 0.6, 5), k, { y: 3.4 }),
+      P(box(1.0, 0.04, 0.04), k, { y: 3.3 }), P(box(0.04, 0.04, 1.0), k, { y: 3.3 }), P(sph(0.06), 0xd8a030, { y: 3.72 })];
+    // le coq (vers +z) et la flèche
+    parts.push(P(box(0.04, 0.32, 0.5), 0xd8a030, { y: 3.95, z: 0.05 }), P(sph(0.13, 8, 6), 0xd8a030, { y: 4.15, z: 0.25, sx: 0.3 }), P(box(0.03, 0.12, 0.08), 0xd83a2a, { y: 4.3, z: 0.25 }),
+      P(box(0.04, 0.4, 0.3), 0xd8a030, { y: 4.05, z: -0.3, rx: 0.4 }), P(box(0.02, 0.02, 1.4), k, { y: 3.72 }), P(cone(0.08, 0.2, 4), k, { y: 3.72, z: 0.75, rx: Math.PI / 2 }));
+    return { geo: merge(parts), h: 4.4, r: 0.2, skin: 'wood' };
+  },
+  cowbell() {
+    const wd = 0x8a6040, parts = [P(box(0.12, 2.0, 0.12), wd, { x: 0.65, y: 1.0 }), P(box(0.12, 2.0, 0.12), wd, { x: -0.65, y: 1.0 }), P(box(1.55, 0.14, 0.16), wd, { y: 2.0 }),
+      P(cyl(0.16, 0.3, 0.5, 10, 1, true), 0xc8a040, { y: 1.55 }), P(cyl(0.16, 0.16, 0.04, 10), 0xc8a040, { y: 1.8 }), P(sph(0.07, 6, 4), 0x5a4a30, { y: 1.28 }),
+      P(box(0.06, 0.12, 0.06), 0xd83a2a, { y: 1.88 }), P(box(0.5, 0.3, 0.04), 0xf4ecd8, { y: 0.55, z: 0.08 })];
+    return { geo: merge(parts), h: 2.1, r: 0.4, skin: 'wood' };
+  },
+  /** Flaque de boue (on la traverse : on en ressort tout crotté). */
+  mudpuddle() {
+    const parts = [P(cyl(1.4, 1.5, 0.04, 20), 0x6a4a2c, { y: 0.02 }), P(cyl(1.1, 1.1, 0.02, 18), 0x4e3620, { y: 0.045 })];
+    for (let i = 0; i < 8; i++) { const a = i * 0.8; parts.push(P(sph(0.18 + (i % 3) * 0.06, 8, 6), 0x5a3c22, { x: Math.cos(a) * 1.45, y: 0.02, z: Math.sin(a) * 1.45, sy: 0.35 })); }
+    return { geo: merge(parts), h: 0.1, r: 1.4, skin: 'mud' };
+  },
+
+  egg(c) { return { geo: merge([P(sph(0.26, 12, 9), c.col || 0xffd84a, { sy: 1.3 }), P(tor(0.25, 0.03, 4, 14), c.band || 0xff6a8a, { rx: Math.PI / 2 })]), h: 0.4, r: 0.3, unlit: true }; },
+  apple(c) { return { geo: merge([P(sph(0.26, 12, 9), c.col || 0xffcc30, { sy: 0.92 }), P(cyl(0.02, 0.025, 0.16, 4), 0x6a4a2a, { y: 0.28 }), P(sph(0.09, 6, 4), 0x5ab040, { x: 0.08, y: 0.3, sy: 0.25, sz: 1.8 })]), h: 0.4, r: 0.3, unlit: true }; },
   sparkle() { return { geo: merge([P(new THREE.OctahedronGeometry(0.2), 0xd8f4ff, { sz: 0.4, sy: 1.3 })]), h: 0.3, r: 0.2, unlit: true }; },
   finish() {
     const parts = [P(cyl(0.06, 0.06, 3.0, 5), 0xf4f4f4, { y: 1.5 })];
@@ -959,6 +1138,8 @@ export function buildLife(game, cfg) {
   const propMat = cfg.propMat || mats.props || litMat;
   const glowMat = new THREE.MeshBasicMaterial({ map: M.glowTexture(), transparent: true, depthWrite: false, blending: THREE.AdditiveBlending });
   const shadowMat = new THREE.MeshBasicMaterial({ map: shadowTexture(), color: 0x0a1a28, transparent: true, opacity: 0.26, depthWrite: false });
+  // cfg.real : chaque modèle porte sa matière naturelle (mdl.skin : pelage, plumes, paille…), sauf si la palette en choisit une
+  const skinOf = (o, mdl) => (o && o.skin ? o : cfg.real && mdl && mdl.skin ? { skin: mdl.skin } : (o || {}));
   const layers = new Map();
   const layer = (name, geo, mat, max, tint) => { if (!layers.has(name)) layers.set(name, new Layer(sc, geo, mat, max, tint, cfg.cull)); return layers.get(name); };
   // (objets à vraie matière : tex = nom d'une matière de cfg.mats — bois, métal, feuillage…)
@@ -975,14 +1156,14 @@ export function buildLife(game, cfg) {
   const faunaModel = {};
   const countKind = (list, k) => list.filter(e => e.kind === k).reduce((a, e) => a + (e.n || (pal.fauna[k] && pal.fauna[k].group) || 1), 0);
   const defiCritters = {};
-  for (const d of plan.defis) { const c = d.critter || (d.type === 'whack' ? 'marmot' : d.type === 'fish' ? 'fish' : null); if (c) defiCritters[c] = (defiCritters[c] || 0) + (d.chicks ? d.chicks.length : d.holes ? d.holes.length : 1) + 2; }
+  for (const d of plan.defis) { const c = d.critter || (d.type === 'whack' ? 'marmot' : d.type === 'fish' ? 'fish' : null); if (c) defiCritters[c] = (defiCritters[c] || 0) + (d.chicks ? d.chicks.length : d.spots ? d.spots.length : d.holes ? d.holes.length : 1) + 2; }
   // les compagnons des promeneurs (un chien en laisse…) et les habitants-bêtes
   for (const e of plan.fauna) { const f = pal.fauna[e.kind]; if (f && f.line && f.young) defiCritters[f.young] = (defiCritters[f.young] || 0) + (e.n || f.group || 1) - 1; }
   for (const v of plan.villagers) { if (v.pet) defiCritters[v.pet.kind] = (defiCritters[v.pet.kind] || 0) + 1; if (v.body === 'critter' && v.model) defiCritters[v.model] = (defiCritters[v.model] || 0) + 1; }
   for (const k in pal.fauna) {
     const f = pal.fauna[k], mdl = MODELS[f.model](f.colors || {});
     const n = countKind(plan.fauna, k) + (defiCritters[k] || 0) + (f.extra || 0);
-    faunaModel[k] = { f, mdl, body: layer('f_' + k, mdl.body, mdl.mat || (mdl.unlit ? unlitMat : f.shiny ? litMat : matOf(f, 'fauna')), n + 2, !!(mdl.tint || f.tints)), flap: mdl.flap ? layer('w_' + k, mdl.flap, mdl.flapMat || mats.wing || wingMat, (n + 2) * 2, false) : null };
+    faunaModel[k] = { f, mdl, body: layer('f_' + k, mdl.body, mdl.mat || (mdl.unlit ? unlitMat : f.shiny ? litMat : matOf(skinOf(f, mdl), 'fauna')), n + 2, !!(mdl.tint || f.tints)), flap: mdl.flap ? layer('w_' + k, mdl.flap, mdl.flapMat || mats.wing || wingMat, (n + 2) * 2, false) : null };
   }
   const propModel = {};
   const propCount = {};
@@ -1007,12 +1188,13 @@ export function buildLife(game, cfg) {
     const pk = pal.props[k] || {};
     const mdl = PROPS[pk.model || k](pk.colors || {});
     const n = (propCount[k] || 0) + (extraProp[k] || 0);
-    propModel[k] = { pk, mdl, l: layer('p_' + k, mdl.geo, mdl.mat || (mdl.unlit ? unlitMat : pk.skin ? matOf(pk, 'props') : matFor(pk.tex || mdl.tex, propMat)), n + 2, k === 'hat' || !!pk.tint) };
+    propModel[k] = { pk, mdl, l: layer('p_' + k, mdl.geo, mdl.mat || (mdl.unlit ? unlitMat : pk.skin ? matOf(pk, 'props') : cfg.real && mdl.skin ? matOf({ skin: mdl.skin }, 'props') : matFor(pk.tex || mdl.tex, propMat)), n + 2, k === 'hat' || !!pk.tint) };
     if (mdl.shadow) propModel[k].l.mesh.castShadow = true;
     if (mdl.depth) propModel[k].l.mesh.customDepthMaterial = mdl.depth;   // (feuillage découpé : ombre en feuilles)
   }
   // chapeaux des bonshommes (teintés)
-  const hatL = layer('p_hat', VILLAGER.hat(), litMat, (propCount.snowman || 0) + 6, true);
+  let hatN = 6; for (const k in propCount) if (k === 'snowman' || (pal.props[k] && pal.props[k].hatY)) hatN += propCount[k];
+  const hatL = layer('p_hat', VILLAGER.hat(), mats.hat || litMat, hatN, true);
   // coiffes sauteuses d'autres objets (le heaume des armures…), pupilles des portraits
   const toppers = {};
   for (const k in propCount) { const pk = pal.props[k] || {}; if (pk.topper && !toppers[pk.topper]) toppers[pk.topper] = layer('top_' + pk.topper, VILLAGER[pk.topper](), matFor(pk.topperTex, litMat), plan.props.filter(q => (pal.props[q.kind] || {}).topper === pk.topper).length + 1, false); }
@@ -1021,6 +1203,7 @@ export function buildLife(game, cfg) {
   // habitants (pal.villagers : { skin, clothSkin, hatSkin } pour du vrai pelage, du vrai tissu, de la vraie paille)
   const nVill = Math.max(24, plan.villagers.length + 4);
   const vill = { body: layer('v_dog', VILLAGER.dog(), mats.fur || litMat, nVill, true), cloth: layer('v_cloth', VILLAGER.dogCloth(), mats.cloth || litMat, nVill, true), arm: layer('v_arm', VILLAGER.arm(), mats.cloth || litMat, nVill * 2, true),
+    scare: layer('v_scare', VILLAGER.scarecrow(), mats.cloth || litMat, 3, false), scareArm: layer('v_scarearm', VILLAGER.scarecrowArm(), mats.cloth || litMat, 6, false),
     snow: layer('v_snow', ((cfg.villagerModels && VILLAGER[cfg.villagerModels.snowman]) || VILLAGER.snowman)(), propMat, 3, false), snowArm: layer('v_snowarm', VILLAGER.snowArm(), propMat, 6, false), yeti: layer('v_yeti', VILLAGER.yeti(), litMat, 2, false), yetiArm: layer('v_yetiarm', VILLAGER.yetiArm(), litMat, 4, false) };
   if (plan.villagers.some(v => v.outfit === 'summer')) vill.summer = layer('v_summer', VILLAGER.summer(), mats.cloth || litMat, nVill, true);
   if (plan.villagers.some(v => v.sunhat)) vill.sunhat = layer('v_sunhat', VILLAGER.sunhat(), mats.hat || litMat, 12, false);
@@ -1124,6 +1307,12 @@ export function buildLife(game, cfg) {
     else if (kind === 'coo') { s.tone(520, 0.18, { type: 'sine', to: 440, vol: 0.05 }); s.tone(480, 0.25, { type: 'sine', to: 420, vol: 0.04, delay: 0.22 }); }
     else if (kind === 'woof') { s.tone(330, 0.09, { type: 'sawtooth', to: 220, vol: 0.06 }); s.tone(320, 0.1, { type: 'sawtooth', to: 210, vol: 0.05, delay: 0.16 }); }
     else if (kind === 'sniff') s.noise(0.12, { filter: 'bandpass', freq: 2200, vol: 0.05 });
+    else if (kind === 'cluck') { s.tone(880, 0.05, { type: 'square', to: 640, vol: 0.035 }); s.tone(980, 0.05, { type: 'square', to: 700, vol: 0.035, delay: 0.11 }); s.tone(1200, 0.08, { type: 'square', to: 760, vol: 0.03, delay: 0.23 }); }
+    else if (kind === 'bleat') { const f = 420 + R() * 80; for (let i = 0; i < 5; i++) s.tone(f + (i % 2) * 30, 0.07, { type: 'sawtooth', to: f - 25, vol: 0.04, delay: i * 0.06 }); }
+    else if (kind === 'bray') { s.tone(520, 0.35, { type: 'sawtooth', to: 760, vol: 0.05 }); s.tone(300, 0.45, { type: 'sawtooth', to: 220, vol: 0.06, delay: 0.38 }); }
+    else if (kind === 'oink') { s.noise(0.14, { filter: 'bandpass', freq: 560, freqTo: 320, vol: 0.18 }); s.tone(240, 0.12, { type: 'square', to: 170, vol: 0.045 }); }
+    else if (kind === 'buzz') s.tone(220, 0.4, { type: 'sawtooth', to: 240, vol: 0.02 });
+    else if (kind === 'caw') { s.tone(380, 0.16, { type: 'sawtooth', to: 300, vol: 0.05 }); s.tone(370, 0.16, { type: 'sawtooth', to: 290, vol: 0.045, delay: 0.22 }); }
     else if (kind === 'meow') { s.tone(620, 0.18, { type: 'triangle', to: 980, vol: 0.05 }); s.tone(980, 0.22, { type: 'triangle', to: 560, vol: 0.045, delay: 0.17 }); }
     else if (kind === 'clank') { s.note('bell', 55 + Math.floor(R() * 4), 0.09, 0, 0.5); s.noise(0.12, { filter: 'bandpass', freq: 3200, freqTo: 1800, vol: 0.12 }); }
     else if (kind === 'flutter') s.noise(0.25, { filter: 'bandpass', freq: 900, freqTo: 1800, vol: 0.06 });
@@ -1144,8 +1333,9 @@ export function buildLife(game, cfg) {
     else if (type === 'wave') { const v = villagers[a]; if (v) v.wave = game.t; }
     else if (type === 'grow') { if (p) { p.stage = b; p.grow = game.t; if (b) note(67 + PENTA[b * 2 % PENTA.length], 'mallet', 0.1); } }
     else if (type === 'chirp') chirp(CHIRPS[a] || 'ting');
+    else if (type === 'spin') { if (p) p.spin0 = game.t; }
   }
-  const CHIRPS = ['chirp', 'squeak', 'hoot', 'honk', 'whistle', 'grunt', 'ting', 'splash', 'yip', 'quack', 'peep', 'croak', 'coo', 'woof', 'sniff', 'meow', 'clank', 'flutter'];
+  const CHIRPS = ['chirp', 'squeak', 'hoot', 'honk', 'whistle', 'grunt', 'ting', 'splash', 'yip', 'quack', 'peep', 'croak', 'coo', 'woof', 'sniff', 'meow', 'clank', 'flutter', 'cluck', 'bleat', 'bray', 'oink', 'buzz', 'caw'];
 
   // --- paillettes (récompenses qui tombent, traînées) -------------------------------------------
   function gone(id) { const g = sv().gone[id]; if (!g) return false; if (Date.now() - g > REGROW_MS) { delete sv().gone[id]; return false; } return true; }
@@ -1183,7 +1373,7 @@ export function buildLife(game, cfg) {
 
   // --- défis éclair -----------------------------------------------------------------------------
   const defiDone = (id) => sv().defis.includes(id);
-  const KIND_NAMES = { hits: 'Touche-tout', goal: 'Dans le rond', coins: 'Les pièces rouges', rings: 'Les anneaux', race: 'La course', chase: 'Attrape-le !', pads: 'Les trampolines', whack: 'Tape-taupe', fish: 'La pêche', tag: 'Chat perché', xylo: 'La mélodie de glace', herd: 'Les petits perdus', build: 'Les châteaux', volley: 'Le volley' };
+  const KIND_NAMES = { hits: 'Touche-tout', goal: 'Dans le rond', coins: 'Les pièces rouges', rings: 'Les anneaux', race: 'La course', chase: 'Attrape-le !', pads: 'Les trampolines', whack: 'Tape-taupe', fish: 'La pêche', tag: 'Chat perché', xylo: 'La mélodie de glace', herd: 'Les petits perdus', scare: 'Ouste !', build: 'Les châteaux', volley: 'Le volley' };
   function defiTime(d) { return game.easy ? Infinity : (d.time || 45); }
   function startDefi(def, P) {
     if (st.D) return;
@@ -1201,6 +1391,7 @@ export function buildLife(game, cfg) {
       D.next = 1;
     }
     if (def.type === 'goal') for (const id of def.balls) { const b = propById.get(id); if (b) { b.keep = true; if (Math.hypot(b.x - def.pen.x, b.z - def.pen.z) < def.pen.r) { b.x = b.bx; b.z = b.bz; b.y = ground(b.x, b.z); } b.vx = b.vz = 0; } }
+    if (def.type === 'scare') D.crit = def.spots.map(([x, z]) => ({ x, z, y: ground(x, z), yaw: R() * TAU, a: R() * 6, st: 'sit', t: 0 }));
     if (def.type === 'xylo') { D.phase = 'show'; D.seq = def.seq.slice(); D.seqT = -0.8; D.k = 0; }
     // « touche-les tous » : les braseros s'éteignent, il faut tout rallumer
     if (def.type === 'hits') for (const id of def.props) { const p = propById.get(id); if (p && (pal.props[p.kind] || {}).act === 'light') { p.on = false; event('press', p.i, 0); } }
@@ -1353,6 +1544,23 @@ export function buildLife(game, cfg) {
         if (D.seqT > 0 && idx < D.seq.length && D.lastShown !== idx) { D.lastShown = idx; const p = propById.get(def.chimes[D.seq[idx]]); if (p) event('ring', p.i); }
         if (idx >= D.seq.length + 1) { D.phase = 'play'; D.k = 0; D.lastShown = -1; game.localBanner('À vous !', 'Faites sonner les glaçons dans le même ordre', 1600); }
       }
+    } else if (T === 'scare') {
+      // des oiseaux gourmands posés dans le champ : on les fait s'envoler (on approche, ou « Ouaf ! »)
+      for (const c of D.crit) {
+        if (c.st === 'gone') continue;
+        if (c.st === 'fly') { c.t += dt; c.y += dt * (3 + c.t * 4); c.x += Math.sin(c.yaw) * dt * 7; c.z += Math.cos(c.yaw) * dt * 7; if (c.t > 2.5) c.st = 'gone'; continue; }
+        c.a += dt;
+        for (const P of players) {
+          const d = Math.hypot(P.pos.x - c.x, P.pos.z - c.z);
+          if (d < 1.8 || ((P.barkT || 0) > 0.55 && d < (def.hear || 7))) {
+            c.st = 'fly'; c.t = 0; c.yaw = Math.atan2(c.x - P.pos.x, c.z - P.pos.z);
+            event('chirp', CHIRPS.indexOf(def.sound || 'caw')); game.burst(c.x, c.y + 0.4, c.z, 10, 0x3a3a3a, 3, 0.5);
+            game.localBanner(`${D.crit.filter(q => q.st !== 'sit').length}/${D.crit.length}`, '', 700);
+            break;
+          }
+        }
+      }
+      if (D.crit.every(c => c.st !== 'sit')) endDefi(true);
     } else if (T === 'herd') {
       for (const c of D.crit) {
         if (c.st === 'home' || c.st === 'stuck') { c.a += dt * 3; continue; }
@@ -1436,7 +1644,7 @@ export function buildLife(game, cfg) {
           const touch = d < r && dy < (pk.top || 1.4) && dy > -0.6;
           if (touch) { const fresh = !p.touching || (P.vel.y < -5 && game.t - (p.hitT || -9) > 0.5); p.touchT = game.t; p.touching = true; if (fresh) splashProp(p, P, pk); }
           else if (attacking(P) && d < r + 1.4 && Math.abs(dy) < 2) splashProp(p, P, pk);
-        } else if (act === 'shake' || act === 'break' || act === 'chime' || act === 'hat' || act === 'press' || act === 'light' || act === 'slide') {
+        } else if (act === 'shake' || act === 'break' || act === 'chime' || act === 'hat' || act === 'press' || act === 'light' || act === 'slide' || act === 'spin') {
           const r = (pk.r || propModel[p.kind].mdl.r || 0.8);
           // (un carillon sonne quand on arrive contre lui, pas tant qu'on y reste collé)
           const touch = (act === 'chime' || act === 'light') && d < r + 0.9 && Math.abs(dy) < 2;
@@ -1453,7 +1661,7 @@ export function buildLife(game, cfg) {
           }
         }
       }
-      for (const P2 of barks) if (P2 === P) for (const q of pGrid.within(P.pos.x, P.pos.z, 7)) { const pk = pal.props[q.p.kind] || {}; if (['shake', 'chime', 'hat', 'light', 'slide'].includes(pk.act) && q.p.broken <= game.t) hitProp(q.p, P, pk, true); }
+      for (const P2 of barks) if (P2 === P) for (const q of pGrid.within(P.pos.x, P.pos.z, 7)) { const pk = pal.props[q.p.kind] || {}; if (['shake', 'chime', 'hat', 'light', 'slide', 'spin'].includes(pk.act) && q.p.broken <= game.t) hitProp(q.p, P, pk, true); }
       // boules de neige qu'on pousse : elles roulent et grossissent
       if (P.grounded) for (const b of pushers) {
         if (b.broken > game.t || Math.abs(b.x - P.pos.x) > 4 || Math.abs(b.z - P.pos.z) > 4) continue;
@@ -1514,7 +1722,8 @@ export function buildLife(game, cfg) {
     const id = 'p:' + p.def.id;
     if (pk.drop && !gone(id)) { sv().gone[id] = Date.now(); dropSparkles(p.x, p.y + 1, p.z, pk.drop, 1); }
     defiTouch(p);
-    void P;
+    // une flaque de boue (pk.mud) : le niveau décide (la ferme : le chien ressort tout crotté)
+    if (pk.mud && hooks.onSplash) hooks.onSplash(P, p.def);
   }
   /** Château de sable : un étage de plus (et des paillettes quand il est fini). */
   function buildCastle(p, P, pk) {
@@ -1554,12 +1763,15 @@ export function buildLife(game, cfg) {
       snd(act === 'hat' ? 'boing' : 'poof');
       if (pk.gush && !byBark) st.geyser = { x: p.x, z: p.z, t: game.t + pk.gush, y: p.y + (pk.gushY || 0.5) };
       const id = 'p:' + p.def.id;
-      if (pk.drop && !gone(id)) { sv().gone[id] = Date.now(); dropSparkles(p.x, p.y + 1.5, p.z, pk.drop, 1); if (P === game.me && !st.shakeTold) { st.shakeTold = true; game.localBanner('Des paillettes !', 'Secouez les sapins, cassez les tas de neige : il y a des trésors partout', 2600); } }
+      if (pk.drop && !gone(id)) { sv().gone[id] = Date.now(); dropSparkles(p.x, p.y + 1.5, p.z, pk.drop, 1); if (P === game.me && !st.shakeTold) { st.shakeTold = true; game.localBanner('Des paillettes !', cfg.shakeText || 'Secouez les sapins, cassez les tas de neige : il y a des trésors partout', 2600); } }
     } else if (act === 'break') {
       if (byBark) return;
       p.broken = game.t + (pk.respawn || 45);
       snd('crate'); game.burst(p.x, p.y + 0.6, p.z, 26, pk.color || 0xf4f8ff, 5, 0.7);
       if (R() < (pk.chance === undefined ? 0.6 : pk.chance)) dropSparkles(p.x, p.y + 0.6, p.z, 1 + Math.floor(R() * (pk.drop || 2)), 1);
+    } else if (act === 'spin') {
+      event('spin', p.i); game.sound('switch');
+      game.burst(p.x, p.y + (propModel[p.kind].mdl.h || 3) * 0.85, p.z, 8, pk.color || 0xffe070, 2.5, 0.5);
     } else if (act === 'chime') {
       event('ring', p.i);
       game.burst(p.x, p.y + 2.1, p.z, 6, 0xbfeaff, 2, 0.5);
@@ -1570,7 +1782,7 @@ export function buildLife(game, cfg) {
       game.sound('switch');
       const t = pk.target || p.def.target;
       if (hooks.onSwitch) hooks.onSwitch(p.def, p.on, P);
-      if (p.def.effect === 'geyser') st.geyser = { x: p.def.gx || p.x, z: p.def.gz || p.z, t: game.t + 6, y: p.def.gy };
+      if (p.def.effect === 'geyser' || p.def.effect === 'fountain') { st.geyser = { x: p.def.gx || p.x, z: p.def.gz || p.z, t: game.t + 6, y: p.def.gy, cols: p.def.effect === 'fountain' ? [0x8ad0ff, 0xd8f4ff] : null }; if (p.def.effect === 'fountain') chirp('splash'); }
       if (p.def.effect === 'bubbles') { st.bubbles = { x: p.def.gx || p.x, z: p.def.gz || p.z, y: p.y + 1.0, t: game.t + 10 }; if (P === game.me) game.localBanner('Des bulles !', 'Attrapez-les avant qu\'elles s\'envolent', 1600); }
       if (p.def.effect === 'lights') { for (const q of props) if ((q.kind === 'lantern' || (pal.props[q.kind] || {}).lamp) && q.def.group === (p.def.group || t)) { q.on = p.on; q.litT = game.t; } }
     } else if (act === 'light') {
@@ -1763,7 +1975,7 @@ export function buildLife(game, cfg) {
         const cx = c.hx, cz = c.hz, dx = c.x - cx, dz = c.z - cz, d = Math.hypot(dx, dz) || 1, R0 = 6 + (c.i % 3) * 2;
         const tx = -dz / d * c.circ, tz = dx / d * c.circ;
         c.vx += (tx * 6 - c.vx + (-dx / d) * (d - R0) * 0.6) * dt * 1.5; c.vz += (tz * 6 - c.vz + (-dz / d) * (d - R0) * 0.6) * dt * 1.5;
-        const gy = ground(c.x, c.z), want = c.fly > 1.2 ? gy + 6 + (c.i % 4) : gy;
+        const gy = ground(c.x, c.z), want = c.fly > 1.2 ? gy + (f.flyH || 6) + (c.i % 4) : gy;
         c.vy += (want - c.y) * dt * 2 - c.vy * dt;
         c.x += c.vx * dt; c.z += c.vz * dt; c.y = Math.max(gy, c.y + c.vy * dt);
         c.yaw = Math.atan2(c.vx, c.vz); c.pitch = -0.2; c.flapA = Math.sin(c.ph * 30) * 0.9;
@@ -1792,8 +2004,8 @@ export function buildLife(game, cfg) {
         c.y = c.def.perch;
         c.yaw = lerpAngle(c.yaw, th.d < 25 ? Math.atan2(th.P.pos.x - c.x, th.P.pos.z - c.z) : c.yaw + Math.sin(c.ph * 0.5) * 0.02, dt * 2);
         c.flapA = 0; c.pitch = 0; c.head = Math.sin(c.ph * 0.7) * 0.3;
-        if (th.d < 22 && (c.hootT = (c.hootT || 3 + R() * 8) - dt) <= 0) { c.hootT = 8 + R() * 10; if (th.P === game.me) chirp('hoot'); }
-        if (barkNear || (th.d < 3 && Math.abs(th.P.pos.y - c.y) < 3)) { c.fly = 7; c.circ = R() < 0.5 ? -1 : 1; c.vx = 0; c.vz = 0; c.vy = 3; game.bubble({ pos: new THREE.Vector3(c.x, c.y + 1, c.z), small: true }, 'Hou-hou !'); }
+        if (th.d < 22 && (c.hootT = (c.hootT || 3 + R() * 8) - dt) <= 0) { c.hootT = 8 + R() * 10; if (th.P === game.me) chirp(f.sound || 'hoot'); }
+        if (barkNear || (th.d < 3 && Math.abs(th.P.pos.y - c.y) < 3)) { c.fly = 7; c.circ = R() < 0.5 ? -1 : 1; c.vx = 0; c.vz = 0; c.vy = 3; game.bubble({ pos: new THREE.Vector3(c.x, c.y + 1, c.z), small: true }, (f.say && f.say[0]) || 'Hou-hou !'); }
       } else {
         c.fly -= dt;
         const a = c.ph * 0.9 * c.circ, r = 9;
@@ -1918,6 +2130,24 @@ export function buildLife(game, cfg) {
       if (d > 1) { moveTo(c, tx, tz, Math.min(10, d * 2.5), dt); c.hop = f.hopper ? Math.abs(Math.sin(c.ph * 11)) * 0.3 : 0; } else c.hop = 0;
       c.y = ground(c.x, c.z);
       if (c.followT <= 0) { c.s = 'idle'; c.t = 0; }
+      return;
+    }
+    // les chèvres : un petit coup de tête pour jouer (seulement son propre chien, chez soi)
+    if (f.butt && c.s !== 'charge' && c.s !== 'flee' && (c.buttT = (c.buttT === undefined ? 3 + R() * 4 : c.buttT) - dt) <= 0 && th.P === game.me && th.d < f.butt && th.d > 1.6 && !game.me.kart && game.me.grounded) {
+      c.s = 'charge'; c.t = 1.5; c.buttT = 8 + R() * 6; chirp(f.sound || 'bleat');
+      if (f.say) game.bubble({ pos: new THREE.Vector3(c.x, c.y + (c.fm.mdl.h || 1) * c.scale, c.z), small: true }, f.say[0]);
+    }
+    if (c.s === 'charge') {
+      const P = game.me; c.t -= dt;
+      const done = moveTo(c, P.pos.x, P.pos.z, f.run || 5, dt);
+      c.pitch = 0.35; c.hop = Math.abs(Math.sin(c.ph * 14)) * 0.06; c.y = ground(c.x, c.z);
+      if (Math.hypot(P.pos.x - c.x, P.pos.z - c.z) < 1.2 + (c.fm.mdl.r || 0.5) * c.scale * 0.6 && Math.abs(P.pos.y - c.y) < 1.5) {
+        const a = Math.atan2(P.pos.x - c.x, P.pos.z - c.z);
+        P.vel.x += Math.sin(a) * 8; P.vel.z += Math.cos(a) * 8; P.vel.y = Math.max(P.vel.y, 7); P.grounded = false;
+        game.burst(P.pos.x, P.pos.y + 0.8, P.pos.z, 10, 0xffffff, 3, 0.5); game.sound('boing');
+        if (!st.buttTold && f.buttText) { st.buttTold = true; game.localBanner(f.buttText[0], f.buttText[1], 2200); }
+        c.s = 'idle'; c.t = 2; c.pitch = 0;
+      } else if (c.t <= 0 || done) { c.s = 'idle'; c.t = 1.5; c.pitch = 0; }
       return;
     }
     const shy = f.shy !== false && !f.pet;
@@ -2074,6 +2304,12 @@ export function buildLife(game, cfg) {
       if (k >= 0.4 && (v.lastK === undefined || v.lastK < 0.4) && Math.hypot(game.me.pos.x - v.x, game.me.pos.z - v.z) < 45) game.spawnParticle(v.x + Math.sin(v.yaw) * 0.4, v.y + 1.3 * (def.scale || 1), v.z + Math.cos(v.yaw) * 0.4, Math.sin(v.yaw) * (def.throwV || 7), 4.5, Math.cos(v.yaw) * (def.throwV || 7), def.ball || 0xffffff, def.ballSize || 0.32, 1.1, 9);
       v.lastK = k;
     }
+    else if (act === 'water') { armR = -1.25 + Math.sin(ph * 1.3) * 0.1; armL = -0.3; lean = 0.1; if (R() < 0.25 && Math.hypot(game.me.pos.x - v.x, game.me.pos.z - v.z) < 30) game.spawnParticle(v.x + Math.sin(v.yaw) * 1.05, v.y + 0.55, v.z + Math.cos(v.yaw) * 1.05, Math.sin(v.yaw) * 0.6, -0.5, Math.cos(v.yaw) * 0.6, 0x8ad0ff, 0.09, 0.5, 9); }
+    else if (act === 'scatter') {
+      const k = (ph * 0.9) % 2; armR = k < 0.5 ? -1.5 * (k / 0.5) : k < 0.8 ? -1.5 + (k - 0.5) * 4.5 : -0.15; armL = -0.9;
+      if (k >= 0.55 && (v.lastK === undefined || v.lastK < 0.55) && Math.hypot(game.me.pos.x - v.x, game.me.pos.z - v.z) < 35) for (let i = 0; i < 6; i++) game.spawnParticle(v.x + Math.sin(v.yaw) * 0.5, v.y + 1.1, v.z + Math.cos(v.yaw) * 0.5, Math.sin(v.yaw + (R() - 0.5)) * 3, 2 + R() * 1.5, Math.cos(v.yaw + (R() - 0.5)) * 3, def.throwColor || 0xf0d070, 0.1, 1.0, 9);
+      v.lastK = k;
+    }
     else if (act === 'chisel') { const k = Math.sin(ph * 7); armR = -1.0 + k * 0.4; armL = -1.2; lean = 0.2; }
     else if (act === 'stir') { armR = -1.1; armRz = Math.sin(ph * 3) * 0.3; armL = -0.5; }
     else if (act === 'flag') { armR = -2.5 + Math.sin(ph * 2) * 0.3; armL = -0.2; }
@@ -2162,18 +2398,18 @@ export function buildLife(game, cfg) {
       shadow(v.x, v.z, 0.5 * sc);
       return;
     }
-    if (def.body === 'snowman' || def.body === 'yeti') {
-      const big = def.body === 'yeti', L1 = big ? vill.yeti : vill.snow, LA = big ? vill.yetiArm : vill.snowArm;
+    if (def.body === 'snowman' || def.body === 'yeti' || def.body === 'scarecrow') {
+      const big = def.body === 'yeti', scr = def.body === 'scarecrow', L1 = big ? vill.yeti : scr ? vill.scare : vill.snow, LA = big ? vill.yetiArm : scr ? vill.scareArm : vill.snowArm;
       const wake = v.awake ? 1 : 0;
       compose(v.x, v.y + (wake ? Math.abs(Math.sin(ph * (waving ? 9 : 1.5))) * 0.06 : 0), v.z, v.yaw, 0, wake ? Math.sin(ph * 1.3) * 0.05 : 0, sc);
       L1.push(m4);
       const base = mB.copy(m4);
       for (const sd of [-1, 1]) {
-        const ang = sd > 0 ? (waving ? 2.4 + Math.sin(ph * 12) * 0.3 : 0.9 + wake * Math.sin(ph * 2) * 0.2) : 0.9;
-        m5.copy(base).multiply(m6.compose(v4.set(sd * (big ? 0.85 : 0.42), big ? 2.0 : 1.42, 0), q4.setFromEuler(e4.set(0, 0, sd * ang)), one));
+        const ang = scr ? (sd > 0 && waving ? 2.6 + Math.sin(ph * 12) * 0.3 : 1.55 + wake * Math.sin(ph * 1.7 + sd) * 0.12) : sd > 0 ? (waving ? 2.4 + Math.sin(ph * 12) * 0.3 : 0.9 + wake * Math.sin(ph * 2) * 0.2) : 0.9;
+        m5.copy(base).multiply(m6.compose(v4.set(sd * (big ? 0.85 : scr ? 0.36 : 0.42), big ? 2.0 : scr ? 1.68 : 1.42, 0), q4.setFromEuler(e4.set(0, 0, sd * ang)), one));
         LA.push(m5);
       }
-      if (!big) { m5.copy(base).multiply(m6.makeTranslation(0, 2.22, 0)); hatL.push(m5, C.setHex(def.hat || 0x2a2430)); }
+      if (!big) { m5.copy(base).multiply(m6.makeTranslation(0, scr ? 2.25 : 2.22, 0)); hatL.push(m5, C.setHex(def.hat || 0x2a2430)); }
       shadow(v.x, v.z, big ? 1.1 : 0.7);
       return;
     }
@@ -2288,12 +2524,13 @@ export function buildLife(game, cfg) {
         if (p.col) { p.col.x = p.x + ox; p.col.z = p.z + oz; }
         if (p.sk > 0.02 && p.sk < 0.98 && R() < dt * 20) game.spawnParticle(p.x + ox + (R() - 0.5) * 2, p.y + 0.1, p.z + oz + (R() - 0.5) * 0.6, 0, 0.8, 0, 0xd8c8b0, 0.2, 0.8, 1);
       }
-      compose(p.x + ox, y, p.z + oz, p.yaw, pitch, roll, sx * (p.def.s || 1), sy * (p.def.s || 1), sx * (p.def.s || 1));
+      if (pk.act === 'spin') { const ss = game.t - (p.spin0 || -99); p.ang = ((p.ang || 0) + dt * (0.25 + Math.sin(t * 0.3 + p.i) * 0.2 + (ss < 3 ? 14 * (1 - ss / 3) : 0))) % TAU; }
+      compose(p.x + ox, y, p.z + oz, p.yaw + (p.ang || 0), pitch, roll, sx * (p.def.s || 1), sy * (p.def.s || 1), sx * (p.def.s || 1));
       pm.l.push(m4, p.def.tint !== undefined ? C.setHex(p.def.tint) : undefined);
       if (pk.crown && pk.act === 'build' && p.stage >= (pk.stages || 3) && propModel[pk.crown]) { m5.copy(m4).multiply(m6.makeTranslation(0, pm.mdl.h - 0.05, 0)); propModel[pk.crown].l.push(m5); }
-      if (p.kind === 'snowman') {
+      if (p.kind === 'snowman' || pk.hatY) {
         const hw = game.t - p.wob, hop = hw < 1.0 ? Math.sin(hw / 1.0 * Math.PI) * 1.2 : 0, spin = hw < 1 ? hw * 9 : 0;
-        m5.copy(m4).multiply(m6.compose(v4.set(0, 2.0 + hop, 0), q4.setFromEuler(e4.set(0, spin, 0)), one));
+        m5.copy(m4).multiply(m6.compose(v4.set(0, (pk.hatY || 2.0) + hop, 0), q4.setFromEuler(e4.set(0, spin, 0)), one));
         hatL.push(m5, C.setHex(p.def.hat || 0x2a2430));
       }
       if (pk.topper) {
@@ -2367,12 +2604,13 @@ export function buildLife(game, cfg) {
       propModel.chest.l.push(m4);
       const oa = opened ? clamp((game.t - c.open) / 0.6, 0, 1) : 0, lidA = opened ? (c.open < 0 ? 1 : oa) * 1.9 : (d < 6 ? Math.abs(Math.sin(t * 6)) * 0.08 : 0);
       m5.copy(m4).multiply(m6.compose(v4.set(0, 0.56, -0.35), q4.setFromEuler(e4.set(-lidA, 0, 0)), one));
-      propModel.lid.l.push(m5);
+      // (cfg.lidNear, téléphone : de loin, un coffre fermé sans son couvercle à part — un dessin de moins)
+      if (!(lite && cfg.lidNear && d > cfg.lidNear)) propModel.lid.l.push(m5);
       if (!opened && d < 18) glow(def.x, def.y + 0.9, def.z, 1.6 + Math.sin(t * 4) * 0.3, 0xffd23a, 0.55);
       shadow(def.x, def.z, 0.6);
     }
     // geyser de neige (interrupteur)
-    if (st.geyser && st.geyser.t > game.t && R() < dt * 40) { const g = st.geyser; game.spawnParticle(g.x + (R() - 0.5) * 0.6, g.y !== undefined ? g.y : ground(g.x, g.z) + 0.3, g.z + (R() - 0.5) * 0.6, (R() - 0.5) * 2.5, 9 + R() * 4, (R() - 0.5) * 2.5, R() < 0.3 ? 0xbfeaff : 0xffffff, 0.35, 1.6, 9); }
+    if (st.geyser && st.geyser.t > game.t && R() < dt * 40) { const g = st.geyser, cc = g.cols || [0xbfeaff, 0xffffff]; game.spawnParticle(g.x + (R() - 0.5) * 0.6, g.y !== undefined ? g.y : ground(g.x, g.z) + 0.3, g.z + (R() - 0.5) * 0.6, (R() - 0.5) * 2.5, 9 + R() * 4, (R() - 0.5) * 2.5, R() < 0.3 ? cc[0] : cc[1], 0.35, 1.6, 9); }
     // machine à bulles en marche
     if (st.bubbles && st.bubbles.t > game.t && R() < dt * (lite ? 5 : 9)) { const b = st.bubbles; addFloat(b.x + (R() - 0.5) * 0.4, b.y, b.z + (R() - 0.5) * 0.4, (R() - 0.5) * 2.4, (R() - 0.5) * 2.4); }
     // bulles de savon
@@ -2443,6 +2681,15 @@ export function buildLife(game, cfg) {
         else { const k = clamp(c.t / 1.5, 0, 1); if (c.hit) continue; drawCreature(fm, c.x + Math.sin(c.yaw) * fishOff(def, k), c.y + Math.sin(k * Math.PI) * 2.6, c.z + Math.cos(c.yaw) * fishOff(def, k), c.yaw, (k - 0.5) * 2.4, 0, 1.6, 1, 0); }
       }
     }
+    if (T === 'scare') {
+      const fm = faunaModel[def.critter]; if (!fm) return;
+      for (const c of D.crit) {
+        if (c.st === 'gone') continue;
+        const sit = c.st === 'sit';
+        drawCreature(fm, c.x, c.y + (sit ? Math.abs(Math.sin(c.a * 5)) * 0.04 : 0), c.z, c.yaw + (sit ? Math.sin(c.a * 0.8) * 0.6 : 0), sit ? Math.max(0, Math.sin(c.a * 4)) * 0.6 : -0.2, 0, (fm.f.scale || 1) * 1.1, 1, sit ? 0 : Math.sin(t * 30) * 0.9, undefined, sit && fm.f.foldWings);
+        if (sit) { shadow(c.x, c.z, 0.25); glow(c.x, c.y + 1.0, c.z, 0.9, 0xffd23a, 0.4 + Math.sin(t * 6 + c.a) * 0.2); }
+      }
+    }
     if (T === 'volley') {
       const b = D.crit[0], pm = propModel[def.ball || 'beachball'];
       if (pm && b) { compose(b.x, b.y, b.z, b.a, b.a * 1.3, 0, 0.32); pm.l.push(m4); shadow(b.x, b.z, 0.35); if (b.side === 'us') glow(b.x, ground(b.x, b.z) + 0.15, b.z, 1.6, 0xffe070, 0.5); }
@@ -2459,7 +2706,7 @@ export function buildLife(game, cfg) {
     const T = def.type;
     const prog = T === 'coins' ? `${D.got.length}/${def.items.length}` : T === 'rings' ? `anneau ${Math.min(D.i + 1, def.rings.length)}/${def.rings.length}` : T === 'pads' ? `${D.got.length}/${def.pads.length}`
       : T === 'hits' ? `${D.got.length}/${def.props.length}` : T === 'goal' ? `${D.got.length}/${def.balls.length}`
-      : T === 'whack' || T === 'fish' || T === 'volley' ? `${D.got.length}/${def.need}` : T === 'build' ? `${D.got.length}/${def.props.length}` : T === 'tag' || T === 'chase' ? `${D.crit.filter(c => c.tagged).length}/${D.crit.length}` : T === 'herd' ? `${D.crit.filter(c => c.st === 'home').length}/${D.crit.length}`
+      : T === 'whack' || T === 'fish' || T === 'volley' ? `${D.got.length}/${def.need}` : T === 'build' ? `${D.got.length}/${def.props.length}` : T === 'tag' || T === 'chase' ? `${D.crit.filter(c => c.tagged).length}/${D.crit.length}` : T === 'herd' ? `${D.crit.filter(c => c.st === 'home').length}/${D.crit.length}` : T === 'scare' ? `${D.crit.filter(c => c.st !== 'sit').length}/${D.crit.length}`
         : T === 'xylo' ? (D.phase === 'show' ? 'écoutez…' : `${D.k}/${D.seq.length}`) : 'vite !';
     return `⚡ ${def.name} : ${prog}${tm}`;
   }
