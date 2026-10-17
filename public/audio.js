@@ -168,10 +168,8 @@
       if (!this.ok) return;
       opts = opts || {};
       const c = this.ctx, t = c.currentTime + (opts.delay || 0);
-      const len = Math.floor(c.sampleRate * dur);
-      const buf = c.createBuffer(1, len, c.sampleRate);
-      const d = buf.getChannelData(0);
-      for (let i = 0; i < len; i++) d[i] = Math.random() * 2 - 1;
+      // (un seul tampon de bruit blanc, lu à un endroit au hasard : rien à recalculer à chaque son)
+      const buf = this.whiteBuf();
       const src = c.createBufferSource();
       src.buffer = buf;
       const f = c.createBiquadFilter();
@@ -185,7 +183,74 @@
       src.connect(f);
       f.connect(g);
       g.connect(this.fx || this.master);
-      src.start(t);
+      const off = Math.random() * Math.max(0, buf.duration - dur - 0.05);
+      src.start(t, off); src.stop(t + dur + 0.03);
+    }
+    whiteBuf() {
+      if (!this.wbuf) {
+        const c = this.ctx, len = Math.floor(c.sampleRate * 2.5), b = c.createBuffer(1, len, c.sampleRate), d = b.getChannelData(0);
+        for (let i = 0; i < len; i++) d[i] = Math.random() * 2 - 1;
+        this.wbuf = b;
+      }
+      return this.wbuf;
+    }
+
+    // ---------------------------------------------------------------------
+    // Sensations : petits sons doux, en couches (vrais instruments + souffle)
+    // ---------------------------------------------------------------------
+    /** Souffle d'air : bruit filtré qui monte puis retombe (dash, toupie, planeur). */
+    whoosh(dur, opts) {
+      if (!this.ok) return;
+      opts = opts || {};
+      const c = this.ctx, t = c.currentTime + (opts.delay || 0), buf = this.whiteBuf();
+      const src = c.createBufferSource(); src.buffer = buf;
+      const f = c.createBiquadFilter(); f.type = 'bandpass'; f.Q.value = opts.q || 1.1;
+      const lo = opts.lo || 500, hi = opts.hi || 2200;
+      f.frequency.setValueAtTime(lo, t);
+      f.frequency.exponentialRampToValueAtTime(hi, t + dur * 0.45);
+      f.frequency.exponentialRampToValueAtTime(Math.max(80, lo * 0.7), t + dur);
+      const g = c.createGain(), v = opts.vol || 0.12;
+      g.gain.setValueAtTime(0.0001, t);
+      g.gain.exponentialRampToValueAtTime(v, t + dur * 0.3);
+      g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+      src.connect(f); f.connect(g); g.connect(this.fx || this.master);
+      src.start(t, Math.random() * (buf.duration - dur - 0.05)); src.stop(t + dur + 0.03);
+    }
+    /** Atterrissage : un « pouf » rond et grave (k : 0..1 la hauteur de chute ; snow : plus feutré). */
+    land(k, surface) {
+      if (!this.ok) return;
+      k = Math.max(0, Math.min(1, k || 0));
+      const soft = surface === 'snow' || surface === 'grass';
+      this.tone(150 + k * 30, 0.11 + k * 0.08, { type: 'sine', to: 52, vol: 0.06 + k * 0.09 });
+      this.noise(0.07 + k * 0.08, { filter: 'lowpass', freq: soft ? 520 : 900, freqTo: 160, vol: 0.05 + k * 0.1 });
+      if (surface === 'wood') this.note('pluck', 43, 0.04 + k * 0.04, 0, 0.12);
+    }
+    /** Le petit « pop » d'un trésor : note de cloche (gamme qui monte) + marimba dessous + étincelle aiguë. */
+    pickup(midi, chain) {
+      if (!this.ok) return;
+      const c = Math.min(9, chain || 0);
+      this.note('bell', midi, 0.1, 0, 0.25);
+      this.note('mallet', Math.min(94, midi - 12), 0.045 + c * 0.003, 0.005, 0.18);
+      this.tone(2400 + c * 140, 0.05, { type: 'sine', to: 3800 + c * 160, vol: 0.018, delay: 0.01 });
+    }
+    /** Pluie de clochettes (coffre, médaille) : glissando qui monte et scintille. */
+    sparkle(base, n, gap) {
+      if (!this.ok) return;
+      const PENT = [0, 2, 4, 7, 9, 12, 14, 16, 19, 21, 24];
+      n = n || 7; gap = gap || 0.045;
+      for (let i = 0; i < n; i++) this.note('bell', Math.min(98, (base || 79) + PENT[i % PENT.length]), 0.045 * (1 - i / (n * 1.6)), i * gap, i === n - 1 ? 0.5 : 0.2);
+    }
+    /** « Bonk » d'un coup qui touche : pizzicato grave + petite chute de hauteur. */
+    bonk() {
+      if (!this.ok) return;
+      this.note('pluck', 52, 0.09, 0, 0.12);
+      this.tone(620, 0.09, { type: 'triangle', to: 300, vol: 0.07 });
+    }
+    /** Couche de fête par-dessus win() (défi éclair) : basse pincée qui pose l'accord + pluie de clochettes. */
+    fanfare() {
+      if (!this.ok) return;
+      this.note('pluck', 48, 0.08, 0, 0.3); this.note('pluck', 55, 0.07, 0.26, 0.3); this.note('pluck', 60, 0.08, 0.52, 0.6);
+      this.sparkle(84, 6, 0.06);
     }
 
     /** Bruit de patte selon le sol : 'grass', 'dirt', 'stone', 'wood', 'water', 'snow'. */

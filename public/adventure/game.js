@@ -42,6 +42,7 @@ import { storyShots } from './story.js';
 import { buildSeasons } from './seasons.js';
 import * as N from './npcs.js';
 import { Puppies } from './puppies.js';
+import { Juice, buzz, canVibrate, hapticsOn, setHaptics, refreshHaptics } from './juice.js';
 /** Réglage « j'ai des écouteurs » (voir voice.js). */
 const headsetOn = () => { try { return localStorage.getItem('dogfight.headset') === '1'; } catch (e) { return false; } };
 
@@ -1074,41 +1075,10 @@ class Adventure {
       puppy: this.makeMark('?', 0x8ad0ff),
     };
 
-    // Particules : points lumineux doux
-    this.particles = [];
-    const PMAX = 400;
-    const pg = new THREE.BufferGeometry();
-    pg.setAttribute('position', new THREE.BufferAttribute(new Float32Array(PMAX * 3), 3));
-    pg.setAttribute('color', new THREE.BufferAttribute(new Float32Array(PMAX * 3), 3));
-    pg.setAttribute('size', new THREE.BufferAttribute(new Float32Array(PMAX), 1));
-    pg.setDrawRange(0, 0);
-    const pm = new THREE.ShaderMaterial({
-      uniforms: { uMap: { value: M.glowTexture() }, uScale: { value: 400 } },
-      vertexShader: `
-        attribute float size;
-        attribute vec3 color;
-        varying vec3 vColor;
-        uniform float uScale;
-        void main() {
-          vColor = color;
-          vec4 mv = modelViewMatrix * vec4(position, 1.0);
-          gl_PointSize = size * uScale / -mv.z;
-          gl_Position = projectionMatrix * mv;
-        }`,
-      fragmentShader: `
-        uniform sampler2D uMap;
-        varying vec3 vColor;
-        void main() {
-          vec4 t = texture2D(uMap, gl_PointCoord);
-          gl_FragColor = vec4(vColor, min(1.0, t.a * 1.3));
-          #include <colorspace_fragment>
-        }`,
-      transparent: true, depthWrite: false,
-    });
-    this.partPts = new THREE.Points(pg, pm);
-    this.partPts.frustumCulled = false;
-    this.partPts.renderOrder = 5;
-    sc.add(this.partPts);
+    // Particules : un seul système partagé (halos, étoiles, confettis, cœurs, poussière), voir juice.js
+    this.juice = new Juice(this, { lite: this.lite });
+    this.particles = this.juice.parts;
+    this.partPts = this.particles.points;
     // les chiots perdus (3 par monde) et, au parc, ceux qu'on a déjà retrouvés
     try { this.pups = new Puppies(this); } catch (e) { console.error(e); this.pups = null; }
   }
@@ -1339,7 +1309,7 @@ class Adventure {
       b.addEventListener('pointerdown', (e) => {
         e.preventDefault(); b.setPointerCapture(e.pointerId);
         this.pressed.add(name); this.touchHeld.add(name); b.classList.add('down');
-        if (navigator.vibrate) navigator.vibrate(10);
+        buzz(8, 0);
       });
       const up = () => { this.touchHeld.delete(name); b.classList.remove('down'); };
       b.addEventListener('pointerup', up); b.addEventListener('pointercancel', up); b.addEventListener('lostpointercapture', up);
@@ -2023,11 +1993,14 @@ class Adventure {
         P.vel.y = JUMP_V; P.jumps = 1; P.grounded = false; P.coyote = 0; P.jumpBuf = 0;
         this.sound('jump');
         this.burst(P.pos.x, P.pos.y + 0.1, P.pos.z, 6, 0xf0e0c0, 2.5, 0.35);
+        if (P.pos.y > L.WATER_Y + 0.1) this.juice.dust(P.pos.x, P.pos.y, P.pos.z, 0.1);
       } else if (mp.has('jump') && !onGround) {
         if (P.jumps < 2) {
           P.vel.y = DOUBLE_JUMP_V; P.jumps = 2; P.flipT = 0.45;
           this.sound('double');
           this.burst(P.pos.x, P.pos.y + 0.5, P.pos.z, 10, 0x8bc34a, 3, 0.4);
+          this.juice.dust(P.pos.x, P.pos.y + 0.2, P.pos.z, 0.3, 0xffffff);   // un anneau d'air sous les pattes
+          this.jiggle(P, 2.2);
         }
       }
       // Ouaf ! (les chats sursautent, Biscotte répond) et pirouette
@@ -2048,6 +2021,8 @@ class Adventure {
         const dx = wlen > 0.2 ? wx / wlen : Math.sin(P.yaw), dz = wlen > 0.2 ? wz / wlen : Math.cos(P.yaw);
         P.yaw = Math.atan2(dx, dz);
         this.sound('dash');
+        if (P.grounded && P.pos.y > L.WATER_Y + 0.1) this.juice.dust(P.pos.x - dx * 0.5, P.pos.y, P.pos.z - dz * 0.5, 0.35);
+        this.haptic(P, 8);
       }
     }
 
@@ -2077,6 +2052,11 @@ class Adventure {
         P.gliding = true;
       }
     }
+    // le planeur s'ouvre : un souffle d'air
+    if (P.gliding && !P.wasGliding && P === this.me) this.sound('glide');
+    P.wasGliding = P.gliding;
+    // l'hélice de la queue laisse une petite traînée d'air scintillante
+    if (P.gliding && Math.random() < dt * 9) this.spawnParticle(P.pos.x - Math.sin(P.yaw) * 0.9 + (Math.random() - 0.5) * 0.4, P.pos.y + 1.3, P.pos.z - Math.cos(P.yaw) * 0.9 + (Math.random() - 0.5) * 0.4, -P.vel.x * 0.2, 0.3, -P.vel.z * 0.2, 0xffffff, 0.12, 0.5, -0.2, 5);
 
     // Déplacement horizontal + collisions
     const prevY = P.pos.y;
@@ -2114,6 +2094,7 @@ class Adventure {
       P.vel.y = P.onCol.bounce; P.grounded = false; P.jumps = 1; P.coyote = 0;
       P.onCol.squashT = this.t;
       this.sound('boing');
+      this.jiggle(P, 2.6); this.haptic(P, 10, 120);
       this.burst(P.pos.x, P.pos.y + 0.1, P.pos.z, 8, 0xffe0f0, 3, 0.4);
     }
 
@@ -2273,7 +2254,9 @@ class Adventure {
           f.t += dt; f.vy -= 22 * dt;
           c.mesh.position.x += f.vx * dt; c.mesh.position.y += f.vy * dt; c.mesh.position.z += f.vz * dt;
           c.mesh.rotation.x += dt * 14; c.mesh.rotation.z += dt * 9;
-          const k = Math.max(0.2, 1 - f.t * 0.6); c.mesh.scale.setScalar(k);
+          // écrasé par le coup, puis étiré par l'envol (ressort qui s'amortit)
+          const k = Math.max(0.2, 1 - f.t * 0.6), w = Math.cos(f.t * 22) * Math.exp(-f.t * 5) * 0.35;
+          c.mesh.scale.set(k * (1 + w * 0.6), k * (1 - w), k * (1 + w * 0.6));
           if (f.t > 0.85) {
             c.fly = null; c.mesh.visible = false; c.mesh.rotation.set(0, c.yaw, 0); c.mesh.scale.setScalar(1);
             this.burst(c.mesh.position.x, c.mesh.position.y, c.mesh.position.z, 12, 0xffffff, 3, 0.5);
@@ -2353,7 +2336,10 @@ class Adventure {
     c.mesh.position.copy(c.pos);
     this.burst(c.pos.x, c.pos.y + 0.6, c.pos.z, 18, 0xffffff, 4, 0.6);
     this.burst(c.pos.x, c.pos.y + 0.6, c.pos.z, 8, 0x8a8a9a, 3, 0.5);
+    this.juice.hitStars(c.pos.x, c.pos.y + 0.8, c.pos.z, 7);
     this.kick(0.3, 0.06);
+    if (this.nearestPlayer(c.pos) === this.me) this.juice.punch(0.35);
+    this.sound('bonk');
     this.sound('meow');
     if (c.def.group === 'clearing') {
       this.save.cats.push(c.def.id);
@@ -2375,6 +2361,9 @@ class Adventure {
     if (cr.def.content !== 'medal') this.save.crateT[cr.def.id] = Date.now();
     this.persist();
     this.burst(cr.def.x, cr.def.y + 0.6, cr.def.z, 16, 0xb07a3a, 4.5, 0.6);
+    this.juice.hitStars(cr.def.x, cr.def.y + 0.7, cr.def.z, 5, 0xffd890);
+    this.juice.dust(cr.def.x, cr.def.y, cr.def.z, 0.5, 0xd8c09a);
+    this.haptic(null, 14);
     this.sound('crate');
     if (cr.def.content === 'heart') this.spawnHeart(cr.def.x, cr.def.y + 0.9, cr.def.z);
     if (cr.def.content === 'medal') {
@@ -2453,6 +2442,7 @@ class Adventure {
     this.sound(P.kind === 'matcha' ? 'barkM' : 'bark');
     if (P.mesh && P.mesh.userData.ainu) setTimeout(() => { if (!this.disposed) this.sound('barkM'); }, 220);   // Matcha aboie aussi
     this.bubble(P, 'Ouaf !');
+    this.jiggle(P, -2.4);          // il se ramasse… puis se gonfle en aboyant
     this.barkReact(P);
     if (L.npcs && L.npcs.mamie && Math.hypot(L.npcs.mamie.x - P.pos.x, L.npcs.mamie.z - P.pos.z) < 3.2) this.betise(P, 'mamie_bark');
     // le gros « OUAF ! » : onde de choc, l'écran tremble, et les chats détalent en hurlant
@@ -2845,17 +2835,35 @@ class Adventure {
   // -------------------------------------------------------------------------
   // Objets à ramasser
   // -------------------------------------------------------------------------
-  stepCollect() { for (const P of this.players) this.collectFor(P); }
+  stepCollect(dt) { this.stepMagnet(dt || STEP); for (const P of this.players) this.collectFor(P); }
+
+  /** Aimant à trésors : un os tout proche file vers le chien (de plus en plus vite), comme les pièces de Mario. */
+  stepMagnet(dt) {
+    const mag = this.boneMag;
+    if (!mag || !mag.size) return;
+    for (const [id, m] of mag) {
+      if (this.boneTaken.has(id)) { mag.delete(id); continue; }
+      const P = m.P, tx = P.pos.x, ty = P.pos.y + 0.8, tz = P.pos.z;
+      const dx = tx - m.x, dy = ty - m.y, dz = tz - m.z, d = Math.hypot(dx, dy, dz) || 1;
+      m.t += dt; m.v = Math.min(32, m.v + dt * 70);
+      const k = Math.min(1, m.v * dt / d);
+      m.x += dx * k; m.y += dy * k + Math.sin(m.t * 18) * 0.02; m.z += dz * k;
+    }
+  }
 
   collectFor(P) {
     const px = P.pos.x, py = P.pos.y + 0.8, pz = P.pos.z;
     const s = this.save;
     // Os (en chaîne, ils s'attrapent d'un peu plus loin)
     const reach = (P.chain || 0) >= 3 ? 2.3 : 1.6;
+    const mag = this.boneMag || (this.boneMag = new Map()), MAG = (P.chain || 0) >= 3 ? 3.6 : 3.0;
     for (let i = 0; i < L.bones.length; i++) {
       const b = L.bones[i];
       if (this.boneTaken.has(b.id)) continue;
-      if ((b.x - px) ** 2 + (b.y - py) ** 2 + (b.z - pz) ** 2 < reach * reach) {
+      const m = mag.get(b.id), bx = m ? m.x : b.x, by = m ? m.y : b.y, bz = m ? m.z : b.z;
+      // assez près (à hauteur du chien : un os en l'air demande toujours un saut) : l'aimant l'attire
+      if (!m && Math.abs(b.y - py) < 1.0 && (b.x - px) ** 2 + (b.z - pz) ** 2 < MAG * MAG) mag.set(b.id, { x: b.x, y: b.y, z: b.z, v: 3, t: 0, P });
+      if ((bx - px) ** 2 + (by - py) ** 2 + (bz - pz) ** 2 < reach * reach || (m && m.t > 0.9)) {
         // une ligne d'os ramassée d'affilée : la note monte, et tous les 5 ça scintille
         P.chain = this.t - (P.chainAt || -9) < 0.75 ? (P.chain || 0) + 1 : 0;
         P.chainAt = this.t;
@@ -2864,13 +2872,19 @@ class Adventure {
         P.score = (P.score || 0) + 1;
         if (P === this.player) addToProfile(1);
         if (this.levelLogic && this.levelLogic.onCoin) this.levelLogic.onCoin(P);
-        this.burst(b.x, b.y, b.z, 6, 0xffe070, 2.5, 0.35);
+        this.burst(bx, by, bz, 4, 0xffe070, 2.5, 0.35);
+        this.juice.pop(bx, by, bz, 0xffe070, P.chain);
+        (this.bonePop || (this.bonePop = new Map())).set(b.id, { t: this.t, x: bx, y: by, z: bz });
+        mag.delete(b.id);
+        this.jiggle(P, 0.9);
+        this.haptic(P, 5, 70);
         this.sound('bone', P.chain);
         if (P.chain === 9) this.betise(P, 'chain10');
         if (P.chain && P.chain % 5 === 4) {
           this.burst(b.x, b.y + 0.4, b.z, 22, 0xfff3a0, 5, 0.8);
+          this.juice.sparkle(P.pos.x, P.pos.y + 1.2, P.pos.z, 12, 0xfff0a0, 1.0);
           this.sound('chain');
-          if (P === this.me) this.kick(0.08);
+          if (P === this.me) { this.kick(0.08); this.haptic(P, [8, 40, 12], 0); }
         }
         const fresh = !s.bones.includes(b.id);
         if (fresh) s.bones.push(b.id);
@@ -2890,6 +2904,8 @@ class Adventure {
         s.balls.push(b.def.id);
         this.pedestalBalls.forEach((pb, i) => { pb.visible = i < s.balls.length; });
         this.burst(b.def.x, b.def.y, b.def.z, 12, 0xd8f040, 3, 0.5);
+        this.juice.pop(b.def.x, b.def.y, b.def.z, 0xe8ff70, 3);
+        this.jiggle(P, 1.4); this.haptic(P, 10);
         this.sound('ball');
         if (s.balls.length >= 5) {
           this.updateMedalVisibility();
@@ -2905,6 +2921,8 @@ class Adventure {
       if ((h.x - px) ** 2 + (h.y - py) ** 2 + (h.z - pz) ** 2 < 1.4 * 1.4) {
         h.taken = true; this.scene.remove(h.mesh);
         if (P.hearts < MAX_HEARTS) P.hearts++;
+        this.juice.pop(h.x, h.y, h.z, 0xff7aa0, 2); this.juice.hearts(h.x, h.y + 0.3, h.z, 3);
+        this.jiggle(P, 1.2); this.haptic(P, 8);
         this.sound('heart');
         this.updateHud();
       }
@@ -2923,7 +2941,12 @@ class Adventure {
     this.persist(); this.updateHud();
     this.burst(m.def.x, m.def.y, m.def.z, 30, 0xffd34d, 5, 0.9);
     this.burst(m.def.x, m.def.y, m.def.z, 14, 0xffffff, 4, 0.7);
-    for (const Q of this.players) Q.cheerT = 1.4;
+    // la fête : confettis, étoiles, éclat doré au bord de l'écran, petit zoom, vibration
+    this.juice.confetti(m.def.x, m.def.y + 0.5, m.def.z, 60, 1.1);
+    this.juice.sparkle(m.def.x, m.def.y, m.def.z, 16, 0xffe680, 1.2);
+    this.juice.edge(); this.juice.punch(0.8);
+    buzz([18, 50, 18, 50, 40], 0);
+    for (const Q of this.players) { Q.cheerT = 1.4; this.jiggle(Q, 2.5); }
     this.freeze = 1.4;
     this.sound('win');
     if (this.sfx && this.sfx.stinger) this.sfx.stinger('medal');
@@ -2955,9 +2978,8 @@ class Adventure {
   // -------------------------------------------------------------------------
   // Particules
   // -------------------------------------------------------------------------
-  spawnParticle(x, y, z, vx, vy, vz, color, size, life, grav) {
-    if (this.particles.length >= 400) this.particles.shift();
-    this.particles.push({ x, y, z, vx, vy, vz, color: new THREE.Color(color), size, life, max: life, grav: grav === undefined ? 9 : grav });
+  spawnParticle(x, y, z, vx, vy, vz, color, size, life, grav, kind, o) {
+    this.particles.spawn(x, y, z, vx, vy, vz, color, size, life, grav, kind, o);
   }
   burst(x, y, z, n, color, speed, life) {
     for (let i = 0; i < n; i++) {
@@ -2966,11 +2988,7 @@ class Adventure {
       this.spawnParticle(x, y, z, Math.cos(a) * Math.cos(e) * sp, Math.sin(e) * sp + speed * 0.5, Math.sin(a) * Math.cos(e) * sp, color, 0.12 + Math.random() * 0.12, life * (0.6 + Math.random() * 0.6));
     }
   }
-  stepParticles(dt) {
-    const ps = this.particles;
-    for (const p of ps) { p.x += p.vx * dt; p.y += p.vy * dt; p.z += p.vz * dt; p.vy -= p.grav * dt; p.life -= dt; }
-    this.particles = ps.filter(p => p.life > 0);
-  }
+  stepParticles(dt) { this.particles.step(dt); }
 
   // -------------------------------------------------------------------------
   // Sons
@@ -2981,14 +2999,22 @@ class Adventure {
     const s = this.sfx;
     if (!s || !s.ok) return;
     switch (name) {
-      case 'jump': s.tone(300, 0.12, { type: 'triangle', to: 620, vol: 0.12 }); break;
-      case 'double': s.tone(520, 0.14, { type: 'triangle', to: 1040, vol: 0.1 }); break;
-      case 'spin': s.swing(true); break;
-      case 'dash': s.noise(0.2, { filter: 'bandpass', freq: 800, freqTo: 2400, vol: 0.2 }); break;
+      // (sauts, toupie, charge : un son doux en couches — note d'instrument + souffle d'air)
+      case 'jump': s.tone(300, 0.12, { type: 'triangle', to: 620, vol: 0.1 }); if (s.whoosh) s.whoosh(0.16, { lo: 700, hi: 1800, vol: 0.035 }); break;
+      case 'double': s.tone(520, 0.14, { type: 'triangle', to: 1040, vol: 0.07 }); s.note('mallet', 84, 0.06, 0.01, 0.15); s.note('mallet', 91, 0.05, 0.07, 0.2); if (s.whoosh) s.whoosh(0.22, { lo: 900, hi: 2600, vol: 0.05 }); break;
+      case 'spin': if (s.whoosh) { s.whoosh(0.18, { lo: 600, hi: 1900, vol: 0.09 }); s.whoosh(0.2, { lo: 500, hi: 1600, vol: 0.06, delay: 0.14 }); } else s.swing(true); break;
+      case 'dash': if (s.whoosh) { s.whoosh(0.3, { lo: 380, hi: 2600, vol: 0.16, q: 0.9 }); s.tone(110, 0.16, { type: 'sine', to: 70, vol: 0.08 }); } else s.noise(0.2, { filter: 'bandpass', freq: 800, freqTo: 2400, vol: 0.2 }); break;
+      case 'glide': if (s.whoosh) s.whoosh(0.5, { lo: 300, hi: 900, vol: 0.09, q: 0.7 }); break;
+      case 'land': if (s.land) s.land(n, L.SURFACE || 'grass'); break;
+      case 'bonk': if (s.bonk) s.bonk(); break;
+      case 'fanfare': if (s.fanfare) s.fanfare(); else s.win(); break;
+      case 'sparkle': if (s.sparkle) s.sparkle(n || 79); break;
+      case 'petted': s.note('bell', 84, 0.05, 0.05, 0.3); s.note('bell', 88, 0.045, 0.16, 0.4); break;
+      case 'pop': s.tone(500, 0.07, { type: 'sine', to: 1100, vol: 0.06 }); s.note('mallet', 86, 0.05, 0.01, 0.15); break;
       case 'bone': {
         // gamme pentatonique : une ligne d'os joue une petite mélodie qui monte
         const PENTA = [0, 2, 4, 7, 9, 12, 14, 16, 19, 21, 24, 26, 28, 31];
-        s.note('bell', 76 + PENTA[Math.min(PENTA.length - 1, n || 0)], 0.11, 0, 0.25);
+        if (s.pickup) s.pickup(Math.min(98, 76 + PENTA[Math.min(PENTA.length - 1, n || 0)]), n); else s.note('bell', 76 + PENTA[Math.min(PENTA.length - 1, n || 0)], 0.11, 0, 0.25);
         break;
       }
       case 'chain': [0, 4, 7, 12].forEach((k, i) => s.note('mallet', 84 + k, 0.09, 0.05 + i * 0.05)); break;
@@ -3119,7 +3145,7 @@ class Adventure {
     const q = this.q || (this.q = new THREE.Quaternion());
     const e = this.e || (this.e = new THREE.Euler());
     const v = this.v || (this.v = new THREE.Vector3());
-    const one = new THREE.Vector3(1, 1, 1), zero = new THREE.Vector3(0, 0, 0);
+    const one = new THREE.Vector3(1, 1, 1), zero = new THREE.Vector3(0, 0, 0), v2 = this.v2b || (this.v2b = new THREE.Vector3());
     for (let i = 0; i < L.bones.length; i++) {
       const b = L.bones[i];
       const taken = this.boneTaken.has(b.id);
@@ -3130,8 +3156,17 @@ class Adventure {
         const d = Math.hypot(b.x - bh.x, b.z - bh.z);
         if (d < 12) { const a = this.t - bh.t - d * 0.04; if (a > 0) hop = Math.abs(Math.sin(a * 9)) * 0.7 * Math.max(0, 1 - a / 1.4); }
       }
-      q.setFromEuler(e.set(0, t * 2.5 + i * 0.4 + hop * 4, 0.35));
-      m4.compose(v.set(b.x, b.y + Math.sin(t * 3 + i) * 0.12 + hop, b.z), q, taken ? zero : one);
+      // attiré par l'aimant : il file vers le chien en tournant vite ; ramassé : petit « pop » (il gonfle et disparaît)
+      const mg = this.boneMag && this.boneMag.get(b.id), pp = taken && this.bonePop && this.bonePop.get(b.id);
+      let sc = taken ? zero : one, px = b.x, py = b.y + Math.sin(t * 3 + i) * 0.12 + hop, pz = b.z, spin = 0;
+      if (mg) { px = mg.x; py = mg.y; pz = mg.z; spin = mg.t * 20; }
+      else if (pp) {
+        const k = (this.t - pp.t) / 0.18;
+        if (k >= 1 || k < 0) this.bonePop.delete(b.id);
+        else { px = pp.x; py = pp.y + k * 0.5; pz = pp.z; spin = k * 6; sc = v2.setScalar((1 + k * 1.1) * (1 - k * k * k)); }
+      }
+      q.setFromEuler(e.set(0, t * 2.5 + i * 0.4 + hop * 4 + spin, 0.35));
+      m4.compose(v.set(px, py, pz), q, sc);
       this.bonesI.setMatrixAt(i, m4);
     }
     this.bonesI.instanceMatrix.needsUpdate = true;
@@ -3139,7 +3174,9 @@ class Adventure {
       const gp = this.boneGlow.geometry, pa = gp.attributes.position.array, sa = gp.attributes.size.array;
       for (let i = 0; i < L.bones.length; i++) {
         const b = L.bones[i];
-        pa[i * 3] = b.x; pa[i * 3 + 1] = b.y + Math.sin(t * 3 + i) * 0.12; pa[i * 3 + 2] = b.z;
+        const mg = this.boneMag && this.boneMag.get(b.id);
+        if (mg) { pa[i * 3] = mg.x; pa[i * 3 + 1] = mg.y; pa[i * 3 + 2] = mg.z; }
+        else { pa[i * 3] = b.x; pa[i * 3 + 1] = b.y + Math.sin(t * 3 + i) * 0.12; pa[i * 3 + 2] = b.z; }
         sa[i] = this.boneTaken.has(b.id) ? 0 : 1.15 + Math.sin(t * 2.4 + i * 1.3) * 0.15;
       }
       gp.attributes.position.needsUpdate = true; gp.attributes.size.needsUpdate = true;
@@ -3244,16 +3281,7 @@ class Adventure {
     }
 
     // Particules
-    const pg = this.partPts.geometry;
-    const pa = pg.attributes.position.array, ca = pg.attributes.color.array, sa = pg.attributes.size.array;
-    this.particles.forEach((p, i) => {
-      pa[i * 3] = p.x; pa[i * 3 + 1] = p.y; pa[i * 3 + 2] = p.z;
-      ca[i * 3] = p.color.r; ca[i * 3 + 1] = p.color.g; ca[i * 3 + 2] = p.color.b;
-      sa[i] = p.size * 2.2 * Math.min(1, p.life / p.max * 2);
-    });
-    pg.setDrawRange(0, this.particles.length);
-    pg.attributes.position.needsUpdate = pg.attributes.color.needsUpdate = pg.attributes.size.needsUpdate = true;
-    this.partPts.material.uniforms.uScale.value = this.renderer.domElement.height / 2 / Math.tan(this.camera.fov * Math.PI / 360);
+    this.particles.upload(this.t, this.renderer.domElement.height / 2 / Math.tan(this.camera.fov * Math.PI / 360));
     if (this.boneGlow) this.boneGlow.material.uniforms.uScale.value = this.partPts.material.uniforms.uScale.value;
 
     // Caméra
@@ -3330,6 +3358,7 @@ class Adventure {
       this.camera.position.x += Math.sin(tt * 1.7) * a; this.camera.position.y += Math.sin(tt * 2.3 + 1) * a * 0.8;
       this.camera.rotation.z += Math.sin(tt * 1.3 + 2) * a * 0.05;
     }
+    if (this.juice) this.juice.applyCamera(this.camera, this.camTarget, dt);
 
     if ((this.mapT = (this.mapT || 0) + 1) % 4 === 0) this.drawMinimap();
     this.showVoices();
@@ -3356,7 +3385,16 @@ class Adventure {
     const run = Math.min(1, speed / 5);
     a.bank += (clamp(-a.rate * 0.05 * run, -0.22, 0.22) - a.bank) * (1 - Math.exp(-dt * 8));
     // atterrissage : écrasement proportionnel à la chute ; décollage : étirement
-    if (a.air && P.grounded) { a.landK = clamp(-a.vy / 14, 0.25, 1); a.land = 1; if (a.vy < -9 && P === this.player) this.landDust(P, a.landK); }
+    if (a.air && P.grounded) {
+      a.landK = clamp(-a.vy / 14, 0.25, 1); a.land = 1;
+      if (a.vy < -9 && P === this.player) this.landDust(P, a.landK);
+      if (a.vy < -6 && P === this.me && !P.kart && !P.ride) this.sound('land', clamp((-a.vy - 6) / 14, 0, 1));
+    }
+    // ressort « gélatine » (ramasser, aboyer, double saut, caresse…) et étirement de la charge
+    a.jig = a.jig || 0; a.jigV = a.jigV || 0;
+    { const h = Math.min(dt, 1 / 30); a.jigV += (-a.jig * 260 - a.jigV * 13) * h; a.jig += a.jigV * h; }
+    if (Math.abs(a.jig) < 1e-4 && Math.abs(a.jigV) < 1e-3) { a.jig = 0; a.jigV = 0; }
+    a.dash = (a.dash || 0) + ((P.dashT > 0 ? 1 : 0) - (a.dash || 0)) * (1 - Math.exp(-dt * 16));
     if (!a.air && !P.grounded && P.vel.y > 2) a.stretch = 1;
     a.air = !P.grounded; a.vy = P.vel.y;
     a.land = Math.max(0, a.land - dt * 5); a.stretch = Math.max(0, a.stretch - dt * 4);
@@ -3408,7 +3446,8 @@ class Adventure {
   /** Échelle d'écrasement / étirement (x, y, z) à partir de l'état d'animation. */
   squash(o, a) {
     const l = Math.sin(a.land * Math.PI) * a.landK * 0.2, st = Math.sin(a.stretch * Math.PI) * 0.12;
-    o.scale.set(1 + l * 0.5 - st * 0.4, 1 - l + st, 1 + l * 0.5 - st * 0.4);
+    const j = clamp(a.jig || 0, -0.28, 0.28), d = (a.dash || 0) * 0.12;   // ressort + charge (allongé vers l'avant)
+    o.scale.set(1 + l * 0.5 - st * 0.4 - j * 0.5 - d * 0.35, 1 - l + st + j - d * 0.4, 1 + l * 0.5 - st * 0.4 - j * 0.5 + d);
   }
 
   /** Secousse de l'écran et micro-arrêt de l'image (coups, chocs). */
@@ -3416,18 +3455,26 @@ class Adventure {
     if (this.cine) return;
     if (amp > (this.shakeT > 0 ? this.shakeA * (this.shakeT / this.shakeD) : 0)) { this.shakeA = amp; this.shakeD = this.shakeT = 0.18 + amp * 0.5; }
     if (stop && this.party.size === 1 && !this.guest) this.hitStop = Math.max(this.hitStop || 0, stop);
-    if (amp >= 0.3) try { if (navigator.vibrate) navigator.vibrate(Math.round(amp * 90)); } catch (e) { /* ignore */ }
+    if (amp >= 0.3) buzz(Math.round(10 + amp * 40));
   }
+
+  /** Ressort d'écrasement / étirement d'un chien (v > 0 : il s'étire d'abord, v < 0 : il s'écrase). */
+  jiggle(P, v) { const a = P && P.anim; if (a) a.jigV = (a.jigV || 0) + v; }
+  /** Petite vibration (Android, réglable) — seulement pour mon chien. */
+  haptic(P, pattern, gap) { if (!P || P === this.me) buzz(pattern, gap); }
 
   /** Petit nuage de poussière (atterrissage lourd, démarrage, dérapage). */
   landDust(P, k) {
     const s = this.support(P.pos.x, P.pos.z, P.pos.y + 0.2);
     if (s.y < L.WATER_Y) return;
-    if (P === this.me) this.kick(0.06 + k * 0.1);
-    const n = Math.round(6 + k * 10);
+    if (P === this.me) { this.kick(0.06 + k * 0.1); if (k > 0.6) this.haptic(P, 12, 150); }
+    // bouffées de poussière qui gonflent en couronne (+ quelques grains), couleur du sol
+    const col = L.SURFACE === 'snow' ? 0xf4f8ff : L.SURFACE === 'sand' ? 0xf0dcae : 0xe2d6bc;
+    this.juice.dust(P.pos.x, s.y, P.pos.z, k, col);
+    const n = Math.round(3 + k * 5);
     for (let i = 0; i < n; i++) {
       const ang = (i / n) * Math.PI * 2 + Math.random() * 0.4, v = 1.4 + Math.random() * 1.6 * k;
-      this.spawnParticle(P.pos.x + Math.cos(ang) * 0.4, s.y + 0.12, P.pos.z + Math.sin(ang) * 0.4, Math.cos(ang) * v, 0.6 + Math.random() * 0.8, Math.sin(ang) * v, 0xd8ccb4, 0.32, 0.55, 3);
+      this.spawnParticle(P.pos.x + Math.cos(ang) * 0.4, s.y + 0.12, P.pos.z + Math.sin(ang) * 0.4, Math.cos(ang) * v, 0.6 + Math.random() * 0.8, Math.sin(ang) * v, 0xd8ccb4, 0.2, 0.45, 3);
     }
   }
 
@@ -3724,6 +3771,7 @@ class Adventure {
           <button class="btn" data-a="music">🎵 Musique : ${this.sfx && this.sfx.musicOn === false ? 'non' : 'oui'}</button>
           <button class="btn" data-a="mic">🎤 Micro : ${this.vc && this.vc.on ? 'oui' : 'non'}</button>
           <button class="btn" data-a="headset">🎧 Écouteurs : ${headsetOn() ? 'oui' : 'non'}</button>
+          ${canVibrate() ? `<button class="btn" data-a="haptics">📳 Vibrations : ${hapticsOn() ? 'oui' : 'non'}</button>` : ''}
           ${this.guest ? '' : `<button class="btn" data-a="mode">${{ promenade: '🐣', aventure: '🐶', defi: '🏆' }[this.mode]} ${MODES[this.mode]}</button>`}
           ${this.guest ? '' : `<button class="btn" data-a="style">🎨 ${this.realistic ? 'Réaliste' : 'Dessin animé'}</button>`}
           ${this.isTouch ? '' : `<button class="btn" data-a="quality">✨ Qualité : ${RT.isUltra() ? 'ultra' : 'normale'}</button>`}
@@ -3822,6 +3870,7 @@ class Adventure {
       case 'pause': this.showOverlay('pause'); break;
       case 'settings': this.showOverlay('settings'); break;
       case 'music': if (this.sfx && this.sfx.setMusic) this.sfx.setMusic(this.sfx.musicOn === false); this.showOverlay('settings'); break;
+      case 'haptics': setHaptics(!hapticsOn()); refreshHaptics(); buzz(15, 0); this.showOverlay('settings'); break;
       case 'mode': {
         const order = ['promenade', 'aventure', 'defi'];
         this.setMode(order[(order.indexOf(this.mode) + 1) % 3]);

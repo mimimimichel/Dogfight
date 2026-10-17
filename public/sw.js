@@ -14,7 +14,7 @@
  */
 'use strict';
 
-const VERSION = 'v22';
+const VERSION = 'v23';
 const ASSETS_VERSION = 'v1';
 const PREFIX = 'matcha-';
 const CORE = PREFIX + 'core-' + VERSION;
@@ -49,6 +49,7 @@ const PRECACHE = [
   'adventure/park.js', 'adventure/parkkit.js',
   'adventure/forestkit.js', 'adventure/forestlife.js',
   'adventure/puppies.js', 'adventure/pupdata.js',
+  'adventure/juice.js',
 ];
 
 const SCOPE = new URL(self.registration ? self.registration.scope : './', self.location.href);
