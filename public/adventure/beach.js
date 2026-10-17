@@ -589,7 +589,11 @@ function buildDecor(game) {
       const C = S.CANS;
       const st = SC.marketStall({ w: 5, d: 1.0, top: 1.0, canopy: 3.2, color: 0x3a8ae0 }, { lite, crates: false, seed: 5 });
       st.position.set(C.x, C.y, C.z - 1.6); place(st, C.x, C.z, 8);
-      hutGeos.push({ geo: paint(new THREE.BoxGeometry(5, 2.6, 0.12), 0xf6e8c8), x: C.x, y: C.y + 1.3, z: C.z - 3.3 });
+      // le panneau du fond, en planches peintes (rayures bleues et blanches, une planche sur deux)
+      const BB = SC.builder(1), m4b = new THREE.Matrix4(), pk = SC.roundBox(0.4, 2.6, 0.1, 0.02, 1);
+      for (let i = 0; i < 12; i++) { m4b.makeTranslation(-2.3 + i * 0.418, 0, (i % 2) * 0.012); BB.add(0, pk, m4b, i % 2 ? [0.96, 0.95, 0.92] : [0.45, 0.66, 0.9]); }
+      const back = SC.boxUV(BB.geometry().toNonIndexed(), 0.8);
+      const bm = new THREE.Mesh(back, SC.paintedWoodMaterial(lite)); bm.position.set(C.x, C.y + 1.3, C.z - 3.3); bm.castShadow = bm.receiveShadow = true; place(bm, C.x, C.z, 8);
     }
     // guirlande de fanions au-dessus de la place
     {
@@ -616,15 +620,28 @@ function buildDecor(game) {
 
   // --- Poste de secours et râtelier des planches ---------------------------------------
   {
-    const LG = S.LIFEGUARD, g = new THREE.Group();
-    for (const [dx, dz] of [[-1.1, -1.1], [1.1, -1.1], [-1.1, 1.1], [1.1, 1.1]]) { const p = new THREE.Mesh(new THREE.CylinderGeometry(0.11, 0.13, LG.top - LG.y, 6), M.mat(0xffffff)); p.position.set(dx, (LG.top - LG.y) / 2, dz); g.add(p); }
-    const deck = new THREE.Mesh(new THREE.CylinderGeometry(1.6, 1.6, 0.3, 14), M.mat(0xe04848)); deck.position.y = LG.top - LG.y - 0.15;
-    const hut = new THREE.Mesh(new THREE.BoxGeometry(1.6, 1.3, 1.4), M.mat(0xfafafa)); hut.position.set(0, LG.top - LG.y + 0.65, 0.3);
-    const roof = new THREE.Mesh(new THREE.ConeGeometry(1.5, 0.9, 4), M.mat(0xe04848)); roof.position.y = LG.top - LG.y + 1.75; roof.rotation.y = Math.PI / 4;
-    const pole = new THREE.Mesh(new THREE.CylinderGeometry(0.04, 0.04, 2.2, 5), M.mat(0xdddddd)); pole.position.set(0.9, LG.top - LG.y + 2.2, 0.9);
-    const flagM = new THREE.Mesh(new THREE.PlaneGeometry(0.9, 0.6), M.mat(0x40c060, { side: THREE.DoubleSide })); flagM.position.set(1.35, LG.top - LG.y + 3.0, 0.9);
-    g.add(deck, hut, roof, pole, flagM);
-    for (const s of S.lifeguardSteps) { const d = new THREE.Mesh(new THREE.CylinderGeometry(0.9, 0.9, 0.25, 10), M.mat(0xc49a68)); d.position.set(s.x - LG.x, s.top - 0.12 - LG.y, s.z - LG.z); g.add(d); }
+    // (sculpt.js : pilotis en bois croisillonnés, plancher, cabane en planches peintes rouges et blanches, marches en bois)
+    const LG = S.LIFEGUARD, B = SC.builder(1), m4l = new THREE.Matrix4(), H = LG.top - LG.y;
+    const wood = [0.78, 0.6, 0.42], white = [0.96, 0.95, 0.92];
+    const at = (g, c, x, y, z, rx = 0, ry = 0, rz = 0) => { m4l.compose(v.set(LG.x + x, LG.y + y, LG.z + z), q.setFromEuler(e.set(rx, ry, rz)), sv.set(1, 1, 1)); B.add(0, g, m4l, c); };
+    for (const [dx, dz] of [[-1.1, -1.1], [1.1, -1.1], [-1.1, 1.1], [1.1, 1.1]]) at(SC.roundBox(0.2, H + 0.2, 0.2, 0.03, 1), white, dx, H / 2 - 0.1, dz);
+    // croisillons
+    const br = Math.hypot(2.2, H * 0.7);
+    for (const sz of [-1.1, 1.1]) at(SC.roundBox(br, 0.1, 0.06, 0.02, 1), wood, 0, H * 0.45, sz, 0, 0, Math.atan2(H * 0.7, 2.2));
+    for (const sx of [-1.1, 1.1]) at(SC.roundBox(0.06, 0.1, br, 0.02, 1), wood, sx, H * 0.45, 0, -Math.atan2(H * 0.7, 2.2), 0, 0);
+    // plancher : planches, bordure rouge
+    for (let i = 0; i < 8; i++) at(SC.roundBox(0.38, 0.1, 3.0, 0.02, 1), wood.map(c => c * (0.92 + (i % 3) * 0.05)), -1.33 + i * 0.38, H - 0.05, 0);
+    at(SC.roundBox(3.2, 0.16, 0.1, 0.03, 1), [0.88, 0.25, 0.22], 0, H - 0.12, -1.55); at(SC.roundBox(3.2, 0.16, 0.1, 0.03, 1), [0.88, 0.25, 0.22], 0, H - 0.12, 1.55);
+    // la cabane
+    const Bh = SC.builder(1); SC.addBeachHut(Bh, { x: LG.x, y: LG.top, z: LG.z + 0.3, color: 0xe04848 }, { lite, w: 1.6, d: 1.4, hw: 1.3 });
+    // marches : rondins de planches
+    for (const st of S.lifeguardSteps) { const d = new THREE.CylinderGeometry(0.9, 0.9, 0.25, 12); at(d, wood, st.x - LG.x, st.top - 0.12 - LG.y, st.z - LG.z); }
+    const lgGeo = SC.concatGeos([SC.boxUV(B.geometry().toNonIndexed(), 1.0), Bh.geometry().toNonIndexed()]);
+    const lgM = new THREE.Mesh(lgGeo, SC.paintedWoodMaterial(lite)); lgM.castShadow = lgM.receiveShadow = true; sc.add(lgM);
+    const g = new THREE.Group();
+    const pole = new THREE.Mesh(new THREE.CylinderGeometry(0.04, 0.04, 2.2, 5), M.mat(0xdddddd)); pole.position.set(0.9, H + 2.2, 0.9);
+    const flagM = new THREE.Mesh(new THREE.PlaneGeometry(0.9, 0.6), M.mat(0x40c060, { side: THREE.DoubleSide })); flagM.position.set(1.35, H + 3.0, 0.9);
+    g.add(pole, flagM);
     g.position.set(LG.x, LG.y, LG.z);
     sc.add(shadowy(g));
     const R = S.RACK, rack = new THREE.Group();
