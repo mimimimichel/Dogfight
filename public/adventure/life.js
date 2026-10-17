@@ -976,8 +976,9 @@ function stickArm(side, len) {
 function snowmanParts(r1, r2, r3, o) {
   o = o || {};
   const y1 = r1 * 0.86, y2 = y1 + r1 * 0.78 + r2 * 0.78, y3 = y2 + r2 * 0.72 + r3 * 0.8;
-  const parts = [P(lump(sph(r1, 22, 16), 0.035, 7, 1), SNOW_C, { y: y1, sy: 0.92 }), P(lump(sph(r2, 20, 14), 0.035, 8, 2), SNOW_C, { y: y2, sy: 0.95 }),
-    P(lump(sph(r3, 18, 12), 0.03, 9, 3), SNOW_C, { y: y3 }),
+  // (neige tassée à la main : boules bien cabossées, pas des sphères lisses)
+  const parts = [P(lump(lump(sph(r1, 26, 18), 0.06, 4.5, 1), 0.025, 13, 5), SNOW_C, { y: y1, sy: 0.92 }), P(lump(lump(sph(r2, 24, 16), 0.055, 5, 2), 0.022, 14, 6), SNOW_C, { y: y2, sy: 0.95 }),
+    P(lump(lump(sph(r3, 20, 14), 0.045, 6, 3), 0.02, 15, 7), SNOW_C, { y: y3 }),
     // collerette de neige au pied
     P(lump(tor(r1 * 0.85, r1 * 0.22, 6, 18), 0.12, 6, 4), 0xeef4ff, { y: 0.06, rx: Math.PI / 2, sz: 0.6 })];
   // yeux, sourire, boutons (charbon)
@@ -1025,7 +1026,8 @@ Object.assign(PROPS, {
     const parts = [P(lump(sph(1.4, 28, 10, 0, TAU, 0, Math.PI / 2), 0.06, 3.5, 7), SNOW_C, { sy: 0.36 }),
       P(tor(0.85, 0.1, 8, 32), top, { y: 0.42, rx: Math.PI / 2 }), P(cyl(0.78, 0.8, 0.05, 28), c.mid || 0xbfeaff, { y: 0.46 }),
       P(tor(0.42, 0.05, 6, 24), top, { y: 0.49, rx: Math.PI / 2 })];
-    for (let i = 0; i < 7; i++) { const a = i / 7 * TAU; parts.push(P(sph(0.075, 10, 8), c.dots || 0xff7ab0, { x: Math.cos(a) * 1.12, y: 0.27, z: Math.sin(a) * 1.12 })); }
+    // petits cristaux de glace plantés tout autour (repères : ça rebondit ici)
+    for (let i = 0; i < 7; i++) { const a = i / 7 * TAU; parts.push(P(new THREE.OctahedronGeometry(0.1), c.dots || 0xbfeaff, { x: Math.cos(a) * 1.12, y: 0.3, z: Math.sin(a) * 1.12, sy: 1.9, rz: Math.cos(a) * 0.3, rx: -Math.sin(a) * 0.3 })); }
     // mottes de neige autour
     for (let i = 0; i < 4; i++) { const a = i * 1.7 + 0.5; parts.push(P(lump(sph(0.22, 8, 6), 0.15, 9, i), SNOW_C, { x: Math.cos(a) * 1.5, y: 0.02, z: Math.sin(a) * 1.5, sy: 0.55 })); }
     return { geo: merge(parts), h: 0.5, r: 1.3 };

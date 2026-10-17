@@ -575,42 +575,20 @@ function buildDecor(game) {
     const hutB = SC.builder(1);
     for (const h of S.huts) SC.addBeachHut(hutB, h, { lite });
     { const hm = new THREE.Mesh(hutB.geometry(), SC.paintedWoodMaterial(lite)); hm.castShadow = hm.receiveShadow = true; sc.add(hm); }
-    // les maisons du village : murs colorés, toit, porte, fenêtres et volets
-    for (const h of S.houses) {
-      const ca = Math.cos(h.rot), sa = Math.sin(h.rot), P = (dx, dz) => ({ x: h.x + ca * dx + sa * dz, z: h.z - sa * dx + ca * dz });
-      hutGeos.push({ geo: paint(new THREE.BoxGeometry(h.w, 4.2, h.d), h.color), x: h.x, y: h.y + 2.1, z: h.z, ry: h.rot });
-      const roof = new THREE.CylinderGeometry(0.01, 1, 1, 4, 1); roof.rotateY(Math.PI / 4); roof.scale(h.w * 0.78, 2.2, h.d * 0.78);
-      hutGeos.push({ geo: paint(roof, h.roof), x: h.x, y: h.y + 5.3, z: h.z, ry: h.rot });
-      for (const sd of [-1, 1]) {
-        const door = P(0, sd * (h.d / 2 + 0.03));
-        if (sd < 0) hutGeos.push({ geo: paint(new THREE.BoxGeometry(1.2, 2.2, 0.08), 0x8a5a30), x: door.x, y: h.y + 1.1, z: door.z, ry: h.rot });
-        for (const wx of [-2.2, 2.2]) {
-          const wp = P(wx, sd * (h.d / 2 + 0.03));
-          hutGeos.push({ geo: paint(new THREE.BoxGeometry(1.1, 1.1, 0.08), 0x4a7ab0), x: wp.x, y: h.y + 2.4, z: wp.z, ry: h.rot });
-          for (const vx of [-0.75, 0.75]) { const vp = P(wx + vx, sd * (h.d / 2 + 0.05)); hutGeos.push({ geo: paint(new THREE.BoxGeometry(0.4, 1.2, 0.06), h.roof), x: vp.x, y: h.y + 2.4, z: vp.z, ry: h.rot }); }
-        }
-      }
-    }
-    // le glacier de Gino : un comptoir, un parasol rayé et un grand cornet
+    // les maisons du village (sculpt.js : crépi coloré, toit de tuiles en croupe, volets en planches, jardinières)
     {
-      const I = S.ICECREAM;
-      hutGeos.push({ geo: paint(new THREE.BoxGeometry(3.2, 1.1, 1.4), 0xffffff), x: I.x, y: I.y + 0.55, z: I.z + 1.4 });
-      hutGeos.push({ geo: paint(new THREE.BoxGeometry(3.3, 0.12, 1.5), 0xff7ab0), x: I.x, y: I.y + 1.15, z: I.z + 1.4 });
-      for (let k = 0; k < 5; k++) hutGeos.push({ geo: paint(new THREE.SphereGeometry(0.2, 10, 8), [0xff9ac8, 0xfff0c0, 0x8a5a30, 0x9ae0a0, 0xffd23a][k]), x: I.x - 1.2 + k * 0.6, y: I.y + 1.3, z: I.z + 1.4 });
-      const cone = new THREE.ConeGeometry(0.55, 1.6, 12); cone.rotateX(Math.PI);
-      hutGeos.push({ geo: paint(cone, 0xe0a050), x: I.x - 1.9, y: I.y + 2.6, z: I.z + 2.2 });
-      hutGeos.push({ geo: paint(new THREE.SphereGeometry(0.6, 14, 10), 0xff9ac8), x: I.x - 1.9, y: I.y + 3.6, z: I.z + 2.2 });
-      hutGeos.push({ geo: paint(new THREE.CylinderGeometry(0.08, 0.08, 2.4, 6), 0xdddddd), x: I.x - 1.9, y: I.y + 1.2, z: I.z + 2.2 });
-      const umb = new THREE.ConeGeometry(2.2, 0.8, 12, 1, true);
-      hutGeos.push({ geo: paint(umb, (cc, x, y, z) => cc.set(Math.floor((Math.atan2(z, x) + 3.2) * 12 / 6.28) % 2 ? 0xffffff : 0xff7ab0)), x: I.x + 0.6, y: I.y + 3.1, z: I.z + 2.0 });
-      hutGeos.push({ geo: paint(new THREE.CylinderGeometry(0.06, 0.06, 3, 6), 0xdddddd), x: I.x + 0.6, y: I.y + 1.5, z: I.z + 2.0 });
+      const Bs = [SC.builder(1), SC.builder(1), SC.builder(1)];
+      for (const h of S.houses) SC.addVillageHouse(Bs, h, { lite });
+      const HM = SC.villageHouseMaterials(lite);
+      Bs.forEach((B, i) => { const hm = new THREE.Mesh(B.geometry(), HM[i]); hm.castShadow = hm.receiveShadow = true; place(hm, S.VILLAGE.x, S.VILLAGE.z, 60); });
     }
-    // le chamboule-tout : un comptoir rayé, un auvent, des fanions
+    // le glacier de Gino (sculpt.js : comptoir rayé en planches, bacs de glace, cornet-enseigne, parasol à festons)
+    { const I = S.ICECREAM, ice = SC.iceCreamStand({ lite }); ice.position.set(I.x, I.y, I.z); place(ice, I.x, I.z, 8); }
+    // le chamboule-tout (sculpt.js : comptoir en planches, poteaux tournés, toile rayée à festons ; pas de cagettes : les boîtes sont sur le comptoir)
     {
       const C = S.CANS;
-      hutGeos.push({ geo: paint(new THREE.BoxGeometry(5, 1.0, 1.0), (cc, x) => cc.set(Math.floor(x * 1.2 + 9) % 2 ? 0xe04848 : 0xffffff)), x: C.x, y: C.y + 0.5, z: C.z - 1.6 });
-      hutGeos.push({ geo: paint(new THREE.BoxGeometry(5.6, 0.15, 2.4), 0x3a8ae0), x: C.x, y: C.y + 3.2, z: C.z - 2.2 });
-      for (const sx of [-2.6, 2.6]) hutGeos.push({ geo: paint(new THREE.CylinderGeometry(0.08, 0.08, 3.2, 6), 0xffffff), x: C.x + sx, y: C.y + 1.6, z: C.z - 1.2 });
+      const st = SC.marketStall({ w: 5, d: 1.0, top: 1.0, canopy: 3.2, color: 0x3a8ae0 }, { lite, crates: false, seed: 5 });
+      st.position.set(C.x, C.y, C.z - 1.6); place(st, C.x, C.z, 8);
       hutGeos.push({ geo: paint(new THREE.BoxGeometry(5, 2.6, 0.12), 0xf6e8c8), x: C.x, y: C.y + 1.3, z: C.z - 3.3 });
     }
     // guirlande de fanions au-dessus de la place
@@ -622,17 +600,18 @@ function buildDecor(game) {
       }
     }
     tiled(hutGeos, vmat({ roughness: 0.7 }));
-    // passerelles en bois sur les dunes
+    // passerelles en bois sur les dunes (planches aux arêtes arrondies, veinage : sculpt.js)
     const walkGeos = [];
+    const plankGeo = SC.boxUV(SC.roundBox(1.9, 0.07, 0.42, 0.025, 1).toNonIndexed(), 1.0);
     for (const [[ax, az], [bx, bz]] of S.BOARDWALKS) {
       const len = Math.hypot(bx - ax, bz - az), n = Math.ceil(len / 0.55), yaw = Math.atan2(bx - ax, bz - az);
       for (let i = 0; i < n; i++) {
         const k = i / n, x = ax + (bx - ax) * k, z = az + (bz - az) * k;
-        const pl = new THREE.BoxGeometry(1.9, 0.07, 0.42); pl.rotateY(yaw);
-        walkGeos.push({ geo: paint(pl, (cc) => cc.set(0xc49a68).multiplyScalar(0.88 + hash2(i, ax) * 0.2)), x, y: S.heightAt(x, z) + 0.05, z });
+        const pl = plankGeo.clone(); pl.rotateY(yaw + (hash2(i, az) - 0.5) * 0.04);
+        walkGeos.push({ geo: paint(pl, (cc) => cc.set(0xd8b48a).multiplyScalar(0.86 + hash2(i, ax) * 0.22)), x, y: S.heightAt(x, z) + 0.05, z });
       }
     }
-    tiled(walkGeos, vmat({ roughness: 0.9 }), { cast: false, noOutline: true });
+    tiled(walkGeos, vmat({ roughness: 0.9, map: SC.woodTex().map, normalMap: lite ? null : SC.woodTex().normalMap }), { cast: false, noOutline: true, uv: true });
   }
 
   // --- Poste de secours et râtelier des planches ---------------------------------------

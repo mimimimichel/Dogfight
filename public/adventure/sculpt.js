@@ -709,7 +709,7 @@ export function marketStall(s, opts = {}) {
   // cagettes de fruits sur le plateau (2 ou 3 selon la largeur), légèrement inclinées vers le client
   const kinds = ['apple', 'orange', 'cabbage', 'lemon', 'tomato', 'grape'];
   const nc = w > 3.2 ? 3 : 2, cw = (w - 0.3) / nc - 0.06;
-  for (let i = 0; i < nc; i++) crateOfProduce(W, F, -w / 2 + 0.15 + cw / 2 + i * (cw + 0.06), top, -0.05, cw, Math.min(0.9, d - 0.5), kinds[((opts.seed || 1) * 2 + i) % kinds.length], r, lite);
+  if (opts.crates !== false) for (let i = 0; i < nc; i++) crateOfProduce(W, F, -w / 2 + 0.15 + cw / 2 + i * (cw + 0.06), top, -0.05, cw, Math.min(0.9, d - 0.5), kinds[((opts.seed || 1) * 2 + i) % kinds.length], r, lite);
   // auvent : toile bombée (sur un cadre), plus festons qui pendent tout autour
   const cw2 = w + 0.6, cd2 = d + 0.8, nu = lite ? 8 : 14, nv = lite ? 6 : 10;
   const ids = [];
@@ -749,7 +749,7 @@ export function marketStall(s, opts = {}) {
   const wg = W.geometry().toNonIndexed(); boxUV(wg, 1.1);
   const wm = new THREE.Mesh(wg, M.wood); wm.castShadow = wm.receiveShadow = true; g.add(wm);
   add(C, M.cloth).userData.noOutline = true;
-  add(F, M.food);
+  if (F.n) add(F, M.food);
   return g;
 }
 
@@ -1550,7 +1550,7 @@ export function parasolCanopyGeometry(R = 1.5, h = 0.6, n = 12, opts = {}) {
     }
     rows.push(row);
   }
-  B.grid(0, rows.map(r => r.slice().reverse()));
+  B.grid(0, rows);
   // festons qui pendent du bord
   const top = [], bot = [];
   for (let i = 0; i <= N * (lite ? 1 : 2); i++) {
@@ -1558,7 +1558,163 @@ export function parasolCanopyGeometry(R = 1.5, h = 0.6, n = 12, opts = {}) {
     top.push(B.v(Math.sin(a) * R, -h / 2, Math.cos(a) * R, Math.sin(a), 0, Math.cos(a), u, 1, [0.92, 0.92, 0.92]));
     bot.push(B.v(Math.sin(a) * R * 1.01, -h / 2 - 0.1 - 0.1 * sc, Math.cos(a) * R * 1.01, Math.sin(a), 0, Math.cos(a), u, 1, [0.78, 0.78, 0.78]));
   }
-  B.grid(0, [top, bot].map(r => r.slice().reverse()));
+  B.grid(0, [top, bot]);
   const knob = new THREE.SphereGeometry(0.08, 8, 6); B.add(0, knob, new THREE.Matrix4().makeTranslation(0, h / 2 + 0.03, 0), [1, 1, 1], [0.01, 0.01]);
   return B.geometry();
+}
+
+/**
+ * Le glacier (repère local, sol en y = 0) : comptoir en planches peintes rayées rose et blanc, plateau
+ * de bois, bacs de glace en vitrine (boules cabossées), grand cornet-enseigne (gaufre quadrillée,
+ * boule qui coule, cerise), parasol rayé à festons. Rend un groupe de 3 maillages.
+ */
+export function iceCreamStand(opts = {}) {
+  const lite = !!opts.lite, Wd = builder(1), F = builder(1), m = new THREE.Matrix4(), rnd = rng(77);
+  const pink = [1.0, 0.55, 0.72], white = [0.98, 0.97, 0.95];
+  const add = (B, g, c, x, y, z, rx = 0, ry = 0, rz = 0, uvS) => { m.compose(v3(x, y, z), new THREE.Quaternion().setFromEuler(new THREE.Euler(rx, ry, rz)), v3(1, 1, 1)); B.add(0, g, m, c, uvS); };
+  // comptoir : caisson (planches verticales alternées), plateau qui déborde, plinthe
+  const cw = 3.2, ch = 1.1, cd = 1.4, cz = 1.4;
+  add(Wd, roundBox(cw - 0.06, ch - 0.1, cd - 0.06, 0.03, 1), white.map(c => c * 0.85), 0, (ch - 0.1) / 2, cz);
+  // planches verticales en relief, une sur deux rose (devant, derrière, côtés)
+  const shade = (c) => (X, Y) => c.map(v => v * (0.68 + 0.32 * clamp(Y / ch, 0, 1)));
+  const nP = Math.round(cw / 0.3);
+  for (let i = 0; i < nP; i++) for (const sz of [-1, 1]) add(Wd, roundBox(0.28, ch - 0.16, 0.04, 0.012, 1), shade(i % 2 ? white : pink), -cw / 2 + 0.15 + i * (cw - 0.3) / (nP - 1), (ch - 0.1) / 2, cz + sz * (cd / 2 - 0.0));
+  const nQ = Math.round(cd / 0.3);
+  for (let i = 0; i < nQ; i++) for (const sx of [-1, 1]) add(Wd, roundBox(0.04, ch - 0.16, 0.28, 0.012, 1), shade(i % 2 ? white : pink), sx * (cw / 2), (ch - 0.1) / 2, cz - cd / 2 + 0.15 + i * (cd - 0.3) / (nQ - 1));
+  add(Wd, roundBox(cw + 0.14, 0.09, cd + 0.14, 0.03, 1), [0.8, 0.6, 0.42], 0, ch - 0.04, cz);
+  add(Wd, roundBox(cw, 0.12, cd, 0.02, 1), [0.55, 0.42, 0.36], 0, 0.06, cz);
+  // vitrine : bacs de glace
+  const cols = [[1.0, 0.62, 0.8], [1.0, 0.95, 0.75], [0.55, 0.36, 0.22], [0.62, 0.9, 0.66], [1.0, 0.85, 0.3]];
+  for (let k = 0; k < 5; k++) {
+    const x = -1.2 + k * 0.6;
+    add(Wd, roundBox(0.5, 0.12, 0.42, 0.02, 1), [0.85, 0.85, 0.88], x, ch + 0.06, cz - 0.1);
+    for (let s = 0; s < 4; s++) { const g = lumpySphere(0.15, lite ? 1 : 2, 0.1, 6, k * 3 + s, 0.85); add(F, g, (X, Y, Z, nx, ny) => cols[k].map(c => c * (0.8 + 0.2 * (ny * 0.5 + 0.5))), x + ((s % 2) - 0.5) * 0.16, ch + 0.2 + (s > 1 ? 0.1 : 0), cz - 0.1 + (s > 1 ? 0 : (s % 2 ? 0.07 : -0.07))); }
+  }
+  // grand cornet-enseigne sur son mât
+  {
+    const X = -1.9, Z = 2.2;
+    add(Wd, new THREE.CylinderGeometry(0.07, 0.08, 2.4, 8), [0.85, 0.85, 0.88], X, 1.2, Z);
+    const cone = new THREE.ConeGeometry(0.55, 1.6, lite ? 16 : 40, lite ? 6 : 16); cone.rotateX(Math.PI);
+    add(F, cone, (x, y, z) => { const a = Math.atan2(z - Z, x - X), q = Math.sin(a * 8 + y * 9) * Math.sin(a * 8 - y * 9); const k = q > 0.6 ? 0.62 : 0.88; return [0.95 * k, 0.68 * k, 0.36 * k]; }, X, 2.6, Z);
+    const scoop = lumpySphere(0.62, lite ? 1 : 2, 0.08, 3, 9, 0.9); add(F, scoop, (x, y, z, nx, ny) => [1.0, 0.6, 0.78].map(c => c * (0.85 + 0.15 * (ny * 0.5 + 0.5))), X, 3.55, Z);
+    for (let i = 0; i < 6; i++) { const a = i / 6 * TAU + 0.3, d = lumpySphere(0.1, 1, 0.05, 4, i, 1.6); add(F, d, [1.0, 0.6, 0.78], X + Math.cos(a) * 0.5, 3.18 - rnd() * 0.08, Z + Math.sin(a) * 0.5); }
+    add(F, lumpySphere(0.13, 1, 0.03, 3, 2, 1), [0.85, 0.1, 0.15], X, 4.18, Z);
+    add(F, new THREE.CylinderGeometry(0.012, 0.015, 0.22, 4), [0.3, 0.4, 0.15], X + 0.04, 4.36, Z, 0, 0, -0.4);
+  }
+  // parasol rayé (rose et blanc) à festons
+  const can = parasolCanopyGeometry(2.2, 0.8, 12, { lite });
+  const cl = builder(1); m.makeTranslation(0.6, 3.1, 2.0); cl.add(0, can, m, (X, Y, Z, nx, ny, nz, i) => [can.attributes.color.getX(i), can.attributes.color.getY(i), can.attributes.color.getZ(i)]);
+  add(Wd, new THREE.CylinderGeometry(0.06, 0.06, 3, 6), [0.92, 0.92, 0.94], 0.6, 1.5, 2.0);
+  const M = stallMaterials(0xff7ab0, lite), st = canvasStripeTex(0xff7ab0, 12);
+  const cloth = stallMats.ice || (stallMats.ice = new THREE.MeshStandardMaterial({ map: st.map, normalMap: lite ? null : st.normalMap, vertexColors: true, roughness: 0.9, side: THREE.DoubleSide }));
+  const g = new THREE.Group();
+  const wg = Wd.geometry().toNonIndexed(); boxUV(wg, 1.3);
+  const parts = [[wg, paintedWoodMaterial(lite)], [F.geometry(), M.food], [cl.geometry(), cloth]];
+  for (const [geo, mat] of parts) { const k = new THREE.Mesh(geo, mat); k.castShadow = k.receiveShadow = true; g.add(k); }
+  return g;
+}
+
+/** Toile rayée blanc / gris (teintée par l'instance : une rayure de couleur, une rayure claire). */
+export function tintStripeTex(n = 12) {
+  return once('tstripe' + n, () => RT.realTex(256, 64, 19, (x, y, w, h, R) => {
+    for (let i = 0; i < n; i++) { x.fillStyle = i % 2 ? '#ffffff' : '#a4a4a4'; x.fillRect(i * w / n, 0, w / n + 1, h); }
+    for (let i = 0; i < w; i += 2) { x.fillStyle = 'rgba(0,0,0,' + (0.03 + R() * 0.04) + ')'; x.fillRect(i, 0, 1, h); y.fillStyle = 'rgba(160,160,160,0.6)'; y.fillRect(i, 0, 1, h); }
+    for (let j = 0; j < h; j += 2) { y.fillStyle = 'rgba(100,100,100,0.4)'; y.fillRect(0, j, w, 1); }
+  }, { strength: 1.5 }));
+}
+Object.assign(LIFE_PROPS, {
+  /** Parasol (teinté) : toile tendue entre les baleines, festons, mât. */
+  parasolHD() {
+    const B = builder(1), m = new THREE.Matrix4();
+    const can = parasolCanopyGeometry(1.45, 0.5, 12);
+    m.makeTranslation(0, 2.35, 0); B.add(0, can, m, (X, Y, Z, nx, ny, nz, i) => [can.attributes.color.getX(i), can.attributes.color.getY(i), can.attributes.color.getZ(i)]);
+    const pole = new THREE.CylinderGeometry(0.035, 0.04, 2.5, 6); m.makeTranslation(0, 1.25, 0); B.add(0, pole, m, [1.0, 1.0, 1.0], [0.01, 0.01]);
+    const t = tintStripeTex(12);
+    const mat = castleMats.parasol || (castleMats.parasol = new THREE.MeshStandardMaterial({ map: t.map, normalMap: touchLite() ? null : t.normalMap, vertexColors: true, roughness: 0.85, side: THREE.DoubleSide }));
+    return { geo: B.geometry(), mat, h: 2.6, r: 1.45 };
+  },
+});
+
+// =============================================================================
+// Maisons du village de la plage : murs crépis colorés, toit de tuiles en croupe qui déborde,
+// fenêtres à encadrement, volets en planches, jardinières, porte en planches et marche.
+// Trois constructeurs partagés (crépi, tuiles, bois peint) : trois appels de dessin pour tout le village.
+// =============================================================================
+/** Tuiles canal (rangées de tuiles arrondies qui se chevauchent) — claires : la teinte vient des sommets. */
+export function roofTileTex() {
+  return once('tiles', () => RT.realTex(256, 256, 47, (x, y, w, h, R) => {
+    x.fillStyle = '#d8d0c8'; x.fillRect(0, 0, w, h);
+    y.fillStyle = '#404040'; y.fillRect(0, 0, w, h);
+    const rows = 8, cols = 8, th = h / rows, tw = w / cols;
+    for (let j = 0; j < rows; j++) for (let i = 0; i <= cols; i++) {
+      const cx = (i + (j % 2) * 0.5) * tw, cy = j * th, v = 0.85 + R() * 0.25;
+      const g = x.createLinearGradient(cx - tw / 2, 0, cx + tw / 2, 0);
+      const c = (k) => 'rgb(' + Math.min(255, 235 * v * k | 0) + ',' + Math.min(255, 228 * v * k | 0) + ',' + Math.min(255, 220 * v * k | 0) + ')';
+      g.addColorStop(0, c(0.7)); g.addColorStop(0.45, c(1.05)); g.addColorStop(1, c(0.72));
+      wrapDraw(w, h, cx, cy, tw, (X, Y) => {
+        x.fillStyle = g; x.beginPath(); x.moveTo(X - tw / 2, Y); x.lineTo(X + tw / 2, Y); x.lineTo(X + tw / 2, Y + th * 1.05); x.quadraticCurveTo(X, Y + th * 1.35, X - tw / 2, Y + th * 1.05); x.fill();
+        x.fillStyle = 'rgba(40,30,25,0.35)'; x.fillRect(X - tw / 2, Y + th * 1.02, tw, 2);
+        const gh = y.createLinearGradient(X - tw / 2, 0, X + tw / 2, 0); gh.addColorStop(0, '#303030'); gh.addColorStop(0.5, '#e0e0e0'); gh.addColorStop(1, '#303030');
+        y.fillStyle = gh; y.beginPath(); y.moveTo(X - tw / 2, Y); y.lineTo(X + tw / 2, Y); y.lineTo(X + tw / 2, Y + th * 1.05); y.quadraticCurveTo(X, Y + th * 1.35, X - tw / 2, Y + th * 1.05); y.fill();
+      });
+    }
+  }, { strength: 4 }));
+}
+const houseMats = {};
+/** [crépi, tuiles, bois peint] */
+export function villageHouseMaterials(lite = false) {
+  const k = lite ? 'l' : 'h';
+  if (houseMats[k]) return houseMats[k];
+  const st = stuccoTex(), rt = roofTileTex();
+  const plaster = new THREE.MeshStandardMaterial({ map: st.map, normalMap: lite ? null : st.normalMap, vertexColors: true, roughness: 0.95 });
+  const roof = new THREE.MeshStandardMaterial({ map: rt.map, normalMap: lite ? null : rt.normalMap, vertexColors: true, roughness: 0.8 });
+  return (houseMats[k] = [plaster, roof, paintedWoodMaterial(lite)]);
+}
+/** Maison (h = { x, y, z, w, d, rot, color, roof }) : porte au milieu de la façade -z (repère tourné de rot). */
+export function addVillageHouse(Bs, h, opts = {}) {
+  const lite = !!opts.lite, [Pl, Rf, Wd] = Bs, m = new THREE.Matrix4(), q = new THREE.Quaternion().setFromEuler(new THREE.Euler(0, h.rot || 0, 0));
+  const O = v3(h.x, h.y, h.z), W = h.w, D = h.d, H = 4.2;
+  const cw = new THREE.Color(h.color), cr = new THREE.Color(h.roof);
+  const put = (B, g, c, x, y, z, rx = 0, ry = 0, rz = 0, uvS) => { m.compose(v3(x, y, z).applyQuaternion(q).add(O), q.clone().multiply(new THREE.Quaternion().setFromEuler(new THREE.Euler(rx, ry, rz))), v3(1, 1, 1)); B.add(0, g, m, c, uvS); };
+  // murs : boîte crépie, soubassement plus sombre, un peu d'ombre sous le toit
+  const wall = roundBox(W, H, D, 0.06, 1);
+  const wuv = wall.attributes.uv, wp = wall.attributes.position, wn = wall.attributes.normal;
+  for (let i = 0; i < wp.count; i++) { const ax = Math.abs(wn.getX(i)) > Math.abs(wn.getZ(i)); wuv.setXY(i, (ax ? wp.getZ(i) : wp.getX(i)) * 0.35, wp.getY(i) * 0.35); }
+  put(Pl, wall, (X, Y) => { const yy = Y - O.y; const k = (yy < 0.5 ? 0.78 : 1) * (1 - 0.18 * clamp((yy - 3.4) / 0.8, 0, 1)); return [cw.r * k, cw.g * k, cw.b * k]; }, 0, H / 2, 0);
+  // toit en croupe : 4 pans (trapèzes et triangles) qui débordent, faîtage
+  {
+    const ov = 0.45, hx = W / 2 + ov, hz = D / 2 + ov, rh = 2.0, ridge = Math.max(0.2, (W - D) / 2), y0 = H - 0.12;
+    const pts = { a: v3(-hx, y0, -hz), b: v3(hx, y0, -hz), c: v3(hx, y0, hz), d: v3(-hx, y0, hz), r0: v3(-ridge, y0 + rh, 0), r1: v3(ridge, y0 + rh, 0) };
+    const face = (A, B2, C, E) => {
+      const n = B2.clone().sub(A).cross(C.clone().sub(A)).normalize();
+      const k = 0.75 + 0.25 * clamp(n.y, 0, 1), col = [cr.r * k, cr.g * k, cr.b * k];
+      const ids = [A, B2, C, E].filter(Boolean).map((P) => { const w = P.clone().applyQuaternion(q).add(O); const nn = n.clone().applyQuaternion(q); const u = (Math.abs(n.x) > Math.abs(n.z) ? P.z : P.x) * 0.5, vv = (P.y - y0) / rh * Math.hypot(rh, Math.abs(n.x) > Math.abs(n.z) ? hx : hz) * 0.5; return Rf.v(w.x, w.y, w.z, nn.x, nn.y, nn.z, u, vv, col); });
+      if (ids.length === 4) { Rf.tri(0, ids[0], ids[1], ids[3]); Rf.tri(0, ids[0], ids[3], ids[2]); } else Rf.tri(0, ids[0], ids[1], ids[2]);
+    };
+    face(pts.b, pts.a, pts.r1, pts.r0);   // devant
+    face(pts.d, pts.c, pts.r0, pts.r1);   // derrière
+    face(pts.c, pts.b, pts.r1);           // côté +x
+    face(pts.a, pts.d, pts.r0);           // côté -x
+    // dessous du débord (sombre), bandeau de rive, faîtage arrondi
+    const eave = roundBox(W + ov * 2, 0.14, D + ov * 2, 0.04, 1); put(Wd, eave, [0.92, 0.9, 0.86], 0, y0 - 0.02, 0);
+    const rg = new THREE.CylinderGeometry(0.1, 0.1, ridge * 2 + 0.3, 8); put(Rf, rg, [cr.r * 0.85, cr.g * 0.85, cr.b * 0.85], 0, y0 + rh + 0.02, 0, 0, 0, Math.PI / 2, [1, 1]);
+  }
+  // porte en planches, encadrement, marche
+  put(Wd, roundBox(1.2, 2.2, 0.08, 0.03, 1), [0.62, 0.4, 0.24], 0, 1.1, -D / 2 - 0.04);
+  put(Wd, roundBox(1.45, 0.14, 0.12, 0.03, 1), [0.97, 0.96, 0.93], 0, 2.27, -D / 2 - 0.05);
+  for (const sx of [-1, 1]) put(Wd, roundBox(0.12, 2.25, 0.12, 0.03, 1), [0.97, 0.96, 0.93], sx * 0.66, 1.12, -D / 2 - 0.05);
+  put(Wd, new THREE.SphereGeometry(0.06, 6, 5), [0.95, 0.78, 0.3], 0.42, 1.05, -D / 2 - 0.12);
+  put(Pl, roundBox(1.6, 0.16, 0.6, 0.04, 1), [0.75, 0.72, 0.68], 0, 0.08, -D / 2 - 0.3);
+  // fenêtres : encadrement, vitre, croisillons, volets en planches, appui et jardinière fleurie
+  for (const sd of [-1, 1]) for (const wx of [-2.2, 2.2]) {
+    const z = sd * (D / 2 + 0.03), ry = sd < 0 ? 0 : Math.PI;
+    put(Wd, roundBox(1.25, 1.25, 0.06, 0.02, 1), [0.97, 0.96, 0.93], wx, 2.4, z, 0, ry);
+    put(Wd, roundBox(1.0, 1.0, 0.04, 0.01, 1), [0.25, 0.42, 0.6], wx, 2.4, z + sd * 0.03, 0, ry);
+    put(Wd, roundBox(0.05, 1.0, 0.05, 0.01, 1), [0.97, 0.96, 0.93], wx, 2.4, z + sd * 0.05, 0, ry);
+    put(Wd, roundBox(1.0, 0.05, 0.05, 0.01, 1), [0.97, 0.96, 0.93], wx, 2.4, z + sd * 0.05, 0, ry);
+    for (const vx of [-0.85, 0.85]) for (let pk = 0; pk < 3; pk++) put(Wd, roundBox(0.13, 1.25, 0.05, 0.015, 1), [cr.r * 0.9, cr.g * 0.9, cr.b * 0.9].map(c => c * (0.9 + pk * 0.05)), wx + vx + (pk - 1) * 0.14, 2.4, z + sd * 0.04, 0, ry);
+    put(Wd, roundBox(1.4, 0.08, 0.22, 0.02, 1), [0.97, 0.96, 0.93], wx, 1.74, z + sd * 0.08, 0, ry);
+    put(Wd, roundBox(1.1, 0.2, 0.22, 0.03, 1), [0.55, 0.38, 0.24], wx, 1.62, z + sd * 0.22, 0, ry);
+    if (!lite) for (let f = 0; f < 5; f++) put(Wd, lumpySphere(0.09, 1, 0.2, 6, f + wx, 1), [[1, 0.45, 0.55], [1, 0.85, 0.3], [0.85, 0.5, 1], [1, 0.6, 0.35], [0.4, 0.75, 0.35]][f], wx - 0.4 + f * 0.2, 1.78, z + sd * 0.22, 0, 0);
+  }
 }
