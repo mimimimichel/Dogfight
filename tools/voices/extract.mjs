@@ -99,7 +99,7 @@ for (const [file, lv] of Object.entries(FILES)) {
           return;
         }
         // T('Qui', 'Texte') (level6life.js)
-        if (node.callee.type === 'Identifier' && node.callee.name === 'T' && node.arguments.length === 2) {
+        if (node.callee.type === 'Identifier' && ['T', 'W'].includes(node.callee.name) && node.arguments.length === 2) {
           for (const who of variants(node.arguments[0], code, baseEnv)) for (const tx of variants(node.arguments[1], code, baseEnv)) add(who, tx, file);
           return;
         }
