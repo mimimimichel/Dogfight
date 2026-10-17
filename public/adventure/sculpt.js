@@ -1173,7 +1173,7 @@ export function addMushHouse(Bs, h, opts = {}) {
       const t = j / nu2, row = [];
       for (let i = 0; i <= cs; i++) {
         const a = i / cs * TAU, r0 = cr * rim(a) * 0.995, r1 = 0, rr = r0 + (r1 - r0) * Math.pow(t, 0.8);
-        const gill = Math.abs(Math.sin(a * (lite ? 18 : 36))) * 0.05 * (1 - t);
+        const gill = Math.abs(Math.sin(a * (lite ? 18 : 36))) * 0.05 * Math.min(1, t * 4) * (1 - t);
         const yy = capY(1) + 0.02 + (0.18 + 0.12) * t - 0.08 * Math.sin(t * Math.PI) - gill;
         const p = T(Math.sin(a) * rr, yy, Math.cos(a) * rr), n = v3(Math.sin(a) * 0.2, -1, Math.cos(a) * 0.2).applyQuaternion(q).normalize();
         const k = 0.62 + 0.3 * (1 - t) - gill * 3;
@@ -1477,18 +1477,18 @@ export function mushroomCapGeometry(R, hex, opts = {}) {
     }
     top.push(row);
   }
-  B.grid(0, top.map(r => r.slice().reverse()));
+  B.grid(0, top.map(r => r.slice().reverse())); B.grid(0, top.slice(Math.floor(nr * 0.75)));
   const under = [];
   for (let j = 0; j <= (lite ? 2 : 4); j++) {
     const t = j / (lite ? 2 : 4), row = [];
     for (let i = 0; i <= cs; i++) {
-      const a = i / cs * TAU, rr = R * rim(a) * (1 - t), gill = Math.abs(Math.sin(a * (lite ? 14 : 28))) * 0.04 * R * (1 - t);
+      const a = i / cs * TAU, rr = R * rim(a) * (1 - t), gill = Math.abs(Math.sin(a * (lite ? 14 : 28))) * 0.04 * R * Math.min(1, t * 4) * (1 - t);
       const k = 0.6 + 0.3 * (1 - t) - gill * 2 / R;
       row.push(B.v(Math.cos(a) * rr, cy(1) + 0.02 + t * H * 0.3 - gill, Math.sin(a) * rr, 0, -1, 0, a, t, [0.95 * k, 0.86 * k, 0.74 * k]));
     }
     under.push(row);
   }
-  B.grid(0, under);
+  B.grid(0, under.map(r => r.slice().reverse())); B.grid(0, under);   // (les deux faces : jamais de trou sous le bord)
   for (let s = 0; s < (lite ? 6 : 9); s++) {
     const t = 0.15 + 0.68 * ((s * 0.618) % 1), a = s * 2.4 + rnd() * 0.4, rr = R * Math.sin(t * Math.PI / 2 * 1.02) * rim(a);
     const g = lumpySphere(R * (0.12 + rnd() * 0.06), 1, 0.04, 4, s, 0.22);

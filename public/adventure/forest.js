@@ -1080,9 +1080,11 @@ export function buildForest(game) {
       const x = GL.x + Math.cos(a) * d, z = GL.z + Math.sin(a) * d;
       list.push([x, S.heightAt(x, z), z, 0.6 + (i % 4) * 0.25, [0x6af0ff, 0xb08aff, 0x8aff9a, 0xffa0e0][i % 4]]);
     }
-    const stemI = new THREE.InstancedMesh(new THREE.CylinderGeometry(0.08, 0.12, 1, 8), new THREE.MeshStandardMaterial({ color: 0xf0f0ff, emissive: 0x606080, emissiveIntensity: 0.5 }), n);
-    const capMat = new THREE.MeshStandardMaterial({ color: 0xffffff, emissive: 0xffffff, emissiveIntensity: 0.8, roughness: 0.3 });
-    const capI = new THREE.InstancedMesh(new THREE.SphereGeometry(0.4, 14, 8, 0, Math.PI * 2, 0, Math.PI / 2), capMat, n);
+    // (sculpt.js : pied bombé, chapeau charnu à pois en relief et lamelles — ils brillent toujours)
+    const stemGeo = SC.mushroomStemGeometry(0.085, 1, { lite }); stemGeo.translate(0, -0.5, 0);
+    const stemI = new THREE.InstancedMesh(stemGeo, new THREE.MeshStandardMaterial({ color: 0xf0f0ff, vertexColors: true, emissive: 0x606080, emissiveIntensity: 0.5 }), n);
+    const capMat = new THREE.MeshStandardMaterial({ color: 0xffffff, vertexColors: true, emissive: 0xffffff, emissiveIntensity: 0.7, roughness: 0.3 });
+    const capI = new THREE.InstancedMesh(SC.mushroomCapGeometry(0.42, 0xffffff, { lite, seed: 4 }), capMat, n);
     const c = new THREE.Color();
     list.forEach(([x, y, z, s, col], i) => {
       m4.compose(v.set(x, y + s * 0.5, z), q.identity(), sv.set(s, s, s)); stemI.setMatrixAt(i, m4);
