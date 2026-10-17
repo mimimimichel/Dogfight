@@ -149,6 +149,18 @@ CAST = {
     'Ernest le pêcheur': ('loup', 0.65, 0.5),
     'Gros Minet': ('pataud', 0.65, 0.5),
     'Fantômette': ('mimi', 0.65, 0.5),
+    'Rosalie la fermière': ('persane', 0.65, 0.5),
+    'Mémé Cocotte': ('mamie', 0.65, 0.5),
+    'Lucien le jardinier': ('bruno', 0.65, 0.5),
+    'Basile le muletier': ('pataud', 0.65, 0.5),
+    'Blaise le chevrier': ('bruno', 0.65, 0.5),
+    'Mélodie la vachère': ('mimi', 0.65, 0.5),
+    'Capucine la cane': ('persane', 0.65, 0.5),
+    'Galopin': ('filou', 0.65, 0.5),
+    'Monsieur Épouvantail': ('loup', 0.65, 0.5),
+    'Hippolyte le pêcheur': ('loup', 0.65, 0.5),
+    'Jules le meunier': ('bruno', 0.65, 0.5),
+    "Mamie Miel l'apicultrice": ('maire', 0.65, 0.5),
 }
 # les rôles principaux d'abord
 ORDER = ['', 'Mamie Labrador', 'Matcha', 'Ainu', 'Biscotte', 'Capitaine Moustache']
