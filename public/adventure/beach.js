@@ -554,8 +554,8 @@ function buildDecor(game) {
   {
     const n = S.PARASOLS.length;
     const poles = new THREE.InstancedMesh(new THREE.CylinderGeometry(0.05, 0.05, 2.5, 6), M.mat(0xf4f4f4), n);
-    const topGeo = new THREE.ConeGeometry(1.5, 0.6, 12, 1, true); topGeo.translate(0, 0, 0);
-    const tops = new THREE.InstancedMesh(topGeo, new THREE.MeshStandardMaterial({ map: stripeTex('#ffffff', '#c8c8c8', 12, true), roughness: 0.65, side: THREE.DoubleSide }), n);
+    const topGeo = SC.parasolCanopyGeometry(1.5, 0.6, 12, { lite });   // (sculpt.js : toile tendue entre les baleines, festons)
+    const tops = new THREE.InstancedMesh(topGeo, new THREE.MeshStandardMaterial({ map: stripeTex('#ffffff', '#c8c8c8', 12, true), vertexColors: true, roughness: 0.75, side: THREE.DoubleSide }), n);
     const towels = new THREE.InstancedMesh(new THREE.BoxGeometry(1.0, 0.03, 1.9), new THREE.MeshStandardMaterial({ map: stripeTex('#ffffff', '#dcdcdc', 6, false), roughness: 0.9 }), n);
     const c = new THREE.Color();
     S.PARASOLS.forEach((p, i) => {

@@ -876,9 +876,9 @@ export const sisalMaterial = (lite = touchLite()) => texMat('sisal', sisalTex(),
  */
 export function yarnBallGeometry(r = 1, opts = {}) {
   const lite = opts.lite === undefined ? touchLite() : opts.lite, B = builder(1), rnd = rng((opts.seed || 1) * 71 + 3), m = new THREE.Matrix4();
-  const core = new THREE.SphereGeometry(r * 0.955, lite ? 18 : 28, lite ? 12 : 18);
+  const core = new THREE.SphereGeometry(r * 0.955, lite ? 16 : 22, lite ? 10 : 14);
   B.add(0, core, null, (X, Y, Z, nx, ny) => { const k = 0.7 + 0.15 * (ny * 0.5 + 0.5); return [k, k, k]; }, [3, 2]);
-  const bands = lite ? 5 : 7, strands = 2, segs = lite ? 26 : 36, sides = lite ? 3 : 4, tr = r * 0.042;
+  const bands = lite ? 5 : 7, strands = 2, segs = lite ? 24 : 32, sides = 3, tr = r * 0.045;
   for (let b = 0; b < bands; b++) {
     // un grand cercle d'axe quelconque
     const ax = v3(rnd() - 0.5, rnd() - 0.5, rnd() - 0.5).normalize(), e1 = ax.clone().cross(Math.abs(ax.y) < 0.9 ? v3(0, 1, 0) : v3(1, 0, 0)).normalize(), e2 = ax.clone().cross(e1);
@@ -919,7 +919,7 @@ export function yarnBallGeometry(r = 1, opts = {}) {
  */
 export function poufGeometry(R = 1.3, H = 0.62, opts = {}) {
   const lite = opts.lite === undefined ? touchLite() : opts.lite, B = builder(1), m = new THREE.Matrix4();
-  const nA = lite ? 28 : 56, nR = lite ? 10 : 24;
+  const nA = lite ? 28 : 40, nR = lite ? 10 : 18;
   // boutons : un au centre, un anneau de 6 (et 12 plus loin, si grand)
   const btn = [[0, 0]];
   for (let i = 0; i < 6; i++) btn.push([Math.cos(i / 6 * TAU) * R * 0.5, Math.sin(i / 6 * TAU) * R * 0.5]);
@@ -958,7 +958,7 @@ export function poufGeometry(R = 1.3, H = 0.62, opts = {}) {
   // boutons
   for (const [bx, bz] of btn) {
     const y = H * 0.86 + H * 0.2 * Math.sin(Math.min(1, (1 - Math.hypot(bx, bz) / R / 0.97)) * Math.PI / 2) - H * 0.3 * clamp((Math.hypot(bx, bz) < 1e-3 ? 1 : (1 - Math.hypot(bx, bz) / R)) * 6, 0, 1) + 0.015;
-    const g = lumpySphere(R * 0.045, 1, 0.05, 6, bx + bz, 0.55); m.makeTranslation(bx, y, bz); out.add(0, g, m, [0.95, 0.8, 0.5]);
+    const g = lumpySphere(R * 0.045, lite ? 0 : 1, 0.05, 6, bx + bz, 0.55); m.makeTranslation(bx, y, bz); out.add(0, g, m, [0.95, 0.8, 0.5]);
   }
   return out.geometry();
 }
@@ -1015,7 +1015,7 @@ export function tinted(geo, hex) {
 
 /** Modèles « sculptés » pour la couche de vie (life.js : palette props.<sorte>.model). */
 export const LIFE_PROPS = {
-  poufHD() { return { geo: poufGeometry(1.3, 0.62), mat: velvetMaterial(), h: 0.62, r: 1.3, shadow: true }; },
+  poufHD() { return { geo: poufGeometry(1.3, 0.62), mat: velvetMaterial(), h: 0.62, r: 1.3 }; },
   yarnballHD() { return { geo: yarnBallGeometry(1, { tail: false }), mat: yarnMaterial(), h: 1, r: 1, shadow: true }; },
 };
 
@@ -1457,4 +1457,108 @@ export function addBeachHut(B, h, opts = {}) {
   add(roundBox(1.2, 0.14, 0.45, 0.03, 1), [0.75, 0.6, 0.45], 0, 0.07, -hd - 0.3);
   // bouée accrochée sur le côté (un coup sur deux)
   if (rnd() < 0.6) { const b = new THREE.TorusGeometry(0.28, 0.08, 6, lite ? 12 : 18); add(b, (X, Y, Z) => (Math.floor((Math.atan2(Y - O.y - 1.6, Z - O.z) + 3.2) / (Math.PI / 4)) % 2 ? [0.95, 0.25, 0.2] : white), hw + 0.1, 1.6, 0, 0, Math.PI / 2, 0); }
+}
+
+// =============================================================================
+// Champignons rebondissants et trampolines (la ville)
+// =============================================================================
+/** Chapeau de champignon seul (base en y = 0, rayon R, hauteur ~0,6 R) : dôme charnu, pois en relief, lamelles. */
+export function mushroomCapGeometry(R, hex, opts = {}) {
+  const lite = !!opts.lite, B = builder(1), m = new THREE.Matrix4(), col = new THREE.Color(hex), rnd = rng(opts.seed || 3);
+  const nr = lite ? 7 : 12, cs = lite ? 24 : 40, H = R * 0.62, top = [];
+  const rim = (a) => 1 + 0.04 * Math.sin(a * 5 + 1.1) + 0.025 * Math.sin(a * 9);
+  const cy = (t) => H * Math.cos(t * Math.PI / 2) ** 0.75 - H * 0.35 * Math.max(0, (t - 0.8) / 0.2) ** 2;
+  for (let j = 0; j <= nr; j++) {
+    const t = j / nr, row = [];
+    for (let i = 0; i <= cs; i++) {
+      const a = i / cs * TAU, rr = R * Math.sin(t * Math.PI / 2 * 1.02) * rim(a), n = v3(Math.cos(a) * Math.sin(t * 1.5), Math.cos(t * 1.5) + 0.1, Math.sin(a) * Math.sin(t * 1.5)).normalize();
+      const k = (0.82 + 0.18 * (1 - t)) * (t > 0.85 ? 0.85 : 1);
+      row.push(B.v(Math.cos(a) * rr, cy(t), Math.sin(a) * rr, n.x, n.y, n.z, Math.cos(a) * rr * 0.5 + 0.5, Math.sin(a) * rr * 0.5 + 0.5, [col.r * k, col.g * k, col.b * k]));
+    }
+    top.push(row);
+  }
+  B.grid(0, top.map(r => r.slice().reverse()));
+  const under = [];
+  for (let j = 0; j <= (lite ? 2 : 4); j++) {
+    const t = j / (lite ? 2 : 4), row = [];
+    for (let i = 0; i <= cs; i++) {
+      const a = i / cs * TAU, rr = R * rim(a) * (1 - t), gill = Math.abs(Math.sin(a * (lite ? 14 : 28))) * 0.04 * R * (1 - t);
+      const k = 0.6 + 0.3 * (1 - t) - gill * 2 / R;
+      row.push(B.v(Math.cos(a) * rr, cy(1) + 0.02 + t * H * 0.3 - gill, Math.sin(a) * rr, 0, -1, 0, a, t, [0.95 * k, 0.86 * k, 0.74 * k]));
+    }
+    under.push(row);
+  }
+  B.grid(0, under);
+  for (let s = 0; s < (lite ? 6 : 9); s++) {
+    const t = 0.15 + 0.68 * ((s * 0.618) % 1), a = s * 2.4 + rnd() * 0.4, rr = R * Math.sin(t * Math.PI / 2 * 1.02) * rim(a);
+    const g = lumpySphere(R * (0.12 + rnd() * 0.06), 1, 0.04, 4, s, 0.22);
+    const n = v3(Math.cos(a) * Math.sin(t * 1.5), Math.cos(t * 1.5) + 0.1, Math.sin(a) * Math.sin(t * 1.5)).normalize();
+    m.compose(v3(Math.cos(a) * rr, cy(t) - 0.01, Math.sin(a) * rr), new THREE.Quaternion().setFromUnitVectors(v3(0, 1, 0), n), v3(1, 1, 1));
+    B.add(0, g, m, [1.15, 1.12, 1.06], [0.3, 0.3]);
+  }
+  return B.geometry();
+}
+/** Pied de champignon (de 0 à h, rayon r), crépi, un peu bombé ; ou socle de trampoline. */
+export function mushroomStemGeometry(r, h, opts = {}) {
+  const lite = !!opts.lite, prof = [];
+  for (let i = 0; i <= 8; i++) { const t = i / 8; prof.push(new THREE.Vector2(r * (1.25 - 0.35 * t + 0.08 * Math.sin(t * Math.PI)), h * t)); }
+  const g = new THREE.LatheGeometry(prof, lite ? 12 : 20), c = new Float32Array(g.attributes.position.count * 3);
+  for (let i = 0; i < g.attributes.position.count; i++) { const k = 0.75 + 0.25 * clamp(g.attributes.position.getY(i) / h * 1.5, 0, 1) - 0.2 * clamp((g.attributes.position.getY(i) - h * 0.8) / (h * 0.2), 0, 1); c[i * 3] = k * 0.98; c[i * 3 + 1] = k * 0.94; c[i * 3 + 2] = k * 0.86; }
+  g.setAttribute('color', new THREE.BufferAttribute(c, 3));
+  const uv = g.attributes.uv; for (let i = 0; i < uv.count; i++) uv.setXY(i, uv.getX(i) * r * 6, uv.getY(i) * h);
+  return g;
+}
+/**
+ * Trampoline (pied en 0, rayon r, plateau à h) : { frame (boudin rembourré rayé, pieds et ressorts),
+ * mat (toile tressée sombre, centrée en 0 : c'est elle qui s'enfonce) }.
+ */
+export function trampolineParts(r, h, opts = {}) {
+  const lite = !!opts.lite, F = builder(1), M = builder(1), m = new THREE.Matrix4();
+  const cA = new THREE.Color(opts.a || 0x3a8ae0), cB = new THREE.Color(opts.b || 0xffd23a), seg = lite ? 24 : 40;
+  // boudin rembourré, segments de couleurs alternées
+  const pad = new THREE.TorusGeometry(r * 0.94, 0.18, lite ? 6 : 10, seg); pad.rotateX(Math.PI / 2); m.makeTranslation(0, h - 0.05, 0);
+  F.add(0, pad, m, (X, Y, Z, nx, ny) => { const a = Math.atan2(Z, X), c = Math.floor((a + Math.PI) / TAU * 12) % 2 ? cA : cB, k = 0.8 + 0.2 * (ny * 0.5 + 0.5); return [c.r * k, c.g * k, c.b * k]; });
+  // jupe de toile sous le boudin, et pieds en arc
+  const skirt = new THREE.CylinderGeometry(r * 0.94, r * 0.9, h - 0.15, seg, 1, true); m.makeTranslation(0, (h - 0.15) / 2, 0);
+  F.add(0, skirt, m, (X, Y, Z) => { const a = Math.atan2(Z, X), c = Math.floor((a + Math.PI) / TAU * 12) % 2 ? cA : cB; const k = 0.55 + 0.3 * clamp(Y / h, 0, 1); return [c.r * k, c.g * k, c.b * k]; });
+  for (let i = 0; i < 6; i++) { const a = i / 6 * TAU; const leg = new THREE.TorusGeometry(0.22, 0.04, 4, 8, Math.PI); m.compose(v3(Math.cos(a) * r * 0.92, 0.02, Math.sin(a) * r * 0.92), new THREE.Quaternion().setFromEuler(new THREE.Euler(0, -a, 0)), v3(1, 1, 1)); F.add(0, leg, m, [0.3, 0.32, 0.36]); }
+  // toile : disque tressé, ressorts tout autour (petites spires)
+  const mat = new THREE.CircleGeometry(r * 0.8, seg); mat.rotateX(-Math.PI / 2);
+  M.add(0, mat, null, (X, Y, Z) => { const d = Math.hypot(X, Z) / (r * 0.8); const k = 0.18 + 0.06 * Math.sin(d * 30) * (d < 0.95 ? 1 : 0); return [k, k * 1.05, k * 1.15]; }, [r * 3, r * 3]);
+  for (let i = 0; i < (lite ? 16 : 32); i++) {
+    const a = i / (lite ? 16 : 32) * TAU, sp = new THREE.CylinderGeometry(0.025, 0.025, r * 0.16, 4); sp.rotateZ(Math.PI / 2);
+    m.compose(v3(Math.cos(a) * r * 0.86, -0.01, Math.sin(a) * r * 0.86), new THREE.Quaternion().setFromEuler(new THREE.Euler(0, -a, 0)), v3(1, 1, 1)); M.add(0, sp, m, [0.75, 0.75, 0.78]);
+  }
+  return { frame: F.geometry(), mat: M.geometry() };
+}
+
+/**
+ * Toile de parasol (centrée : sommet à +h/2, bord à -h/2, comme un ConeGeometry ouvert) : pans tendus
+ * entre les baleines (la toile se creuse entre elles), bord à festons, petit chapeau au sommet.
+ * u fait le tour (n pans → une rayure par pan avec une texture à n rayures), v du sommet au bord.
+ */
+export function parasolCanopyGeometry(R = 1.5, h = 0.6, n = 12, opts = {}) {
+  const lite = !!opts.lite, B = builder(1), per = lite ? 2 : 4, nv = lite ? 3 : 6;
+  const N = n * per, rows = [];
+  for (let j = 0; j <= nv; j++) {
+    const v = j / nv, row = [];
+    for (let i = 0; i <= N; i++) {
+      const u = i / N, a = u * TAU, f = (i % per) / per, sag = Math.sin(f * Math.PI) * 0.08 * v;
+      const rr = R * v * (1 - sag * 0.4), y = h / 2 - h * Math.pow(v, 0.9) - sag * 0.9 * h;
+      const k = 0.78 + 0.22 * (1 - v * 0.5) - sag;
+      row.push(B.v(Math.sin(a) * rr, y, Math.cos(a) * rr, Math.sin(a) * 0.5, 1, Math.cos(a) * 0.5, u, v, [k, k, k]));
+    }
+    rows.push(row);
+  }
+  B.grid(0, rows.map(r => r.slice().reverse()));
+  // festons qui pendent du bord
+  const top = [], bot = [];
+  for (let i = 0; i <= N * (lite ? 1 : 2); i++) {
+    const u = i / (N * (lite ? 1 : 2)), a = u * TAU, sc = Math.sqrt(Math.abs(Math.sin(u * n * Math.PI)));
+    top.push(B.v(Math.sin(a) * R, -h / 2, Math.cos(a) * R, Math.sin(a), 0, Math.cos(a), u, 1, [0.92, 0.92, 0.92]));
+    bot.push(B.v(Math.sin(a) * R * 1.01, -h / 2 - 0.1 - 0.1 * sc, Math.cos(a) * R * 1.01, Math.sin(a), 0, Math.cos(a), u, 1, [0.78, 0.78, 0.78]));
+  }
+  B.grid(0, [top, bot].map(r => r.slice().reverse()));
+  const knob = new THREE.SphereGeometry(0.08, 8, 6); B.add(0, knob, new THREE.Matrix4().makeTranslation(0, h / 2 + 0.03, 0), [1, 1, 1], [0.01, 0.01]);
+  return B.geometry();
 }

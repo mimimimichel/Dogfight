@@ -492,16 +492,23 @@ function buildDecor(game) {
     g.position.set(KI.x, G, KI.z);
     place(shadowy(g), KI.x, KI.z, 6);
   }
-  anim.mushrooms = S.bouncers.filter(b => b.mushroom).map(b => {
+  anim.mushrooms = S.bouncers.filter(b => b.mushroom).map((b, i) => {
+    // (sculpt.js : champignon charnu à pois en relief et lamelles, pied crépi ; trampoline à boudin rayé)
     const g = new THREE.Group();
-    const tramp = b.bounce >= 20;
-    const st = new THREE.Mesh(new THREE.CylinderGeometry(tramp ? b.r : 0.4, tramp ? b.r : 0.55, b.top - b.base, 16), M.mat(tramp ? 0x3a4a6a : 0xf2e6cc));
-    st.position.y = (b.top - b.base) / 2;
-    const cap = tramp
-      ? new THREE.Mesh(new THREE.CylinderGeometry(b.r * 0.95, b.r * 0.95, 0.2, 20), M.mat(0x3ac8ff, { roughness: 0.4 }))
-      : new THREE.Mesh(new THREE.SphereGeometry(b.r * 1.1, 20, 12, 0, Math.PI * 2, 0, Math.PI / 2), M.mat(0xff5ab8, { roughness: 0.5, emissive: 0x401030, emissiveIntensity: 0.3 }));
-    cap.position.y = b.top - b.base - (tramp ? 0 : 0.1); if (!tramp) cap.scale.y = 0.6;
-    g.add(st, cap); g.position.set(b.x, b.base, b.z);
+    const tramp = b.bounce >= 20, H = b.top - b.base;
+    const MM = SC.mushHouseMaterials(lite);
+    let cap;
+    if (tramp) {
+      const T = SC.trampolineParts(b.r, H, { lite, a: [0x3a8ae0, 0xe04848, 0x40b060][i % 3], b: 0xffd23a });
+      g.add(new THREE.Mesh(T.frame, SC.velvetMaterial(lite)));
+      cap = new THREE.Mesh(T.mat, MM[2]);
+    } else {
+      g.add(new THREE.Mesh(SC.mushroomStemGeometry(0.42, H - 0.05, { lite }), MM[0]));
+      const cg = SC.mushroomCapGeometry(b.r * 1.1, 0xff5ab8, { lite, seed: i + 1 }); cg.scale(1, 1 / 0.6, 1);   // (au repos, le chapeau est à l'échelle 0,6 en hauteur)
+      cap = new THREE.Mesh(cg, MM[1]);
+    }
+    cap.position.y = H - (tramp ? 0 : 0.1); if (!tramp) cap.scale.y = 0.6;
+    g.add(cap); g.position.set(b.x, b.base, b.z);
     place(shadowy(g), b.x, b.z, 4);
     return { def: b, cap, tramp };
   });
