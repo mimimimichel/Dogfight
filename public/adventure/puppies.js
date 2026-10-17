@@ -794,7 +794,8 @@ export class Puppies {
       const f = 1050 + (h.i % 5) * 70;
       if (v > 0.005) { s.tone(f, 0.06, { type: 'sawtooth', to: f * 1.35, vol: v }); s.tone(f * 1.1, 0.07, { type: 'sawtooth', to: f * 1.45, vol: v * 0.9, delay: 0.1 }); }
     }
-    if (Math.random() < 0.6) this.g.bubble({ pos: h.pos, mesh: h.P.group, small: true }, 'Ouaf !');
+    // une seule bulle à la fois (sinon le parc devient une cacophonie de « Ouaf ! »)
+    if (Math.random() < 0.6 && this.g.t - (this.bubAt || -9) > 1.4) { this.bubAt = this.g.t; this.g.bubble({ pos: h.pos, mesh: h.P.group, small: true }, 'Ouaf !'); }
   }
 
   // ----------------------------------------------------------------- les chiots perdus (ce monde)
@@ -833,7 +834,12 @@ export class Puppies {
     const R = g.easy ? 30 : 16;           // Promenade : on entend les chiots de bien plus loin
     for (const p of this.lost) {
       p.t += dt;
-      if (p.state === 'joy' && p.t > 2.3 && !g.dialog && !g.guest) { p.state = 'beam'; p.t = 0; }
+      if (p.state === 'joy' && p.t > 2.3 && !g.dialog && !g.guest) {
+        p.state = 'beam'; p.t = 0;
+        g.sound('reveal');
+        const n = pupsOf(L.ID).filter(d => g.save.pups.includes(d.id)).length;
+        g.banner(`${p.def.name} file au Parc des Toutous !`, L.ID === 1 ? 'Rendez-vous près de la niche de Mamie !' : `Chiots de ce monde : ${n}/3 · au parc : ${rescuedIds().length}/${PUPS.length}`, 2600);
+      }
       else if (p.state === 'beam' && p.t > 1.0 && !g.guest) { p.state = 'gone'; this.arrived(p); }
       if (p.state !== 'lost') continue;
       const d = Math.hypot(me.pos.x - p.pos.x, me.pos.z - p.pos.z, (me.pos.y - p.pos.y) * 0.7);
@@ -874,7 +880,7 @@ export class Puppies {
     g.burst(p.pos.x, p.pos.y + 0.8, p.pos.z, 14, 0xff6a9a, 3, 1.2);
     const n = pupsOf(L.ID).filter(d => s.pups.includes(d.id)).length;
     const all = rescuedIds().length;
-    const sub = `${p.def.name} le ${p.def.breed} · ${n}/3 dans ce monde · ${all}/${PUPS.length} au parc`;
+    const sub = `${p.def.name} (${p.def.breed}) · ${n}/3 dans ce monde · ${all}/${PUPS.length} au parc`;
     g.banner('🐶 Chiot retrouvé !', sub, 3200);
     setTimeout(() => { if (!g.disposed && !g.dialog) g.say([p.def.found]); }, 650);
   }
@@ -954,7 +960,7 @@ export class Puppies {
   heart(x, y, z, delay) {
     const g = this.g;
     if (!this.heartTex) this.heartTex = heartTexture();
-    const sp = new THREE.Sprite(new THREE.SpriteMaterial({ map: this.heartTex, transparent: true, depthWrite: false }));
+    const sp = new THREE.Sprite(new THREE.SpriteMaterial({ map: this.heartTex, transparent: true, depthWrite: false, depthTest: false }));
     sp.userData.noOutline = true; sp.renderOrder = 9; sp.visible = false;
     g.scene.add(sp);
     this.fx.push({ sp, x: x + (Math.random() - 0.5) * 0.6, y, z: z + (Math.random() - 0.5) * 0.6, t: -(delay || 0), life: 1.3, vx: (Math.random() - 0.5) * 0.5, kind: 'heart' });

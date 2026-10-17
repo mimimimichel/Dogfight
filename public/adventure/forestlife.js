@@ -186,7 +186,7 @@ export function buildLife(game, ctx) {
         ring.position.set(t.x + t.dx * sd * t.len / 2, t.y + t.r - 0.05, t.z + t.dz * sd * t.len / 2); ring.rotation.y = t.yaw; ga.add(ring);
       }
       const moss = new THREE.Mesh(new THREE.SphereGeometry(t.r + 0.6, 12, 6, 0, Math.PI * 2, 0, 0.7), M.mat(0x5a9a3a, { roughness: 1 }));
-      moss.position.set(t.x, t.y + 0.05, t.z); moss.scale.set(1, 0.9, t.len / 2 / (t.r + 0.6)); moss.rotation.y = t.yaw; ga.add(moss);
+      moss.position.set(t.x, t.y + t.r + 0.15, t.z);   // la mousse coiffe le tronc (elle était dans le tunnel) moss.scale.set(1, 0.9, t.len / 2 / (t.r + 0.6)); moss.rotation.y = t.yaw; ga.add(moss);
     }
   }
   const chimes = S.CHIMES.map((c) => {
