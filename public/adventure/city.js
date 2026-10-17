@@ -501,7 +501,7 @@ function buildDecor(game) {
     if (tramp) {
       const T = SC.trampolineParts(b.r, H, { lite, a: [0x3a8ae0, 0xe04848, 0x40b060][i % 3], b: 0xffd23a });
       g.add(new THREE.Mesh(T.frame, SC.velvetMaterial(lite)));
-      cap = new THREE.Mesh(T.mat, MM[2]);
+      cap = new THREE.Mesh(T.mat, SC.velvetMaterial(lite));   // (toile tressée sombre)
     } else {
       g.add(new THREE.Mesh(SC.mushroomStemGeometry(0.42, H - 0.05, { lite }), MM[0]));
       const cg = SC.mushroomCapGeometry(b.r * 1.1, 0xff5ab8, { lite, seed: i + 1 }); cg.scale(1, 1 / 0.6, 1);   // (au repos, le chapeau est à l'échelle 0,6 en hauteur)
