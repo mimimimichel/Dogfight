@@ -2482,7 +2482,7 @@ export function buildLife(game, cfg) {
     if (talking) {
       mouth = typing && Math.sin(T * 17 + v.i) > -0.25 ? (st.loud ? MO.WIDE : MO.TALK) : MO.SMILE;
       if (st.loud && !typing) eye = E.HAPPY;
-      if (free) { const k = T * 3.1 + v.i; armR = -0.5 - Math.abs(Math.sin(k)) * 0.75; armL = -0.3 - Math.abs(Math.sin(k * 0.73 + 1)) * 0.5; armRz = 0.15 + Math.sin(k * 0.5) * 0.15; armLz = 0.1; }
+      if (free) { const k = T * 3.1 + v.i; if (!def.tool) { armR = -0.5 - Math.abs(Math.sin(k)) * 0.75; armRz = 0.15 + Math.sin(k * 0.5) * 0.15; } armL = -0.3 - Math.abs(Math.sin(k * 0.73 + 1)) * 0.6; armLz = 0.1; }
       if (typing) lookUp += Math.sin(T * 7.5) * 0.06;
     }
     if (yawn >= 0 && yawn < 3.2) {
@@ -2501,7 +2501,7 @@ export function buildLife(game, cfg) {
       // premier bonjour : « ! », un petit bond de surprise (puis un signe de la patte)
       eye = E.WOW; mouth = MO.WIDE; earA = 0.45;
       if (surp < 0.45) bob += Math.sin(surp / 0.45 * Math.PI) * 0.32;
-      if (free) { armR = -1.9; armL = -1.9; armRz = 0.4; armLz = 0.4; }
+      if (free) { armL = -1.9; armLz = 0.4; if (!def.tool) { armR = -1.9; armRz = 0.4; } }   // (l'outil reste en main)
     }
     if (v.joyT !== undefined && fx.joyFx !== v.joyT) {
       fx.joyFx = v.joyT;
@@ -2510,11 +2510,11 @@ export function buildLife(game, cfg) {
     if (joy < 4.4) {
       // défi réussi : trois sauts de joie, puis une petite danse de remerciement (un tour sur soi, on se dandine)
       eye = E.HAPPY; mouth = MO.WIDE; blush = true; wag = Math.sin(ph * 18) * 0.75; earA = 0.35 + Math.sin(T * 12) * 0.12;
-      if (joy < 1.5) { bob += Math.abs(Math.sin(joy / 0.5 * Math.PI)) * 0.55 * (1 - joy / 2.2); armR = -2.8; armL = -2.8; armRz = 0.3; armLz = 0.3; }
+      if (joy < 1.5) { bob += Math.abs(Math.sin(joy / 0.5 * Math.PI)) * 0.55 * (1 - joy / 2.2); armR = -2.9; armL = -2.9; armRz = 0.75; armLz = 0.75; }
       else {
         const d = joy - 1.5, u = Math.min(1, d / 0.8);
         spin = u * u * (3 - 2 * u) * TAU; roll = Math.sin(d * 7) * 0.12; bob += Math.abs(Math.sin(d * 7)) * 0.12;
-        armR = -2.6 + Math.sin(d * 7) * 0.5; armL = -2.6 - Math.sin(d * 7) * 0.5; armRz = 0.4; armLz = 0.4;
+        armR = -2.6 + Math.sin(d * 7) * 0.5; armL = -2.6 - Math.sin(d * 7) * 0.5; armRz = 0.6; armLz = 0.6;
         if (d > 0.8 && (fx.noteT = (fx.noteT || 0) - fdt) < 0 && dist < 40) { fx.noteT = 0.35; game.spawnParticle(v.x + (R() - 0.5) * 0.6, v.y + 2.1 * (def.scale || 1), v.z + (R() - 0.5) * 0.6, (R() - 0.5) * 0.6, 1.3, (R() - 0.5) * 0.6, [0xff7ab0, 0xffd23a, 0x7ad8ff][v.i % 3], 0.2, 1.2, -0.2); }
       }
     }
