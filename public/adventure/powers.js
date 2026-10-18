@@ -245,7 +245,7 @@ function buildCape(lite, W, Hh) {
 // où accrocher la cape (repère du corps qui la porte) : pivot, largeur, longueur, échelle des réacteurs
 const CAPE_AT = {
   matcha: { p: [0, 0.165, 0.12], W: 0.36, H: 0.76, back: 0.5, k: 0.85 },  // Matcha tout seul (corps ×1,3)
-  ainu: { p: [0, 1.5, 0.42], W: 0.74, H: 1.45, back: 0.62, k: 1.6 },      // Ainu tout seul
+  ainu: { p: [0, 1.74, 0.42], W: 1.15, H: 1.9, back: 0.66, k: 1.6 },      // Ainu tout seul
 };
 
 // ---------------------------------------------------------------------------
@@ -506,7 +506,7 @@ export class Powers {
       const hs = WR.hatSpot(P);
       if (!hs) return V;
       const h = V.hat = buildHat(this.lite);
-      h.position.set(hs.at[0], hs.at[1], hs.at[2]); h.scale.setScalar(hs.at[3] * 1.3); h.rotation.z = -0.12;
+      h.position.set(hs.at[0], hs.at[1], hs.at[2]); h.scale.setScalar(hs.at[3] * 1.1); h.rotation.z = -0.12;
       add(h, hs.anchor);
     } else if (id === 'boots') {
       // une botte au bout de chaque patte qui touche le sol (en duo : celles d'Ainu)
@@ -567,10 +567,10 @@ export class Powers {
     for (let j = 0; j < rows; j++) {
       const v = j / (rows - 1);
       // angle avec la verticale : 1,5 ≈ à plat vers l'arrière, 0 = qui pend
-      const phiRest = ease(1.42, 0.22, sstep(back - 0.08, back + 0.28, v));
+      const phiRest = ease(1.44, 0.15, sstep(back - 0.06, back + 0.22, v));
       const phiFlow = 1.45 - 0.35 * v * (1 - V.flow);
       let phi = ease(phiRest, phiFlow, 1 - rest);
-      phi = ease(phi, 1.62 + 0.08 * v, Math.max(V.gl, V.rk));
+      phi = ease(phi, 1.2 + 0.18 * v, Math.max(V.gl, V.rk));
       phi += V.fall * v + Math.sin(t * freq - v * 6.5) * amp * v * 1.6;
       if (j > 0) { y -= Math.cos(phi) * ds; z -= Math.sin(phi) * ds; }
       const nY = -Math.sin(phi), nZ = Math.cos(phi);      // vers le corps (le tissu retombe dessus)
