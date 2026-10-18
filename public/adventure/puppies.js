@@ -188,7 +188,7 @@ function tailGeo(k, pts, r0, r1) {
  */
 export function buildPup(look, opts) {
   opts = opts || {};
-  const k = new PupKit(opts.lite ? 0.7 : 1);
+  const k = new PupKit(opts.lite ? 0.55 : 1);
   const lk = look;
   const chunky = lk.chunky || 1, legK = lk.leg || 1, ml = lk.muzzle || 1, fl = lk.fluff || 0;
   const F = lk.fur, B2 = lk.b2 !== undefined ? lk.b2 : lk.fur, W = lk.belly !== undefined ? lk.belly : lk.fur;
@@ -534,6 +534,8 @@ function zTexture() {
 // Le Parc (niveau 1) : le coin des chiots, à côté de la niche de Mamie
 // ---------------------------------------------------------------------------
 const HUB = { x: -19.5, z: 53, rx: 7.5, rz: 6.5 };
+/** La pelouse s'agrandit un peu quand le parc se remplit (24 chiots ne tiennent pas dans un mouchoir). */
+function hubSize(n) { const k = 1 + Math.max(0, n - 8) * 0.025; HUB.rx = 7.5 * k; HUB.rz = 6.5 * k; }
 const MODES = ['idle', 'walk', 'run', 'sit', 'sleep', 'happy'];
 
 export class Puppies {
@@ -592,6 +594,7 @@ export class Puppies {
       if (!want.has(def.id) || have.has(def.id)) return;
       this.addHub(def, i);
     });
+    hubSize(this.hub.length);
     this.ensureBalls();
   }
   addHub(def, i, from) {
@@ -648,15 +651,16 @@ export class Puppies {
     const r = Math.random();
     h.t = 0;
     if (r < 0.16) { this.startNap(h); return; }
-    if (r < 0.36 && awake.length) {
+    if (r < 0.36 && awake.length && this.hub.filter(q => q.act === 'chase').length < 2) {
       // jeu du chat : l'un poursuit, l'autre se sauve
       const q = awake[Math.floor(Math.random() * awake.length)];
       h.act = 'chase'; h.other = q; h.dur = 4 + Math.random() * 3;
       q.act = 'flee'; q.other = h; q.t = 0; q.dur = h.dur; q.tgt = null;
       return;
     }
-    if (r < 0.58 && this.balls && this.balls.length) {
-      const b = this.balls.reduce((m, x) => (!m || x.m.position.distanceTo(h.pos) < m.m.position.distanceTo(h.pos) ? x : m), null);
+    const freeBalls = (this.balls || []).filter(b => this.hub.filter(q => q.act === 'ball' && q.ball === b).length < 2);
+    if (r < 0.58 && freeBalls.length) {
+      const b = freeBalls.reduce((m, x) => (!m || x.m.position.distanceTo(h.pos) < m.m.position.distanceTo(h.pos) ? x : m), null);
       h.act = 'ball'; h.ball = b; h.dur = 6 + Math.random() * 5; h.kicks = 0; return;
     }
     if (r < 0.8) { h.act = 'walk'; h.tgt = this.lawnPoint(1); h.dur = 12; return; }
@@ -681,7 +685,7 @@ export class Puppies {
       h.t += dt; h.greetCd -= dt; if (h.happyT > 0) h.happyT -= dt;
       // quelqu'un arrive : on court lui dire bonjour (pas si on dort)
       if (h.act !== 'greet' && h.act !== 'nap' && h.greetCd <= 0) {
-        const P = players.find(Q => Math.hypot(Q.pos.x - h.pos.x, Q.pos.z - h.pos.z) < 7.5);
+        const P = players.find(Q => Math.hypot(Q.pos.x - h.pos.x, Q.pos.z - h.pos.z) < 7.5 && this.hub.filter(o => o.act === 'greet' && o.who === Q).length < 3);
         if (P) { h.act = 'greet'; h.who = P; h.t = 0; h.dur = 5 + Math.random() * 3; h.barked = false; if (h.other) { h.other.act = 'idle'; h.other.t = 0; h.other.dur = 1; } }
       }
       let mode = 0;
@@ -709,7 +713,7 @@ export class Puppies {
           if (!q || q.act !== 'flee') { h.act = 'idle'; break; }
           const d = this.moveTo(h, q.pos.x, q.pos.z, 3.6, dt, 0.7);
           mode = 2;
-          if (d < 0.8) {
+          if (d < 0.97) {
             // attrapé ! on échange les rôles
             h.happyT = 0.8; q.happyT = 0.8;
             h.act = 'flee'; q.act = 'chase'; h.other = q; q.other = h; h.tgt = null; q.t = 0; h.t = 0;
@@ -766,7 +770,7 @@ export class Puppies {
       const a = this.hub[i];
       for (let j = i + 1; j < this.hub.length; j++) {
         const b = this.hub[j], dx = b.pos.x - a.pos.x, dz = b.pos.z - a.pos.z, d = Math.hypot(dx, dz);
-        if (d > 0.001 && d < 0.75) { const k = (0.75 - d) / d * 0.5; a.pos.x -= dx * k; a.pos.z -= dz * k; b.pos.x += dx * k; b.pos.z += dz * k; }
+        if (d > 0.001 && d < 0.9) { const k = (0.9 - d) / d * 0.5; a.pos.x -= dx * k; a.pos.z -= dz * k; b.pos.x += dx * k; b.pos.z += dz * k; }
       }
       for (const P of players) {
         const dx = a.pos.x - P.pos.x, dz = a.pos.z - P.pos.z, d = Math.hypot(dx, dz);
@@ -1042,6 +1046,8 @@ export class Puppies {
         a.hop = 0; a.wag = 1; a.eyes = 0.25; a.earV = -0.8;
         for (let i = 0; i < 2; i++) { const an = Math.random() * TAU; g.spawnParticle(p.pos.x + Math.cos(an) * 0.5, y + 0.4, p.pos.z + Math.sin(an) * 0.5, Math.cos(an) * 0.6, 2.5, Math.sin(an) * 0.6, i ? 0xffffff : 0xffd23a, 0.2, 0.9, 0); }
       }
+      // trop loin pour être vu : on ne le dessine pas (téléphones)
+      P.group.visible = g.camera.position.distanceTo(p.pos) < 90;
       posePup(P.rig, a);
       P.group.position.set(p.pos.x, y, p.pos.z);
       P.group.rotation.y = p.yaw;
@@ -1072,6 +1078,8 @@ export class Puppies {
         if (h.zT <= 0) { h.zT = 1.6 + Math.random(); if (h.pos.distanceTo(me.pos) < 18) this.zzz(h); }
         a.headYaw = 0;
       }
+      P.group.visible = g.camera.position.distanceTo(h.pos) < 55;
+      if (!P.group.visible) continue;
       posePup(P.rig, a);
       P.group.position.copy(h.pos);
       P.group.rotation.y = h.yaw;

@@ -151,17 +151,17 @@ export const PUPS = [
   },
   // ---------------------------------------------------------------- 7. la Ferme de Papi Berger
   {
-    id: 'l7_caillou', lv: 7, name: 'Caillou', breed: 'berger australien', x: 95.4, z: 114.4, y: 1.0, yaw: Math.PI,
+    id: 'l7_caillou', lv: 7, name: 'Caillou', breed: 'berger australien', x: 94.75, z: 114.95, y: 1.0, yaw: 2.4,
     where: 'sur l\'îlot de la mare aux canards',
     look: { pattern: 'merle', fur: 0x8a96a8, b2: 0x2a2a32, belly: 0xfaf8f4, points: 0xc87a3a, ears: 'fold', tail: 'stub', fluff: 0.6, muzzle: 1.1, iris: 0x4aa0ff, odd: true },
     found: { who: 'Caillou', text: 'Je gardais les canards. Mais en fait, c\'étaient les canards qui me gardaient !' },
     hub: { who: 'Caillou', text: 'Je rassemble les chiots pour le goûter. Personne ne m\'écoute !' },
   },
   {
-    id: 'l7_poivre', lv: 7, name: 'Poivre', breed: 'schnauzer', x: -100.0, z: 110.0, y: 2.55, yaw: 0.4,
-    where: 'au milieu du champ de tournesols',
+    id: 'l7_poivre', lv: 7, name: 'Poivre', breed: 'schnauzer', x: 120.6, z: 22.4, y: 2.17, yaw: -0.5,
+    where: 'sous un pommier, au fond du verger',
     look: { pattern: 'saltpepper', fur: 0x6a6a70, belly: 0xd0d0d4, ears: 'fold', tail: 'stub', beard: 0xe0e0e4, brows: 0xe0e0e4, muzzle: 1.15, leg: 1.05, collar: 0xc03a3a },
-    found: { who: 'Poivre', text: 'Hmpf. Je ne suis pas perdu, je visitais les tournesols. Bon… merci quand même.' },
+    found: { who: 'Poivre', text: 'Hmpf. Je ne suis pas perdu, je surveillais les pommes. Bon… merci quand même.' },
     hub: { who: 'Poivre', text: 'Hmpf. Ces petits font du bruit. Mais je les aime bien.' },
   },
   {
