@@ -43,7 +43,7 @@ const DAY = {
     grade: { exposure: 1.04, contrast: 1.07, saturation: 1.1, vignette: 0.24, bloom: 0.5, shadowTint: [-0.004, 0.012, 0.03], highTint: [0.022, 0.02, 0.0] },
     shaft: 0xfff0c8, rim: [0xfff6e0, 0.3],
     motes: { kind: 'fluff', n: 110, nLite: 50, color: 0xffffff, size: 0.16, R: 22, H: 7, drift: [0.35, 0.05, 0.18], wobble: 0.6, bright: 1.3, glint: 1.2, blend: 'normal', opacity: 0.85 },
-    rays: { n: 26, nLite: 12, k: 0.22, color: 0xfff2c8, near: 3.5 },
+    rays: { n: 26, nLite: 12, k: 0.75, color: 0xfff2c8, near: 3.5 },
     glints: { n: 220, nLite: 90, R: 40, k: 4.0 },
   },
   // Forêt : rayons de soleil entre les arbres, pollen doré, brume verte et chaude
@@ -55,7 +55,7 @@ const DAY = {
     grade: { exposure: 1.08, contrast: 1.1, saturation: 1.07, vignette: 0.34, bloom: 0.66, shafts: 0.95, shadowTint: [-0.004, 0.02, 0.018], highTint: [0.045, 0.028, -0.012] },
     shaft: 0xffd890, rim: [0xffe0a0, 0.34],
     motes: { kind: 'pollen', n: 240, nLite: 100, color: 0xffd878, size: 0.1, R: 20, H: 8, drift: [0.1, 0.06, 0.05], wobble: 0.7, bright: 2.2, glint: 4.0, blend: 'add' },
-    rays: { n: 40, nLite: 20, k: 0.34, color: 0xffe2a0, near: 3.0 },
+    rays: { n: 40, nLite: 20, k: 1.4, color: 0xffe2a0, near: 3.0 },
     glints: { n: 160, nLite: 70, R: 34, k: 3.0 },
   },
   // Ville : grand beau temps, couleurs franches, reflets dans le port
@@ -111,7 +111,7 @@ const DAY = {
     grade: { exposure: 1.04, contrast: 1.02, saturation: 1.03, vignette: 0.26, bloom: 0.75, threshold: 0.92, shafts: 0.8, shadowTint: [0.01, 0.01, 0.03], highTint: [0.035, 0.025, 0.004] },
     shaft: 0xffe2b0, rim: [0xfff0d0, 0.32],
     motes: { kind: 'dust', n: 170, nLite: 70, color: 0xffe8b8, size: 0.07, R: 20, H: 7, drift: [0.12, 0.03, 0.08], wobble: 0.6, bright: 1.6, glint: 3.0, blend: 'add' },
-    rays: { n: 34, nLite: 14, k: 0.24, color: 0xffe6b8, near: 3.5 },
+    rays: { n: 34, nLite: 14, k: 0.85, color: 0xffe6b8, near: 3.5 },
     glints: { n: 160, nLite: 70, R: 34, k: 3.0 },
   },
   // Château : soleil couchant dehors (ombres longues, ciel orangé), torches chaudes dedans
@@ -406,7 +406,7 @@ function buildRays(scene, L, o, lite, sunDir) {
   m.frustumCulled = false; m.renderOrder = 6; m.userData.noOutline = true;
   scene.add(m);
   // les rayons trop loin de la caméra reviennent près d'elle (sous les arbres les plus proches)
-  const R = lite ? 30 : 42, near = [];
+  const R = lite ? 26 : 34, near = [];
   m.userData.relocate = (cx, cz) => {
     near.length = 0;
     for (const t of pool) if (Math.abs(t.x - cx) < R && Math.abs(t.z - cz) < R) near.push(t);
