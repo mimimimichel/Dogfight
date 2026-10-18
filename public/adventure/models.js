@@ -2,6 +2,7 @@
  * Dogfight Aventure — modèles 3D (formes lisses, matériaux PBR, ombres).
  */
 import * as THREE from '../vendor/three.module.min.js';
+import { selfBlink } from './lifeface.js';
 
 const matCache = new Map();
 /** Matériau standard mis en cache. opts : roughness, metalness, emissive… */
@@ -105,16 +106,20 @@ function taperTube(points, radius, seg, radial) {
 }
 
 /** Grands yeux brillants (pupille sombre + deux reflets), ajoutés au kit brillant. */
-function addEyes(k, o) {
-  // o : { x, y, z, r, ry, iris, white }
+function addEyes(k, o, head) {
+  // o : { x, y, z, r, ry, iris, white } ; head : les yeux à part (un maillage par œil, qui cligne tout seul)
+  // (les deux yeux ensemble, centrés sur leur ligne : un seul maillage de plus qui s'écrase pour cligner)
+  const kk = head ? new Kit() : k;
   for (const sx of [-1, 1]) {
     const ry = sx * o.ry;
     const fx = Math.sin(ry), fz = Math.cos(ry);
-    if (o.white) k.add(S(o.r * 1.3, 18, 14), 0xffffff, { x: sx * o.x, y: o.y, z: o.z - 0.01, sx: 1, sy: 1.1, sz: 0.45, ry });
-    k.add(S(o.r, 18, 14), o.iris || 0x1a120e, { x: sx * o.x + fx * 0.01, y: o.y - (o.white ? o.r * 0.1 : 0), z: o.z + fz * 0.01, sx: 0.85, sy: 1.12, sz: 0.5, ry });
-    k.add(S(o.r * 0.34, 10, 8), 0xffffff, { x: sx * o.x + fx * o.r * 0.45 + sx * o.r * 0.12 * 0, y: o.y + o.r * 0.42, z: o.z + fz * o.r * 0.45 + 0.01, ry });
-    k.add(S(o.r * 0.16, 8, 6), 0xffffff, { x: sx * o.x + fx * o.r * 0.45 - o.r * 0.28, y: o.y - o.r * 0.35, z: o.z + fz * o.r * 0.45 + 0.005, ry });
+    const cx = sx * o.x, cy = head ? 0 : o.y, cz = head ? 0 : o.z;
+    if (o.white) kk.add(S(o.r * 1.3, 18, 14), 0xffffff, { x: cx, y: cy, z: cz - 0.01, sx: 1, sy: 1.1, sz: 0.45, ry });
+    kk.add(S(o.r, 18, 14), o.iris || 0x1a120e, { x: cx + fx * 0.01, y: cy - (o.white ? o.r * 0.1 : 0), z: cz + fz * 0.01, sx: 0.85, sy: 1.12, sz: 0.5, ry });
+    kk.add(S(o.r * 0.34, 10, 8), 0xffffff, { x: cx + fx * o.r * 0.45, y: cy + o.r * 0.42, z: cz + fz * o.r * 0.45 + 0.01, ry });
+    kk.add(S(o.r * 0.16, 8, 6), 0xffffff, { x: cx + fx * o.r * 0.45 - o.r * 0.28, y: cy - o.r * 0.35, z: cz + fz * o.r * 0.45 + 0.005, ry });
   }
+  if (head) { const m = kk.build(gloss()); m.position.set(0, o.y, o.z); selfBlink(m); head.add(m); }
 }
 
 // ---------------------------------------------------------------------------
@@ -277,7 +282,7 @@ export function buildCat() {
   }
   head.add(hk.build(NPC_FUR_HEAD));
   const fk = new Kit();
-  addEyes(fk, { x: 0.15, y: 0.06, z: 0.34, r: 0.075, ry: 0.42, iris: 0x2a5a10, white: true });
+  addEyes(fk, { x: 0.15, y: 0.06, z: 0.34, r: 0.075, ry: 0.42, iris: 0x2a5a10, white: true }, head);
   fk.add(S(0.045, 10, 8), 0xff7a98, { y: -0.07, z: 0.43, sx: 1.3, sy: 0.8 });
   for (const sx of [-1, 1]) for (const dy of [-0.025, 0.025]) fk.add(new THREE.CylinderGeometry(0.007, 0.007, 0.36, 4), 0xffffff, { x: sx * 0.34, y: -0.12 + dy, z: 0.34, rz: Math.PI / 2 + sx * dy * 5 });
   head.add(fk.build(gloss()));
@@ -326,7 +331,7 @@ export function buildMamie() {
   }
   head.add(hk.build(NPC_FUR_HEAD));
   const fk = new Kit();
-  addEyes(fk, { x: 0.18, y: 0.07, z: 0.43, r: 0.08, ry: 0.4, iris: 0x2a1608 });
+  addEyes(fk, { x: 0.18, y: 0.07, z: 0.43, r: 0.08, ry: 0.4, iris: 0x2a1608 }, head);
   fk.add(S(0.08, 12, 10), 0x3a2010, { y: -0.06, z: 0.64, sx: 1.3, sy: 0.85 });
   for (const sx of [-1, 1]) fk.add(new THREE.TorusGeometry(0.12, 0.018, 8, 28), 0xd0a040, { x: sx * 0.18, y: 0.07, z: 0.52, ry: sx * 0.3 });
   fk.add(new THREE.CylinderGeometry(0.012, 0.012, 0.13, 6), 0xd0a040, { y: 0.09, z: 0.55, rz: Math.PI / 2 });
@@ -357,7 +362,7 @@ export function buildPuppy() {
   }
   head.add(hk.build(NPC_FUR_HEAD));
   const fk = new Kit();
-  addEyes(fk, { x: 0.12, y: 0.03, z: 0.27, r: 0.07, ry: 0.4, iris: 0x2a1408 });
+  addEyes(fk, { x: 0.12, y: 0.03, z: 0.27, r: 0.07, ry: 0.4, iris: 0x2a1408 }, head);
   fk.add(S(0.045, 10, 8), 0x2a1408, { y: -0.05, z: 0.37, sx: 1.3, sy: 0.85 });
   head.add(fk.build(gloss()));
   const tail = new THREE.Group(); at(tail, 0, 0.5, -0.28); g.add(tail);
@@ -843,7 +848,7 @@ export function buildPug(o) {
   for (const sx of [-1, 1]) hk.add(earGeo(0.1, 0.13, 0.05, 0), o.mask, { x: sx * 0.24, y: 0.22, z: 0.02, rz: Math.PI - sx * 0.9, rx: 0.4 });
   head.add(hk.build(NPC_FUR_HEAD));
   const fk = new Kit();
-  addEyes(fk, { x: 0.13, y: 0.05, z: 0.26, r: 0.08, ry: 0.5, iris: 0x1a120e, white: true });
+  addEyes(fk, { x: 0.13, y: 0.05, z: 0.26, r: 0.08, ry: 0.5, iris: 0x1a120e, white: true }, head);
   fk.add(S(0.05, 12, 10), 0x111111, { y: -0.03, z: 0.34, sx: 1.4, sy: 0.8 });
   fk.add(S(0.045, 10, 8), 0xf07a8a, { y: -0.17, z: 0.28, sx: 1.2, sy: 0.5, sz: 0.8 });
   head.add(fk.build(gloss()));
@@ -880,7 +885,7 @@ export function buildYorkie(o) {
   for (const sx of [-1, 1]) hk.add(earGeo(0.08, 0.17, 0.04, 1), (x, y, z, c) => mix(c, o.tan, 0x7a5030, sstep(0.0, 0.15, y)), { x: sx * 0.15, y: 0.2, z: -0.02, rz: -sx * 0.35 });
   head.add(hk.build(NPC_FUR_HEAD));
   const fk = new Kit();
-  addEyes(fk, { x: 0.09, y: 0.04, z: 0.21, r: 0.06, ry: 0.42, iris: 0x1a120e });
+  addEyes(fk, { x: 0.09, y: 0.04, z: 0.21, r: 0.06, ry: 0.42, iris: 0x1a120e }, head);
   fk.add(S(0.04, 10, 8), 0x111111, { y: -0.04, z: 0.3, sx: 1.3, sy: 0.85 });
   if (o.bow) {
     // nœud : deux boucles et un centre

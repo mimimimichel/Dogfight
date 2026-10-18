@@ -30,7 +30,7 @@ export const WONDERS = [
   { lv: 5, kind: 'candy', x: 41, z: 139, y: 3.2, name: 'Le Pays des Bonbons', sub: 'La neige devient sucre et les bonshommes, guimauves !', where: 'pas loin du jardin du bonhomme de neige', hint: '#ff9ad0' },
   { lv: 6, kind: 'fish', x: 3, z: 20, y: 1.6, name: 'Les Poissons Volants', sub: 'Les poissons nagent dans le ciel !', where: 'sur le sable, au bord de la mer', hint: '#5ad0ff' },
   { lv: 7, kind: 'parade', x: 106, z: 22, y: 2.1, name: 'La Grande Parade', sub: 'Les animaux se mettent debout et défilent !', where: 'dans la prairie, au bord du verger', hint: '#ffd23a' },
-  { lv: 8, kind: 'portraits', x: 1, z: 2, y: 4, name: 'Les Tableaux Vivants', sub: 'Les chats des tableaux se réveillent et font coucou !', where: 'dans la cour du château, près de la fontaine', hint: '#c88aff' },
+  { lv: 8, kind: 'portraits', x: 5, z: -6, y: 4, name: 'Les Tableaux Vivants', sub: 'Les chats des tableaux se réveillent et font coucou !', where: 'dans la cour du château, près de la fontaine', hint: '#c88aff' },
 ];
 
 export const wonderOf = (lv) => WONDERS.find(w => w.lv === lv) || null;

@@ -4,6 +4,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { WONDERS, SEEDS, WONDER_TIME, wonderOf, foundIn } from '../public/adventure/wonderdata.js';
 import { PUPS } from '../public/adventure/pupdata.js';
+import * as PW from '../public/adventure/powerdata.js';
 import { setLevel } from '../public/adventure/current.js';
 import { makeFx } from '../public/adventure/wonderfx.js';
 
@@ -66,6 +67,8 @@ test('pas sur une médaille ni sur un autre trésor (os, balles, caisses, chiots
       ...['FEATHERS', 'lanterns', 'LANTERNS', 'BONNETS', 'SOUVENIRS', 'CHECKPOINTS', 'signs'].flatMap(k => (Array.isArray(L[k]) ? L[k] : []))].filter(p => p && typeof p.x === 'number');
     for (const it of items) assert.ok(Math.hypot(it.x - w.x, it.z - w.z) > 1.8 || (it.y !== undefined && Math.abs(it.y - b.y) > 2.5), `monde ${w.lv} : sur ${it.id || it.name || 'un trésor'}`);
     for (const p of L.PORTALS || []) assert.ok(Math.hypot(p.x - w.x, p.z - w.z) > 6, `monde ${w.lv} : sur un portail`);
+    // ni sur une boîte à costume (powerdata.js)
+    for (const bx of (PW.BOXES && PW.BOXES[w.lv]) || []) assert.ok(Math.hypot(bx.x - w.x, bx.z - w.z) > 6, `monde ${w.lv} : sur la boîte ${bx.power}`);
   }
 });
 

@@ -45,6 +45,8 @@ import * as N from './npcs.js';
 import { Puppies } from './puppies.js';
 import { Wonder } from './wonder.js';
 import { Juice, buzz, canVibrate, hapticsOn, setHaptics, refreshHaptics } from './juice.js';
+import { Powers } from './powers.js';
+import { PHYS as PW } from './powerdata.js';
 /** Réglage « j'ai des écouteurs » (voir voice.js). */
 const headsetOn = () => { try { return localStorage.getItem('dogfight.headset') === '1'; } catch (e) { return false; } };
 
@@ -1103,6 +1105,8 @@ class Adventure {
     try { this.pups = new Puppies(this); } catch (e) { console.error(e); this.pups = null; }
     // la Fleur Merveille du monde (30 s de surprise quand on la touche)
     try { this.wonder = new Wonder(this); } catch (e) { console.error(e); this.wonder = null; }
+    // les costumes à pouvoir (chapeau-aimant, bottes-ressorts, cape-fusée) et leurs boîtes
+    try { this.powers = new Powers(this); } catch (e) { console.error(e); this.powers = null; }
   }
 
   makeShadow(r) {
@@ -1437,6 +1441,7 @@ class Adventure {
     if (this.pups) this.pups.step(dt);
     if (this.wonder) this.wonder.step(dt);
     this.stepCollect(dt);
+    if (this.powers) this.powers.step(dt);
     this.stepPortals(dt);
     if (this.levelLogic) this.levelLogic.step(dt);
     this.stepParticles(dt);
@@ -1617,6 +1622,7 @@ class Adventure {
       // la manette telle quelle (luge : gauche / droite par rapport au véhicule)
       r.sx = Math.max(-1, Math.min(1, +m.sx || 0)); r.sy = Math.max(-1, Math.min(1, +m.sy || 0));
       for (const a of m.p || []) if (['jump', 'attack', 'dash', 'talk', 'bark', 'trick'].includes(a)) r.pressed.add(a);
+      if (this.powers && m.pw !== undefined) this.powers.remoteWear(this.party.get(link.pid), m.pw);
     }
   }
 
@@ -1720,7 +1726,7 @@ class Adventure {
     const r = (v) => Math.round(v * 100) / 100;
     const pp = this.puppy, d = this.dialog;
     const pack = (P) => [P.id, r(P.pos.x), r(P.pos.y), r(P.pos.z), r(P.vel.x), r(P.vel.y), r(P.vel.z), r(P.yaw), (P.grounded ? 1 : 0) | (P.gliding ? 2 : 0) | (P.down ? 4 : 0),
-      r(P.attackT), r(P.dashT), r(P.flipT), r(P.cheerT), r(P.invuln), P.hearts, P.score, r(P.barkT || 0), r(P.trickT || 0)];
+      r(P.attackT), r(P.dashT), r(P.flipT), r(P.cheerT), r(P.invuln), P.hearts, P.score, r(P.barkT || 0), r(P.trickT || 0), this.powers ? this.powers.code(P) : 0];
     const base = {
       t: 's', time: r(this.t),
       pl: this.players.map(pack),
@@ -1835,8 +1841,10 @@ class Adventure {
     const [mx, mz] = this.worldMove(input.x, input.y);
     const p = [...this.pressed]; this.pressed.clear();
     const ls = this.lastSent, now = performance.now();
-    if (p.length || Math.abs(mx - ls.mx) > 0.04 || Math.abs(mz - ls.mz) > 0.04 || Math.abs(input.x - (ls.sx || 0)) > 0.04 || input.jumpHeld !== ls.h || now - ls.at > 120) {
-      this.coop.link.send({ t: 'in', mx: Math.round(mx * 100) / 100, mz: Math.round(mz * 100) / 100, h: input.jumpHeld, p, sx: Math.round(input.x * 100) / 100, sy: Math.round(input.y * 100) / 100 });
+    const pw = (this.powers && this.powers.mine) || '';
+    if (p.length || Math.abs(mx - ls.mx) > 0.04 || Math.abs(mz - ls.mz) > 0.04 || Math.abs(input.x - (ls.sx || 0)) > 0.04 || input.jumpHeld !== ls.h || pw !== ls.pw || now - ls.at > 120) {
+      this.coop.link.send({ t: 'in', mx: Math.round(mx * 100) / 100, mz: Math.round(mz * 100) / 100, h: input.jumpHeld, p, sx: Math.round(input.x * 100) / 100, sy: Math.round(input.y * 100) / 100, pw });
+      ls.pw = pw;
       Object.assign(ls, { mx, mz, h: input.jumpHeld, at: now, sx: input.x, sy: input.y });
     }
     const s = this.snap;
@@ -1863,6 +1871,7 @@ class Adventure {
     }
     if (this.pups) this.pups.guestStep(dt);
     if (this.wonder) this.wonder.guestStep(dt);
+    if (this.powers) this.powers.step(dt);
     this.stepParticles(dt);
   }
 
@@ -1880,6 +1889,7 @@ class Adventure {
       P.attackT = q[9]; P.dashT = q[10]; P.cheerT = q[12]; P.invuln = q[13]; P.hearts = q[14]; P.score = q[15] || 0;
       if ((q[16] || 0) > (P.barkT || 0) + 0.2) { this.bubble(P, 'Ouaf !'); this.barkReact(P); }
       P.barkT = q[16] || 0; P.trickT = q[17] || 0;
+      if (this.powers) this.powers.applyNet(P, q[18]);
     }
     if (this.myId !== undefined && this.me.score > sc0) addToProfile(this.me.score - sc0);
     if (this.me.hearts !== hp0) this.updateHud();
@@ -2020,7 +2030,7 @@ class Adventure {
       if (ap.has('jump') && !onGround && P.jumps >= 2) P.jumpBuf = 0.18;
       P.jumpBuf = Math.max(0, (P.jumpBuf || 0) - dt);
       if ((ap.has('jump') || P.jumpBuf > 0) && onGround) {
-        P.vel.y = JUMP_V; P.jumps = 1; P.grounded = false; P.coyote = 0; P.jumpBuf = 0;
+        P.vel.y = this.powers ? this.powers.jumpV(P, JUMP_V) : JUMP_V; P.jumps = 1; P.grounded = false; P.coyote = 0; P.jumpBuf = 0;
         this.sound('jump');
         this.burst(P.pos.x, P.pos.y + 0.1, P.pos.z, 6, 0xf0e0c0, 2.5, 0.35);
         if (P.pos.y > L.WATER_Y + 0.1) this.juice.dust(P.pos.x, P.pos.y, P.pos.z, 0.1);
@@ -2031,13 +2041,15 @@ class Adventure {
           this.burst(P.pos.x, P.pos.y + 0.5, P.pos.z, 10, 0x8bc34a, 3, 0.4);
           this.juice.dust(P.pos.x, P.pos.y + 0.2, P.pos.z, 0.3, 0xffffff);   // un anneau d'air sous les pattes
           this.jiggle(P, 2.2);
-        }
+        } else if (this.powers) this.powers.airJump(P);   // cape-fusée : troisième appui = la fusée
       }
       // Ouaf ! (les chats sursautent, Biscotte répond) et pirouette
       // deux « Ouaf ! » d'affilée : pirouette (un bouton de moins à l'écran)
       if (mp.has('bark') && P.barkT > 0 && P.barkT < 0.62 && P.grounded && P.trickT <= 0 && P.attackT <= 0) { P.trickT = 0.9; P.vel.y = 7.5; P.grounded = false; P.jumps = 1; this.sound('trick'); this.betise(P, 'tricks'); }
       else if (mp.has('bark') && P.barkT <= 0) { P.barkT = 0.7; this.dogBark(P); }
       if (mp.has('trick') && P.grounded && P.trickT <= 0 && P.attackT <= 0) { P.trickT = 0.9; P.vel.y = 7.5; P.grounded = false; P.jumps = 1; this.sound('trick'); this.betise(P, 'tricks'); }
+      // bottes-ressorts : Attaque en l'air = le plongeon rebondi
+      if (mp.has('attack') && this.powers && this.powers.tryPound(P)) mp.delete('attack');
       // deuxième appui pendant la toupie (en duo) : Ainu lance Matcha !
       if (mp.has('attack') && P.attackT > 0 && P.attackT < ATTACK_TIME - 0.05 && !this.throwM && P.mesh && P.mesh.userData.ainu && P.mesh.userData.matcha.visible && P === this.player && this.party.size === 1) this.throwMatcha(P, wx, wz, wlen);
       else if (mp.has('attack') && P.attackT <= 0) {
@@ -2077,12 +2089,13 @@ class Adventure {
     P.gliding = false;
     if (!P.grounded) {
       P.vel.y -= GRAVITY * (P.gravK || 1) * dt;   // (gravK : la Fleur Merveille fait flotter les chiens dans des bulles)
-      if (P.kind !== 'matcha' && (input.jumpHeld || (this.easy && P.jumps >= 1)) && P.vel.y < 0 && P.dashT <= 0 && (P.jumps >= 1 || P.coyote < -0.25)) {
-        P.vel.y = Math.max(P.vel.y, -GLIDE_FALL);
+      if ((P.kind !== 'matcha' || P.power === 'cape') && (input.jumpHeld || (this.easy && P.jumps >= 1)) && P.vel.y < 0 && P.dashT <= 0 && (P.jumps >= 1 || P.coyote < -0.25)) {
+        P.vel.y = Math.max(P.vel.y, -(P.power === 'cape' ? PW.CAPE_FALL : GLIDE_FALL));
         P.gliding = true;
       }
     }
     // le planeur s'ouvre : un souffle d'air
+    if (this.powers) this.powers.move(P, dt, input);   // fusée, plongeon, cape qui plane
     if (P.gliding && !P.wasGliding && P === this.me) this.sound('glide');
     P.wasGliding = P.gliding;
     // l'hélice de la queue laisse une petite traînée d'air scintillante
@@ -2114,6 +2127,7 @@ class Adventure {
     } else {
       P.grounded = false; P.onCol = null;
     }
+    if (this.powers) this.powers.land(P, wasGrounded);   // fin du plongeon : onde de choc et gros rebond
     // plates-formes mobiles (nacelles de la grande roue…) : elles emportent le chien
     if (P.grounded && P.onCol && P.onCol.dx !== undefined) {
       const nx = { x: P.pos.x + P.onCol.dx, z: P.pos.z + P.onCol.dz };
@@ -2886,13 +2900,13 @@ class Adventure {
     const s = this.save;
     // Os (en chaîne, ils s'attrapent d'un peu plus loin)
     const reach = (P.chain || 0) >= 3 ? 2.3 : 1.6;
-    const mag = this.boneMag || (this.boneMag = new Map()), MAG = (P.chain || 0) >= 3 ? 3.6 : 3.0;
+    const pm = P.power === 'magnet', mag = this.boneMag || (this.boneMag = new Map()), MAG = pm ? PW.MAGNET_R : (P.chain || 0) >= 3 ? 3.6 : 3.0, MDY = pm ? PW.MAGNET_DY : 1.0;
     for (let i = 0; i < L.bones.length; i++) {
       const b = L.bones[i];
       if (this.boneTaken.has(b.id)) continue;
       const m = mag.get(b.id), bx = m ? m.x : b.x, by = m ? m.y : b.y, bz = m ? m.z : b.z;
       // assez près (à hauteur du chien : un os en l'air demande toujours un saut) : l'aimant l'attire
-      if (!m && Math.abs(b.y - py) < 1.0 && (b.x - px) ** 2 + (b.z - pz) ** 2 < MAG * MAG) mag.set(b.id, { x: b.x, y: b.y, z: b.z, v: 3, t: 0, P });
+      if (!m && Math.abs(b.y - py) < MDY && (b.x - px) ** 2 + (b.z - pz) ** 2 < MAG * MAG) mag.set(b.id, { x: b.x, y: b.y, z: b.z, v: 3, t: 0, P });
       if ((bx - px) ** 2 + (by - py) ** 2 + (bz - pz) ** 2 < reach * reach || (m && m.t > 0.9)) {
         // une ligne d'os ramassée d'affilée : la note monte, et tous les 5 ça scintille
         P.chain = this.t - (P.chainAt || -9) < 0.75 ? (P.chain || 0) + 1 : 0;
@@ -3170,6 +3184,7 @@ class Adventure {
       if (Q.tag) { Q.tag.visible = this.party.size > 1 && Q.mesh.visible !== false; Q.tag.position.set(Q.pos.x, Q.pos.y + (Q.mesh.userData.ainu ? 2.55 : (Q.mesh.userData.height || 1.1) + 0.65), Q.pos.z); }
     }
 
+    if (this.powers) this.powers.render(dt, t);   // costumes à pouvoir (de tous les chiens) et boîtes
     // Os (rotation)
     const m4 = this.m4 || (this.m4 = new THREE.Matrix4());
     const q = this.q || (this.q = new THREE.Quaternion());
@@ -3825,6 +3840,7 @@ class Adventure {
       };
       html = `<h2>Déguisements</h2>
         <div class="adv-stats">${n} récompense${n > 1 ? 's' : ''} gagnée${n > 1 ? 's' : ''} : chaque récompense débloque de nouveaux déguisements !</div>
+        ${this.powers ? this.powers.wardrobeHtml() : ''}
         <div class="wr-grid">${WR.ITEMS.map(cell).join('')}</div>
         <button class="btn primary" data-a="pause">Retour</button>`;
     } else if (kind === 'credits') {
@@ -3893,6 +3909,7 @@ class Adventure {
 
   overlayAction(a) {
     if (this.sfx) { this.sfx.unlock(); this.sfx.click(); }
+    if (a.startsWith('power:') && this.powers) { this.hideOverlay(); const id = a.slice(6); this.powers.wear(this.me, id === 'none' ? null : id); return; }
     if (a.startsWith('wear:')) { this.outfit = WR.toggle(a.slice(5)); this.showOverlay('wardrobe'); return; }
     switch (a) {
       case 'resume': this.hideOverlay(); break;
