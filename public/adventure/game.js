@@ -42,6 +42,7 @@ import { storyShots } from './story.js';
 import { buildSeasons } from './seasons.js';
 import * as LUM from './lumiere.js';
 import * as N from './npcs.js';
+import { Puppies } from './puppies.js';
 import { Juice, buzz, canVibrate, hapticsOn, setHaptics, refreshHaptics } from './juice.js';
 /** Réglage « j'ai des écouteurs » (voir voice.js). */
 const headsetOn = () => { try { return localStorage.getItem('dogfight.headset') === '1'; } catch (e) { return false; } };
@@ -1097,6 +1098,8 @@ class Adventure {
     this.juice = new Juice(this, { lite: this.lite });
     this.particles = this.juice.parts;
     this.partPts = this.particles.points;
+    // les chiots perdus (3 par monde) et, au parc, ceux qu'on a déjà retrouvés
+    try { this.pups = new Puppies(this); } catch (e) { console.error(e); this.pups = null; }
   }
 
   makeShadow(r) {
@@ -1428,6 +1431,7 @@ class Adventure {
     this.stepThrow(dt);
     if (this.party.size > 1) this.stepRevive(dt);
     this.stepNpcs(dt);
+    if (this.pups) this.pups.step(dt);
     this.stepCollect(dt);
     this.stepPortals(dt);
     if (this.levelLogic) this.levelLogic.step(dt);
@@ -1724,6 +1728,7 @@ class Adventure {
       pt: (this.portals || []).map(p => [p.n, Math.round(p.t * 10) / 10, p.locked ? 1 : 0]),
     };
     if (this.levelLogic) base.x = this.levelLogic.snapshot();
+    if (this.pups) base.pu = this.pups.snapshot();
     const sv = JSON.stringify(Object.assign({}, this.save, { time: 0 }));
     for (const l of links) {
       // réseau encombré : on saute cet état plutôt que d'empiler du retard (l'état suivant le remplace)
@@ -1851,6 +1856,7 @@ class Adventure {
       else { pp.pos.x += (e[1] - pp.pos.x) * k; pp.pos.y += (e[2] - pp.pos.y) * k; pp.pos.z += (e[3] - pp.pos.z) * k; }
       pp.yaw = lerpAngle(pp.yaw, e[4], k); pp.phase += (e[5] - pp.phase) * k;
     }
+    if (this.pups) this.pups.guestStep(dt);
     this.stepParticles(dt);
   }
 
@@ -1912,6 +1918,7 @@ class Adventure {
     if (s.n && !this.isTouch) { prompt.textContent = `F : ${s.n.toLowerCase()}`; prompt.classList.remove('hidden'); }
     else prompt.classList.add('hidden');
     if (s.x && this.levelLogic) this.levelLogic.apply(s.x);
+    if (s.pu && this.pups) this.pups.apply(s.pu);
     if (s.pt && this.portals) s.pt.forEach(([n, t, lk], i) => { const p = this.portals[i]; if (p) { p.n = n; p.t = t; if (!!lk !== p.locked) this.setPortalLock(p, !!lk); } });
     // effets
     for (const [n, ...a] of s.ev) {
@@ -1930,6 +1937,7 @@ class Adventure {
     for (const m of this.medals) m.taken = s.medals.includes(m.def.id);
     this.updateMedalVisibility();
     if (this.levelLogic && this.levelLogic.applySave) this.levelLogic.applySave();
+    if (this.pups) this.pups.onSave();
     this.updateHud();
     if (this.guest) this.writeSave();   // copie du monde : on pourra le rouvrir si le gardien s'en va
   }
@@ -2428,6 +2436,8 @@ class Adventure {
     L.signs.forEach((s, i) => cand.push({ kind: 'sign', i, x: s.x, z: s.z, y: L.heightAt(s.x, s.z) }));
     const LG = this.levelLogic;
     for (const Q of this.players) {
+      const pup = this.pups && !this.dialog ? this.pups.nearFor(Q) : null;
+      if (pup) { Q.nearby = pup; continue; }
       const own = LG && LG.nearFor ? LG.nearFor(Q) : undefined;
       if (own !== undefined) { Q.nearby = this.dialog ? null : own; continue; }
       let n = null, best = 3.4;
@@ -2719,6 +2729,7 @@ class Adventure {
     else if (n.kind === 'mamie') this.talkMamie();
     else if (n.kind === 'puppy') this.talkPuppy();
     else if (n.kind === 'pet') this.petPuppy(P || this.player);
+    else if (n.kind === 'pup' && this.pups) this.pups.interact(n, P || this.player);
     else if (n.kind === 'sign') this.say(L.signs[n.i].text.map(t => ({ who: 'Panneau', text: t })));
   }
 
@@ -3052,6 +3063,11 @@ class Adventure {
         s.tone(90, 0.3, { type: 'sine', to: 40, vol: 0.35 });
         s.noise(0.25, { filter: 'lowpass', freq: 500, freqTo: 100, vol: 0.2 });
         break;
+      case 'pupYay':   // un chiot retrouvé : jappements de joie + petite fanfare
+        if (s.stinger) s.stinger('found');
+        [0, 0.13, 0.26].forEach((d, i) => s.tone(1050 + i * 120, 0.07, { type: 'sawtooth', to: 1500 + i * 120, vol: 0.09, delay: d }));
+        [72, 76, 79, 84, 88].forEach((m, i) => s.note('bell', m, 0.1, 0.35 + i * 0.08, i === 4 ? 0.9 : 0.25));
+        break;
       case 'yip': s.tone(900, 0.06, { type: 'sawtooth', to: 1300, vol: 0.1 }); s.tone(1000, 0.07, { type: 'sawtooth', to: 1400, vol: 0.09, delay: 0.1 }); break;
       case 'trick': [76, 81, 85, 88, 93].forEach((m, i) => s.note('mallet', m, 0.09, i * 0.05)); break;
       case 'reveal': [72, 76, 79, 84].forEach((m, i) => { s.note('bell', m, 0.11, i * 0.09, i === 3 ? 0.8 : 0.3); s.note('piano', m - 12, 0.08, i * 0.09); }); break;
@@ -3221,6 +3237,7 @@ class Adventure {
     pu.legs.forEach((l, i) => { l.rotation.x = pp.state === 'follow' ? Math.sin(pp.phase + (i % 3 ? Math.PI : 0)) * 0.8 : 0; });
     pu.head.rotation.x = pp.state === 'lost' ? 0.3 : 0;
     this.placeShadow(pp.shadow, pp.pos, 0.45);
+    if (this.pups) this.pups.render(dt);
     // Marques au-dessus des têtes
     const mk = this.marks;
     mk.mamie.visible = !this.save.intro || (this.puppy.state === 'follow');
@@ -3758,6 +3775,7 @@ class Adventure {
       html = `<h2>Pause</h2>
         <div class="adv-stats">${medalWord()} ${s.medals.length}/${L.medals.length} · ${collectWord()} ${s.bones.length}/100</div>
         ${this.hostSession ? `<div class="adv-stats">${this.hostSession.own === false ? 'Code du monde' : 'Code de ton monde'} : <b class="adv-code">${this.hostSession.code}</b> (jusqu'à 6 joueurs)</div>` : ''}
+        ${this.pups ? `<div class="adv-stats adv-pups">${this.pups.pauseLine()}</div>` : ''}
         ${this.visitorsLine()}
         <button class="btn primary" data-a="resume">Reprendre</button>
         <div class="adv-grid2">

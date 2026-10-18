@@ -17,6 +17,7 @@ import * as N from './npcs.js';
 import { buildCaptain } from './forest.js';
 import { buildCitizen } from './citykit.js';
 import { buildLife } from './life.js';
+import * as SC from './sculpt.js';
 import * as LIFE from './level8life.js';
 
 const clamp = (v, a, b) => (v < a ? a : v > b ? b : v);
@@ -475,27 +476,32 @@ export function buildCastle(game) {
   pool.rotation.x = -Math.PI / 2; pool.position.set(F.x, FL + F.h - 0.12, F.z); pool.userData.noOutline = true; sc.add(pool);
   const statue = new THREE.Mesh(fishGeometry(), goldMat);
   statue.scale.setScalar(3.2); statue.position.set(F.x, FL + 2.4, F.z); statue.rotation.set(0, 0.6, 0.5); statue.castShadow = true; sc.add(statue);
-  // poteaux griffoirs (corde), un jouet au bout d'une ficelle
-  for (const p of S.POSTS) {
-    sisal.push({ geo: cylGeo(0.6, 0.6, p.h, 14, 1.2), x: p.x, y: p.y + p.h / 2, z: p.z });
-    soft.push({ geo: cylGeo(0.95, 0.95, 0.35, 18, 1), x: p.x, y: p.y + p.h + 0.17, z: p.z, color: 0xa86ad8 });
-    soft.push({ geo: cylGeo(0.95, 1.05, 0.3, 18, 1), x: p.x, y: p.y + 0.15, z: p.z, color: 0xa86ad8 });
-    paint.push({ geo: new THREE.CylinderGeometry(0.015, 0.015, 1.4, 4), x: p.x + 0.85, y: p.y + p.h - 0.55, z: p.z, color: 0xf0f0f0 });
-    soft.push({ geo: new THREE.SphereGeometry(0.2, 10, 8), x: p.x + 0.85, y: p.y + p.h - 1.3, z: p.z, color: 0xff6ab0 });
+  // poteaux griffoirs (sculpt.js : corde de sisal enroulée, socle et plateau moquettés, pompon)
+  {
+    const sis = [], car = [];
+    const PP = SC.scratchPostParts(S.POSTS[0].h, { lite, color: 0xa86ad8 });
+    for (const p of S.POSTS) {
+      const P = p.h === S.POSTS[0].h ? PP : SC.scratchPostParts(p.h, { lite, color: 0xa86ad8 });
+      sis.push({ geo: P.sisal, x: p.x, y: p.y, z: p.z }); car.push({ geo: P.carpet, x: p.x, y: p.y, z: p.z });
+    }
+    addMesh(mergeUV(sis), SC.sisalMaterial(lite)); addMesh(mergeUV(car), SC.velvetMaterial(lite));
   }
-  // pelotes géantes (décor) et coussins
+  // pelotes géantes (décor : sculpt.js, laine enroulée en faisceaux) et coussins capitonnés
   const yarnMat = new THREE.MeshStandardMaterial({ map: yarnTex, vertexColors: true, roughness: 1 });
-  const yarnDeco = [];
-  for (const y of S.YARNS) {
-    yarnDeco.push({ geo: new THREE.SphereGeometry(y.r, lite ? 16 : 24, lite ? 12 : 16), x: y.x, y: y.y + y.r * 0.95, z: y.z, color: y.col });
-    yarnDeco.push({ geo: new THREE.TorusGeometry(y.r * 0.98, 0.05, 6, 30), x: y.x, y: y.y + y.r * 0.95, z: y.z, rx: 1.1, ry: y.x, color: y.col });
-    yarnDeco.push({ geo: new THREE.CylinderGeometry(0.05, 0.05, 2.4, 5), x: y.x + y.r * 0.8 + 0.8, y: y.y + 0.05, z: y.z + 0.3, rz: Math.PI / 2, ry: 0.4, color: y.col });
-  }
-  addMesh(mergeUV(yarnDeco), yarnMat);
-  for (const c of S.CUSHIONS) {
-    soft.push({ geo: new THREE.SphereGeometry(c.r, 18, 10), x: c.x, y: c.y + 0.38, z: c.z, sy: 0.32 / c.r * 1.25, color: c.col });
-    soft.push({ geo: new THREE.SphereGeometry(c.r * 0.7, 16, 8), x: c.x + 0.2, y: c.y + 0.75, z: c.z - 0.1, sy: 0.26 / c.r * 1.4, color: new THREE.Color(c.col).lerp(new THREE.Color(0xffffff), 0.35).getHex() });
-    for (const sx of [-1, 1]) soft.push({ geo: new THREE.SphereGeometry(0.16, 8, 6), x: c.x + sx * c.r * 0.9, y: c.y + 0.4, z: c.z, color: 0xffd23a });
+  {
+    const yarnDeco = [];
+    for (const y of S.YARNS) {
+      yarnDeco.push({ geo: SC.tinted(SC.yarnBallGeometry(y.r, { lite, seed: Math.round(y.x * 7 + y.z) }), y.col), x: y.x, y: y.y + y.r * 0.95, z: y.z, ry: y.x });
+    }
+    addMesh(mergeUV(yarnDeco), SC.yarnMaterial(lite));
+    const cush = [];
+    for (const c of S.CUSHIONS) {
+      cush.push({ geo: SC.tinted(SC.poufGeometry(c.r, 0.75, { lite }), c.col), x: c.x, y: c.y, z: c.z, ry: c.x });
+      // un petit coussin posé dessus, de travers
+      const k = new THREE.Color(c.col).lerp(new THREE.Color(0xffffff), 0.35).getHex();
+      cush.push({ geo: SC.tinted(SC.poufGeometry(c.r * 0.5, 0.32, { lite }), k), x: c.x + 0.2 * c.r, y: c.y + 0.68, z: c.z - 0.1 * c.r, rx: 0.08, rz: -0.1 });
+    }
+    addMesh(mergeUV(cush), SC.velvetMaterial(lite));
   }
   // la grosse dalle des remparts (on y grimpe avec la pelote)
   const LE = S.LEDGE;
@@ -801,10 +807,10 @@ export function buildCastle(game) {
   const ballCols = [0xff6ab0, 0x5ac8ff];
   const balls = S.BALLS.map((d, i) => {
     const g = new THREE.Group();
-    const sphere = new THREE.Mesh(new THREE.SphereGeometry(R, 32, 20), new THREE.MeshStandardMaterial({ map: yarnTex, color: ballCols[i], roughness: 1 }));
+    // (sculpt.js : laine enroulée en faisceaux qui se croisent)
+    const sphere = new THREE.Mesh(SC.tinted(SC.yarnBallGeometry(R, { lite, tail: false, seed: 11 + i }), ballCols[i]), SC.yarnMaterial(lite));
     sphere.castShadow = true; g.add(sphere);
     const thread = M.mat(new THREE.Color(ballCols[i]).multiplyScalar(0.8).getHex(), { roughness: 1 });
-    for (let k = 0; k < 3; k++) { const t = new THREE.Mesh(new THREE.TorusGeometry(R * 0.99, 0.045, 6, 40), thread); t.rotation.set(k * 1.05, k * 0.8, 0); g.add(t); }
     const roll = new THREE.Group(); roll.add(g);
     // le bout de laine qui traîne
     const tail = new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.05, 1.6, 5), thread); tail.rotation.z = Math.PI / 2;

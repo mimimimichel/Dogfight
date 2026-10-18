@@ -301,7 +301,7 @@ export const PALETTE = {
     net: { skin: 'fabric', skinOpts: { k: 0.3 } },
     shellchime: { act: 'chime', skin: 'wood', skinOpts: { k: 0.6, scale: 1.5 } },
     mattress: { act: 'bounce', power: 16, r: 1.1, top: 0.3, tint: true, skinOpts: { roughness: 0.35 } },
-    parasol: { act: 'bounce', power: 18, r: 1.4, top: 2.35, tint: true, solid: 0.18, skin: 'fabric', skinOpts: { k: 0.5, scale: 5 } },
+    parasol: { act: 'bounce', power: 18, r: 1.4, top: 2.35, tint: true, solid: 0.18, skin: 'fabric', skinOpts: { k: 0.5, scale: 5 }, model: 'parasolHD' },
     towel: { liteNear: 40, tint: true, skin: 'fabric', skinOpts: { k: 0.7, scale: 6 } },
     kite: { act: 'shake', sway: 0.07, tint: true, skin: 'fabric', skinOpts: { k: 0.4, scale: 4 } },
     bball: { liteNear: 50, act: 'push', model: 'beachball', r0: 0.42, grow: false, kick: 9, friction: 1.1 },

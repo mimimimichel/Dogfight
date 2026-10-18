@@ -304,8 +304,8 @@ export const PALETTE = {
     capucine: { flapNear: 10, model: 'duck', ai: 'none', colors: { body: 0xf6f2e8, head: 0xfbfaf4, breast: 0xf0ebe0, wing: 0xe6e0d4, bill: 0xf09a2a, ring: 0xff6ab0 }, extra: 1 },
   },
   props: {
-    haystack: { act: 'bounce', power: 17, r: 1.3 },
-    bale: { liteNear: 50, act: 'break', drop: 2, chance: 0.6, respawn: 45, color: 0xf0d478 },
+    haystack: { act: 'bounce', power: 17, r: 1.3, model: 'haystackHD' },
+    bale: { liteNear: 50, act: 'break', drop: 2, chance: 0.6, respawn: 45, color: 0xf0d478, model: 'baleHD' },
     pumpkin: { liteNear: 45, act: 'break', drop: 2, chance: 0.7, respawn: 50, color: 0xf08a28 },
     carrots: { liteNear: 40, act: 'break', drop: 1, chance: 0.6, respawn: 40, color: 0xf07a20 },
     bush: { act: 'shake', drop: 2, solid: 0.6, color: 0x6ac04a },
