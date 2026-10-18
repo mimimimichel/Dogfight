@@ -19,6 +19,8 @@ export const SKY = {
   horizon: new THREE.Color(0xbcdcf6),
   bottom: new THREE.Color(0x9fd4f0),
   sunDir: new THREE.Vector3(0.45, 0.6, 0.38).normalize(),
+  glow: new THREE.Color().setRGB(1.0, 0.93, 0.78),     // halo du soleil (ciel dessiné ; orangé le soir : lumiere.js)
+  dusk: { value: 0 },                                  // 1 : bande de couchant le long de l'horizon, côté soleil
 };
 const SKY_DEFAULT = { top: 0x1f74dc, horizon: 0xbcdcf6, bottom: 0x9fd4f0, sunDir: [0.45, 0.6, 0.38] };
 /** Ambiance du niveau (ciel, brume) : couleurs recopiées dans SKY, que les shaders partagent. */
@@ -26,6 +28,7 @@ export function applySky(p) {
   p = Object.assign({}, SKY_DEFAULT, p || {});
   SKY.top.set(p.top); SKY.horizon.set(p.horizon); SKY.bottom.set(p.bottom);
   SKY.sunDir.set(...p.sunDir).normalize();
+  SKY.glow.setRGB(1.0, 0.93, 0.78); SKY.dusk.value = 0;
 }
 
 // Générateur pseudo-aléatoire déterministe
@@ -50,7 +53,7 @@ export function onPath(x, z) { return pathDist(x, z) < 1.8; }
 // ---------------------------------------------------------------------------
 export function buildSky(scene) {
   const mat = new THREE.ShaderMaterial({
-    uniforms: { uSun: { value: SKY.sunDir }, uTop: { value: SKY.top }, uHorizon: { value: SKY.horizon }, uBottom: { value: SKY.bottom } },
+    uniforms: { uSun: { value: SKY.sunDir }, uTop: { value: SKY.top }, uHorizon: { value: SKY.horizon }, uBottom: { value: SKY.bottom }, uGlow: { value: SKY.glow }, uDusk: SKY.dusk },
     vertexShader: `
       varying vec3 vDir;
       void main() {
@@ -59,14 +62,16 @@ export function buildSky(scene) {
         gl_Position = p.xyww;
       }`,
     fragmentShader: `
-      uniform vec3 uSun, uTop, uHorizon, uBottom;
+      uniform vec3 uSun, uTop, uHorizon, uBottom, uGlow;
+      uniform float uDusk;
       varying vec3 vDir;
       void main() {
         vec3 d = normalize(vDir);
         float h = d.y;
         vec3 c = h > 0.0 ? mix(uHorizon, uTop, pow(h, 0.5)) : mix(uHorizon, uBottom, pow(-h, 0.35));
         float s = max(dot(d, normalize(uSun)), 0.0);
-        c += vec3(1.0, 0.93, 0.78) * (pow(s, 900.0) * 6.0 + pow(s, 40.0) * 0.45 + pow(s, 5.0) * 0.12);
+        c += uGlow * (pow(s, 900.0) * 6.0 + pow(s, 40.0) * 0.45 + pow(s, 5.0) * 0.12);
+        c += uGlow * uDusk * (pow(s, 2.5) * 0.55 + 0.12) * (1.0 - smoothstep(0.0, 0.35, abs(h)));
         gl_FragColor = vec4(c, 1.0);
         #include <tonemapping_fragment>
         #include <colorspace_fragment>

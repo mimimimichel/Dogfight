@@ -40,6 +40,7 @@ import { loadVoices, speak, stopVoice, prefetchVoices } from './voices.js';
 import * as WR from './wardrobe.js';
 import { storyShots } from './story.js';
 import { buildSeasons } from './seasons.js';
+import * as LUM from './lumiere.js';
 import * as N from './npcs.js';
 import { Puppies } from './puppies.js';
 import { Juice, buzz, canVibrate, hapticsOn, setHaptics, refreshHaptics } from './juice.js';
@@ -243,6 +244,9 @@ class Adventure {
       if (!o.geometry.boundingSphere) o.geometry.computeBoundingSphere();
       return o.geometry.boundingSphere.radius < 14;
     });
+    // l'ambiance (lumiere.js) : liseré de lumière sur les personnages, pollen, rayons, paillettes
+    for (const c of [this.player.mesh, this.mamie, this.puppy.mesh]) if (c) LUM.rimify(c);
+    try { this.moodFx = LUM.buildMood(this, L, this.mood, { sunDir: W.SKY.sunDir, glowTex: M.glowTexture() }); } catch (e) { this.moodFx = null; this.moodErr = String((e && e.stack) || e); console.warn('ambiance', e); }
     this.bindInput();
     this.resize();
     this.makePortraits();
@@ -573,23 +577,29 @@ class Adventure {
     r.shadowMap.type = touch ? THREE.PCFShadowMap : THREE.PCFSoftShadowMap;
     this.renderer = r;
     // post-traitement « cinéma » (halo lumineux, étalonnage, vignettage) ; ?post=0 pour le couper
-    this.post = new Post(r, touch ? 'lite' : 'high', L.GRADE);
+    // l'humeur lumineuse du monde (lumiere.js) : heure dorée, brume du matin, coucher de soleil le soir…
+    const mood = this.mood = LUM.pickMood(L);
+    this.post = new Post(r, touch ? 'lite' : 'high', Object.assign({}, L.GRADE, mood && mood.grade));
+    if (mood && mood.shaft) this.post.mFinal.uniforms.shaftTint.value.set(mood.shaft);
     if (/[?&]post=0/.test(location.search)) this.post.enabled = false;
     this.scene = new THREE.Scene();
     const LT = Object.assign({ hemi: [0xd8ecff, 0xa87a4a, 0.7], sun: [0xfff1d6, 2.6], fog: [80, 230] }, L.LIGHT || {});
+    if (mood) { LUM.setSunElevation(W.SKY.sunDir, mood.sunEl); if (mood.dusk) LUM.procSky(W.SKY, mood); }
     this.scene.fog = new THREE.Fog(W.SKY.horizon.getHex(), LT.fog[0], LT.fog[1]);
+    if (mood && mood.dusk && mood.fog) this.scene.fog.color.set(mood.fog);
     this.sky = W.buildSky(this.scene);
     let style = null;
     try { style = localStorage.getItem('dogfight.style'); } catch (e) { /* ignore */ }
     this.realistic = style !== 'toon';
     W.LOOK.real = this.realistic;
-    if (this.realistic && RT.hasPhotos()) {
+    if (this.realistic && RT.hasPhotos() && !(mood && mood.dusk)) {
       // vrai ciel photographié : il éclaire aussi la scène (reflets, lumière douce)
       const im = RT.photoImage('sky');
       const tex = new THREE.Texture(im); tex.colorSpace = THREE.SRGBColorSpace; tex.needsUpdate = true;
       // on tourne le ciel pour que son soleil soit là où le niveau le veut
       const want = W.SKY.sunDir, azWant = Math.atan2(want.z, want.x);
       const SUN_U = 0.596, SUN_EL = 0.84;                 // position du soleil sur la photo
+      const wantEl = mood ? mood.sunEl : SUN_EL;          // (lumiere.js descend le soleil de la photo à cette hauteur)
       const phi = SUN_U * Math.PI * 2, azPhoto = Math.atan2(Math.sin(phi), -Math.cos(phi));
       const rot = azPhoto - azWant;
       const dome = new THREE.Mesh(new THREE.SphereGeometry(900, 48, 24), new THREE.MeshBasicMaterial({ map: tex, side: THREE.BackSide, fog: false, depthWrite: false }));
@@ -597,11 +607,14 @@ class Adventure {
       this.sky.visible = false;
       this.scene.add(dome);
       this.photoSky = dome;
-      W.SKY.sunDir.set(Math.cos(SUN_EL) * Math.cos(azWant), Math.sin(SUN_EL), Math.cos(SUN_EL) * Math.sin(azWant)).normalize();
+      W.SKY.sunDir.set(Math.cos(wantEl) * Math.cos(azWant), Math.sin(wantEl), Math.cos(wantEl) * Math.sin(azWant)).normalize();
       // brume : la couleur de l'horizon de la photo
       this.scene.fog.color.setRGB(0.70, 0.78, 0.88, THREE.SRGBColorSpace);
+      if (mood && mood.fog) this.scene.fog.color.set(mood.fog);
+      LUM.patchPhotoSky(dome.material, mood, SUN_EL, wantEl, this.scene.fog.color, W.SKY.sunDir);
       const envScene = new THREE.Scene();
       const envDome = dome.clone(); envDome.material = dome.material.clone(); envDome.scale.setScalar(0.1);
+      LUM.patchPhotoSky(envDome.material, mood, SUN_EL, wantEl, this.scene.fog.color, W.SKY.sunDir);
       envScene.add(envDome);
       const pm = new THREE.PMREMGenerator(r);
       this.envTex = pm.fromScene(envScene, 0.04, 0.1, 1000).texture;
@@ -623,6 +636,12 @@ class Adventure {
       this.scene.environmentIntensity = 0.55;
       LT.hemi = [LT.hemi[0], LT.hemi[1], LT.hemi[2] * 0.55];
       LT.sun = [LT.sun[0], LT.sun[1] * 1.15];
+    }
+    if (mood) {
+      if (mood.hemi) LT.hemi = [mood.hemi[0], mood.hemi[1], LT.hemi[2] * mood.hemi[2]];
+      if (mood.sun) LT.sun = [mood.sun[0], LT.sun[1] * mood.sun[1]];
+      if (this.scene.environment && mood.env) this.scene.environmentIntensity *= mood.env;
+      if (mood.fogK && mood.fogK !== 1) { this.scene.fog.near *= mood.fogK; this.scene.fog.far *= mood.fogK; }
     }
     this.camera = new THREE.PerspectiveCamera(55, 16 / 9, 0.1, 1200);
     this.scene.add(new THREE.HemisphereLight(...LT.hemi));
@@ -1143,6 +1162,7 @@ class Adventure {
       this.scene.add(m);
       if (M.FRIENDS[want]) T.toonify(m);
       T.outlineTree(m, 0.018, 0x1e120c);
+      LUM.rimify(m);
       if (this.lite) m.traverse(k => { k.castShadow = false; });
       P.meshes[want] = m;
     }
@@ -3380,6 +3400,7 @@ class Adventure {
     if (this.cine) this.cine.applyCamera();
     // mise au point sur le duo (ou sur ce que regarde la cinématique)
     this.ambience(dt);
+    if (this.moodFx) { this.camera.updateMatrixWorld(); this.moodFx.step(dt, this.t); }
     this.post.focus = this.cine ? this.cine.focusDist() : this.camera.position.distanceTo(this.camTarget);
     this.post.render(this.scene, this.camera, this.t, W.SKY.sunDir);
     if (this.snapPending) { this.snapPending = false; this.savePhoto(); }
