@@ -247,13 +247,13 @@ const RIM_FRAG = `
     outgoingLight += uRimColor * rimF * rimL;
   }
 `;
-/** Ajoute le liseré aux matériaux éclairés d'un personnage (chaîné avec leurs propres retouches). */
+/** Ajoute le liseré aux matériaux éclairés d'un personnage (chaîné avec leurs propres retouches). Pas en dessin animé : les contours suffisent. */
 export function rimify(root) {
   const done = new Set();
   root.traverse(o => {
     if (!(o.isMesh || o.isSkinnedMesh || o.isInstancedMesh) || !o.material || o.userData.outline) return;
     for (const m of Array.isArray(o.material) ? o.material : [o.material]) {
-      if (done.has(m) || m.userData.rim || !(m.isMeshStandardMaterial || m.isMeshLambertMaterial || m.isMeshToonMaterial || m.isMeshPhongMaterial)) continue;
+      if (done.has(m) || m.userData.rim || !(m.isMeshStandardMaterial || m.isMeshLambertMaterial || m.isMeshPhongMaterial)) continue;
       done.add(m); m.userData.rim = true;
       const prev = m.onBeforeCompile, prevKey = m.customProgramCacheKey;
       m.onBeforeCompile = function (sh, r) {
