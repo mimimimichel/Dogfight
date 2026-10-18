@@ -84,6 +84,10 @@ test('rien sur les portails, le départ, Mamie, les personnages et objets de qu�
     assert.ok(Math.hypot(p.x - S.CAROUSEL.x, p.z - S.CAROUSEL.z) > S.CAROUSEL.r + 1.5 && Math.hypot(p.x - S.KIOSK.x, p.z - S.KIOSK.z) > S.KIOSK.r + 1.5, `${p.id} sur le manège ou le kiosque`);
     if ((PAL.props[p.kind] || {}).solid) for (const b of S.bones) assert.ok(d2(p, b) > 1.5, `${p.id} (solide) sur l'os ${b.id}`);
   }
+  // la Gare des Mondes (quai, voie et train) reste dégagée
+  const G = S.GARE, inGare = (x, z, m) => Math.abs(x - G.x) < 5.6 + m && z > G.z - 4.4 - m && z < G.z + 2.6 + m;
+  for (const e of [...P.props, ...P.villagers.filter(v => !v.loop), ...P.defis, ...P.secrets]) assert.ok(!inGare(e.x, e.z, 1), `${e.id} dans la Gare des Mondes`);
+  for (const v of P.villagers) if (v.loop) for (const [x, z] of v.loop) assert.ok(!inGare(x, z, 0.5), v.id + ' passe dans la gare');
   for (const v of P.villagers) if (v.loop) for (const [x, z] of v.loop) for (const q of [S.START, S.npcs.mamie, ...S.PORTALS]) assert.ok(Math.hypot(x - q.x, z - q.z) > 4, v.id + ' passe sur le départ');
 });
 

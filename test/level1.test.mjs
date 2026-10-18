@@ -52,15 +52,25 @@ test('le départ, Mamie, Gaston et les drapeaux sont sur la terre ferme ; Mamie 
   assert.ok(L.CHECKPOINTS.length >= 6);
 });
 
-test('7 portails près du départ, sur un sol libre et plat', () => {
-  assert.strictEqual(L.PORTALS.length, 7);
-  assert.deepStrictEqual(L.PORTALS.map(p => p.to).sort(), [2, 3, 4, 5, 6, 7, 8]);
-  for (const p of L.PORTALS) {
-    assert.ok(d(p, L.START) < 20, 'portail trop loin du départ');
-    assert.ok(Math.abs(L.heightAt(p.x, p.z) - L.START.y) < 0.8, 'portail en pente');
-    assert.strictEqual(L.colliders.filter(c => !c.off && L.inside(c, p.x, p.z, 1.4)).length, 0, `obstacle dans le portail vers ${p.to}`);
-    for (const q of L.PORTALS) if (q !== p) assert.ok(d(p, q) > 2.8, 'portails qui se touchent');
-  }
+test('la Gare des Mondes (plus de portails) : près du départ, à côté de l\'allée, sur un sol libre', () => {
+  assert.strictEqual(L.PORTALS.length, 0, 'plus de portails au Parc');
+  const G = L.GARE;
+  assert.ok(G && d(G, L.START) < 20, 'gare trop loin du départ');
+  const inFoot = (x, z, m) => Math.abs(x - G.x) < 5.6 + (m || 0) && z > G.z - 4.4 - (m || 0) && z < G.z + 2.6 + (m || 0);
+  // le terrain sous la gare est presque plat (le socle descend sous le sol)
+  let lo = Infinity, hi = -Infinity;
+  for (let x = -5; x <= 5; x++) for (const z of [-4.2, -2, 0, 2]) { const h = L.heightAt(G.x + x, G.z + z); lo = Math.min(lo, h); hi = Math.max(hi, h); }
+  assert.ok(hi - lo < 0.8, 'gare en pente');
+  assert.ok(Math.abs(G.top - G.y - 0.42) < 1e-6);
+  // l'allée vers l'arche reste libre ; rien d'autre ne pousse dans la gare
+  assert.ok(!inFoot(0, G.z, 3), 'la gare mord sur l\'allée');
+  for (const c of L.colliders) if (!c.off && !c.gare && c.kind !== 'wall' && c.kind !== 'post' && !(c.kind === 'rock' && Math.abs(c.z - (G.z - 3.05)) < 0.01) && c.kind !== 'plank') assert.ok(!inFoot(c.x, c.z), 'obstacle dans la gare : ' + c.kind);
+  for (const p of [L.START, L.npcs.mamie, ...L.medals, ...L.balls, ...L.CHECKPOINTS, ...L.signs, ...L.crates, ...L.LANTERNS, ...L.CLUES, ...L.cats, L.PEDESTAL, L.FOUNTAIN, L.KENNEL])
+    assert.ok(!inFoot(p.x, p.z, 2.5), 'trop près de la gare : ' + JSON.stringify(p));
+  for (const b of L.bones) assert.ok(!inFoot(b.x, b.z, 0.5), 'os dans la gare');
+  // le quai est bien au-dessus du sol (on y monte), à pied par les marches
+  const s = L.supportAt(G.x, G.z, G.top + 1, 0);
+  assert.ok(Math.abs(s.y - G.top) < 0.01, 'quai praticable');
 });
 
 test('Grand Chêne : marches de moins de 2 m, le tronc s\'arrête sous le sommet', () => {

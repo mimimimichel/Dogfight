@@ -6,7 +6,7 @@
  *
  * Plan (le nord est vers -z) :
  *   au sud, l'Entrée du parc : le départ, Mamie Labrador et la niche de Biscotte,
- *   les portails vers les autres mondes, la fontaine et le piédestal des balles ;
+ *   la Gare des Mondes (le train vers les autres mondes), la fontaine et le piédestal des balles ;
  *   au centre, la colline du Grand Chêne (on grimpe ses branches en spirale) ;
  *   autour : le kiosque à musique (nord-ouest), le manège (nord-est), la mare aux
  *   canards et ses pédalos-cygnes (ouest), le terrain d'agility de Gaston (est),
@@ -42,9 +42,10 @@ export const GRASS_K = 1.5;
 export const SKY = { top: 0x4a90e2, horizon: 0xf4e4c6, bottom: 0xd6e6dc, sunDir: [-0.34, 0.4, -0.66] };
 export const LIGHT = { hemi: [0xe6f0ff, 0x8a7050, 0.75], sun: [0xffe0b0, 3.0], fog: [95, 300] };
 export const TREE_STYLE = { min: 3, extra: 2, rad: 1.15, big: 2.0, small: 1.4, bushes: 1 };
-// Portails magiques, de part et d'autre de l'arche d'entrée (près du départ, sur un sol libre)
-export const PORTALS = [{ x: -7.6, z: 36.5, to: 2 }, { x: 7.6, z: 36.5, to: 4 }, { x: -10.5, z: 40.5, to: 3 }, { x: 10.5, z: 40.5, to: 5 },
-  { x: -13.5, z: 44.5, to: 6 }, { x: 13.5, z: 44.5, to: 7 }, { x: -13.5, z: 36.5, to: 8 }];
+// La Gare des Mondes (à droite de l'arche d'entrée) : on y choisit le monde où partir en train
+// (le quai le long de x, l'avant vers le départ ; la voie et le train derrière). Plus de portails.
+export const GARE = { x: 11.5, z: 41.5, yaw: 0 };
+export const PORTALS = [];
 
 const clamp = (v, a, b) => (v < a ? a : v > b ? b : v);
 function smooth(e0, e1, x) { const t = clamp((x - e0) / (e1 - e0), 0, 1); return t * t * (3 - 2 * t); }
@@ -418,6 +419,19 @@ for (const st of STATIONS) {
   st.top = g + 0.35; st.y = g;
   st.col = box(st.x, st.z, 3.2, 3.2, g - 1, st.top, { kind: 'plank', station: st.id });   // (quai simplifié : un carré, tourné en dessin seulement)
 }
+// la Gare des Mondes : quai (on y monte), marches, guichet, plan des mondes, poteaux, train à l'arrêt
+{
+  const G = GARE;
+  let g = -Infinity;
+  for (let x = -5; x <= 5; x += 1) for (const z of [-4.2, 0, 2]) g = Math.max(g, heightAt(G.x + x, G.z + z));
+  G.y = g; G.top = g + 0.42;
+  box(G.x, G.z, 10.2, 3.8, g - 1, G.top, { kind: 'plank', gare: true });
+  box(G.x, G.z + 2.15, 2.0, 0.5, g - 1, g + 0.2, { kind: 'plank' });
+  box(G.x - 4.15, G.z - 0.55, 1.6, 1.7, G.top, G.top + 2.6, { kind: 'wall', solid: true });
+  box(G.x + 3.85, G.z - 0.4, 2.7, 0.3, G.top, G.top + 2.9, { kind: 'wall', solid: true });
+  for (const sx of [-2.9, 2.9]) for (const sz of [-1.3, 1.3]) cyl(G.x + sx, G.z + sz, 0.14, G.top, G.top + 2.7, { kind: 'post' });
+  box(G.x - 0.6, G.z - 3.05, 9.3, 1.75, g - 1, g + 2.8, { kind: 'rock' });   // le train (on peut grimper sur les wagons)
+}
 
 // --- Caisses (cassables) : un cœur dedans ---------------------------------------------------
 export const crates = [
@@ -718,6 +732,9 @@ export function drawMap(x, P, k) {
   x.closePath(); x.stroke();
   x.fillStyle = '#c84a3a';
   for (const s of STATIONS) x.fillRect(P(s.x) - 3, P(s.z) - 3, 6, 6);
+  // la Gare des Mondes
+  x.fillStyle = '#7a4a28'; x.fillRect(P(GARE.x - 5), P(GARE.z - 2), Math.max(4, P(GARE.x + 5) - P(GARE.x - 5)), Math.max(3, P(GARE.z + 2) - P(GARE.z - 2)));
+  x.fillStyle = '#ffd860'; x.beginPath(); x.arc(P(GARE.x), P(GARE.z), 3, 0, 7); x.fill();
   x.fillStyle = 'rgba(255,170,210,0.8)';
   for (const t of CHERRY_TREES) { x.beginPath(); x.arc(P(t.x), P(t.z), 2.2, 0, 7); x.fill(); }
 }

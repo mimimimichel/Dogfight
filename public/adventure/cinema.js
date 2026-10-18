@@ -28,9 +28,8 @@ export class Cinema {
     game.dom.root.appendChild(el);
     game.dom.root.classList.add('cine-on');
     this.$ = (s) => el.querySelector(s);
-    // les portails n'apparaissent pas dans l'histoire
+    // (la gare et les arrêts de train font partie du décor : ils restent dans l'histoire)
     this.hidden = [];
-    for (const pt of game.portals || []) for (const o of [pt.disc, pt.glow, pt.label]) if (o && o.visible) { o.visible = false; this.hidden.push(o); }
     this.$('.cine-skip').addEventListener('click', (e) => { e.stopPropagation(); this.finish(); });
     this.$('.cine-skip').addEventListener('touchstart', (e) => { e.stopPropagation(); e.preventDefault(); this.finish(); }, { passive: false });
     this.next();

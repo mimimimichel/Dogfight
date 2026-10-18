@@ -235,7 +235,7 @@ export const LINES = {
   },
   marius: { talk: [[Mr('Le journal ! Demandez le journal ! Gros titre : « Deux chiens sauvent la ville » !')], [Mr('Paraît que la Capitaine se cache aux docks. Moi, je dis ça, je dis rien.')]] },
   rose: {
-    ask: [Rs('Mon jardin ! Des taupes creusent partout dans mes tulipes !'), Rs('Quand elles sortent la tête, sautez dessus ou faites la toupie : elles iront creuser ailleurs. Le signal doré est près du portail.')],
+    ask: [Rs('Mon jardin ! Des taupes creusent partout dans mes tulipes !'), Rs('Quand elles sortent la tête, sautez dessus ou faites la toupie : elles iront creuser ailleurs. Le signal doré est près de l\'arrêt du train.')],
     thanks: [Rs('Plus une seule taupe ! Mes tulipes vous disent merci. Et moi aussi, mes chéris.')],
     talk: [[Rs('Un jardin, c\'est comme un chien : il faut s\'en occuper tous les jours.')], [Rs('Les papillons adorent mes fleurs. Moi, j\'adore les papillons.')]],
   },

@@ -101,7 +101,9 @@ test('les boîtes ne cachent rien : ni médaille, ni portail, ni personnage, ni 
       assert.ok(!near, `monde ${n} ${b.power} trop près de ${p.id || p.name || JSON.stringify(p)}`);
     }
     // les anneaux des portails sont grands : on laisse de la place (et la caméra ne s'y cogne pas)
-    for (const b of boxesOf(n)) for (const p of L.PORTALS || []) assert.ok(Math.hypot(p.x - b.x, p.z - b.z) > 7, `monde ${n} ${b.power} collé à un portail`);
+    for (const b of boxesOf(n)) for (const p of L.PORTALS || []) assert.ok(Math.hypot(p.x - b.x, p.z - b.z) > 7, `monde ${n} ${b.power} collé à un arrêt de train`);
+    // ni dans la Gare des Mondes (au Parc)
+    if (L.GARE) for (const b of boxesOf(n)) assert.ok(Math.hypot(L.GARE.x - b.x, L.GARE.z - b.z) > 9, `monde ${n} ${b.power} dans la gare`);
   }
 });
 

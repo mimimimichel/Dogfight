@@ -570,7 +570,7 @@ export const CRYSTALS = [[-9, 92, 0x7ad8ff], [9.5, 99, 0xff8ad8], [-5.5, 2, 0xb0
   [-71, -97, 0xff8ad8], [94, -98, 0x7ad8ff], [-82, -153, 0xffd060]];
 export const ruins = [];
 
-// Portail de retour vers le Parc, sur l'île du départ
+// Arrêt de train « Retour au Parc », sur l'île du départ
 export const PORTALS = [{ x: 8.5, z: 103, to: 1 }];
 
 // L'arche d'arrivée (chrono), sur l'Île du Trophée

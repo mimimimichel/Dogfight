@@ -356,11 +356,11 @@ export const PALETTE = {
 };
 
 // ---------------------------------------------------------------------------
-// Où rien ne doit être posé (portails, quêtes, manèges, voie du train…)
+// Où rien ne doit être posé (gare, quêtes, manèges, voie du train…)
 // ---------------------------------------------------------------------------
 const KEEP = [
   [S.npcs.mamie.x, S.npcs.mamie.z, 6], [S.START.x, S.START.z, 6], [S.KENNEL.x, S.KENNEL.z, 3], [S.npcs.gaston.x, S.npcs.gaston.z, 4], [S.npcs.puppy.x, S.npcs.puppy.z, 4],
-  ...S.CHECKPOINTS.map(c => [c.x, c.z, 4]), ...S.signs.map(s => [s.x, s.z, 2.5]), ...S.PORTALS.map(p => [p.x, p.z, 3.5]), ...S.crates.map(c => [c.x, c.z, 2.5]),
+  ...S.CHECKPOINTS.map(c => [c.x, c.z, 4]), ...S.signs.map(s => [s.x, s.z, 2.5]), ...S.PORTALS.map(p => [p.x, p.z, 3.5]), [S.GARE.x - 3, S.GARE.z - 1, 6.5], [S.GARE.x + 3, S.GARE.z - 1, 6.5], [S.GARE.x, S.GARE.z + 4.5, 5.5], ...S.crates.map(c => [c.x, c.z, 2.5]),
   ...S.LANTERNS.map(l => [l.x, l.z, 3.5]), ...S.CLUES.map(c => [c.x, c.z, 3.5]), ...S.balls.map(b => [b.x, b.z, 3.5]), ...S.medals.map(m => [m.x, m.z, 3]), ...S.cats.map(c => [c.x, c.z, 3]),
   [S.FOUNTAIN.x, S.FOUNTAIN.z, S.FOUNTAIN.r + 2.5], [S.PEDESTAL.x, S.PEDESTAL.z, 3], [S.TELESCOPE.x, S.TELESCOPE.z, 3], [S.DIG.x, S.DIG.z, 3],
   ...S.STATIONS.map(s => [s.x, s.z, 6]), ...S.BOATS.map(b => [b.x, b.z, 4]),
@@ -390,7 +390,7 @@ export function avoid(x, z, type, kind) {
     if (treeAt(x, z, 1.8)) return true;
     if (Math.hypot(x - GARDEN_GAP.x, z - GARDEN_GAP.z) < 6) return true;
     if (RACE.some(p => p.some((q, i) => i && segD(x, z, p[i - 1][0], p[i - 1][1], q[0], q[1]) < 3))) return true;
-    if (Math.abs(x) < 18 && z > 30 && z < 50) return true;   // les portails et le départ
+    if (Math.abs(x) < 18 && z > 30 && z < 50) return true;   // la Gare des Mondes et le départ
     if (g(x, z) < 0.6) return true;                            // pas au ras de l'eau
   }
   return false;

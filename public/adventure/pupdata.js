@@ -52,7 +52,7 @@ export const PUPS = [
     where: 'derrière la cascade du Plateau Moussu',
     look: { pattern: 'solid', fur: 0xa8401c, belly: 0xc8602e, ears: 'long', earLen: 1.3, tail: 'plume', fluff: 0.55, leg: 1.25, muzzle: 1.3, scale: 1.05 },
     found: { who: 'Paprika', text: 'Derrière la cascade, c\'est ma cachette secrète ! Mais j\'avais un peu froid…' },
-    hub: { who: 'Paprika', text: 'On fait la course ? Le premier arrivé au portail a gagné !' },
+    hub: { who: 'Paprika', text: 'On fait la course ? Le premier arrivé à la gare a gagné !' },
   },
   {
     id: 'l2_banjo', lv: 2, name: 'Banjo', breed: 'basset hound', x: -76.0, z: 108.4, y: 7.45, yaw: -2.0,

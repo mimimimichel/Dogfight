@@ -66,7 +66,8 @@ test('pas sur une médaille ni sur un autre trésor (os, balles, caisses, chiots
     const items = [...L.bones, ...L.balls, ...(L.crates || []), ...PUPS.filter(p => p.lv === w.lv),
       ...['FEATHERS', 'lanterns', 'LANTERNS', 'BONNETS', 'SOUVENIRS', 'CHECKPOINTS', 'signs'].flatMap(k => (Array.isArray(L[k]) ? L[k] : []))].filter(p => p && typeof p.x === 'number');
     for (const it of items) assert.ok(Math.hypot(it.x - w.x, it.z - w.z) > 1.8 || (it.y !== undefined && Math.abs(it.y - b.y) > 2.5), `monde ${w.lv} : sur ${it.id || it.name || 'un trésor'}`);
-    for (const p of L.PORTALS || []) assert.ok(Math.hypot(p.x - w.x, p.z - w.z) > 6, `monde ${w.lv} : sur un portail`);
+    for (const p of L.PORTALS || []) assert.ok(Math.hypot(p.x - w.x, p.z - w.z) > 6, `monde ${w.lv} : sur un arrêt de train`);
+    if (L.GARE) assert.ok(Math.hypot(L.GARE.x - w.x, L.GARE.z - w.z) > 10, `monde ${w.lv} : dans la Gare des Mondes`);
     // ni sur une boîte à costume (powerdata.js)
     for (const bx of (PW.BOXES && PW.BOXES[w.lv]) || []) assert.ok(Math.hypot(bx.x - w.x, bx.z - w.z) > 6, `monde ${w.lv} : sur la boîte ${bx.power}`);
   }

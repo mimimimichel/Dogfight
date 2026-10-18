@@ -928,7 +928,7 @@ export const signs = [
   { x: -26.5, z: -70, text: ['Route des collines ↑', 'Observatoire, villas', 'et château d\'eau.'] },
 ];
 
-// Portail de retour vers le Parc, sur la place (côté est, à côté du départ)
+// Arrêt de train « Retour au Parc », sur la place (côté est, à côté du départ)
 export const PORTALS = [{ x: -37.5, z: -3, to: 1 }];
 export const PATHS = [];
 export const CRYSTALS = [];

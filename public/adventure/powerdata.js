@@ -80,7 +80,7 @@ export function powerUnlocked(id, found, rewards) {
  */
 export const BOXES = {
   1: [
-    { power: 'magnet', x: 0, z: 31, y: 2.56, where: 'juste après les portails, au début de l\'allée' },
+    { power: 'magnet', x: 0, z: 31, y: 2.56, where: 'juste devant l\'arche d\'entrée, au début de l\'allée' },
     { power: 'cape', x: 10.8, z: -130.8, y: 7, where: 'en haut du belvédère : on plane jusqu\'en bas !' },
   ],
   2: [

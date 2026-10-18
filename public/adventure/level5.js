@@ -648,7 +648,7 @@ export const SNOW_PATHS = [[[0, 168], [0, 120]], [[0, 120], [18, 40]], [[-6, 140
 export const CRYSTALS = [];
 export const ruins = [];
 
-// Portail de retour vers le Parc, au village
+// Arrêt de train « Retour au Parc », au village
 export const PORTALS = [{ x: 9, z: 176, to: 1 }];
 
 // Sapins : forêts sur les collines, le long des flancs de la montagne, et des bosquets partout

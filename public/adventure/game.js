@@ -7,7 +7,7 @@
 import * as THREE from '../vendor/three.module.min.js';
 import { L, setLevel, LEVELS } from './current.js';
 
-// Mondes déjà visités : les portails ne mènent qu'à eux
+// Mondes déjà visités : le train ne mène qu'à eux
 const VISITED_KEY = 'dogfight.visited';
 function visitedLevels() {
   const out = new Set();
@@ -47,6 +47,7 @@ import { Wonder } from './wonder.js';
 import { Juice, buzz, canVibrate, hapticsOn, setHaptics, refreshHaptics } from './juice.js';
 import { Powers } from './powers.js';
 import { PHYS as PW } from './powerdata.js';
+import { Travel, whistleSound, bellSound } from './gare.js';
 /** Réglage « j'ai des écouteurs » (voir voice.js). */
 const headsetOn = () => { try { return localStorage.getItem('dogfight.headset') === '1'; } catch (e) { return false; } };
 
@@ -117,9 +118,6 @@ function playerUid() {
   if (!id) { id = Math.random().toString(36).slice(2, 10) + Date.now().toString(36); try { localStorage.setItem('dogfight.profile.uid', id); } catch (e) { /* ignore */ } }
   return id;
 }
-/** Secondes à attendre dans un portail avant de partir (seul : presque tout de suite). */
-const PORTAL_WAIT = (n) => (n > 1 ? 3 : 0.8);   // on ne propose le micro qu'une fois par partie
-
 /** Le prénom de l'enfant (profil « Qui joue ? » ou prénom du jeu à plusieurs), s'il est connu. */
 function kidName() {
   let n = '';
@@ -786,63 +784,24 @@ class Adventure {
   }
 
   /**
-   * Portails magiques vers les autres niveaux : un tourbillon de lumière ;
-   * on s'en approche et on appuie sur « ENTRER ».
+   * Voyager entre les mondes : au Parc, la Gare des Mondes (on choisit son monde) ;
+   * ailleurs, un petit arrêt « Retour au Parc » à côté du départ (gare.js).
    */
   buildPortals() {
     const list = (L.PORTALS || []).slice();
     if (!L.PORTALS && L.ID !== 1) {
-      // portail de retour vers le Parc, à côté du départ, sur un sol libre
+      // arrêt de retour vers le Parc, à côté du départ, sur un sol libre
       for (const [dx, dz] of [[-6, 4], [6, 4], [5, -2], [-5, -2], [7, 0]]) {   // de préférence derrière le départ (pas devant la vue)
         const x = L.START.x + dx, z = L.START.z + dz, h = L.heightAt(x, z);
         if (Math.abs(h - L.START.y) > 0.8 || (L.near ? L.near(x, z, 1.5) : L.colliders).some(c => !c.off && L.inside(c, x, z, 1.3))) continue;
         list.push({ x, z, to: 1 }); break;
       }
     }
-    const NAMES = { 1: 'Le Parc des Toutous', 2: 'La Forêt des Moustaches', 3: 'Port-Croquette', 4: 'Les Îles du Ciel', 5: 'La Station des Neiges', 6: 'La Plage aux Coquillages', 7: 'La Ferme de Papi Berger', 8: 'Le Château des Chats' };
-    const COLS = { 1: [0x3affa0, 0x0a4a3a], 2: [0x4ab0ff, 0x10206a], 3: [0xffb04a, 0x5a2008], 4: [0xc070ff, 0x2a0a5a], 5: [0xbfeaff, 0x1a4a7a], 6: [0x4ae0e0, 0x0a4a5a], 7: [0xffe04a, 0x4a3a08], 8: [0xff7ab0, 0x5a0a2a] };
     markVisited(L.ID);
     const visited = visitedLevels();
-    this.portals = list.map(p => {
-      const [c1, c2] = COLS[p.to] || COLS[1];
-      const y = L.heightAt(p.x, p.z);
-      const mat = new THREE.ShaderMaterial({
-        uniforms: { uTime: { value: 0 }, uC1: { value: new THREE.Color(c1) }, uC2: { value: new THREE.Color(c2) } },
-        vertexShader: 'varying vec2 vUv; void main(){ vUv = uv; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }',
-        fragmentShader: `uniform float uTime; uniform vec3 uC1, uC2; varying vec2 vUv;
-          void main() {
-            vec2 p = vUv * 2.0 - 1.0; p.y *= 0.92;
-            float r = length(p), a = atan(p.y, p.x);
-            float sw = sin(a * 3.0 + r * 11.0 - uTime * 5.0) * 0.5 + 0.5;
-            float sw2 = sin(a * 5.0 - r * 7.0 + uTime * 3.0) * 0.5 + 0.5;
-            float rim = smoothstep(0.62, 0.9, r) * smoothstep(1.0, 0.9, r);
-            vec3 col = mix(uC2 * 0.12, uC1 * 1.5, smoothstep(0.3, 0.9, r) * (0.45 + 0.55 * sw));
-            col += uC1 * sw2 * smoothstep(0.35, 0.85, r) * 0.7 + vec3(0.9, 0.95, 1.0) * rim * (1.6 + sw * 1.4);
-            float alpha = smoothstep(1.0, 0.92, r) * (0.75 + 0.25 * sw);
-            gl_FragColor = vec4(col, alpha);
-          }`,
-        transparent: true, depthWrite: false, side: THREE.DoubleSide,
-      });
-      const disc = new THREE.Mesh(new THREE.PlaneGeometry(2.6, 3.0), mat);
-      disc.position.set(p.x, y + 1.7, p.z);
-      disc.userData.noOutline = true; disc.renderOrder = 4;
-      this.scene.add(disc);
-      // lueur au sol
-      const glow = new THREE.Mesh(new THREE.CircleGeometry(1.6, 24), new THREE.MeshBasicMaterial({ color: c1, transparent: true, opacity: 0.25, depthWrite: false, blending: THREE.AdditiveBlending }));
-      glow.rotation.x = -Math.PI / 2; glow.position.set(p.x, y + 0.05, p.z); glow.userData.noOutline = true;
-      this.scene.add(glow);
-      // nom du niveau au-dessus
-      const cv = document.createElement('canvas'); cv.width = 512; cv.height = 160;
-      const tex = new THREE.CanvasTexture(cv); tex.colorSpace = THREE.SRGBColorSpace;
-      const label = new THREE.Sprite(new THREE.SpriteMaterial({ map: tex, transparent: true, depthWrite: false }));
-      label.scale.set(3.4, 1.06, 1); label.position.set(p.x, y + 4.0, p.z);
-      label.userData.noOutline = true;
-      this.scene.add(label);
-      const portal = { def: p, y, disc, mat, glow, label, cv, tex, name: NAMES[p.to], n: 0, t: 0, text: null, cols: [c1, c2], locked: false };
-      this.setPortalLock(portal, !this.guest && !visited.has(p.to));
-      this.portalLabel(portal);
-      return portal;
-    });
+    this.travel = new Travel(this, L, list, visited);
+    this.portals = this.travel.spots;
+    for (const p of this.portals) if (p.kind === 'stop') this.setPortalLock(p, !this.guest && !visited.has(p.def.to));
   }
 
   /** Où aller maintenant ? (pour le chemin d'étincelles) */
@@ -899,62 +858,20 @@ class Adventure {
     this.spawnParticle(x, y, z, 0, 0.6, 0, 0xffe680, 0.32, 0.9, 0);
   }
 
-  /** Nom du niveau, et à plusieurs : combien de joueurs sont dans le portail. */
-  /** Portail fermé (monde jamais visité) : gris, cadenas, on ne passe pas. */
-  setPortalLock(p, locked) {
-    p.locked = locked;
-    const [c1, c2] = locked ? [0x9aa0ac, 0x22242a] : p.cols;
-    p.mat.uniforms.uC1.value.set(c1); p.mat.uniforms.uC2.value.set(c2);
-    p.glow.material.color.set(c1);
-    p.text = null;
-  }
+  /** Monde jamais visité : l'arrêt ne mène nulle part (pancarte grise, cadenas). */
+  setPortalLock(p, locked) { if (this.travel) this.travel.setLock(p, locked); else p.locked = locked; }
 
-  portalLabel(p) {
-    const total = this.party ? this.party.size : 1;
-    const need = PORTAL_WAIT(total);
-    const sub = p.locked ? 'Monde pas encore découvert' : p.n > 0 && p.n < total ? `${p.n}/${total} dans le portail : on attend tout le monde !`
-      : p.n > 0 && total > 1 ? `Tout le monde est là ! Départ dans ${Math.max(1, Math.ceil(need - p.t))}…`
-        : total > 1 ? 'Entrez tous dedans pour y aller' : '';
-    const name = (p.locked ? '🔒 ' : '') + p.name;
-    const text = name + '|' + sub;
-    if (text === p.text) return;
-    p.text = text;
-    const cx = p.cv.getContext('2d');
-    cx.clearRect(0, 0, 512, 160);
-    cx.textAlign = 'center'; cx.textBaseline = 'middle'; cx.lineJoin = 'round';
-    cx.font = '700 46px Fredoka, system-ui, sans-serif';
-    cx.lineWidth = 10; cx.strokeStyle = 'rgba(30,16,8,0.85)'; cx.strokeText(name, 256, 46);
-    cx.fillStyle = p.locked ? '#d8dce4' : '#fff4d0'; cx.fillText(name, 256, 46);
-    if (sub) {
-      cx.font = '600 28px Fredoka, system-ui, sans-serif';
-      cx.lineWidth = 8; cx.strokeText(sub, 256, 112);
-      cx.fillStyle = p.locked ? '#c8ccd4' : p.n > 0 && p.n === total ? '#a8ff8a' : '#ffe08a'; cx.fillText(sub, 256, 112);
-    }
-    p.tex.needsUpdate = true;
-  }
-
-  /** Hôte : on part quand tous les joueurs sont dans le même portail (seul : tout de suite). */
+  /** Hôte : on part quand tous les joueurs sont à l'arrêt (au Parc : on choisit le monde à la gare). */
   stepPortals(dt) {
-    if (!this.portals || !this.portals.length || this.portalBusy) return;
-    const players = this.players, total = players.length;
-    for (const p of this.portals) {
-      p.n = players.filter(P => Math.hypot(P.pos.x - p.def.x, P.pos.z - p.def.z) < 1.7 && Math.abs(P.pos.y - p.y) < 2.5).length;
-      if (p.locked) {
-        if (p.n > 0 && this.t - (this.lockMsgT || -9) > 4) { this.lockMsgT = this.t; this.banner('🔒 Monde pas encore découvert', `Commence « ${p.name} » depuis le menu principal : ensuite, ce portail t'y ramènera.`, 3000); }
-        p.n = 0; p.t = 0; continue;
-      }
-      const prev = p.t;
-      p.t = p.n === total ? p.t + dt : 0;
-      if (p.n === total && prev === 0 && total > 1) this.sound('switch');
-      if (p.t >= PORTAL_WAIT(total)) { this.usePortal(p.def.to); return; }
-    }
+    if (this.travel && !this.portalBusy) this.travel.step(dt);
   }
 
   usePortal(to) {
     if (this.guest || this.portalBusy) return;
     this.portalBusy = true;
-    this.sound('reveal');
-    for (const P of this.players) this.burst(P.pos.x, P.pos.y + 1, P.pos.z, 30, 0xd8c0ff, 5, 0.8);
+    this.sound('whistle');
+    if (this.coop) this.coopEvents.push(['sound', 'whistle']);
+    for (const P of this.players) this.burst(P.pos.x, P.pos.y + 1, P.pos.z, 18, 0xf4f4f0, 3, 0.9);
     this.fade(true);
     setTimeout(() => { if (!this.disposed) this.switchLevel(to); }, 650);
   }
@@ -1261,6 +1178,7 @@ class Adventure {
     this.onKeyDown = (e) => {
       if (this.disposed) return;
       if (this.cine) { if (['Escape', 'Enter', 'Space', 'KeyF'].includes(e.code)) { e.preventDefault(); this.cine.skip(); } return; }
+      if (this.travel && this.travel.onKey(e)) return;   // le choix du monde, à la gare
       if (e.code === 'Escape') { this.togglePause(); return; }
       if (e.code === 'KeyV' && !e.repeat) { this.toggleMic(); return; }
       const moveKeys = ['KeyW', 'KeyA', 'KeyS', 'KeyD', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'KeyQ', 'KeyE', 'Space'];
@@ -1735,7 +1653,7 @@ class Adventure {
       hp: this.hearts.filter(h => !h.taken).map(h => [r(h.x), r(h.y), r(h.z)]),
       d: d ? [d.lines[d.i].who, d.lines[d.i].text, Math.floor(d.chars)] : 0,
       ev: this.coopEvents.splice(0),
-      pt: (this.portals || []).map(p => [p.n, Math.round(p.t * 10) / 10, p.locked ? 1 : 0]),
+      pt: (this.portals || []).map(p => [p.n, Math.round(p.t * 10) / 10, p.locked ? 1 : 0, p.pick ? 1 : 0]),
     };
     if (this.levelLogic) base.x = this.levelLogic.snapshot();
     if (this.pups) base.pu = this.pups.snapshot();
@@ -1936,7 +1854,7 @@ class Adventure {
     if (s.x && this.levelLogic) this.levelLogic.apply(s.x);
     if (s.pu && this.pups) this.pups.apply(s.pu);
     if (s.wo && this.wonder) this.wonder.apply(s.wo);
-    if (s.pt && this.portals) s.pt.forEach(([n, t, lk], i) => { const p = this.portals[i]; if (p) { p.n = n; p.t = t; if (!!lk !== p.locked) this.setPortalLock(p, !!lk); } });
+    if (s.pt && this.portals) s.pt.forEach(([n, t, lk, pk], i) => { const p = this.portals[i]; if (p) { p.n = n; p.t = t; p.pick = pk || 0; if (!!lk !== p.locked) this.setPortalLock(p, !!lk); } });
     // effets
     for (const [n, ...a] of s.ev) {
       if (n === 'overlay') this.showOverlay(a[0]);
@@ -2458,6 +2376,7 @@ class Adventure {
     if (pp.state === 'lost') cand.push({ kind: 'puppy', x: pp.pos.x, z: pp.pos.z, y: pp.pos.y });
     else cand.push({ kind: 'pet', label: 'CARESSER', x: pp.pos.x, z: pp.pos.z, y: pp.pos.y });
     L.signs.forEach((s, i) => cand.push({ kind: 'sign', i, x: s.x, z: s.z, y: L.heightAt(s.x, s.z) }));
+    if (this.travel) cand.push(...this.travel.candidates());
     const LG = this.levelLogic;
     for (const Q of this.players) {
       const pup = this.pups && !this.dialog ? this.pups.nearFor(Q) : null;
@@ -2755,6 +2674,7 @@ class Adventure {
     else if (n.kind === 'pet') this.petPuppy(P || this.player);
     else if (n.kind === 'pup' && this.pups) this.pups.interact(n, P || this.player);
     else if (n.kind === 'sign') this.say(L.signs[n.i].text.map(t => ({ who: 'Panneau', text: t })));
+    else if (n.kind === 'gare' && this.travel) this.travel.interact(n, P || this.player);
   }
 
   controlsHelp() {
@@ -3070,6 +2990,8 @@ class Adventure {
       case 'boing': s.tone(220, 0.25, { type: 'sine', to: 660, vol: 0.18 }); s.tone(330, 0.2, { type: 'triangle', to: 990, vol: 0.08, delay: 0.05 }); break;
       case 'lantern': [79, 83, 86, 91].forEach((m, i) => s.note('bell', m, 0.1, i * 0.06, i === 3 ? 0.6 : 0.2)); break;
       case 'switch': s.tone(180, 0.12, { type: 'square', to: 120, vol: 0.12 }); s.tone(520, 0.18, { type: 'triangle', to: 1040, vol: 0.1, delay: 0.1 }); break;
+      case 'whistle': whistleSound(s); break;          // le sifflet du train (gare.js)
+      case 'stationBell': bellSound(s); break;
       case 'throw': s.noise(0.15, { filter: 'bandpass', freq: 600, freqTo: 1600, vol: 0.18 }); break;
       case 'bossHit': s.hit(true); s.meow && s.meow(0.8); break;
       case 'poof': s.noise(0.25, { freq: 1500, freqTo: 300, vol: 0.3 }); s.tone(500, 0.2, { type: 'sawtooth', to: 180, vol: 0.08 }); break;
@@ -3284,13 +3206,7 @@ class Adventure {
     if (this.guide || this.t < (this.guideUntil || 0)) this.renderGuide(dt);
     this.stepPings();
     this.stepWaves(dt);
-    for (const p of this.portals || []) {
-      p.mat.uniforms.uTime.value = t;
-      p.disc.rotation.y = Math.atan2(this.camera.position.x - p.def.x, this.camera.position.z - p.def.z);
-      p.glow.material.opacity = p.n > 0 ? 0.45 + Math.sin(t * 8) * 0.12 : 0.22 + Math.sin(t * 3) * 0.06;
-      this.portalLabel(p);
-      if (Math.random() < dt * 14) { const a = Math.random() * 6.28; this.spawnParticle(p.def.x + Math.cos(a) * 1.2, p.y + 1.7 + Math.sin(a) * 1.35, p.def.z, Math.cos(a) * 0.8, 1 + Math.random(), 0, p.mat.uniforms.uC1.value.getHex(), 0.16, 0.8); }
-    }
+    if (this.travel) this.travel.render(dt, t);
     this.wind.value = t;
     FOL.tickFoliage(t);                                // vent dans les feuillages (foliage.js)
     for (const c of this.clouds) { const u = c.userData, a = u.a + t * 0.004; c.position.set(Math.cos(a) * u.r, u.y, Math.sin(a) * u.r); }
@@ -4008,6 +3924,7 @@ class Adventure {
   dispose(keepSession) {
     this.disposed = true;
     if (this.wonder) this.wonder.dispose();
+    if (this.travel) this.travel.dispose();
     // le chat vocal ne s'arrête que si on quitte vraiment le monde (pas en changeant de niveau)
     if (this.vc && ((this.coop && this.coop.link) || (this.hostSession && !keepSession))) { this.vc.close(); if (this.sfx && this.sfx.echoSafe) this.sfx.echoSafe(false); }
     if (this.coop && this.coop.link) { this.coop.link.onclose = null; this.coop.link.close(); }
