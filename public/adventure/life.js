@@ -1356,6 +1356,7 @@ export function buildLife(game, cfg) {
     P.lifeChain = game.t - (P.lifeAt || -9) < 0.8 ? (P.lifeChain || 0) + 1 : 0; P.lifeAt = game.t;
     game.sound('bone', Math.min(9, P.lifeChain));
     game.burst(x, y, z, 5, 0xd8f4ff, 2.2, 0.35);
+    if (game.juice) { game.juice.pop(x, y, z, 0xd8f4ff, P.lifeChain); game.jiggle(P, 0.8); game.haptic(P, 5, 70); }
   }
   function stepDrops(dt) {
     st.drops = st.drops.filter((d) => {
@@ -1415,6 +1416,7 @@ export function buildLife(game, cfg) {
     game.persist();
     game.sound('win'); P.cheerT = 1.4;
     for (let i = 0; i < 3; i++) game.burst(P.pos.x + (i - 1), P.pos.y + 2.4, P.pos.z, 14, [0xff5a6a, 0xffd23a, 0x5ac8ff][i], 4.5, 0.8);
+    if (game.juice) { game.sound('fanfare'); game.juice.confetti(P.pos.x, P.pos.y + 2.2, P.pos.z, 50, 1); game.juice.punch(0.5); game.jiggle(P, 2.4); game.haptic(P, [15, 40, 15, 40, 35], 0); }
     dropSparkles(P.pos.x, P.pos.y + 1.2, P.pos.z, first ? 10 : 4, 1);
     if (first && P.hearts !== undefined) game.spawnHeart(P.pos.x + Math.sin(P.yaw) * 1.5, P.pos.y + 1, P.pos.z + Math.cos(P.yaw) * 1.5);
     const n = k.defis.length, tot = plan.defis.length;
@@ -1828,6 +1830,7 @@ export function buildLife(game, cfg) {
     dropSparkles(c.def.x, c.def.y + 0.8, c.def.z, 8, 2);
     game.spawnHeart(c.def.x, c.def.y + 1.6, c.def.z + 0.3);
     game.burst(c.def.x, c.def.y + 1, c.def.z, 30, 0xffd23a, 5, 0.9);
+    if (game.juice) { game.juice.sparkle(c.def.x, c.def.y + 1, c.def.z, 18, 0xffe680, 0.9); game.juice.confetti(c.def.x, c.def.y + 1.2, c.def.z, 30, 0.7); game.sound('sparkle', 81); game.juice.punch(0.45); game.haptic(P, [12, 40, 22], 0); }
     const n = k.chests.length, tot = plan.secrets.length;
     game.banner(`Une cachette secrète ! (${n}/${tot})`, c.def.found || 'Un coffre plein de paillettes !', 3000);
     if (hooks.onChest) hooks.onChest(c.def, P);
@@ -1837,6 +1840,7 @@ export function buildLife(game, cfg) {
     c.s = 'pet'; c.t = 1.4; c.petT = game.t;
     c.yaw = Math.atan2(P.pos.x - c.x, P.pos.z - c.z);
     game.burst(c.x, c.y + (c.fm.mdl.h || 1) * c.scale + 0.2, c.z, 8, 0xff8ab8, 2, 0.8);
+    if (game.juice) { game.juice.hearts(c.x, c.y + (c.fm.mdl.h || 1) * c.scale + 0.3, c.z, 4); game.jiggle(P, 1.4); game.sound('petted'); game.haptic(P, [6, 60, 6], 0); }
     event('chirp', CHIRPS.indexOf(c.f.sound || 'squeak'));
     const say = c.f.say || ['♥'];
     game.bubble({ pos: new THREE.Vector3(c.x, c.y + (c.fm.mdl.h || 1) * c.scale * 0.8, c.z), small: true }, say[Math.floor(R() * say.length)]);
