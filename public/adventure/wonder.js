@@ -301,12 +301,12 @@ function css() {
   st.textContent = `
   .wonder-swirl, .wonder-wash { position: absolute; inset: 0; pointer-events: none; z-index: 8; overflow: hidden; display: none; }
   .wonder-swirl.on, .wonder-wash.on { display: block; }
-  .wonder-swirl .sw { position: absolute; left: 50%; top: 50%; width: 260vmax; height: 260vmax; margin: -130vmax 0 0 -130vmax; border-radius: 50%;
+  .wonder-swirl .sw { position: absolute; left: 50%; top: 50%; width: 160vmax; height: 160vmax; margin: -80vmax 0 0 -80vmax; border-radius: 50%;
     background: radial-gradient(circle, #fff 0 3%, rgba(255,250,255,.85) 7%, rgba(255,255,255,0) 26%),
       repeating-conic-gradient(from 0deg, #ff5aa8 0 15deg, #ff9a3a 15deg 30deg, #ffe45a 30deg 45deg, #6ae08a 45deg 60deg, #4ec2ff 60deg 75deg, #a77aff 75deg 90deg);
     transform: scale(0) rotate(0deg); opacity: 1; will-change: transform, opacity; }
   .wonder-swirl.on .sw { animation: wSwirl ${INTRO}s cubic-bezier(.45,.05,.35,1) forwards; }
-  @keyframes wSwirl { 0% { transform: scale(0) rotate(0deg); opacity: 1; } 42% { transform: scale(1) rotate(260deg); opacity: 1; } 58% { transform: scale(1.05) rotate(340deg); opacity: 1; } 100% { transform: scale(1.6) rotate(560deg); opacity: 0; } }
+  @keyframes wSwirl { 0% { transform: scale(0) rotate(0deg); opacity: 1; } 42% { transform: scale(1) rotate(300deg); opacity: 1; } 58% { transform: scale(1.1) rotate(380deg); opacity: 1; } 100% { transform: scale(1.9) rotate(620deg); opacity: 0; } }
   .wonder-wash { background: radial-gradient(circle at 50% 55%, rgba(255,255,255,.98), rgba(255,236,170,.9) 35%, rgba(255,170,220,.85) 70%, rgba(190,150,255,.8)); opacity: 0; }
   .wonder-wash.on { animation: wWash ${OUTRO}s ease-in-out forwards; }
   @keyframes wWash { 0% { opacity: 0; } 45% { opacity: 1; } 55% { opacity: 1; } 100% { opacity: 0; } }

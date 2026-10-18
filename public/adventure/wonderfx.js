@@ -818,7 +818,7 @@ class Candy extends Fx {
     this.caneI = this.add(inst(cane, vmat({ rough: 0.25, glow: 0.12, rim: 0.3, key: 'kc' }), Math.max(1, cnt('cane'))));
     this.lolI = this.add(inst(merge(lol), vmat({ rough: 0.2, glow: 0.12, rim: 0.3, key: 'kl' }), Math.max(1, cnt('lol')), [0xffffff, 0xd0fff0, 0xfff4b0, 0xe8d8ff]));
     this.gumI = this.add(inst(gum, vmat({ rough: 0.75, glow: 0.22, rim: 0.4, key: 'kg' }), Math.max(1, cnt('gum')), [0xff4a6a, 0xffb02a, 0xfff04a, 0x5ae06a, 0x4ab8ff, 0xb06aff, 0xff7ad8]));
-    this.mmI = this.add(inst(merge(mm), vmat({ rough: 0.85, glow: 0.12, key: 'km' }), Math.max(1, cnt('mm'))));
+    this.mmI = this.add(inst(merge(mm), vmat({ rough: 0.85, glow: 0.14, rim: 0.25, key: 'km' }), Math.max(1, cnt('mm')), [0xffc4dc, 0xc4ffe8, 0xfff0b8, 0xe0d0ff]));
   }
   step(dt, t) {
     if (t < 0) return;
