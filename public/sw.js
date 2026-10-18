@@ -48,6 +48,7 @@ const PRECACHE = [
   'adventure/voices.js', 'adventure/wardrobe.js', 'adventure/world.js',
   'adventure/park.js', 'adventure/parkkit.js',
   'adventure/forestkit.js', 'adventure/forestlife.js',
+  'adventure/puppies.js', 'adventure/pupdata.js',
   'adventure/juice.js',
 ];
 
