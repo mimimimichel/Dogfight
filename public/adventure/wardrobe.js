@@ -29,8 +29,8 @@ export const ITEMS = [
 
 const read = (k) => { try { return JSON.parse(localStorage.getItem(k) || 'null'); } catch (e) { return null; } };
 
-/** Ce que porte le joueur : { hat, collar }. */
-export function outfit() { return Object.assign({ hat: null, collar: null }, read(KEY) || {}); }
+/** Ce que porte le joueur : { hat, collar, power (costume à pouvoir, voir powerdata.js), found (pouvoirs trouvés) }. */
+export function outfit() { return Object.assign({ hat: null, collar: null, power: null, found: [] }, read(KEY) || {}); }
 export function setOutfit(o) { try { localStorage.setItem(KEY, JSON.stringify(o)); } catch (e) { /* ignore */ } }
 
 /** Nombre total de récompenses (tous niveaux). */
@@ -111,6 +111,13 @@ const HAT_AT = { duo: [0, 0.3, -0.36, 1.55], matcha: [0, 0.04, -0.1, 0.72], pug:
 const COLLAR_AT = { duo: [0, -0.42, -0.42, 1.25, 0.5], matcha: [0, -0.15, -0.14, 0.5, 0.45], pug: [0, -0.3, -0.2, 0.8, 0.4], yorkie: [0, -0.24, -0.16, 0.65, 0.4] };
 const kindOf = (P) => { const u = P.mesh.userData; return u.ainu ? 'duo' : P.kind === 'matcha' ? 'matcha' : (P.kind === 'giorgio' || P.kind === 'django') ? 'pug' : 'yorkie'; };
 
+/** Où poser un chapeau sur ce chien : { anchor, at: [x, y, z, échelle] } (sert aussi au chapeau-aimant). */
+export function hatSpot(P) {
+  if (!P || !P.mesh) return null;
+  const u = P.mesh.userData, anchor = u.ainu ? u.headFace : u.mheadFace;
+  return anchor ? { anchor, at: HAT_AT[kindOf(P)] } : null;
+}
+
 /** Habille un chien (refait seulement si la tenue change). */
 export function dress(P, o) {
   if (!P || !P.mesh) return;
@@ -126,6 +133,7 @@ export function dress(P, o) {
     if (!id) return;
     const m = buildItem(id); if (!m) return;
     m.position.set(at[0], at[1], at[2]); m.scale.setScalar(at[3]); if (at[4]) m.rotation.x = at[4];
+    m.userData.wrKind = at === HAT_AT[k] ? 'hat' : 'collar';      // (le chapeau-aimant cache le chapeau)
     anchor.add(m); P.outfitMeshes.push(m);
   };
   put(o.hat, HAT_AT[k]);
