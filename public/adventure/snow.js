@@ -2143,7 +2143,7 @@ export function buildSnow(game) {
         const done = save().life && save().life.defis ? save().life.defis.length : 0;
         aurora.material.uniforms.uT.value = t;
         const dS = Math.hypot(cam.x - S.MOUNTAIN.x, cam.z - S.MOUNTAIN.z);
-        aurora.material.uniforms.uK.value = (done >= LIFE.PLAN.defis.length ? 1.1 : 0.4 + 0.4 * done / LIFE.PLAN.defis.length) * (0.55 + 0.45 * smooth(170, 50, dS));
+        aurora.material.uniforms.uK.value = (done >= LIFE.PLAN.defis.length ? 1.1 : 0.4 + 0.4 * done / LIFE.PLAN.defis.length) * (0.55 + 0.45 * smooth(170, 50, dS)) * (game.mood && game.mood.aurora ? 2.0 : 1);   // (le soir, elle flamboie : lumiere.js)
       }
       if (fortFlag) { const arr = fortFlag.geometry.attributes.position.array, base = fortFlag.userData.base; for (let j = 0; j < arr.length; j += 3) arr[j + 2] = Math.sin(base[j] * 3 - t * 5) * 0.12 * base[j]; fortFlag.geometry.attributes.position.needsUpdate = true; }
       // la Capitaine
