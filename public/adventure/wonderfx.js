@@ -520,7 +520,7 @@ class Bubbles extends Fx {
   seedSpots() {
     // en l'air : on saute et on flotte pour les attraper
     const S = ringSpots(this.c, SEEDS, 3, 9.5, { seed: 313, gap: 2.4, lift: 0 });
-    return seedRing(this.c, 3, 9, S.map((p, i) => ({ x: p.x, z: p.z, y: p.gy + 2.4 + (i % 4) * 1.3 })));
+    return seedRing(this.c, 3, 9, S.map((p, i) => ({ x: p.x, z: p.z, y: p.gy + 1.8 + (i % 4) * 0.85 })));
   }
   build() {
     const lite = this.lite;
@@ -552,7 +552,7 @@ class Bubbles extends Fx {
     for (const P of this.g.players) {
       if (P.kart || P.ride) { P.gravK = 1; continue; }
       P.gravK = 0.2;
-      if (!P.grounded && P.vel.y < -2.6) P.vel.y = -2.6;
+      if (!P.grounded && P.vel.y < -3.6) P.vel.y = -3.6;
     }
   }
   render(dt, t, k) {
@@ -876,7 +876,7 @@ class Fish extends Fx {
     this.nAir = lite ? 12 : 20; this.nJump = lite ? 8 : 14;
     this.fishI = this.add(inst(geo, vmat({ rough: 0.3, glow: 0.1, rim: 0.5, key: 'fi', wiggle: wig, uniforms: { uTime: this.U.uTime } }), this.nAir + this.nJump, FISH_COLS));
     const R = rng(66);
-    this.air = Array.from({ length: this.nAir }, (_, i) => ({ r: 3.5 + R() * 5.5, y: 1.6 + R() * 3.4, w: (0.45 + R() * 0.4) * (i % 3 === 0 ? -1 : 1), a: R() * TAU, ph: R() * 6, s: 0.8 + R() * 0.7 }));
+    this.air = Array.from({ length: this.nAir }, (_, i) => ({ r: 4.5 + R() * 6, y: 2 + R() * 3.6, w: (0.45 + R() * 0.4) * (i % 3 === 0 ? -1 : 1), a: R() * TAU, ph: R() * 6, s: 0.6 + R() * 0.5 }));
     // la mer la plus proche : des points d'eau bien profonde autour de la fleur
     this.water = [];
     for (let r = 6; r < 40 && this.water.length < 40; r += 2) for (let a = 0; a < TAU; a += 0.25) {
@@ -1180,7 +1180,7 @@ class Portraits extends Fx {
       const grow = popK(clamp((t + 1.2) * 1.2 - i * 0.15, 0, 1)) * k, s = Math.max(0.001, grow);
       const a = f.a + t * 0.18, R = 4.6;
       const x = this.c.x + Math.cos(a) * R, z = this.c.z + Math.sin(a) * R, y = this.c.y + 2.3 + Math.sin(t * 1.4 + i) * 0.35;
-      const yaw = Math.atan2(this.c.x - x, this.c.z - z), roll = Math.sin(b * Math.PI + i) * 0.08;
+      const cam = g.camera.position, yaw = Math.atan2(cam.x - x, cam.z - z), roll = Math.sin(b * Math.PI + i) * 0.08;   // toujours tournés vers nous
       f.pos = { x, y, z };
       setM(P, n++, x + Math.sin(yaw) * 0.02, y, z + Math.cos(yaw) * 0.02, 0, yaw, roll, s);
       setM(this.frameI, i, x, y, z, 0, yaw, roll, s);
