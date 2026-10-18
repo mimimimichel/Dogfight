@@ -1657,7 +1657,7 @@ export function buildCastle(game) {
         f.halo.scale.setScalar(since < 1.5 ? 1 + since * 2 : 1);
       });
       // torches qui vacillent, statue de la fontaine
-      glowMat.size = 2.6 + Math.sin(t * 13) * 0.15 + Math.sin(t * 7.3) * 0.12;
+      glowMat.size = (2.6 + Math.sin(t * 13) * 0.15 + Math.sin(t * 7.3) * 0.12) * (game.mood ? (game.mood.torches ? 1.45 : 1.15) : 1);   // (plus chaudes le soir : lumiere.js)
       flameMesh.scale.y = 1 + Math.sin(t * 17) * 0.04;
       for (const l of lamps) l.intensity = 14 + Math.sin(t * 9 + l.position.z) * 1.2;
       statue.rotation.y = 0.6 + Math.sin(t * 0.8) * 0.15;

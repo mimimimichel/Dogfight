@@ -763,6 +763,7 @@ function buildDecor(game) {
     spots.forEach(([x, z], i) => { m4.makeTranslation(x, G + 2.1, z); pole.setMatrixAt(i, m4); m4.makeTranslation(x, G + 4.3, z); head.setMatrixAt(i, m4); });
     pole.castShadow = !lite;
     sc.add(pole, head);
+    sc.userData.lampSpots = spots.map(([x, z]) => [x, G + 4.3, z]);   // (halos du soir : lumiere.js)
     // mobilier urbain détaillé (rendu réaliste) : bancs à lattes, bouches d'incendie, poubelles, arceaux, kiosque
     const props = LOOK.real ? streetProps(sc, S, G, spots, lite) : null;
     const benchAt = (x, z, along) => {
