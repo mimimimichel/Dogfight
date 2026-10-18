@@ -11,6 +11,7 @@ import * as M from './models.js';
 import * as W from './world.js';
 import * as RT from './realtex.js';
 import * as K from './citykit.js';
+import * as SC from './sculpt.js';
 import { buildCaptain } from './forest.js';
 import { buildPlay } from './beachplay.js';
 
@@ -158,20 +159,6 @@ function woodTex() {
     x.fillStyle = 'rgba(60,36,16,0.55)';
     for (let i = 0; i <= 8; i++) x.fillRect(i * 16, 0, 1.5, h);
   }, true);
-}
-/** Feuille de palmier (penne) : nervure centrale et folioles, sur fond transparent. */
-function frondTex() {
-  return canvasTex(64, 256, (x, w, h) => {
-    x.clearRect(0, 0, w, h);
-    x.strokeStyle = '#ffffff'; x.lineCap = 'round';
-    for (let i = 0; i < 34; i++) {
-      const y = 10 + i * 7, len = 28 * Math.sin(Math.min(1, (i + 2) / 30) * Math.PI) + 3;
-      x.lineWidth = 4;
-      x.beginPath(); x.moveTo(w / 2, y); x.lineTo(w / 2 - len, y + 10); x.stroke();
-      x.beginPath(); x.moveTo(w / 2, y); x.lineTo(w / 2 + len, y + 10); x.stroke();
-    }
-    x.lineWidth = 4; x.beginPath(); x.moveTo(w / 2, 0); x.lineTo(w / 2, h); x.stroke();
-  });
 }
 function pawFlagTex() {
   return canvasTex(128, 64, (x) => {
@@ -548,50 +535,27 @@ function buildDecor(game) {
   }
 
   // --- Palmiers -----------------------------------------------------------------------
+  // (sculpt.js : tronc annelé et courbé, collerette fibreuse, noix de coco cabossées, palmes
+  //  arquées pliées en V aux folioles dentelées ; deux appels de dessin par tuile, comme avant)
   {
-    const trunkGeos = [], frondGeos = [], nutGeos = [];
-    const ringed = (c, x, y) => c.set(0x9a7a52).multiplyScalar(0.85 + 0.2 * (Math.sin(y * 9) * 0.5 + 0.5));
-    const frond = (len) => {
-      const seg = 6, g = new THREE.PlaneGeometry(1.3, len, 1, seg);
-      g.translate(0, len / 2, 0);
-      const p = g.attributes.position;
-      for (let i = 0; i < p.count; i++) { const y = p.getY(i), k = y / len; p.setZ(i, -k * k * len * 0.55); p.setX(i, p.getX(i) * (0.5 + Math.sin(k * Math.PI) * 0.7)); }
-      g.rotateX(-Math.PI / 2 + 0.55);
-      return g;
-    };
+    const trunkGeos = [], frondGeos = [];
     S.palms.forEach((pl, pi) => {
-      // tronc courbé : une suite de tronçons
-      const n = 8, segH = pl.h / n;
-      let x = 0, y = 0, z = 0;
-      const dirA = pl.rot;
-      for (let i = 0; i < n; i++) {
-        const k = i / n, lean = pl.lean * (1 + k * 1.6);
-        const g = new THREE.CylinderGeometry(0.26 - k * 0.07, 0.3 - k * 0.07, segH * 1.06, 9, 2);
-        g.rotateZ(-lean); g.rotateY(dirA);
-        trunkGeos.push({ geo: paint(g, ringed), x: pl.x + x, y: pl.y + y + segH / 2, z: pl.z + z });
-        x += Math.cos(dirA) * Math.sin(lean) * segH; z -= Math.sin(dirA) * Math.sin(lean) * segH; y += Math.cos(lean) * segH;
-      }
-      const top = [pl.x + x, pl.y + y, pl.z + z];
-      pl.topX = top[0]; pl.topY = top[1]; pl.topZ = top[2];
-      const r = rng(300 + pi), nf = lite ? 7 : 9;
-      for (let i = 0; i < nf; i++) {
-        const g = frond(2.6 + r() * 0.9);
-        g.rotateY(i / nf * Math.PI * 2 + r() * 0.3);
-        frondGeos.push({ geo: paint(g, (c) => c.setHSL(0.27 + r() * 0.04, 0.55, real ? 0.32 : 0.42)), x: top[0], y: top[1] - 0.05, z: top[2] });
-      }
-      for (let i = 0; i < 3; i++) { const a = i * 2.1; nutGeos.push({ geo: paint(new THREE.SphereGeometry(0.17, 8, 6), 0x6a4a28), x: top[0] + Math.cos(a) * 0.25, y: top[1] - 0.25, z: top[2] + Math.sin(a) * 0.25 }); }
+      const P = SC.palmGeometry(pl, 300 + pi, { lite });
+      pl.topX = pl.x + P.top[0]; pl.topY = pl.y + P.top[1]; pl.topZ = pl.z + P.top[2];
+      trunkGeos.push({ geo: P.trunk, x: pl.x, y: pl.y, z: pl.z });
+      frondGeos.push({ geo: P.fronds, x: pl.x, y: pl.y, z: pl.z });
     });
-    tiled(trunkGeos.concat(nutGeos), vmat({ roughness: 0.9 }));
-    const fm = new THREE.MeshStandardMaterial({ vertexColors: true, map: frondTex(), alphaTest: 0.4, side: THREE.DoubleSide, roughness: 0.75 });
-    tiled(frondGeos, fm, { uv: true, depth: new THREE.MeshDepthMaterial({ depthPacking: THREE.RGBADepthPacking, map: fm.map, alphaTest: 0.4 }) });
+    const PM = SC.palmMaterials(lite);
+    tiled(trunkGeos, PM.trunk, { uv: true });
+    tiled(frondGeos, PM.frond, { uv: true, depth: PM.depth, noOutline: true });
   }
 
   // --- Parasols, serviettes, cabines --------------------------------------------------
   {
     const n = S.PARASOLS.length;
     const poles = new THREE.InstancedMesh(new THREE.CylinderGeometry(0.05, 0.05, 2.5, 6), M.mat(0xf4f4f4), n);
-    const topGeo = new THREE.ConeGeometry(1.5, 0.6, 12, 1, true); topGeo.translate(0, 0, 0);
-    const tops = new THREE.InstancedMesh(topGeo, new THREE.MeshStandardMaterial({ map: stripeTex('#ffffff', '#c8c8c8', 12, true), roughness: 0.65, side: THREE.DoubleSide }), n);
+    const topGeo = SC.parasolCanopyGeometry(1.5, 0.6, 12, { lite });   // (sculpt.js : toile tendue entre les baleines, festons)
+    const tops = new THREE.InstancedMesh(topGeo, new THREE.MeshStandardMaterial({ map: stripeTex('#ffffff', '#c8c8c8', 12, true), vertexColors: true, roughness: 0.75, side: THREE.DoubleSide }), n);
     const towels = new THREE.InstancedMesh(new THREE.BoxGeometry(1.0, 0.03, 1.9), new THREE.MeshStandardMaterial({ map: stripeTex('#ffffff', '#dcdcdc', 6, false), roughness: 0.9 }), n);
     const c = new THREE.Color();
     S.PARASOLS.forEach((p, i) => {
@@ -607,55 +571,29 @@ function buildDecor(game) {
     sc.add(poles, tops, towels);
     // cabines rayées
     const hutGeos = [];
-    for (const h of S.huts) {
-      hutGeos.push({ geo: paint(new THREE.BoxGeometry(2.6, 2.6, 2.2), h.color), x: h.x, y: h.y + 1.3, z: h.z });
-      // rayures blanches (des lattes posées sur les murs)
-      for (let k = -1.05; k <= 1.06; k += 0.7) {
-        hutGeos.push({ geo: paint(new THREE.BoxGeometry(0.32, 2.5, 2.26), 0xffffff), x: h.x + k, y: h.y + 1.3, z: h.z });
-        if (Math.abs(k) < 1) hutGeos.push({ geo: paint(new THREE.BoxGeometry(2.66, 2.5, 0.32), 0xffffff), x: h.x, y: h.y + 1.3, z: h.z + k * 0.8 });
-      }
-      const roof = new THREE.CylinderGeometry(0.01, 2.1, 1.0, 4, 1); roof.rotateY(Math.PI / 4);
-      hutGeos.push({ geo: paint(roof, h.color), x: h.x, y: h.y + 3.1, z: h.z, sx: 1.05, sz: 0.95 });
-      const door = new THREE.BoxGeometry(1.0, 1.8, 0.08);
-      hutGeos.push({ geo: paint(door, 0xf6eedc), x: h.x, y: h.y + 0.95, z: h.z - 1.12 });
-    }
-    // les maisons du village : murs colorés, toit, porte, fenêtres et volets
-    for (const h of S.houses) {
-      const ca = Math.cos(h.rot), sa = Math.sin(h.rot), P = (dx, dz) => ({ x: h.x + ca * dx + sa * dz, z: h.z - sa * dx + ca * dz });
-      hutGeos.push({ geo: paint(new THREE.BoxGeometry(h.w, 4.2, h.d), h.color), x: h.x, y: h.y + 2.1, z: h.z, ry: h.rot });
-      const roof = new THREE.CylinderGeometry(0.01, 1, 1, 4, 1); roof.rotateY(Math.PI / 4); roof.scale(h.w * 0.78, 2.2, h.d * 0.78);
-      hutGeos.push({ geo: paint(roof, h.roof), x: h.x, y: h.y + 5.3, z: h.z, ry: h.rot });
-      for (const sd of [-1, 1]) {
-        const door = P(0, sd * (h.d / 2 + 0.03));
-        if (sd < 0) hutGeos.push({ geo: paint(new THREE.BoxGeometry(1.2, 2.2, 0.08), 0x8a5a30), x: door.x, y: h.y + 1.1, z: door.z, ry: h.rot });
-        for (const wx of [-2.2, 2.2]) {
-          const wp = P(wx, sd * (h.d / 2 + 0.03));
-          hutGeos.push({ geo: paint(new THREE.BoxGeometry(1.1, 1.1, 0.08), 0x4a7ab0), x: wp.x, y: h.y + 2.4, z: wp.z, ry: h.rot });
-          for (const vx of [-0.75, 0.75]) { const vp = P(wx + vx, sd * (h.d / 2 + 0.05)); hutGeos.push({ geo: paint(new THREE.BoxGeometry(0.4, 1.2, 0.06), h.roof), x: vp.x, y: h.y + 2.4, z: vp.z, ry: h.rot }); }
-        }
-      }
-    }
-    // le glacier de Gino : un comptoir, un parasol rayé et un grand cornet
+    // cabines (sculpt.js : planches peintes une sur deux, toit à deux pans qui déborde, porte à hublot)
+    const hutB = SC.builder(1);
+    for (const h of S.huts) SC.addBeachHut(hutB, h, { lite });
+    { const hm = new THREE.Mesh(hutB.geometry(), SC.paintedWoodMaterial(lite)); hm.castShadow = hm.receiveShadow = true; sc.add(hm); }
+    // les maisons du village (sculpt.js : crépi coloré, toit de tuiles en croupe, volets en planches, jardinières)
     {
-      const I = S.ICECREAM;
-      hutGeos.push({ geo: paint(new THREE.BoxGeometry(3.2, 1.1, 1.4), 0xffffff), x: I.x, y: I.y + 0.55, z: I.z + 1.4 });
-      hutGeos.push({ geo: paint(new THREE.BoxGeometry(3.3, 0.12, 1.5), 0xff7ab0), x: I.x, y: I.y + 1.15, z: I.z + 1.4 });
-      for (let k = 0; k < 5; k++) hutGeos.push({ geo: paint(new THREE.SphereGeometry(0.2, 10, 8), [0xff9ac8, 0xfff0c0, 0x8a5a30, 0x9ae0a0, 0xffd23a][k]), x: I.x - 1.2 + k * 0.6, y: I.y + 1.3, z: I.z + 1.4 });
-      const cone = new THREE.ConeGeometry(0.55, 1.6, 12); cone.rotateX(Math.PI);
-      hutGeos.push({ geo: paint(cone, 0xe0a050), x: I.x - 1.9, y: I.y + 2.6, z: I.z + 2.2 });
-      hutGeos.push({ geo: paint(new THREE.SphereGeometry(0.6, 14, 10), 0xff9ac8), x: I.x - 1.9, y: I.y + 3.6, z: I.z + 2.2 });
-      hutGeos.push({ geo: paint(new THREE.CylinderGeometry(0.08, 0.08, 2.4, 6), 0xdddddd), x: I.x - 1.9, y: I.y + 1.2, z: I.z + 2.2 });
-      const umb = new THREE.ConeGeometry(2.2, 0.8, 12, 1, true);
-      hutGeos.push({ geo: paint(umb, (cc, x, y, z) => cc.set(Math.floor((Math.atan2(z, x) + 3.2) * 12 / 6.28) % 2 ? 0xffffff : 0xff7ab0)), x: I.x + 0.6, y: I.y + 3.1, z: I.z + 2.0 });
-      hutGeos.push({ geo: paint(new THREE.CylinderGeometry(0.06, 0.06, 3, 6), 0xdddddd), x: I.x + 0.6, y: I.y + 1.5, z: I.z + 2.0 });
+      const Bs = [SC.builder(1), SC.builder(1), SC.builder(1)];
+      for (const h of S.houses) SC.addVillageHouse(Bs, h, { lite });
+      const HM = SC.villageHouseMaterials(lite);
+      Bs.forEach((B, i) => { const hm = new THREE.Mesh(B.geometry(), HM[i]); hm.castShadow = hm.receiveShadow = true; place(hm, S.VILLAGE.x, S.VILLAGE.z, 60); });
     }
-    // le chamboule-tout : un comptoir rayé, un auvent, des fanions
+    // le glacier de Gino (sculpt.js : comptoir rayé en planches, bacs de glace, cornet-enseigne, parasol à festons)
+    { const I = S.ICECREAM, ice = SC.iceCreamStand({ lite }); ice.position.set(I.x, I.y, I.z); place(ice, I.x, I.z, 8); }
+    // le chamboule-tout (sculpt.js : comptoir en planches, poteaux tournés, toile rayée à festons ; pas de cagettes : les boîtes sont sur le comptoir)
     {
       const C = S.CANS;
-      hutGeos.push({ geo: paint(new THREE.BoxGeometry(5, 1.0, 1.0), (cc, x) => cc.set(Math.floor(x * 1.2 + 9) % 2 ? 0xe04848 : 0xffffff)), x: C.x, y: C.y + 0.5, z: C.z - 1.6 });
-      hutGeos.push({ geo: paint(new THREE.BoxGeometry(5.6, 0.15, 2.4), 0x3a8ae0), x: C.x, y: C.y + 3.2, z: C.z - 2.2 });
-      for (const sx of [-2.6, 2.6]) hutGeos.push({ geo: paint(new THREE.CylinderGeometry(0.08, 0.08, 3.2, 6), 0xffffff), x: C.x + sx, y: C.y + 1.6, z: C.z - 1.2 });
-      hutGeos.push({ geo: paint(new THREE.BoxGeometry(5, 2.6, 0.12), 0xf6e8c8), x: C.x, y: C.y + 1.3, z: C.z - 3.3 });
+      const st = SC.marketStall({ w: 5, d: 1.0, top: 1.0, canopy: 3.2, color: 0x3a8ae0 }, { lite, crates: false, seed: 5 });
+      st.position.set(C.x, C.y, C.z - 1.6); place(st, C.x, C.z, 8);
+      // le panneau du fond, en planches peintes (rayures bleues et blanches, une planche sur deux)
+      const BB = SC.builder(1), m4b = new THREE.Matrix4(), pk = SC.roundBox(0.4, 2.6, 0.1, 0.02, 1);
+      for (let i = 0; i < 12; i++) { m4b.makeTranslation(-2.3 + i * 0.418, 0, (i % 2) * 0.012); BB.add(0, pk, m4b, i % 2 ? [0.96, 0.95, 0.92] : [0.45, 0.66, 0.9]); }
+      const back = SC.boxUV(BB.geometry().toNonIndexed(), 0.8);
+      const bm = new THREE.Mesh(back, SC.paintedWoodMaterial(lite)); bm.position.set(C.x, C.y + 1.3, C.z - 3.3); bm.castShadow = bm.receiveShadow = true; place(bm, C.x, C.z, 8);
     }
     // guirlande de fanions au-dessus de la place
     {
@@ -666,30 +604,44 @@ function buildDecor(game) {
       }
     }
     tiled(hutGeos, vmat({ roughness: 0.7 }));
-    // passerelles en bois sur les dunes
+    // passerelles en bois sur les dunes (planches aux arêtes arrondies, veinage : sculpt.js)
     const walkGeos = [];
+    const plankGeo = SC.boxUV(SC.roundBox(1.9, 0.07, 0.42, 0.025, 1).toNonIndexed(), 1.0);
     for (const [[ax, az], [bx, bz]] of S.BOARDWALKS) {
       const len = Math.hypot(bx - ax, bz - az), n = Math.ceil(len / 0.55), yaw = Math.atan2(bx - ax, bz - az);
       for (let i = 0; i < n; i++) {
         const k = i / n, x = ax + (bx - ax) * k, z = az + (bz - az) * k;
-        const pl = new THREE.BoxGeometry(1.9, 0.07, 0.42); pl.rotateY(yaw);
-        walkGeos.push({ geo: paint(pl, (cc) => cc.set(0xc49a68).multiplyScalar(0.88 + hash2(i, ax) * 0.2)), x, y: S.heightAt(x, z) + 0.05, z });
+        const pl = plankGeo.clone(); pl.rotateY(yaw + (hash2(i, az) - 0.5) * 0.04);
+        walkGeos.push({ geo: paint(pl, (cc) => cc.set(0xd8b48a).multiplyScalar(0.86 + hash2(i, ax) * 0.22)), x, y: S.heightAt(x, z) + 0.05, z });
       }
     }
-    tiled(walkGeos, vmat({ roughness: 0.9 }), { cast: false, noOutline: true });
+    tiled(walkGeos, vmat({ roughness: 0.9, map: SC.woodTex().map, normalMap: lite ? null : SC.woodTex().normalMap }), { cast: false, noOutline: true, uv: true });
   }
 
   // --- Poste de secours et râtelier des planches ---------------------------------------
   {
-    const LG = S.LIFEGUARD, g = new THREE.Group();
-    for (const [dx, dz] of [[-1.1, -1.1], [1.1, -1.1], [-1.1, 1.1], [1.1, 1.1]]) { const p = new THREE.Mesh(new THREE.CylinderGeometry(0.11, 0.13, LG.top - LG.y, 6), M.mat(0xffffff)); p.position.set(dx, (LG.top - LG.y) / 2, dz); g.add(p); }
-    const deck = new THREE.Mesh(new THREE.CylinderGeometry(1.6, 1.6, 0.3, 14), M.mat(0xe04848)); deck.position.y = LG.top - LG.y - 0.15;
-    const hut = new THREE.Mesh(new THREE.BoxGeometry(1.6, 1.3, 1.4), M.mat(0xfafafa)); hut.position.set(0, LG.top - LG.y + 0.65, 0.3);
-    const roof = new THREE.Mesh(new THREE.ConeGeometry(1.5, 0.9, 4), M.mat(0xe04848)); roof.position.y = LG.top - LG.y + 1.75; roof.rotation.y = Math.PI / 4;
-    const pole = new THREE.Mesh(new THREE.CylinderGeometry(0.04, 0.04, 2.2, 5), M.mat(0xdddddd)); pole.position.set(0.9, LG.top - LG.y + 2.2, 0.9);
-    const flagM = new THREE.Mesh(new THREE.PlaneGeometry(0.9, 0.6), M.mat(0x40c060, { side: THREE.DoubleSide })); flagM.position.set(1.35, LG.top - LG.y + 3.0, 0.9);
-    g.add(deck, hut, roof, pole, flagM);
-    for (const s of S.lifeguardSteps) { const d = new THREE.Mesh(new THREE.CylinderGeometry(0.9, 0.9, 0.25, 10), M.mat(0xc49a68)); d.position.set(s.x - LG.x, s.top - 0.12 - LG.y, s.z - LG.z); g.add(d); }
+    // (sculpt.js : pilotis en bois croisillonnés, plancher, cabane en planches peintes rouges et blanches, marches en bois)
+    const LG = S.LIFEGUARD, B = SC.builder(1), m4l = new THREE.Matrix4(), H = LG.top - LG.y;
+    const wood = [0.78, 0.6, 0.42], white = [0.96, 0.95, 0.92];
+    const at = (g, c, x, y, z, rx = 0, ry = 0, rz = 0) => { m4l.compose(v.set(LG.x + x, LG.y + y, LG.z + z), q.setFromEuler(e.set(rx, ry, rz)), sv.set(1, 1, 1)); B.add(0, g, m4l, c); };
+    for (const [dx, dz] of [[-1.1, -1.1], [1.1, -1.1], [-1.1, 1.1], [1.1, 1.1]]) at(SC.roundBox(0.2, H + 0.2, 0.2, 0.03, 1), white, dx, H / 2 - 0.1, dz);
+    // croisillons
+    const br = Math.hypot(2.2, H * 0.7);
+    for (const sz of [-1.1, 1.1]) at(SC.roundBox(br, 0.1, 0.06, 0.02, 1), wood, 0, H * 0.45, sz, 0, 0, Math.atan2(H * 0.7, 2.2));
+    for (const sx of [-1.1, 1.1]) at(SC.roundBox(0.06, 0.1, br, 0.02, 1), wood, sx, H * 0.45, 0, -Math.atan2(H * 0.7, 2.2), 0, 0);
+    // plancher : planches, bordure rouge
+    for (let i = 0; i < 8; i++) at(SC.roundBox(0.38, 0.1, 3.0, 0.02, 1), wood.map(c => c * (0.92 + (i % 3) * 0.05)), -1.33 + i * 0.38, H - 0.05, 0);
+    at(SC.roundBox(3.2, 0.16, 0.1, 0.03, 1), [0.88, 0.25, 0.22], 0, H - 0.12, -1.55); at(SC.roundBox(3.2, 0.16, 0.1, 0.03, 1), [0.88, 0.25, 0.22], 0, H - 0.12, 1.55);
+    // la cabane
+    const Bh = SC.builder(1); SC.addBeachHut(Bh, { x: LG.x, y: LG.top, z: LG.z + 0.3, color: 0xe04848 }, { lite, w: 1.6, d: 1.4, hw: 1.3 });
+    // marches : rondins de planches
+    for (const st of S.lifeguardSteps) { const d = new THREE.CylinderGeometry(0.9, 0.9, 0.25, 12); at(d, wood, st.x - LG.x, st.top - 0.12 - LG.y, st.z - LG.z); }
+    const lgGeo = SC.concatGeos([SC.boxUV(B.geometry().toNonIndexed(), 1.0), Bh.geometry().toNonIndexed()]);
+    const lgM = new THREE.Mesh(lgGeo, SC.paintedWoodMaterial(lite)); lgM.castShadow = lgM.receiveShadow = true; sc.add(lgM);
+    const g = new THREE.Group();
+    const pole = new THREE.Mesh(new THREE.CylinderGeometry(0.04, 0.04, 2.2, 5), M.mat(0xdddddd)); pole.position.set(0.9, H + 2.2, 0.9);
+    const flagM = new THREE.Mesh(new THREE.PlaneGeometry(0.9, 0.6), M.mat(0x40c060, { side: THREE.DoubleSide })); flagM.position.set(1.35, H + 3.0, 0.9);
+    g.add(pole, flagM);
     g.position.set(LG.x, LG.y, LG.z);
     sc.add(shadowy(g));
     const R = S.RACK, rack = new THREE.Group();

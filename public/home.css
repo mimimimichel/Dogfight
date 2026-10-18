@@ -431,6 +431,17 @@ html.ios-text .hbtn.small, html.ios-text .hbtn.lvpick:not(.active), html.ios-tex
 .coop-qr small { font-size: 12px; opacity: .85; }
 @media (max-height: 420px) { .coop-qr svg { width: 92px; height: 92px; } }
 
+/* album : les chiots perdus (3 par monde) */
+.album-pups { display: grid; grid-template-columns: repeat(8, 1fr); gap: 6px; width: 100%; }
+.apup { display: flex; flex-direction: column; align-items: center; gap: 1px; padding: 6px 2px 5px; border-radius: 14px; background: rgba(255,255,255,.85); border: 2px solid #2a1408; box-shadow: 0 3px 0 #2a1408; font-family: var(--hf); color: #3a2010; text-align: center; }
+.apup .face { width: 34px; height: 34px; border-radius: 50%; display: grid; place-items: center; font-size: 20px; border: 2px solid #2a1408; background: radial-gradient(circle at 35% 30%, #fff6d8, var(--c, #e8b468) 70%); }
+.apup b { font-size: 12px; line-height: 1.05; }
+.apup small { font-size: 9.5px; font-weight: 600; opacity: .75; line-height: 1.05; }
+.apup.off { background: rgba(255,255,255,.45); box-shadow: 0 3px 0 rgba(42,20,8,.4); border-color: rgba(42,20,8,.4); }
+.apup.off .face { background: #c8c0b8; filter: grayscale(1); opacity: .6; }
+.apup.off b, .apup.off small { opacity: .55; }
+.album-world .pups { letter-spacing: 1px; }
+@media (max-width: 700px) { .album-pups { grid-template-columns: repeat(4, 1fr); } }
 /* album : carnet des bêtises et souvenirs */
 .album-sub small { font-weight: 500; opacity: .75; font-size: .8em; }
 .album-carnet { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 6px; }

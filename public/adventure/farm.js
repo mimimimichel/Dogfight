@@ -9,6 +9,7 @@ import { L } from './current.js';
 import * as M from './models.js';
 import * as W from './world.js';
 import * as K from './farmkit.js';
+import * as SC from './sculpt.js';
 import { buildLife, skinMaterial } from './life.js';
 import * as LIFE from './level7life.js';
 
@@ -130,11 +131,8 @@ export function buildFarm(game) {
 
   // Foin : bottes carrées (escaliers) et grosses bottes rondes
   {
-    const baleGeo = K.paint(new THREE.BoxGeometry(1, 1, 1), (x, y, z, c) => {
-      const n = Math.sin(x * 40 + y * 13) * 0.5 + Math.sin(z * 37 - y * 17) * 0.5;
-      c.set(0xe8c868).multiplyScalar(0.86 + n * 0.08);
-      if (Math.abs(Math.abs(x) - 0.25) < 0.04 && Math.abs(y) < 0.49) c.set(0x9a7a3a);
-    });
+    // (sculpt.js : flancs bombés, ficelles enfoncées, paille texturée, brins qui dépassent)
+    const baleGeo = SC.squareBaleGeometry({ lite });
     const bales = [];
     for (const b of S.LOFT_BALES.concat(S.HAY_STACK)) {
       const H = b.top - b.y, n = Math.max(1, Math.round(H / 1.1)), hh = H / n;
@@ -142,15 +140,10 @@ export function buildFarm(game) {
     }
     // quelques bottes posées sur le grenier (les chats s'y cachent)
     for (const [dx, dz] of [[-2.2, -0.9], [0.6, -1.0], [3.0, -0.9]]) bales.push({ x: S.LOFT.x + dx, z: S.LOFT.z + dz - 0.3, y: S.LOFT.top + 0.45, w: 1.6, d: 1.0, h: 0.9, r: 0 });
-    const bi = new THREE.InstancedMesh(baleGeo, K.vmat(0.95), bales.length);
+    const bi = new THREE.InstancedMesh(baleGeo, SC.strawMaterial(lite), bales.length);
     bales.forEach((b, i) => { m4.compose(v3.set(b.x, b.y, b.z), q.setFromEuler(e.set(0, b.r, 0)), sv.set(b.w, b.h, b.d)); bi.setMatrixAt(i, m4); });
     bi.castShadow = bi.receiveShadow = true; sc.add(bi);
-    const rk = new K.Kit();
-    rk.add(new THREE.CylinderGeometry(0.8, 0.8, 1.3, 22, 1), (x, y, z, c) => {
-      const r = Math.hypot(x, z);
-      c.set(0xe0bc58).multiplyScalar(0.84 + (Math.abs(y) > 0.64 ? Math.sin(r * 30) * 0.08 : Math.sin(Math.atan2(z, x) * 30 + y * 6) * 0.06));
-    }, { rz: Math.PI / 2 });
-    const ri = new THREE.InstancedMesh(rk.geo(), K.vmat(0.95), S.ROUND_BALES.length);
+    const ri = new THREE.InstancedMesh(SC.roundBaleGeometry(0.8, 1.3, { lite }), SC.strawMaterial(lite), S.ROUND_BALES.length);
     S.ROUND_BALES.forEach((b, i) => { m4.compose(v3.set(b.x, b.y + 0.78, b.z), q.setFromEuler(e.set(0, b.rot, 0)), sv.set(1, 1, 1)); ri.setMatrixAt(i, m4); });
     ri.castShadow = ri.receiveShadow = true; sc.add(ri);
   }

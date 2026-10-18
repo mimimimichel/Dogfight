@@ -8,6 +8,7 @@ import * as THREE from '../vendor/three.module.min.js';
 import { L } from './current.js';
 import * as M from './models.js';
 import * as K from './citykit.js';
+import * as SC from './sculpt.js';
 import * as RT from './realtex.js';
 import { LOOK } from './world.js';
 import { buildPlay } from './cityplay.js';
@@ -373,13 +374,11 @@ function buildDecor(game) {
   anim.awnings = S.awnings.map(a => {
     const g = new THREE.Group();
     const along = a.nx === 0;
-    const w = along ? a.w : a.d, d = along ? a.d : a.w;
-    const cloth = new THREE.Mesh(new THREE.BoxGeometry(along ? w : d, 0.18, along ? d : w), new THREE.MeshStandardMaterial({ map: K.stripeTex(K.hex(a.color), '#ffffff', 8), roughness: 0.6 }));
-    if (!along) cloth.rotation.y = Math.PI / 2;
-    cloth.position.y = -0.09;
-    const lip = new THREE.Mesh(new THREE.BoxGeometry(along ? w : 0.06, 0.3, along ? 0.06 : w), M.mat(a.color));
-    lip.position.set(a.nx * d / 2, -0.25, a.nz * d / 2);
-    g.add(cloth, lip);
+    const len = along ? a.w : a.d, dep = along ? a.d : a.w;
+    // (sculpt.js : toile rayée tendue en pente, lambrequin à festons, bras de fer forgé)
+    const aw = SC.shopAwning(len, dep, a.color, { lite });
+    aw.rotation.y = Math.atan2(a.nx, a.nz);
+    g.add(aw);
     g.position.set(a.x, a.top, a.z);
     place(shadowy(g), a.x, a.z, 3);
     return { def: a, g };
@@ -416,19 +415,10 @@ function buildDecor(game) {
   });
 
   // --- Marché, fontaine, kiosque, champignons, trampolines -------------------------
+  // (sculpt.js : comptoir en planches, poteaux tournés, toile rayée bombée à festons, cagettes de fruits)
+  let stallSeed = 0;
   const stall = (s) => {
-    const g = new THREE.Group();
-    const counter = new THREE.Mesh(new THREE.BoxGeometry(s.w, s.top - G, s.d), M.mat(0xa87a50, { roughness: 0.85 }));
-    counter.position.y = (s.top - G) / 2;
-    const goods = new THREE.Mesh(new THREE.BoxGeometry(s.w - 0.4, 0.2, s.d - 0.6), M.mat([0xf06a3a, 0x7ad04a, 0xf0d040, 0xd04a8a][Math.abs(Math.floor(s.x + s.z)) & 3]));
-    goods.position.y = s.top - G + 0.1;
-    const roof = new THREE.Mesh(new THREE.BoxGeometry(s.w + 0.6, 0.2, s.d + 0.8), new THREE.MeshStandardMaterial({ map: K.stripeTex(K.hex(s.color), '#ffffff', 6), roughness: 0.6 }));
-    roof.position.y = s.canopy - G - 0.1;
-    g.add(counter, goods, roof);
-    for (const [px, pz] of [[-1, -1], [1, -1], [-1, 1], [1, 1]]) {
-      const post = new THREE.Mesh(new THREE.CylinderGeometry(0.06, 0.06, s.canopy - s.top, 6), M.mat(0x6a4a30));
-      post.position.set(px * (s.w / 2 - 0.1), (s.top + s.canopy) / 2 - G, pz * (s.d / 2 - 0.1)); g.add(post);
-    }
+    const g = SC.marketStall({ w: s.w, d: s.d, top: s.top - G, canopy: s.canopy - G, color: s.color }, { lite, seed: ++stallSeed });
     g.position.set(s.x, G, s.z);
     place(shadowy(g), s.x, s.z, 4);
   };
@@ -502,16 +492,23 @@ function buildDecor(game) {
     g.position.set(KI.x, G, KI.z);
     place(shadowy(g), KI.x, KI.z, 6);
   }
-  anim.mushrooms = S.bouncers.filter(b => b.mushroom).map(b => {
+  anim.mushrooms = S.bouncers.filter(b => b.mushroom).map((b, i) => {
+    // (sculpt.js : champignon charnu à pois en relief et lamelles, pied crépi ; trampoline à boudin rayé)
     const g = new THREE.Group();
-    const tramp = b.bounce >= 20;
-    const st = new THREE.Mesh(new THREE.CylinderGeometry(tramp ? b.r : 0.4, tramp ? b.r : 0.55, b.top - b.base, 16), M.mat(tramp ? 0x3a4a6a : 0xf2e6cc));
-    st.position.y = (b.top - b.base) / 2;
-    const cap = tramp
-      ? new THREE.Mesh(new THREE.CylinderGeometry(b.r * 0.95, b.r * 0.95, 0.2, 20), M.mat(0x3ac8ff, { roughness: 0.4 }))
-      : new THREE.Mesh(new THREE.SphereGeometry(b.r * 1.1, 20, 12, 0, Math.PI * 2, 0, Math.PI / 2), M.mat(0xff5ab8, { roughness: 0.5, emissive: 0x401030, emissiveIntensity: 0.3 }));
-    cap.position.y = b.top - b.base - (tramp ? 0 : 0.1); if (!tramp) cap.scale.y = 0.6;
-    g.add(st, cap); g.position.set(b.x, b.base, b.z);
+    const tramp = b.bounce >= 20, H = b.top - b.base;
+    const MM = SC.mushHouseMaterials(lite);
+    let cap;
+    if (tramp) {
+      const T = SC.trampolineParts(b.r, H, { lite, a: [0x3a8ae0, 0xe04848, 0x40b060][i % 3], b: 0xffd23a });
+      g.add(new THREE.Mesh(T.frame, SC.velvetMaterial(lite)));
+      cap = new THREE.Mesh(T.mat, SC.velvetMaterial(lite));   // (toile tressée sombre)
+    } else {
+      g.add(new THREE.Mesh(SC.mushroomStemGeometry(0.42, H - 0.05, { lite }), MM[0]));
+      const cg = SC.mushroomCapGeometry(b.r * 1.1, 0xff5ab8, { lite, seed: i + 1 }); cg.scale(1, 1 / 0.6, 1);   // (au repos, le chapeau est à l'échelle 0,6 en hauteur)
+      cap = new THREE.Mesh(cg, MM[1]);
+    }
+    cap.position.y = H - (tramp ? 0 : 0.1); if (!tramp) cap.scale.y = 0.6;
+    g.add(cap); g.position.set(b.x, b.base, b.z);
     place(shadowy(g), b.x, b.z, 4);
     return { def: b, cap, tramp };
   });

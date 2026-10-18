@@ -286,6 +286,10 @@
     W.push({ id: 6, n: 'La Plage aux Coquillages', med: 5, medName: 'Médailles', col: 'Coquillages', s: S6, extra: S6 && S6.beach && S6.beach.raceBest ? `Bodyboard ${S6.beach.raceBest.toFixed(1)} s` : '' });
     W.push({ id: 7, n: 'La Ferme de Papi Berger', med: 5, medName: 'Médailles', col: 'Os', s: levelSave(7), extra: levelSave(7) && (levelSave(7).medals || []).length >= 5 ? 'Ferme en fête !' : '' });
     W.push({ id: 8, n: 'Le Château des Chats', med: 5, medName: 'Trésors', col: 'Poissons', s: S8, extra: S8 && S8.castle && S8.castle.party ? 'Fête au château !' : '' });
+    // les chiots perdus : la collection du joueur (+ ceux rangés dans les sauvegardes des mondes)
+    const pupIds = new Set((() => { try { const a = JSON.parse(localStorage.getItem('dogfight.aventure.chiots') || '[]'); return Array.isArray(a) ? a : []; } catch (e) { return []; } })());
+    W.forEach((w, i) => { for (const id of (w.s && Array.isArray(w.s.pups) ? w.s.pups : [])) if (typeof id === 'string' && id.startsWith('l' + (w.id || i + 1) + '_')) pupIds.add(id); });
+    const pupsIn = (n) => [...pupIds].filter(id => id.startsWith('l' + n + '_')).length;
     let got = 0, all = 0;
     $('album-worlds').innerHTML = W.map((w, i) => {
       const m = count(w.s, 'medals'), b = count(w.s, 'bones');
@@ -296,6 +300,7 @@
         <span class="pct">${pct}%</span><h4>${w.id || i + 1}. ${w.n}</h4>
         <div class="row">${w.medName} ${Math.min(m, w.med)}/${w.med}</div><div class="dots">${dots}</div>
         <div class="row">${w.col} ${b}/100 <span class="bar" style="--p:${b}%"><i></i></span></div>
+        <div class="row pups">Chiots ${Math.min(3, pupsIn(w.id || i + 1))}/3 ${'🐶'.repeat(Math.min(3, pupsIn(w.id || i + 1)))}</div>
         ${w.extra ? `<span class="tag">${w.extra}</span>` : (w.s && w.s.intro ? '' : '<span class="tag">Pas encore visité</span>')}
       </div>`;
     }).join('');
@@ -334,6 +339,15 @@
       ['🦴', 'Grand collectionneur', anyBones100],
       ['👑', 'Toutous légendaires', total >= 95],
     ];
+    badges.push(['🐾', 'Sauveteurs de chiots', pupIds.size >= 24]);
+    $('album-pups-n').textContent = `${Math.min(24, pupIds.size)}/24`;
+    import('./adventure/pupdata.js').then((D) => {
+      const hex = (c) => '#' + (c >>> 0).toString(16).padStart(6, '0');
+      $('album-pups').innerHTML = D.PUPS.map((p) => {
+        const ok = pupIds.has(p.id);
+        return `<div class="apup${ok ? '' : ' off'}" title="${ok ? p.name + ' — ' + p.breed : 'Monde ' + p.lv}" style="--c:${hex(p.look.fur)}"><div class="face">${ok ? '🐶' : '?'}</div><b>${ok ? p.name : '???'}</b><small>${ok ? p.breed : 'monde ' + p.lv}</small></div>`;
+      }).join('');
+    }).catch(() => {});
     $('album-badges').innerHTML = badges.map(([ic, n, on], i) => `<div class="abadge${on ? '' : ' off'}" style="--i:${i}" title="${n}"><div class="ic"><span>${ic}</span></div>${n}</div>`).join('');
     // carnet des bêtises
     const C = window.Carnet;
