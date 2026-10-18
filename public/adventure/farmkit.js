@@ -6,6 +6,7 @@
  */
 import * as THREE from '../vendor/three.module.min.js';
 import * as M from './models.js';
+import * as FACE from './lifeface.js';
 
 const _c = new THREE.Color(), _c2 = new THREE.Color();
 const sstep = (a, b, x) => { const t = Math.min(1, Math.max(0, (x - a) / (b - a))); return t * t * (3 - 2 * t); };
@@ -262,9 +263,13 @@ export function buildPapi() {
   // brin de paille au coin de la bouche
   hk.add(Cyl(0.012, 0.012, 0.42, 5), 0xf0d060, { x: 0.18, y: -0.22, z: 0.5, rz: 1.25, ry: 0.4 });
   head.add(hk.mesh());
-  const fk = new Kit();
-  eyes(fk, { x: 0.16, y: 0.09, z: 0.38, r: 0.065, iris: 0x3a2410 });
-  head.add(fk.mesh(glossMat()));
+  // les yeux (un maillage à part, centré sur leur ligne : ils clignent tout seuls)
+  const ek = new Kit(), eo = { x: 0.16, y: 0.09, z: 0.38, r: 0.065 };
+  for (const sx of [-1, 1]) {
+    ek.add(Sph(eo.r, 12, 10), 0x3a2410, { x: sx * eo.x, sx: 0.9, sy: 1.1, sz: 0.55, ry: sx * 0.35 });
+    ek.add(Sph(eo.r * 0.35, 8, 6), 0xffffff, { x: sx * eo.x + eo.r * 0.25, y: eo.r * 0.4, z: eo.r * 0.42 });
+  }
+  const eyeM = ek.mesh(glossMat()); eyeM.position.set(0, eo.y, eo.z); FACE.selfBlink(eyeM); head.add(eyeM);
   // chapeau de paille
   const hat = new Kit();
   const straw = (x, y, z, c) => c.set(0xe8c868).multiplyScalar(0.85 + vnoise(x * 30, y * 30, z * 30) * 0.25);

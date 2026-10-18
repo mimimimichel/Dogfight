@@ -17,6 +17,7 @@ import * as THREE from '../vendor/three.module.min.js';
 import * as RT from './realtex.js';
 import * as W from './world.js';
 import * as FOL from './foliage.js';
+import * as FACE from './lifeface.js';
 
 const TAU = Math.PI * 2;
 const _m = new THREE.Matrix4(), _q = new THREE.Quaternion(), _e = new THREE.Euler(), _v = new THREE.Vector3(), _s = new THREE.Vector3();
@@ -31,6 +32,7 @@ function P(geo, color, o) {
   _m.compose(_v.set(o.x || 0, o.y || 0, o.z || 0), _q.setFromEuler(_e.set(o.rx || 0, o.ry || 0, o.rz || 0, 'YXZ')), _s.set(o.sx || o.s || 1, o.sy || o.s || 1, o.sz || o.s || 1));
   g.applyMatrix4(_m);
   if (o.uv) { const u = g.attributes.uv; for (let i = 0; i < u.count; i++) u.setXY(i, o.uv[0] + u.getX(i) * o.uv[2], o.uv[1] + u.getY(i) * o.uv[3]); }
+  if (o.rig) FACE.tag(g, o.rig[0], o.rig[1], o.rig[2], o.rig[3]);   // (pièce animée : œil qui cligne… — lifeface.js)
   return g;
 }
 /** Fusionne des pièces ; groups = [[pièces du matériau 0], [pièces du matériau 1], …]. */
@@ -45,6 +47,7 @@ function mergeG(groups) {
     out.setAttribute(name, new THREE.BufferAttribute(a, k));
   }
   if (groups.length > 1) { let s = 0; groups.forEach((list, i) => { let n = 0; for (const g of list) n += g.attributes.position.count; out.addGroup(s, n, i); s += n; }); }
+  FACE.mergeRig(all, out);
   out.computeBoundingSphere();
   return out;
 }
@@ -53,7 +56,7 @@ const cyl = (a, b, h, n, ...o) => new THREE.CylinderGeometry(a, b, h, n || 6, ..
 const cone = (r, h, n) => new THREE.ConeGeometry(r, h, n || 6);
 const box = (w, h, d) => new THREE.BoxGeometry(w, h, d);
 const tor = (r, t, a, b, arc) => new THREE.TorusGeometry(r, t, a || 6, b || 16, arc);
-const eyes = (x, y, z, r) => [P(sph(r, 6, 4), 0x141414, { x, y, z }), P(sph(r, 6, 4), 0x141414, { x: -x, y, z }), P(sph(r * 0.35, 4, 3), 0xffffff, { x: x + r * 0.3, y: y + r * 0.4, z: z + r * 0.6 }), P(sph(r * 0.35, 4, 3), 0xffffff, { x: -x + r * 0.3, y: y + r * 0.4, z: z + r * 0.6 })];
+const eyes = (x, y, z, r) => [P(sph(r, 6, 4), 0x141414, { x, y, z, rig: [FACE.RIG.EYE, x, y, z] }), P(sph(r, 6, 4), 0x141414, { x: -x, y, z, rig: [FACE.RIG.EYE, -x, y, z] }), P(sph(r * 0.35, 4, 3), 0xffffff, { x: x + r * 0.3, y: y + r * 0.4, z: z + r * 0.6, rig: [FACE.RIG.EYE, x, y, z] }), P(sph(r * 0.35, 4, 3), 0xffffff, { x: -x + r * 0.3, y: y + r * 0.4, z: z + r * 0.6, rig: [FACE.RIG.EYE, -x, y, z] })];
 const wing = (len, w, col, spots) => {
   const parts = [P(sph(0.5, 8, 4), col, { x: len * 0.5, sx: len, sy: 0.18 * w, sz: w })];
   if (spots) parts.push(P(sph(0.5, 6, 3), spots, { x: len * 0.62, y: 0.02 * w, sx: len * 0.35, sy: 0.12 * w, sz: w * 0.35 }));
@@ -205,7 +208,7 @@ export const MODELS = {
     const g = c.fur || 0x4a9a3a, belly = c.belly || 0xd8e8a0, dark = 0x2a5a24;
     const parts = [P(sph(0.2, 10, 7), g, { y: 0.13, sx: 1.05, sy: 0.6, sz: 1.15 }), P(sph(0.16, 8, 6), belly, { y: 0.1, z: 0.05, sx: 0.95, sy: 0.5 }),
       P(sph(0.16, 10, 6), g, { y: 0.2, z: 0.13, sx: 1.05, sy: 0.6 }), P(sph(0.07, 8, 6), g, { x: 0.09, y: 0.29, z: 0.16 }), P(sph(0.07, 8, 6), g, { x: -0.09, y: 0.29, z: 0.16 }),
-      P(sph(0.045, 6, 4), 0x141414, { x: 0.1, y: 0.31, z: 0.2 }), P(sph(0.045, 6, 4), 0x141414, { x: -0.1, y: 0.31, z: 0.2 }), P(sph(0.015, 4, 3), 0xffffff, { x: 0.11, y: 0.34, z: 0.24 }), P(sph(0.015, 4, 3), 0xffffff, { x: -0.09, y: 0.34, z: 0.24 }),
+      P(sph(0.045, 6, 4), 0x141414, { x: 0.1, y: 0.31, z: 0.2, rig: [FACE.RIG.EYE, 0.1, 0.31, 0.2] }), P(sph(0.045, 6, 4), 0x141414, { x: -0.1, y: 0.31, z: 0.2, rig: [FACE.RIG.EYE, -0.1, 0.31, 0.2] }), P(sph(0.015, 4, 3), 0xffffff, { x: 0.11, y: 0.34, z: 0.24, rig: [FACE.RIG.EYE, 0.1, 0.31, 0.2] }), P(sph(0.015, 4, 3), 0xffffff, { x: -0.09, y: 0.34, z: 0.24, rig: [FACE.RIG.EYE, -0.1, 0.31, 0.2] }),
       P(box(0.16, 0.012, 0.02), 0x2a3a20, { y: 0.15, z: 0.29 })];
     for (const s of [-1, 1]) {
       parts.push(P(sph(0.09, 7, 5), g, { x: s * 0.17, y: 0.08, z: -0.08, sx: 0.7, sz: 1.6, ry: s * 0.4 }), P(sph(0.06, 6, 4), dark, { x: s * 0.22, y: 0.02, z: 0.05, sx: 1.3, sy: 0.4, sz: 1.2 }));

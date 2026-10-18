@@ -25,6 +25,7 @@ import * as M from './models.js';
 import * as RT from './realtex.js';
 import { PointGrid } from './lifeplan.js';
 import * as KIT from './lifekit.js';
+import * as FACE from './lifeface.js';
 let firMatCache = null;
 const firMat = () => firMatCache || (firMatCache = FOL.firMaterials({ snow: 0.7 }));
 
@@ -52,6 +53,9 @@ function P(geo, color, o) {
   _m.compose(_v.set(o.x || 0, o.y || 0, o.z || 0), _q.setFromEuler(_e.set(o.rx || 0, o.ry || 0, o.rz || 0, 'YXZ')), _s.set(o.sx || o.s || 1, o.sy || o.s || 1, o.sz || o.s || 1));
   g.applyMatrix4(_m);
   if (o.uvKeep) g.userData.uvKeep = true;   // (un tableau, une affiche : ses propres coordonnées de texture, pas « en boîte »)
+  // (o.rig = [code, px, py, pz] : pièce animée — œil, oreille, queue ; o.neck = [x, y, z] : pièce de la tête — voir lifeface.js)
+  if (o.rig) FACE.tag(g, o.rig[0], o.rig[1], o.rig[2], o.rig[3]);
+  if (o.neck) FACE.neck(g, o.neck[0], o.neck[1], o.neck[2]);
   return g;
 }
 function merge(list) {
@@ -74,6 +78,7 @@ function merge(list) {
   let o = 0;
   for (const g of list) { if (g.userData.uvKeep && g.attributes.uv) uv.set(g.attributes.uv.array, o * 2); o += g.attributes.position.count; }
   out.setAttribute('uv', new THREE.BufferAttribute(uv, 2));
+  FACE.mergeRig(list, out);
   out.computeBoundingSphere();
   return out;
 }
@@ -189,7 +194,7 @@ export function skinMaterial(kind, opts) {
 }
 
 /** Une paire d'yeux noirs (et un reflet) sur une tête. */
-const eyes = (x, y, z, r) => [P(sph(r, 6, 4), 0x141414, { x, y, z }), P(sph(r, 6, 4), 0x141414, { x: -x, y, z })];
+const eyes = (x, y, z, r) => [P(sph(r, 6, 4), 0x141414, { x, y, z, rig: [FACE.RIG.EYE, x, y, z] }), P(sph(r, 6, 4), 0x141414, { x: -x, y, z, rig: [FACE.RIG.EYE, -x, y, z] })];
 
 // ---------------------------------------------------------------------------
 // Bestiaire : chaque modèle renvoie { body, flap?, pivots?, h, r } (pieds en y = 0, regard vers +z).
@@ -208,10 +213,10 @@ export const MODELS = {
     const fur = c.fur || 0xffffff, tip = c.tip || 0x2a2a2e;
     return {
       body: merge([P(sph(0.28), fur, { y: 0.3, sz: 1.25, sy: 0.92 }), P(sph(0.18), fur, { y: 0.55, z: 0.26 }),
-        P(sph(0.06), fur, { x: 0.07, y: 0.8, z: 0.18, sy: 3.4, rx: -0.35, rz: -0.15 }), P(sph(0.06), fur, { x: -0.07, y: 0.8, z: 0.18, sy: 3.4, rx: -0.35, rz: 0.15 }),
-        P(sph(0.035), tip, { x: 0.1, y: 0.99, z: 0.1 }), P(sph(0.035), tip, { x: -0.1, y: 0.99, z: 0.1 }),
+        P(sph(0.06), fur, { x: 0.07, y: 0.8, z: 0.18, sy: 3.4, rx: -0.35, rz: -0.15, rig: [FACE.RIG.EAR_R, 0.06, 0.62, 0.24] }), P(sph(0.06), fur, { x: -0.07, y: 0.8, z: 0.18, sy: 3.4, rx: -0.35, rz: 0.15, rig: [FACE.RIG.EAR_L, -0.06, 0.62, 0.24] }),
+        P(sph(0.035), tip, { x: 0.1, y: 0.99, z: 0.1, rig: [FACE.RIG.EAR_R, 0.06, 0.62, 0.24] }), P(sph(0.035), tip, { x: -0.1, y: 0.99, z: 0.1, rig: [FACE.RIG.EAR_L, -0.06, 0.62, 0.24] }),
         ...eyes(0.1, 0.59, 0.38, 0.032), P(sph(0.028), 0xf09aa8, { y: 0.53, z: 0.44 }),
-        P(sph(0.09), 0xffffff, { y: 0.36, z: -0.34 }), P(sph(0.08), fur, { x: 0.13, y: 0.06, z: -0.06, sz: 2.2 }), P(sph(0.08), fur, { x: -0.13, y: 0.06, z: -0.06, sz: 2.2 })]),
+        P(sph(0.09), 0xffffff, { y: 0.36, z: -0.34, rig: [FACE.RIG.TAIL, 0, 0.34, -0.28] }), P(sph(0.08), fur, { x: 0.13, y: 0.06, z: -0.06, sz: 2.2 }), P(sph(0.08), fur, { x: -0.13, y: 0.06, z: -0.06, sz: 2.2 })]),
       h: 1.0, r: 0.35, skin: 'fur',
     };
   },
@@ -233,8 +238,8 @@ export const MODELS = {
     const fl = []; for (let i = 0; i < 9; i++) fl.push(P(sph(0.035, 5, 3), fleck, { x: Math.sin(i * 2.4) * 0.22, y: 0.3 + (i % 3) * 0.12, z: Math.cos(i * 2.4) * 0.22 - 0.02, sy: 0.6 }));
     return {
       body: merge([P(sph(0.3), f, { y: 0.38, sy: 1.25, sz: 0.95 }), P(sph(0.24), f, { y: 0.82 }), ...fl,
-        P(sph(0.08), 0xffd23a, { x: 0.1, y: 0.85, z: 0.18, sz: 0.4 }), P(sph(0.08), 0xffd23a, { x: -0.1, y: 0.85, z: 0.18, sz: 0.4 }),
-        P(sph(0.04), 0x111111, { x: 0.1, y: 0.85, z: 0.21 }), P(sph(0.04), 0x111111, { x: -0.1, y: 0.85, z: 0.21 }),
+        P(sph(0.08), 0xffd23a, { x: 0.1, y: 0.85, z: 0.18, sz: 0.4, rig: [FACE.RIG.EYE, 0.1, 0.85, 0.18] }), P(sph(0.08), 0xffd23a, { x: -0.1, y: 0.85, z: 0.18, sz: 0.4, rig: [FACE.RIG.EYE, -0.1, 0.85, 0.18] }),
+        P(sph(0.04), 0x111111, { x: 0.1, y: 0.85, z: 0.21, rig: [FACE.RIG.EYE, 0.1, 0.85, 0.21] }), P(sph(0.04), 0x111111, { x: -0.1, y: 0.85, z: 0.21, rig: [FACE.RIG.EYE, -0.1, 0.85, 0.21] }),
         P(cone(0.035, 0.1, 4), 0x3a3030, { y: 0.77, z: 0.24, rx: Math.PI * 0.6 }),
         P(cone(0.05, 0.14, 4), f, { x: 0.14, y: 1.04, z: 0.02, rz: -0.3 }), P(cone(0.05, 0.14, 4), f, { x: -0.14, y: 1.04, z: 0.02, rz: 0.3 }),
         P(sph(0.05), 0x5a4a3a, { x: 0.1, y: 0.02, z: 0.08, sz: 1.5 }), P(sph(0.05), 0x5a4a3a, { x: -0.1, y: 0.02, z: 0.08, sz: 1.5 })]),
@@ -258,7 +263,7 @@ export const MODELS = {
     return {
       body: merge([P(sph(0.26), f, { y: 0.32, sy: 1.35, sz: 1.0 }), P(sph(0.2), belly, { y: 0.32, z: 0.1, sy: 1.3, sz: 0.8 }), P(sph(0.17), f, { y: 0.72 }),
         P(sph(0.09), belly, { y: 0.68, z: 0.13, sz: 0.8 }), P(sph(0.03), 0x241a14, { y: 0.71, z: 0.22 }), P(box(0.05, 0.05, 0.02), 0xffffff, { y: 0.62, z: 0.2 }),
-        P(sph(0.05), f, { x: 0.12, y: 0.86, sy: 0.7 }), P(sph(0.05), f, { x: -0.12, y: 0.86, sy: 0.7 }), ...eyes(0.07, 0.77, 0.14, 0.025),
+        P(sph(0.05), f, { x: 0.12, y: 0.86, sy: 0.7, rig: [FACE.RIG.EAR_R, 0.1, 0.82, 0] }), P(sph(0.05), f, { x: -0.12, y: 0.86, sy: 0.7, rig: [FACE.RIG.EAR_L, -0.1, 0.82, 0] }), ...eyes(0.07, 0.77, 0.14, 0.025),
         P(sph(0.05), f, { x: 0.13, y: 0.45, z: 0.17, sy: 1.4 }), P(sph(0.05), f, { x: -0.13, y: 0.45, z: 0.17, sy: 1.4 })]),
       h: 0.95, r: 0.3,
     };
@@ -267,13 +272,13 @@ export const MODELS = {
     const f = c.fur || 0x8a5a3a, light = 0xf2e8d8, ant = 0xd8c4a0, leg = 0x5a3a24;
     const parts = [P(sph(0.5, 10, 8), f, { y: 1.15, sx: 0.8, sy: 0.82, sz: 1.55 }), P(sph(0.3), light, { y: 1.18, z: 0.55, sx: 1.05, sy: 1.1 }),
       P(cyl(0.16, 0.22, 0.7, 7), f, { y: 1.6, z: 0.7, rx: 0.5 }), P(sph(0.24), f, { y: 1.92, z: 0.95, sz: 1.3 }), P(sph(0.13), light, { y: 1.86, z: 1.2, sz: 1.2 }),
-      P(sph(0.07), c.nose || 0x2a1a14, { y: 1.88, z: 1.33 }), ...eyes(0.13, 2.0, 1.06, 0.035), P(sph(0.1), 0xffffff, { y: 1.3, z: -0.75 })];
+      P(sph(0.07), c.nose || 0x2a1a14, { y: 1.88, z: 1.33 }), ...eyes(0.13, 2.0, 1.06, 0.035), P(sph(0.1), 0xffffff, { y: 1.3, z: -0.75, rig: [FACE.RIG.TAIL, 0, 1.35, -0.68] })];
     for (const [x, z] of [[0.24, 0.5], [-0.24, 0.5], [0.24, -0.5], [-0.24, -0.5]]) parts.push(P(cyl(0.07, 0.06, 0.95, 5), leg, { x, y: 0.5, z }), P(sph(0.08), 0x2a1a14, { x, y: 0.04, z: z + 0.03 }));
     for (const s of [-1, 1]) {
       parts.push(P(cyl(0.035, 0.05, 0.6, 4), ant, { x: s * 0.16, y: 2.35, z: 0.85, rz: -s * 0.4, rx: -0.3 }));
       parts.push(P(cyl(0.03, 0.035, 0.35, 4), ant, { x: s * 0.36, y: 2.55, z: 0.75, rz: -s * 1.1 }));
       parts.push(P(cyl(0.03, 0.035, 0.3, 4), ant, { x: s * 0.24, y: 2.55, z: 0.95, rx: 0.8 }));
-      parts.push(P(sph(0.09), f, { x: s * 0.2, y: 2.08, z: 0.82, sx: 1.6, sy: 0.6 }));
+      parts.push(P(sph(0.09), f, { x: s * 0.2, y: 2.08, z: 0.82, sx: 1.6, sy: 0.6, rig: [s > 0 ? FACE.RIG.EAR_R : FACE.RIG.EAR_L, s * 0.08, 2.1, 0.85] }));
     }
     return { body: merge(parts), h: 2.6, r: 0.8 };
   },
@@ -282,7 +287,7 @@ export const MODELS = {
     return {
       body: merge([P(sph(0.1), f, { y: 0.15, sz: 3.0 }), P(sph(0.09), f, { y: 0.24, z: 0.32 }), P(sph(0.03), 0x111111, { y: 0.24, z: 0.41 }),
         ...eyes(0.045, 0.28, 0.38, 0.018), P(sph(0.035), f, { x: 0.06, y: 0.33, z: 0.3 }), P(sph(0.035), f, { x: -0.06, y: 0.33, z: 0.3 }),
-        P(sph(0.045), f, { y: 0.2, z: -0.38, sz: 2.4, rx: -0.4 }), P(sph(0.05), 0x141414, { y: 0.28, z: -0.52 })]),
+        P(sph(0.045), f, { y: 0.2, z: -0.38, sz: 2.4, rx: -0.4, rig: [FACE.RIG.TAIL, 0, 0.17, -0.28] }), P(sph(0.05), 0x141414, { y: 0.28, z: -0.52, rig: [FACE.RIG.TAIL, 0, 0.17, -0.28] })]),
       h: 0.45, r: 0.3,
     };
   },
@@ -290,8 +295,8 @@ export const MODELS = {
     const f = c.fur || 0xc0602a, belly = 0xf2dcc0;
     return {
       body: merge([P(sph(0.14), f, { y: 0.2, sy: 1.25 }), P(sph(0.1), belly, { y: 0.2, z: 0.07, sy: 1.2, sz: 0.8 }), P(sph(0.1), f, { y: 0.42, z: 0.05 }),
-        P(cone(0.035, 0.1, 4), f, { x: 0.06, y: 0.54, z: 0.03 }), P(cone(0.035, 0.1, 4), f, { x: -0.06, y: 0.54, z: 0.03 }), ...eyes(0.05, 0.45, 0.13, 0.02),
-        P(sph(0.13), f, { y: 0.36, z: -0.2, sy: 2.1, sz: 0.9, rx: -0.25 }), P(sph(0.1), f, { y: 0.66, z: -0.12, sz: 1.3 })]),
+        P(cone(0.035, 0.1, 4), f, { x: 0.06, y: 0.54, z: 0.03, rig: [FACE.RIG.EAR_R, 0.06, 0.5, 0.03] }), P(cone(0.035, 0.1, 4), f, { x: -0.06, y: 0.54, z: 0.03, rig: [FACE.RIG.EAR_L, -0.06, 0.5, 0.03] }), ...eyes(0.05, 0.45, 0.13, 0.02),
+        P(sph(0.13), f, { y: 0.36, z: -0.2, sy: 2.1, sz: 0.9, rx: -0.25, rig: [FACE.RIG.TAIL, 0, 0.14, -0.1] }), P(sph(0.1), f, { y: 0.66, z: -0.12, sz: 1.3, rig: [FACE.RIG.TAIL, 0, 0.14, -0.1] })]),
       h: 0.7, r: 0.2,
     };
   },
@@ -299,8 +304,8 @@ export const MODELS = {
     const red = c.fur || 0xd8641e, white = 0xfaf2e6, dark = 0x2a1a14;
     const parts = [P(sph(0.26), red, { y: 0.55, sz: 1.9, sy: 0.9 }), P(sph(0.2), white, { y: 0.5, z: 0.32, sy: 1.0, sz: 0.8 }), P(sph(0.22), red, { y: 0.86, z: 0.5 }),
       P(cone(0.11, 0.32, 6), white, { y: 0.81, z: 0.75, rx: Math.PI / 2 }), P(sph(0.04), dark, { y: 0.81, z: 0.92 }), ...eyes(0.09, 0.91, 0.67, 0.035),
-      P(cone(0.08, 0.22, 4), dark, { x: 0.12, y: 1.08, z: 0.48, rz: -0.25 }), P(cone(0.08, 0.22, 4), dark, { x: -0.12, y: 1.08, z: 0.48, rz: 0.25 }),
-      P(sph(0.18), red, { y: 0.66, z: -0.72, sz: 2.6, rx: -0.3 }), P(sph(0.12), white, { y: 0.8, z: -1.12 })];
+      P(cone(0.08, 0.22, 4), dark, { x: 0.12, y: 1.08, z: 0.48, rz: -0.25, rig: [FACE.RIG.EAR_R, 0.1, 0.98, 0.48] }), P(cone(0.08, 0.22, 4), dark, { x: -0.12, y: 1.08, z: 0.48, rz: 0.25, rig: [FACE.RIG.EAR_L, -0.1, 0.98, 0.48] }),
+      P(sph(0.18), red, { y: 0.66, z: -0.72, sz: 2.6, rx: -0.3, rig: [FACE.RIG.TAIL, 0, 0.6, -0.36] }), P(sph(0.12), white, { y: 0.8, z: -1.12, rig: [FACE.RIG.TAIL, 0, 0.6, -0.36] })];
     for (const [x, z] of [[0.13, 0.3], [-0.13, 0.3], [0.13, -0.3], [-0.13, -0.3]]) parts.push(P(cyl(0.05, 0.05, 0.42, 5), dark, { x, y: 0.21, z }));
     if (c.scarf) parts.push(P(tor(0.2, 0.06, 6, 12), c.scarf, { y: 0.72, z: 0.45, rx: Math.PI / 2 + 0.5 }), P(box(0.1, 0.35, 0.04), c.scarf, { x: 0.1, y: 0.55, z: 0.25, rz: 0.4 }));
     return { body: merge(parts), h: 1.1, r: 0.45 };
@@ -315,10 +320,10 @@ export const MODELS = {
     const f = 0xffffff, light = 0xfff8f0, pink = 0xf2a0b0, dark = 0x1a1414;
     const parts = [P(sph(0.24, 10, 8), f, { y: 0.4, sz: 1.55, sy: 0.82 }), P(sph(0.17), light, { y: 0.4, z: 0.22, sy: 1.0, sz: 0.9 }),
       P(sph(0.21, 10, 8), f, { y: 0.7, z: 0.4, sx: 1.08, sy: 0.95 }), P(sph(0.09), light, { y: 0.63, z: 0.56, sx: 1.4, sy: 0.75 }),
-      P(sph(0.028), pink, { y: 0.67, z: 0.64 }), ...eyes(0.085, 0.74, 0.56, 0.032), P(sph(0.012), 0xffffff, { x: 0.075, y: 0.755, z: 0.585 }), P(sph(0.012), 0xffffff, { x: -0.095, y: 0.755, z: 0.585 }),
-      P(cone(0.085, 0.17, 4), f, { x: 0.12, y: 0.9, z: 0.36, rz: -0.32 }), P(cone(0.085, 0.17, 4), f, { x: -0.12, y: 0.9, z: 0.36, rz: 0.32 }),
-      P(cone(0.05, 0.1, 4), pink, { x: 0.115, y: 0.89, z: 0.39, rz: -0.32 }), P(cone(0.05, 0.1, 4), pink, { x: -0.115, y: 0.89, z: 0.39, rz: 0.32 }),
-      P(cyl(0.045, 0.03, 0.62, 5), f, { y: 0.66, z: -0.47, rx: -0.55 }), P(sph(0.045), light, { y: 0.92, z: -0.62 })];
+      P(sph(0.028), pink, { y: 0.67, z: 0.64 }), ...eyes(0.085, 0.74, 0.56, 0.032), P(sph(0.012), 0xffffff, { x: 0.075, y: 0.755, z: 0.585, rig: [FACE.RIG.EYE, 0.085, 0.74, 0.56] }), P(sph(0.012), 0xffffff, { x: -0.095, y: 0.755, z: 0.585, rig: [FACE.RIG.EYE, -0.085, 0.74, 0.56] }),
+      P(cone(0.085, 0.17, 4), f, { x: 0.12, y: 0.9, z: 0.36, rz: -0.32, rig: [FACE.RIG.EAR_R, 0.1, 0.83, 0.36] }), P(cone(0.085, 0.17, 4), f, { x: -0.12, y: 0.9, z: 0.36, rz: 0.32, rig: [FACE.RIG.EAR_L, -0.1, 0.83, 0.36] }),
+      P(cone(0.05, 0.1, 4), pink, { x: 0.115, y: 0.89, z: 0.39, rz: -0.32, rig: [FACE.RIG.EAR_R, 0.1, 0.83, 0.36] }), P(cone(0.05, 0.1, 4), pink, { x: -0.115, y: 0.89, z: 0.39, rz: 0.32, rig: [FACE.RIG.EAR_L, -0.1, 0.83, 0.36] }),
+      P(cyl(0.045, 0.03, 0.62, 5), f, { y: 0.66, z: -0.47, rx: -0.55, rig: [FACE.RIG.TAIL, 0, 0.42, -0.3] }), P(sph(0.045), light, { y: 0.92, z: -0.62, rig: [FACE.RIG.TAIL, 0, 0.42, -0.3] })];
     for (const s of [-1, 1]) for (const k of [-1, 1]) parts.push(P(box(0.18, 0.006, 0.006), 0xf4f4f4, { x: s * 0.13, y: 0.64 + k * 0.02, z: 0.6, rz: s * k * 0.15 }));
     for (const [x, z] of [[0.1, 0.24], [-0.1, 0.24], [0.1, -0.22], [-0.1, -0.22]]) parts.push(P(cyl(0.05, 0.045, 0.3, 5), f, { x, y: 0.15, z }), P(sph(0.055), light, { x, y: 0.03, z: z + 0.02, sz: 1.3, sy: 0.6 }));
     if (c.collar) parts.push(P(tor(0.15, 0.035, 5, 12), c.collar, { y: 0.56, z: 0.37, rx: Math.PI / 2 - 0.5 }), P(sph(0.04), 0xffd23a, { y: 0.47, z: 0.48 }));
@@ -329,9 +334,9 @@ export const MODELS = {
     const f = c.fur || 0xb8b0b8, pink = 0xf4a8b8;
     return {
       body: merge([P(sph(0.11, 8, 6), f, { y: 0.1, sz: 1.45, sy: 0.85 }), P(sph(0.075), f, { y: 0.14, z: 0.15, sz: 1.2 }), P(sph(0.02), pink, { y: 0.14, z: 0.25 }),
-        ...eyes(0.04, 0.17, 0.2, 0.016), P(sph(0.05), f, { x: 0.06, y: 0.23, z: 0.11, sz: 0.35 }), P(sph(0.04), pink, { x: 0.06, y: 0.23, z: 0.125, sz: 0.25 }),
-        P(sph(0.05), f, { x: -0.06, y: 0.23, z: 0.11, sz: 0.35 }), P(sph(0.04), pink, { x: -0.06, y: 0.23, z: 0.125, sz: 0.25 }),
-        P(cyl(0.012, 0.006, 0.34, 4), pink, { y: 0.1, z: -0.3, rx: 1.25 }), P(cyl(0.008, 0.005, 0.18, 4), pink, { y: 0.2, z: -0.47, rx: 0.4 })]),
+        ...eyes(0.04, 0.17, 0.2, 0.016), P(sph(0.05), f, { x: 0.06, y: 0.23, z: 0.11, sz: 0.35, rig: [FACE.RIG.EAR_R, 0.05, 0.19, 0.11] }), P(sph(0.04), pink, { x: 0.06, y: 0.23, z: 0.125, sz: 0.25, rig: [FACE.RIG.EAR_R, 0.05, 0.19, 0.11] }),
+        P(sph(0.05), f, { x: -0.06, y: 0.23, z: 0.11, sz: 0.35, rig: [FACE.RIG.EAR_L, -0.05, 0.19, 0.11] }), P(sph(0.04), pink, { x: -0.06, y: 0.23, z: 0.125, sz: 0.25, rig: [FACE.RIG.EAR_L, -0.05, 0.19, 0.11] }),
+        P(cyl(0.012, 0.006, 0.34, 4), pink, { y: 0.1, z: -0.3, rx: 1.25, rig: [FACE.RIG.TAIL, 0, 0.1, -0.14] }), P(cyl(0.008, 0.005, 0.18, 4), pink, { y: 0.2, z: -0.47, rx: 0.4, rig: [FACE.RIG.TAIL, 0, 0.1, -0.14] })]),
       h: 0.3, r: 0.14,
     };
   },
@@ -341,15 +346,15 @@ export const MODELS = {
       body: merge([P(sph(0.12), f, { y: 0.14, sy: 1.1 }), P(sph(0.08), belly, { y: 0.13, z: 0.06, sy: 1.1, sz: 0.6 }), P(sph(0.09), f, { y: 0.3, z: 0.02 }),
         P(cone(0.04, 0.12, 4), f, { x: 0.06, y: 0.42, z: 0.0, rz: -0.25 }), P(cone(0.04, 0.12, 4), f, { x: -0.06, y: 0.42, z: 0.0, rz: 0.25 }),
         P(sph(0.026), 0xffffff, { x: 0.035, y: 0.32, z: 0.085 }), P(sph(0.026), 0xffffff, { x: -0.035, y: 0.32, z: 0.085 }),
-        P(sph(0.014), 0x141414, { x: 0.035, y: 0.32, z: 0.105 }), P(sph(0.014), 0x141414, { x: -0.035, y: 0.32, z: 0.105 }), P(cone(0.008, 0.025, 3), 0xffffff, { x: 0.015, y: 0.26, z: 0.09, rx: Math.PI })]),
+        P(sph(0.014), 0x141414, { x: 0.035, y: 0.32, z: 0.105, rig: [FACE.RIG.EYE, 0.035, 0.32, 0.105] }), P(sph(0.014), 0x141414, { x: -0.035, y: 0.32, z: 0.105, rig: [FACE.RIG.EYE, -0.035, 0.32, 0.105] }), P(cone(0.008, 0.025, 3), 0xffffff, { x: 0.015, y: 0.26, z: 0.09, rx: Math.PI })]),
       flap: merge([P(sph(0.5, 8, 4), c.wing || 0x3a2a48, { x: 0.17, sx: 0.34, sy: 0.04, sz: 0.2 }), P(sph(0.5, 8, 4), c.wing || 0x3a2a48, { x: 0.27, z: -0.06, sx: 0.2, sy: 0.04, sz: 0.16 })]), pivots: [0.08, 0.2, 0], h: 0.45, r: 0.15,
     };
   },
   puppy(c) {
     const f = 0xffffff, dark = 0x1a1414;
     const parts = [P(sph(0.22), f, { y: 0.32, sz: 1.4, sy: 0.9 }), P(sph(0.19), f, { y: 0.56, z: 0.28 }), P(sph(0.09), 0xffffff, { y: 0.51, z: 0.44, sz: 0.9 }),
-      P(sph(0.035), dark, { y: 0.55, z: 0.52 }), ...eyes(0.08, 0.61, 0.43, 0.03), P(sph(0.07), f, { x: 0.16, y: 0.55, z: 0.22, sy: 1.8 }), P(sph(0.07), f, { x: -0.16, y: 0.55, z: 0.22, sy: 1.8 }),
-      P(sph(0.05), f, { y: 0.45, z: -0.32, sz: 1.8, rx: 0.8 })];
+      P(sph(0.035), dark, { y: 0.55, z: 0.52 }), ...eyes(0.08, 0.61, 0.43, 0.03), P(sph(0.07), f, { x: 0.16, y: 0.55, z: 0.22, sy: 1.8, rig: [FACE.RIG.EAR_R, 0.15, 0.66, 0.22] }), P(sph(0.07), f, { x: -0.16, y: 0.55, z: 0.22, sy: 1.8, rig: [FACE.RIG.EAR_L, -0.15, 0.66, 0.22] }),
+      P(sph(0.05), f, { y: 0.45, z: -0.32, sz: 1.8, rx: 0.8, rig: [FACE.RIG.TAIL, 0, 0.4, -0.24] })];
     for (const [x, z] of [[0.1, 0.18], [-0.1, 0.18], [0.1, -0.18], [-0.1, -0.18]]) parts.push(P(cyl(0.05, 0.05, 0.22, 5), f, { x, y: 0.11, z }));
     if (c.bonnet) parts.push(P(sph(0.17, 8, 5, 0, TAU, 0, Math.PI / 2), c.bonnet, { y: 0.68, z: 0.26 }), P(sph(0.06), 0xfff0f0, { y: 0.86, z: 0.26 }));
     if (c.collar) parts.push(P(tor(0.16, 0.035, 5, 12), c.collar, { y: 0.47, z: 0.2, rx: Math.PI / 2 + 0.5 }));
@@ -380,10 +385,10 @@ export const MODELS = {
     const f = c.fur || 0xffffff, horn = 0xb8a890, hoof = 0x3a3028, pink = 0xe8b0a0;
     const parts = [P(sph(0.42, 12, 9), f, { y: 0.88, sx: 0.72, sy: 0.75, sz: 1.35 }), P(cyl(0.12, 0.17, 0.5, 8), f, { y: 1.2, z: 0.45, rx: 0.55 }),
       P(sph(0.19, 10, 8), f, { y: 1.42, z: 0.62, sz: 1.35, rx: 0.3 }), P(sph(0.1, 8, 6), pink, { y: 1.33, z: 0.84, sx: 0.9, sy: 0.7 }), P(sph(0.025), 0x2a1a14, { x: 0.035, y: 1.36, z: 0.92 }), P(sph(0.025), 0x2a1a14, { x: -0.035, y: 1.36, z: 0.92 }),
-      P(cone(0.06, 0.2, 5), f, { y: 1.16, z: 0.74, rx: Math.PI }), ...eyes(0.12, 1.5, 0.7, 0.03), P(sph(0.07, 6, 4), f, { y: 1.08, z: -0.58, sy: 1.6, rx: -0.6 })];
+      P(cone(0.06, 0.2, 5), f, { y: 1.16, z: 0.74, rx: Math.PI }), ...eyes(0.12, 1.5, 0.7, 0.03), P(sph(0.07, 6, 4), f, { y: 1.08, z: -0.58, sy: 1.6, rx: -0.6, rig: [FACE.RIG.TAIL, 0, 1.0, -0.52] })];
     for (const s of [-1, 1]) {
       parts.push(P(cone(0.045, 0.32, 5), horn, { x: s * 0.08, y: 1.66, z: 0.5, rx: -0.9, rz: -s * 0.15 }));
-      parts.push(P(sph(0.06, 6, 4), f, { x: s * 0.2, y: 1.48, z: 0.55, sx: 2.2, sy: 0.5, rz: s * 0.3 }));
+      parts.push(P(sph(0.06, 6, 4), f, { x: s * 0.2, y: 1.48, z: 0.55, sx: 2.2, sy: 0.5, rz: s * 0.3, rig: [s > 0 ? FACE.RIG.EAR_R : FACE.RIG.EAR_L, s * 0.1, 1.5, 0.55] }));
     }
     for (const [x, z] of [[0.18, 0.4], [-0.18, 0.4], [0.18, -0.38], [-0.18, -0.38]]) parts.push(P(cyl(0.06, 0.05, 0.62, 6), f, { x, y: 0.34, z }), P(cyl(0.055, 0.06, 0.08, 6), hoof, { x, y: 0.04, z }));
     return { body: merge(parts), h: 1.8, r: 0.55, tint: true, skin: 'fur' };
@@ -393,8 +398,8 @@ export const MODELS = {
     const parts = [P(sph(0.5, 12, 9), f, { y: 1.2, sx: 0.75, sy: 0.78, sz: 1.5 }), P(sph(0.36, 10, 8), light, { y: 1.02, sx: 0.85, sy: 0.6, sz: 1.3 }),
       P(cyl(0.18, 0.26, 0.75, 8), f, { y: 1.62, z: 0.66, rx: 0.6 }), P(sph(0.26, 10, 8), f, { y: 1.95, z: 0.92, sz: 1.5, rx: 0.4 }), P(sph(0.18, 10, 8), light, { y: 1.82, z: 1.22, sz: 1.1 }),
       P(sph(0.03), dark, { x: 0.07, y: 1.84, z: 1.38 }), P(sph(0.03), dark, { x: -0.07, y: 1.84, z: 1.38 }), ...eyes(0.15, 2.05, 1.0, 0.04),
-      P(box(0.06, 0.18, 0.7), dark, { y: 1.95, z: 0.6, rx: 0.6 }), P(cyl(0.035, 0.02, 0.6, 5), f, { y: 1.05, z: -0.85, rx: 0.35 }), P(sph(0.07, 6, 4), dark, { y: 0.78, z: -0.95, sy: 1.6 })];
-    for (const s of [-1, 1]) parts.push(P(sph(0.08, 8, 6), f, { x: s * 0.16, y: 2.35, z: 0.78, sy: 3.2, sx: 0.9, rz: -s * 0.25, rx: -0.3 }), P(sph(0.05, 6, 4), dark, { x: s * 0.2, y: 2.58, z: 0.72, sy: 1.5 }));
+      P(box(0.06, 0.18, 0.7), dark, { y: 1.95, z: 0.6, rx: 0.6 }), P(cyl(0.035, 0.02, 0.6, 5), f, { y: 1.05, z: -0.85, rx: 0.35, rig: [FACE.RIG.TAIL, 0, 1.32, -0.76] }), P(sph(0.07, 6, 4), dark, { y: 0.78, z: -0.95, sy: 1.6, rig: [FACE.RIG.TAIL, 0, 1.32, -0.76] })];
+    for (const s of [-1, 1]) parts.push(P(sph(0.08, 8, 6), f, { x: s * 0.16, y: 2.35, z: 0.78, sy: 3.2, sx: 0.9, rz: -s * 0.25, rx: -0.3, rig: [s > 0 ? FACE.RIG.EAR_R : FACE.RIG.EAR_L, s * 0.12, 2.12, 0.82] }), P(sph(0.05, 6, 4), dark, { x: s * 0.2, y: 2.58, z: 0.72, sy: 1.5, rig: [s > 0 ? FACE.RIG.EAR_R : FACE.RIG.EAR_L, s * 0.12, 2.12, 0.82] }));
     for (const [x, z] of [[0.22, 0.5], [-0.22, 0.5], [0.22, -0.52], [-0.22, -0.52]]) parts.push(P(cyl(0.08, 0.07, 0.9, 6), f, { x, y: 0.48, z }), P(cyl(0.08, 0.085, 0.1, 6), dark, { x, y: 0.05, z }));
     return { body: merge(parts), h: 2.7, r: 0.8, skin: 'fur' };
   },
@@ -402,8 +407,8 @@ export const MODELS = {
     const f = c.fur || 0xf4b0a8, dark = 0x5a2a28, mud = c.mud || 0x7a5232;
     const parts = [P(sph(0.3, 12, 9), f, { y: 0.36, sz: 1.35, sy: 0.92 }), P(sph(0.21, 10, 8), f, { y: 0.44, z: 0.36 }), P(cyl(0.09, 0.1, 0.1, 10), 0xf09a98, { y: 0.4, z: 0.57, rx: Math.PI / 2 }),
       P(sph(0.02), dark, { x: 0.035, y: 0.41, z: 0.63 }), P(sph(0.02), dark, { x: -0.035, y: 0.41, z: 0.63 }), ...eyes(0.09, 0.52, 0.5, 0.026),
-      P(cone(0.08, 0.14, 4), f, { x: 0.12, y: 0.64, z: 0.3, rz: -0.4, rx: 0.4 }), P(cone(0.08, 0.14, 4), f, { x: -0.12, y: 0.64, z: 0.3, rz: 0.4, rx: 0.4 }),
-      P(tor(0.05, 0.015, 4, 8), f, { y: 0.44, z: -0.42, ry: Math.PI / 2 }), P(sph(0.17, 8, 6), mud, { x: 0.12, y: 0.22, z: -0.1, sx: 1.3, sy: 0.6, sz: 1.6 })];
+      P(cone(0.08, 0.14, 4), f, { x: 0.12, y: 0.64, z: 0.3, rz: -0.4, rx: 0.4, rig: [FACE.RIG.EAR_R, 0.1, 0.58, 0.32] }), P(cone(0.08, 0.14, 4), f, { x: -0.12, y: 0.64, z: 0.3, rz: 0.4, rx: 0.4, rig: [FACE.RIG.EAR_L, -0.1, 0.58, 0.32] }),
+      P(tor(0.05, 0.015, 4, 8), f, { y: 0.44, z: -0.42, ry: Math.PI / 2, rig: [FACE.RIG.TAIL, 0, 0.44, -0.38] }), P(sph(0.17, 8, 6), mud, { x: 0.12, y: 0.22, z: -0.1, sx: 1.3, sy: 0.6, sz: 1.6 })];
     for (const [x, z] of [[0.14, 0.22], [-0.14, 0.22], [0.14, -0.22], [-0.14, -0.22]]) parts.push(P(cyl(0.055, 0.05, 0.2, 6), f, { x, y: 0.1, z }));
     return { body: merge(parts), h: 0.75, r: 0.35, skin: 'skin' };
   },
@@ -421,7 +426,7 @@ export const MODELS = {
     const red = c.fur || 0xd8502a, dark = c.dark || 0xa83a1a, belly = c.belly || 0xf0a070;
     const parts = [P(sph(0.3, 10, 6), red, { y: 0.24, sx: 1.25, sy: 0.5, sz: 0.95 }), P(sph(0.27, 10, 5), belly, { y: 0.19, sx: 1.2, sy: 0.3, sz: 0.85 })];
     for (const s of [-1, 1]) {
-      parts.push(P(cyl(0.022, 0.022, 0.2, 4), dark, { x: s * 0.1, y: 0.4, z: 0.15 }), P(sph(0.055, 6, 5), 0xffffff, { x: s * 0.1, y: 0.52, z: 0.16 }), P(sph(0.03, 5, 4), 0x111111, { x: s * 0.1, y: 0.53, z: 0.2 }));
+      parts.push(P(cyl(0.022, 0.022, 0.2, 4), dark, { x: s * 0.1, y: 0.4, z: 0.15 }), P(sph(0.055, 6, 5), 0xffffff, { x: s * 0.1, y: 0.52, z: 0.16, rig: [FACE.RIG.EYE, s * 0.1, 0.52, 0.16] }), P(sph(0.03, 5, 4), 0x111111, { x: s * 0.1, y: 0.53, z: 0.2, rig: [FACE.RIG.EYE, s * 0.1, 0.52, 0.16] }));
       for (let i = 0; i < 3; i++) parts.push(P(cyl(0.024, 0.016, 0.34, 4), dark, { x: s * 0.4, y: 0.13, z: 0.12 - i * 0.14, rz: s * 1.05 }));
     }
     const flap = merge([P(cyl(0.035, 0.035, 0.22, 5), red, { x: 0.05, z: 0.1, rx: Math.PI / 2 }), P(sph(0.1, 7, 5), red, { x: 0.06, y: 0.03, z: 0.25, sx: 0.8, sy: 0.7, sz: 1.2 }),
@@ -436,7 +441,7 @@ export const MODELS = {
     parts.push(P(cone(0.08, 0.2, 6), shell, { y: 0.72, z: -0.2, rx: -0.5 }), P(cyl(0.2, 0.2, 0.04, 10), 0x3a2418, { y: 0.27, z: 0.16, rx: 1.2 }));
     parts.push(P(sph(0.1, 7, 5), body, { y: 0.2, z: 0.22 }), P(sph(0.05, 6, 4), body, { x: 0.12, y: 0.18, z: 0.3, sz: 1.4 }), P(sph(0.07, 6, 4), body, { x: -0.13, y: 0.18, z: 0.3, sz: 1.5 }));
     for (const s of [-1, 1]) {
-      parts.push(P(cyl(0.015, 0.015, 0.16, 4), body, { x: s * 0.05, y: 0.32, z: 0.27 }), P(sph(0.035, 6, 4), 0x111111, { x: s * 0.05, y: 0.41, z: 0.28 }));
+      parts.push(P(cyl(0.015, 0.015, 0.16, 4), body, { x: s * 0.05, y: 0.32, z: 0.27 }), P(sph(0.035, 6, 4), 0x111111, { x: s * 0.05, y: 0.41, z: 0.28, rig: [FACE.RIG.EYE, s * 0.05, 0.41, 0.28] }));
       for (let i = 0; i < 2; i++) parts.push(P(cyl(0.02, 0.014, 0.24, 4), body, { x: s * 0.17, y: 0.08, z: 0.18 - i * 0.1, rz: s * 1.0 }));
     }
     return { body: merge(parts), h: 0.6, r: 0.3 };
@@ -496,18 +501,30 @@ export const MODELS = {
 
 // Habitants : chien debout (pelage teinté), habits teintés, bras animés, outils
 const VILLAGER = {
+  /**
+   * Chien debout (pelage teinté par habitant). Le visage (yeux, sourcils, bouche, joues) est un
+   * décalque à part (lifeface.js) ; la tête tourne autour du cou, les oreilles et la queue bougent.
+   */
   dog() {
-    const f = 0xffffff, dark = 0x1a1414;
+    const f = 0xffffff, cream = 0xfff1de, dark = 0x1a1414, tip = 0xe2d4c4, N = FACE.NECK.dog, R = FACE.RIG;
+    const ear = (s) => ({ x: s * 0.27, y: 1.39, z: -0.02, sy: 2.1, sz: 0.72, rz: s * 0.3, rig: [s > 0 ? R.EAR_R : R.EAR_L, s * 0.24, 1.6, -0.02], neck: N });
     return merge([P(cyl(0.11, 0.12, 0.45, 6), f, { x: 0.16, y: 0.22 }), P(cyl(0.11, 0.12, 0.45, 6), f, { x: -0.16, y: 0.22 }),
-      P(sph(0.13), f, { x: 0.16, y: 0.04, z: 0.08, sz: 1.4, sy: 0.6 }), P(sph(0.13), f, { x: -0.16, y: 0.04, z: 0.08, sz: 1.4, sy: 0.6 }),
-      P(sph(0.36, 10, 8), f, { y: 0.78, sy: 1.25, sz: 0.9 }), P(sph(0.3, 10, 8), f, { y: 1.46 }), P(sph(0.16), f, { y: 1.38, z: 0.26, sz: 1.2, sy: 0.8 }),
-      P(sph(0.06), dark, { y: 1.44, z: 0.44 }), ...eyes(0.12, 1.54, 0.24, 0.04), P(sph(0.1), f, { x: 0.27, y: 1.4, z: -0.02, sy: 2.0, sz: 0.7, rz: 0.3 }),
-      P(sph(0.1), f, { x: -0.27, y: 1.4, z: -0.02, sy: 2.0, sz: 0.7, rz: -0.3 }), P(sph(0.07), f, { y: 0.55, z: -0.36, sz: 2.2, rx: 0.9 })]);
+      P(sph(0.135, 8, 6), cream, { x: 0.16, y: 0.045, z: 0.09, sz: 1.45, sy: 0.62 }), P(sph(0.135, 8, 6), cream, { x: -0.16, y: 0.045, z: 0.09, sz: 1.45, sy: 0.62 }),
+      P(sph(0.36, 10, 8), f, { y: 0.78, sy: 1.25, sz: 0.9 }),
+      // la tête : crâne, museau crème, truffe brillante, bajoues
+      P(sph(0.3, 14, 10), f, { y: 1.46, neck: N }), P(sph(0.16, 12, 8), cream, { y: 1.38, z: 0.26, sz: 1.2, sy: 0.8, neck: N }),
+      P(sph(0.09, 8, 6), cream, { x: 0.19, y: 1.33, z: 0.13, sy: 0.75, neck: N }), P(sph(0.09, 8, 6), cream, { x: -0.19, y: 1.33, z: 0.13, sy: 0.75, neck: N }),
+      P(sph(0.066, 8, 6), dark, { y: 1.445, z: 0.43, sx: 1.3, sy: 0.85, neck: N }), P(sph(0.018, 5, 4), 0xffffff, { x: 0.025, y: 1.475, z: 0.48, neck: N }),
+      P(sph(0.1, 8, 6), f, ear(1)), P(sph(0.1, 8, 6), f, ear(-1)),
+      P(sph(0.06, 6, 5), tip, { x: 0.31, y: 1.24, z: -0.03, sy: 1.1, sz: 0.65, rz: 0.3, rig: [R.EAR_R, 0.24, 1.6, -0.02], neck: N }), P(sph(0.06, 6, 5), tip, { x: -0.31, y: 1.24, z: -0.03, sy: 1.1, sz: 0.65, rz: -0.3, rig: [R.EAR_L, -0.24, 1.6, -0.02], neck: N }),
+      // la queue en panache (elle remue)
+      P(sph(0.085, 8, 6), f, { y: 0.66, z: -0.4, sz: 2.1, rx: 0.85, rig: [R.TAIL, 0, 0.58, -0.3] }), P(sph(0.07, 7, 5), cream, { y: 0.84, z: -0.55, rig: [R.TAIL, 0, 0.58, -0.3] })]);
   },
   dogCloth() {
-    const w = 0xffffff;
+    const w = 0xffffff, N = FACE.NECK.dog;
+    // (le bonnet suit la tête ; posé assez haut pour laisser voir les sourcils)
     return merge([P(cyl(0.34, 0.42, 0.55, 10), w, { y: 0.66 }), P(tor(0.25, 0.08, 6, 14), w, { y: 1.13, rx: Math.PI / 2 }), P(box(0.12, 0.34, 0.06), w, { x: 0.12, y: 0.95, z: 0.3, rz: 0.15 }),
-      P(sph(0.31, 10, 6, 0, TAU, 0, Math.PI / 2), w, { y: 1.55, sy: 0.9 }), P(sph(0.1), w, { y: 1.9 })]);
+      P(sph(0.27, 12, 6, 0, TAU, 0, Math.PI / 2), w, { y: 1.64, sy: 0.95, neck: N }), P(tor(0.25, 0.045, 6, 18), 0xe6e6e6, { y: 1.645, rx: Math.PI / 2, neck: N }), P(sph(0.1, 8, 6), w, { y: 1.97, neck: N })]);
   },
   arm() { return merge([P(sph(0.09), 0xffffff, { y: -0.22, sy: 3.0 }), P(sph(0.08), 0xf4f4f4, { y: -0.46 })]); },
   snowman() {
@@ -537,16 +554,17 @@ const VILLAGER = {
   snowball() { return merge([P(sph(0.16), 0xffffff, { y: -0.5 })]); },
   // --- chats debout (les gens du château) ------------------------------------------------------
   cat() {
-    const f = 0xffffff, light = 0xfff8f0, pink = 0xf2a0b0;
+    const f = 0xffffff, light = 0xfff8f0, pink = 0xf2a0b0, N = FACE.NECK.cat, R = FACE.RIG;
     const parts = [P(cyl(0.1, 0.11, 0.45, 6), f, { x: 0.15, y: 0.22 }), P(cyl(0.1, 0.11, 0.45, 6), f, { x: -0.15, y: 0.22 }),
       P(sph(0.12), light, { x: 0.15, y: 0.04, z: 0.07, sz: 1.4, sy: 0.6 }), P(sph(0.12), light, { x: -0.15, y: 0.04, z: 0.07, sz: 1.4, sy: 0.6 }),
-      P(sph(0.34, 10, 8), f, { y: 0.78, sy: 1.25, sz: 0.9 }), P(sph(0.3, 12, 10), f, { y: 1.44, sx: 1.08, sy: 0.95 }),
-      P(sph(0.13), light, { y: 1.35, z: 0.24, sx: 1.35, sy: 0.72 }), P(sph(0.035), pink, { y: 1.4, z: 0.36 }),
-      ...eyes(0.115, 1.5, 0.25, 0.042), P(sph(0.014), 0xffffff, { x: 0.1, y: 1.52, z: 0.29 }), P(sph(0.014), 0xffffff, { x: -0.13, y: 1.52, z: 0.29 }),
-      P(cone(0.12, 0.26, 4), f, { x: 0.17, y: 1.72, z: 0.0, rz: -0.35 }), P(cone(0.12, 0.26, 4), f, { x: -0.17, y: 1.72, z: 0.0, rz: 0.35 }),
-      P(cone(0.07, 0.15, 4), pink, { x: 0.165, y: 1.7, z: 0.05, rz: -0.35 }), P(cone(0.07, 0.15, 4), pink, { x: -0.165, y: 1.7, z: 0.05, rz: 0.35 }),
-      P(cyl(0.055, 0.04, 0.9, 6), f, { y: 0.7, z: -0.5, rx: -0.75 }), P(sph(0.06), light, { y: 1.02, z: -0.82 })];
-    for (const s of [-1, 1]) for (const k of [-1, 1]) parts.push(P(box(0.26, 0.008, 0.008), 0xf8f8f8, { x: s * 0.2, y: 1.37 + k * 0.025, z: 0.3, rz: s * k * 0.12 }));
+      P(sph(0.34, 10, 8), f, { y: 0.78, sy: 1.25, sz: 0.9 }), P(sph(0.3, 14, 10), f, { y: 1.44, sx: 1.08, sy: 0.95, neck: N }),
+      P(sph(0.13, 10, 8), light, { y: 1.35, z: 0.24, sx: 1.35, sy: 0.72, neck: N }), P(sph(0.036, 6, 5), pink, { y: 1.405, z: 0.355, sx: 1.3, neck: N }),
+      // (yeux : le décalque du visage — lifeface.js) ; oreilles qui frémissent, joues duveteuses
+      P(cone(0.12, 0.26, 4), f, { x: 0.17, y: 1.72, z: 0.0, rz: -0.35, rig: [R.EAR_R, 0.14, 1.62, 0], neck: N }), P(cone(0.12, 0.26, 4), f, { x: -0.17, y: 1.72, z: 0.0, rz: 0.35, rig: [R.EAR_L, -0.14, 1.62, 0], neck: N }),
+      P(cone(0.07, 0.15, 4), pink, { x: 0.165, y: 1.7, z: 0.05, rz: -0.35, rig: [R.EAR_R, 0.14, 1.62, 0], neck: N }), P(cone(0.07, 0.15, 4), pink, { x: -0.165, y: 1.7, z: 0.05, rz: 0.35, rig: [R.EAR_L, -0.14, 1.62, 0], neck: N }),
+      P(cone(0.07, 0.14, 4), f, { x: 0.3, y: 1.33, z: 0.04, rz: -2.0, neck: N }), P(cone(0.07, 0.14, 4), f, { x: -0.3, y: 1.33, z: 0.04, rz: 2.0, neck: N }),
+      P(cyl(0.055, 0.04, 0.9, 6), f, { y: 0.7, z: -0.5, rx: -0.75, rig: [R.TAIL, 0, 0.42, -0.25] }), P(sph(0.06), light, { y: 1.02, z: -0.82, rig: [R.TAIL, 0, 0.42, -0.25] })];
+    for (const s of [-1, 1]) for (const k of [-1, 1]) parts.push(P(box(0.26, 0.008, 0.008), 0xf8f8f8, { x: s * 0.2, y: 1.37 + k * 0.025, z: 0.3, rz: s * k * 0.12, neck: N }));
     return merge(parts);
   },
   /** Tunique et col (teintés), sans bonnet : les oreilles restent dehors. */
@@ -1086,20 +1104,41 @@ class Layer {
     this.mesh.count = 0; this.mesh.visible = false;
     this.max = Math.max(1, max); this.n = 0; this.tint = !!tint;
     if (tint) { const w = new THREE.Color(1, 1, 1); for (let i = 0; i < this.max; i++) this.mesh.setColorAt(i, w); }
+    // (modèle animé — yeux, oreilles, queue, tête : lifeface.js — ou visage : une valeur de plus par instance)
+    this.rig = FACE.rigged(geo);
+    if (this.rig) {
+      FACE.rigMaterial(material);
+      const mo = new Float32Array(this.max * 4); for (let i = 0; i < this.max; i++) mo[i * 4] = 1;
+      geo.setAttribute('aMood', (this.mood = new THREE.InstancedBufferAttribute(mo, 4)));
+      geo.setAttribute('aHead', (this.head = new THREE.InstancedBufferAttribute(new Float32Array(this.max * 4), 4)));
+    }
+    if (geo.userData.face) geo.setAttribute('aTile', (this.tile = new THREE.InstancedBufferAttribute(new Float32Array(this.max), 1)));
     scene.add(this.mesh);
   }
   begin() { this.n = 0; }
-  push(m, color) {
+  /** rig (facultatif) : { o: yeux ouverts 0..1, tail, ear, up (queue levée), hy, hp, ht (tête), tile (visage) }. */
+  push(m, color, rig) {
     if (this.n >= this.max) return;
     this.mesh.setMatrixAt(this.n, m);
     if (this.tint) this.mesh.setColorAt(this.n, color || WHITE);
+    if (this.rig) {
+      const r = rig || NO_RIG, i = this.n * 4, a = this.mood.array, h = this.head.array;
+      a[i] = r.o === undefined ? 1 : r.o; a[i + 1] = r.tail || 0; a[i + 2] = r.ear || 0; a[i + 3] = r.up || 0;
+      h[i] = r.hy || 0; h[i + 1] = r.hp || 0; h[i + 2] = r.ht || 0;
+    }
+    if (this.tile) this.tile.array[this.n] = rig ? rig.tile || 0 : 0;
     this.n++;
   }
   end() {
     this.mesh.count = this.n; this.mesh.visible = this.n > 0;
-    if (this.n) { this.mesh.instanceMatrix.needsUpdate = true; if (this.tint) this.mesh.instanceColor.needsUpdate = true; if (this.cull) this.mesh.computeBoundingSphere(); }
+    if (this.n) {
+      this.mesh.instanceMatrix.needsUpdate = true; if (this.tint) this.mesh.instanceColor.needsUpdate = true; if (this.cull) this.mesh.computeBoundingSphere();
+      if (this.rig) { this.mood.needsUpdate = true; this.head.needsUpdate = true; }
+      if (this.tile) this.tile.needsUpdate = true;
+    }
   }
 }
+const NO_RIG = {};
 
 // ===========================================================================
 // La couche de vie
@@ -1205,6 +1244,7 @@ export function buildLife(game, cfg) {
   const vill = { body: layer('v_dog', VILLAGER.dog(), mats.fur || litMat, nVill, true), cloth: layer('v_cloth', VILLAGER.dogCloth(), mats.cloth || litMat, nVill, true), arm: layer('v_arm', VILLAGER.arm(), mats.cloth || litMat, nVill * 2, true),
     scare: layer('v_scare', VILLAGER.scarecrow(), mats.cloth || litMat, 3, false), scareArm: layer('v_scarearm', VILLAGER.scarecrowArm(), mats.cloth || litMat, 6, false),
     snow: layer('v_snow', ((cfg.villagerModels && VILLAGER[cfg.villagerModels.snowman]) || VILLAGER.snowman)(), propMat, 3, false), snowArm: layer('v_snowarm', VILLAGER.snowArm(), propMat, 6, false), yeti: layer('v_yeti', VILLAGER.yeti(), litMat, 2, false), yetiArm: layer('v_yetiarm', VILLAGER.yetiArm(), litMat, 4, false) };
+  vill.face = layer('v_face', FACE.faceGeo('dog'), FACE.faceMaterial(), nVill, false);
   if (plan.villagers.some(v => v.outfit === 'summer')) vill.summer = layer('v_summer', VILLAGER.summer(), mats.cloth || litMat, nVill, true);
   if (plan.villagers.some(v => v.sunhat)) vill.sunhat = layer('v_sunhat', VILLAGER.sunhat(), mats.hat || litMat, 12, false);
   const tools = {};
@@ -1218,6 +1258,7 @@ export function buildLife(game, cfg) {
     const gm = new THREE.MeshStandardMaterial({ vertexColors: true, transparent: true, opacity: 0.55, roughness: 0.6, emissive: 0x9ac8ff, emissiveIntensity: 0.45, depthWrite: false });
     vill.ghost = layer('v_ghost', VILLAGER.cat(), gm, 3, false);
   }
+  if (nCats || vill.ghost) vill.catFace = layer('v_catface', FACE.faceGeo('cat'), FACE.faceMaterial(), nCats + 4, false);
   const caps = {};
   for (const v of plan.villagers) if (v.cap && !caps[v.cap]) caps[v.cap] = layer('c_' + v.cap, VILLAGER[v.cap](), litMat, plan.villagers.filter(q => q.cap === v.cap).length + 1, false);
   const jballL = plan.villagers.some(v => v.act === 'juggle') ? layer('v_jball', VILLAGER.jball(), litMat, 12, true) : null;
@@ -1286,7 +1327,8 @@ export function buildLife(game, cfg) {
   }
 
   // --- état partagé (l'hôte décide, les amis suivent) -------------------------------------------
-  const st = { D: null, drops: [], floats: [], ev: [], seq: 0, seen: 0, near: { c: [], p: [], v: [], s: [] }, nearT: 0, barkSeen: new Map(), hudT: 0, wasDone: null };
+  const st = { D: null, drops: [], floats: [], ev: [], seq: 0, seen: 0, near: { c: [], p: [], v: [], s: [] }, nearT: 0, barkSeen: new Map(), hudT: 0, wasDone: null,
+    fdt: 0.016, barks: [], speaker: null, typing: false, loud: false, rg: {}, rgc: {}, rgf: { tile: 0 } };
   const event = (type, a, b) => { st.ev.push([++st.seq, type, a, b === undefined ? 0 : b]); if (st.ev.length > 16) st.ev.shift(); playEvent(type, a, b); };
   const PENTA = [0, 2, 4, 7, 9, 12, 14, 16, 19, 21];
   function note(midi, inst, vol) { const s = sfx(); if (s) s.note(inst || 'bell', midi, vol || 0.12, 0, 0.5); }
@@ -1331,6 +1373,7 @@ export function buildLife(game, cfg) {
     }
     else if (type === 'press') { if (p) { p.sq = game.t; p.on = !!b; } }
     else if (type === 'wave') { const v = villagers[a]; if (v) v.wave = game.t; }
+    else if (type === 'joy') { const v = villagers[a]; if (v) { v.joyT = game.t; if (v.fx) v.fx.blushT = game.t + 2; } }
     else if (type === 'grow') { if (p) { p.stage = b; p.grow = game.t; if (b) note(67 + PENTA[b * 2 % PENTA.length], 'mallet', 0.1); } }
     else if (type === 'chirp') chirp(CHIRPS[a] || 'ting');
     else if (type === 'spin') { if (p) p.spin0 = game.t; }
@@ -1422,6 +1465,7 @@ export function buildLife(game, cfg) {
     const n = k.defis.length, tot = plan.defis.length;
     if (first && n === tot) game.banner('TOUS LES DÉFIS ÉCLAIR !', cfg.allDoneText || 'Champions des défis : bravo !', 4200);
     else game.banner(first ? 'Défi réussi ! ' + n + '/' + tot : 'Encore réussi !', def.name + (D.t !== Infinity ? ' en ' + String(sec).replace('.', ',') + ' s' : ''), 3000);
+    for (const v of villagers) if (v.def.defi === def.id) event('joy', v.i);   // (l'habitant saute de joie et danse)
     if (hooks.onDefiDone) hooks.onDefiDone(def, first);
   }
   const hit = (P, x, y, z, r) => (P.pos.x - x) ** 2 + (P.pos.y + 0.6 - y) ** 2 + (P.pos.z - z) ** 2 < r * r;
@@ -1857,7 +1901,7 @@ export function buildLife(game, cfg) {
     const who = ln.who || def.name;
     const req = def.defi && plan.defis.find(d => d.id === def.defi);
     if (req && !defiDone(req.id) && ln.ask) { game.say(ln.ask, () => { k.talk[def.id + ':asked'] = 1; game.persist(); }); return; }
-    if (req && defiDone(req.id) && ln.thanks && !k.talk[def.id + ':thanked']) { game.say(ln.thanks, () => { k.talk[def.id + ':thanked'] = 1; dropSparkles(v.x, v.y + 1.5, v.z, 5, 1); game.persist(); }); return; }
+    if (req && defiDone(req.id) && ln.thanks && !k.talk[def.id + ':thanked']) { if (v.fx) v.fx.blushT = game.t + 6; game.say(ln.thanks, () => { k.talk[def.id + ':thanked'] = 1; dropSparkles(v.x, v.y + 1.5, v.z, 5, 1); game.persist(); }); return; }
     const list = ln.talk || [[{ who, text: '…' }]];
     const i = (k.talk[def.id] | 0) % list.length;
     k.talk[def.id] = i + 1;
@@ -2204,6 +2248,7 @@ export function buildLife(game, cfg) {
     const run = D && D.def.type === 'tag' ? D.crit.find(c => c.id === def.id) : null;
     v.run = run && !run.tagged ? run : null;
     if (run) { v.x = run.x; v.z = run.z; v.y = run.y; v.yaw = run.yaw; v.act = run.tagged ? 'cheer' : 'run'; return; }
+    react(v, dd, dt);
     if (v.loop) {
       // promeneurs et joggeurs : un tour du circuit (ils s'arrêtent pour parler)
       const held = v.hold > game.t;
@@ -2235,6 +2280,7 @@ export function buildLife(game, cfg) {
     if (def.sleepy && !v.awake) {
       for (const P of game.players) if ((P.barkT || 0) > 0.55 && Math.hypot(P.pos.x - v.x, P.pos.z - v.z) < 8) {
         v.awake = true; v.wave = game.t; game.bubble({ pos: new THREE.Vector3(v.x, v.y + 2.6, v.z), small: true }, 'Hein ?!');
+        if (v.fx) { v.fx.startT = game.t; v.fx.yawnT = game.t + 1.4; v.fx.met = true; }   // (sursaut, puis un grand bâillement)
         game.burst(v.x, v.y + 2, v.z, 20, 0xffffff, 4, 0.8);
         if (P === game.me) game.localBanner(def.name + ' s\'est réveillé !', 'Allez lui parler', 2200);
       }
@@ -2247,7 +2293,7 @@ export function buildLife(game, cfg) {
     }
     v.act = def.sleepy && !v.awake ? 'sleep' : (def.actDone && def.defi && defiDone(def.defi) ? def.actDone : def.act) || 'idle';
     const home = def.yaw || 0;
-    v.yaw = lerpAngle(v.yaw, dd < 7 && v.awake && Math.abs(me.pos.y - v.y) < 3 && v.act !== 'shovel' && v.act !== 'fish' && !def.busy ? Math.atan2(me.pos.x - v.x, me.pos.z - v.z) : home, Math.min(1, dt * 3));
+    v.yaw = lerpAngle(v.yaw, (dd < 7 && v.awake && Math.abs(me.pos.y - v.y) < 3 && v.act !== 'shovel' && v.act !== 'fish' && !def.busy) || (st.speaker === v && dd < 9 && v.act !== 'lie') ? Math.atan2(me.pos.x - v.x, me.pos.z - v.z) : home, Math.min(1, dt * 3));
     shout(v, dd);
     // les musiciens jouent leur petit air quand on s'approche (doucement)
     if (def.tune && v.act !== 'play' && dd < (def.hear || 18) && (v.tuneT = (v.tuneT || 0) - dt) <= 0) {
@@ -2259,6 +2305,26 @@ export function buildLife(game, cfg) {
     // ronrons et petites bulles de sommeil
     if (v.act === 'sleep' && dd < 30 && R() < dt * 0.8) game.spawnParticle(v.x + (R() - 0.5) * 0.4, v.y + 1.4, v.z, 0.2, 0.5, 0, 0xffffff, 0.14, 2.0, -0.05);
     void t;
+  }
+  /** Les réactions d'un habitant : « ! » au premier bonjour, sursaut quand on aboie, bâillements des endormis. */
+  function react(v, dd, dt) {
+    const fx = v.fx, def = v.def;
+    if (!fx || !v.awake || v.run) return;   // (fx : créé au premier dessin)
+    const T = game.t, me = game.me, sc = def.scale || 1, head = () => new THREE.Vector3(v.x, v.y + 1.7 * sc, v.z);
+    if (!fx.met && dd < 6.5 && !st.D && !game.dialog && Math.abs(me.pos.y - v.y) < 3) {
+      fx.met = true; fx.surpT = T; v.wave = T + 0.9;
+      game.bubble({ pos: head(), small: true }, '!');
+      game.sound('pop');
+    }
+    for (const P of st.barks) if (Math.hypot(P.pos.x - v.x, P.pos.z - v.z) < 9 && T - (fx.startT === undefined ? -99 : fx.startT) > 2.5 && T - (fx.surpT === undefined ? -99 : fx.surpT) > 1.2) {
+      fx.startT = T; fx.met = true;
+      if (dd < 20) game.bubble({ pos: head(), small: true }, '!?');
+    }
+    // les endormis (et ceux qui se reposent) bâillent et s'étirent de temps en temps
+    if ((def.sleepy || v.act === 'sit' || v.act === 'read') && dd < 40) {
+      if (fx.yawnN === undefined) fx.yawnN = 6 + R() * 10;
+      if ((fx.yawnN -= dt) <= 0) { fx.yawnN = (def.sleepy ? 9 : 22) + R() * 12; if (T - (fx.yawnT || -99) > 4 && st.speaker !== v) { fx.yawnT = T; if (dd < 25) game.bubble({ pos: head(), small: true }, 'Aaah…'); } }
+    }
   }
   /** Les marchands crient leur marchandise (une bulle de temps en temps, quand on passe). */
   function shout(v, dd) {
@@ -2282,9 +2348,9 @@ export function buildLife(game, cfg) {
     shadowL.push(m5);
   }
   /** Une bête (corps + deux ailes). */
-  function drawCreature(fm, x, y, z, yaw, pitch, roll, sc, sqy, flapA, tint, noWings) {
+  function drawCreature(fm, x, y, z, yaw, pitch, roll, sc, sqy, flapA, tint, noWings, rig) {
     compose(x, y, z, yaw, pitch, roll, sc, sc * (sqy || 1), sc);
-    fm.body.push(m4, tint);
+    fm.body.push(m4, tint, rig);
     if (fm.flap && !noWings) {
       const pv = fm.mdl.pivots, ax = fm.mdl.flapAxis === 'z';
       for (const sd of [-1, 1]) {
@@ -2294,6 +2360,17 @@ export function buildLife(game, cfg) {
     }
   }
   const furTint = new THREE.Color();
+  // (gestes « libres » : on peut agiter les bras en parlant ; postures au repos : on se balance)
+  const FIXED_ACTS = new Set(['sit', 'lie', 'fish', 'sleep', 'dig', 'skate', 'run', 'jog', 'lute', 'trumpet', 'drum', 'strum', 'play', 'kite', 'balloons', 'look']);
+  const IDLE_ACTS = new Set(['idle', 'look', 'guard', 'serve', 'walk', 'call', 'sad']);
+  const wrapA = (a) => Math.atan2(Math.sin(a), Math.cos(a));
+  const mHd = new THREE.Matrix4(), mHt = new THREE.Matrix4(), eHd = new THREE.Euler();
+  /** La matrice de la tête : celle du corps, tournée autour du cou (comme le fait le nuanceur — lifeface.js). */
+  function headMat(body, N, r) {
+    mHd.copy(body).multiply(mHt.makeTranslation(N[0], N[1], N[2]));
+    mHd.multiply(mHt.makeRotationFromEuler(eHd.set(r.hp || 0, r.hy || 0, r.ht || 0, 'YXZ')));
+    return mHd.multiply(mHt.makeTranslation(-N[0], -N[1], -N[2]));
+  }
   function drawVillager(v, t) {
     const def = v.def, act = v.act, ph = v.ph;
     let bob = 0, lean = 0, armR = 0, armL = 0, armRz = 0, armLz = 0, toolOn = true, sy = 1;
@@ -2382,31 +2459,111 @@ export function buildLife(game, cfg) {
     else if (act === 'read') { armR = -1.15; armL = -1.15; armRz = -0.3; armLz = -0.3; bob = Math.sin(ph * 1.5) * 0.01; }
     else { armR = Math.sin(ph * 1.2) * 0.08; armL = -Math.sin(ph * 1.2) * 0.08; bob = Math.sin(ph * 2) * 0.02; }
     if (waving) { armR = -2.7 + Math.sin(ph * 12) * 0.3; armRz = 0.3; }
+    // --- le visage et les réactions (lifeface.js) : clignements, regard qui suit le chien, bouche qui parle,
+    // surprise du premier bonjour, sursaut quand on aboie, bâillements, joie quand un défi est réussi
+    const fx = v.fx || (v.fx = { hy: 0, hp: 0, ht: 0, look: 0, lookP: 0, lookTt: 0, lookT: 1 + R() * 3 });
+    const T = game.t, fdt = st.fdt, me = game.me, E = FACE.EYE, MO = FACE.MOUTH;
+    const ddx = me.pos.x - v.x, ddz = me.pos.z - v.z, dist = Math.hypot(ddx, ddz);
+    const ago = (k) => (k === undefined ? 99 : T - k);
+    const joy = ago(v.joyT), surp = ago(fx.surpT), startle = ago(fx.startT), yawn = ago(fx.yawnT);
+    const talking = st.speaker === v, typing = talking && st.typing;
+    let eye = E.OPEN, mouth = MO.SMILE, blush = ago(fx.blushT) < 5, roll = 0, spin = 0, lookUp = 0, wag = Math.sin(ph * 2.6 + v.i) * 0.22, earA = FACE.twitch(fx, fdt);
+    const free = !FIXED_ACTS.has(act);
+    const open = FACE.blink(fx, fdt);
+    if (act === 'sleep') { eye = E.SHUT; mouth = Math.sin(ph * 1.6) > 0.55 ? MO.TALK : MO.SMILE; wag = 0; earA = -0.12; }
+    else if (act === 'sad') { eye = E.SAD; earA = -0.22 + earA * 0.4; wag = 0; }
+    else if (act === 'cheer' || act === 'jumpy') { eye = E.HAPPY; mouth = MO.WIDE; wag = Math.sin(ph * 14) * 0.6; }
+    else if (dist < 8 && v.awake) wag = Math.sin(ph * 10 + v.i) * 0.5;   // (content de voir le chien : la queue remue)
+    if (talking) {
+      mouth = typing && Math.sin(T * 17 + v.i) > -0.25 ? (st.loud ? MO.WIDE : MO.TALK) : MO.SMILE;
+      if (st.loud && !typing) eye = E.HAPPY;
+      if (free) { const k = T * 3.1 + v.i; armR = -0.5 - Math.abs(Math.sin(k)) * 0.75; armL = -0.3 - Math.abs(Math.sin(k * 0.73 + 1)) * 0.5; armRz = 0.15 + Math.sin(k * 0.5) * 0.15; armLz = 0.1; }
+      if (typing) lookUp += Math.sin(T * 7.5) * 0.06;
+    }
+    if (yawn >= 0 && yawn < 3.2) {
+      // un grand bâillement en s'étirant
+      const k = yawn < 0.5 ? yawn / 0.5 : yawn < 1.9 ? 1 : Math.max(0, 1 - (yawn - 1.9) / 0.6);
+      eye = yawn < 2.5 ? E.SHUT : E.SLEEPY; mouth = k > 0.4 ? MO.WIDE : MO.SMILE; earA = -0.15 * k;
+      lookUp -= 0.4 * k; sy *= 1 + 0.06 * k;
+      if (free) { armR = -2.9 * k; armL = -2.9 * k; armRz = 0.35 * k; armLz = 0.35 * k; }
+    }
+    if (startle < 1.6) {
+      // ouaf ! un sursaut (yeux ronds, bras en l'air), puis un petit rire
+      if (startle < 0.8) { eye = E.WOW; mouth = MO.WIDE; if (startle < 0.4) bob += Math.sin(startle / 0.4 * Math.PI) * 0.28; lean -= 0.12; earA = 0.5; if (free) { armR = -2.3 + Math.sin(T * 30) * 0.2; armL = -2.3 - Math.sin(T * 30) * 0.2; armRz = 0.3; armLz = 0.3; } }
+      else { eye = E.HAPPY; mouth = MO.TALK; }
+    }
+    if (surp < 1.0) {
+      // premier bonjour : « ! », un petit bond de surprise (puis un signe de la patte)
+      eye = E.WOW; mouth = MO.WIDE; earA = 0.45;
+      if (surp < 0.45) bob += Math.sin(surp / 0.45 * Math.PI) * 0.32;
+      if (free) { armR = -1.9; armL = -1.9; armRz = 0.4; armLz = 0.4; }
+    }
+    if (v.joyT !== undefined && fx.joyFx !== v.joyT) {
+      fx.joyFx = v.joyT;
+      if (game.juice && dist < 60) { game.juice.hearts(v.x, v.y + 2.0 * (def.scale || 1), v.z, 6); game.juice.confetti(v.x, v.y + 2.2 * (def.scale || 1), v.z, 36, 0.8); }
+    }
+    if (joy < 4.4) {
+      // défi réussi : trois sauts de joie, puis une petite danse de remerciement (un tour sur soi, on se dandine)
+      eye = E.HAPPY; mouth = MO.WIDE; blush = true; wag = Math.sin(ph * 18) * 0.75; earA = 0.35 + Math.sin(T * 12) * 0.12;
+      if (joy < 1.5) { bob += Math.abs(Math.sin(joy / 0.5 * Math.PI)) * 0.55 * (1 - joy / 2.2); armR = -2.8; armL = -2.8; armRz = 0.3; armLz = 0.3; }
+      else {
+        const d = joy - 1.5, u = Math.min(1, d / 0.8);
+        spin = u * u * (3 - 2 * u) * TAU; roll = Math.sin(d * 7) * 0.12; bob += Math.abs(Math.sin(d * 7)) * 0.12;
+        armR = -2.6 + Math.sin(d * 7) * 0.5; armL = -2.6 - Math.sin(d * 7) * 0.5; armRz = 0.4; armLz = 0.4;
+        if (d > 0.8 && (fx.noteT = (fx.noteT || 0) - fdt) < 0 && dist < 40) { fx.noteT = 0.35; game.spawnParticle(v.x + (R() - 0.5) * 0.6, v.y + 2.1 * (def.scale || 1), v.z + (R() - 0.5) * 0.6, (R() - 0.5) * 0.6, 1.3, (R() - 0.5) * 0.6, [0xff7ab0, 0xffd23a, 0x7ad8ff][v.i % 3], 0.2, 1.2, -0.2); }
+      }
+    }
+    if (open < 0.45 && (eye === E.OPEN || eye === E.SAD || eye === E.SLEEPY)) eye = E.SHUT;
+    // la tête suit le chien (ou regarde autour de soi de temps en temps)
+    let ty = 0, tp = 0, tt = 0;
+    if (v.awake && act !== 'lie' && act !== 'sleep' && dist < 11 && Math.abs(me.pos.y - v.y) < 4) {
+      ty = wrapA(Math.atan2(ddx, ddz) - v.yaw - spin);
+      ty = Math.abs(ty) > 1.9 ? 0 : clamp(ty, -1.05, 1.05);   // (trop derrière : on n'insiste pas)
+      tp = clamp(-Math.atan2(me.pos.y + 0.9 - (v.y + 1.45 * (def.scale || 1)), Math.max(1, dist)) * 0.8, -0.3, 0.4);
+      tt = Math.sin(T * 0.7 + v.i) * 0.08;
+      if (act === 'look' || act === 'trumpet' || act === 'lute') { ty *= 0.25; tp *= 0.25; }
+    } else if (v.awake && act !== 'lie') {
+      if ((fx.lookT -= fdt) <= 0) { fx.lookT = 2 + R() * 4; fx.look = R() < 0.35 ? 0 : (R() - 0.5) * 1.3; fx.lookP = (R() - 0.6) * 0.25; fx.lookTt = (R() - 0.5) * 0.25; }
+      ty = fx.look; tp = fx.lookP; tt = fx.lookTt;
+    }
+    if (talking) tt += Math.sin(T * 1.7) * 0.1;
+    const kh = Math.min(1, fdt * 7);
+    fx.hy += (ty - fx.hy) * kh; fx.hp += (tp + lookUp - fx.hp) * kh; fx.ht += (tt - fx.ht) * kh;
+    // au repos, on se balance d'une jambe sur l'autre
+    if (!talking && joy > 4.4 && IDLE_ACTS.has(act)) { roll += Math.sin(ph * 0.75 + v.i) * 0.035; bob += Math.sin(ph * 1.5 + v.i) * 0.012; }
+    const RG = st.rg; RG.o = open; RG.tail = wag; RG.ear = earA; RG.up = joy < 4.4 ? 0.35 : 0; RG.hy = fx.hy; RG.hp = fx.hp; RG.ht = fx.ht;
+    st.rgf.tile = FACE.tileOf(eye, mouth, blush);
     const sc = def.scale || 1;
     if (def.pet && v.petX !== undefined) {
       const fm = faunaModel[def.pet.kind];
-      if (fm) { const hop = Math.abs(Math.sin(ph * 12)) * 0.12 * (v.petRun || 0); drawCreature(fm, v.petX, ground(v.petX, v.petZ) + hop, v.petZ, v.petYaw || 0, 0, 0, def.pet.scale || fm.f.scale || 1, 1, 0, fm.mdl.tint ? C.setHex(def.pet.tint || 0xe8c49a) : undefined); shadow(v.petX, v.petZ, 0.4); }
+      if (fm) {
+        const hop = Math.abs(Math.sin(ph * 12)) * 0.12 * (v.petRun || 0), pf = v.petFx || (v.petFx = {}), pr = st.rgc;
+        pr.o = FACE.blink(pf, st.fdt); pr.tail = Math.sin(ph * 13) * 0.55; pr.up = 0.2; pr.ear = FACE.twitch(pf, st.fdt); pr.hy = pr.hp = pr.ht = 0;
+        drawCreature(fm, v.petX, ground(v.petX, v.petZ) + hop, v.petZ, v.petYaw || 0, 0, 0, def.pet.scale || fm.f.scale || 1, 1, 0, fm.mdl.tint ? C.setHex(def.pet.tint || 0xe8c49a) : undefined, false, pr); shadow(v.petX, v.petZ, 0.4);
+      }
     }
     if (def.body === 'critter' && def.sleepy) {
       // un habitant-bête (phoque qui bronze, tortue…) : il bouge à peine, applaudit quand on lui parle
       const fm = faunaModel[def.model];
       const nap = !v.awake;
-      if (fm) drawCreature(fm, v.x, v.y + (waving ? Math.abs(Math.sin(ph * 9)) * 0.1 : 0), v.z, v.yaw, nap ? 0.05 : -0.12 + Math.sin(ph * 0.8) * 0.05, nap ? 0.5 + Math.sin(ph * 0.6) * 0.05 : 0, sc, 1 + (nap ? Math.sin(ph * 1.4) * 0.03 : 0), waving ? Math.sin(ph * 16) * 0.9 : Math.sin(ph * 1.1) * 0.15);
+      if (nap) RG.o = 0.07;
+      if (fm) drawCreature(fm, v.x, v.y + (waving ? Math.abs(Math.sin(ph * 9)) * 0.1 : 0), v.z, v.yaw, nap ? 0.05 : -0.12 + Math.sin(ph * 0.8) * 0.05, nap ? 0.5 + Math.sin(ph * 0.6) * 0.05 : 0, sc, 1 + (nap ? Math.sin(ph * 1.4) * 0.03 : 0), waving ? Math.sin(ph * 16) * 0.9 : Math.sin(ph * 1.1) * 0.15, undefined, false, RG);
       shadow(v.x, v.z, (fm ? fm.mdl.r : 0.5) * sc);
       if (nap && (v.zzT = (v.zzT || 0) - 1 / 60) < 0 && Math.hypot(game.me.pos.x - v.x, game.me.pos.z - v.z) < 25) { v.zzT = 1.4; game.spawnParticle(v.x, v.y + 1.2 * sc, v.z, 0.2, 0.8, 0, 0xffffff, 0.2, 1.6, -0.1); }
       return;
     }
     if (def.body === 'penguin' || def.body === 'critter') {
       const fm = faunaModel[def.model || 'skater'] || faunaModel.penguin;
-      if (fm) drawCreature(fm, v.x, v.y + bob, v.z, v.yaw, 0, act === 'skate' ? Math.sin(ph * 2.2) * 0.15 : 0, sc, 1, act === 'skate' ? 0.6 + Math.sin(ph * 2.2) * 0.4 : waving ? 1.2 : 0.1);
+      if (fm) drawCreature(fm, v.x, v.y + bob, v.z, v.yaw + spin, 0, (act === 'skate' ? Math.sin(ph * 2.2) * 0.15 : 0) + roll, sc, 1, act === 'skate' ? 0.6 + Math.sin(ph * 2.2) * 0.4 : waving || joy < 4.4 ? 1.2 : 0.1, undefined, false, RG);
       shadow(v.x, v.z, 0.5 * sc);
       return;
     }
     if (def.body === 'snowman' || def.body === 'yeti' || def.body === 'scarecrow') {
       const big = def.body === 'yeti', scr = def.body === 'scarecrow', L1 = big ? vill.yeti : scr ? vill.scare : vill.snow, LA = big ? vill.yetiArm : scr ? vill.scareArm : vill.snowArm;
       const wake = v.awake ? 1 : 0;
-      compose(v.x, v.y + (wake ? Math.abs(Math.sin(ph * (waving ? 9 : 1.5))) * 0.06 : 0), v.z, v.yaw, 0, wake ? Math.sin(ph * 1.3) * 0.05 : 0, sc);
-      L1.push(m4);
+      compose(v.x, v.y + (wake ? Math.abs(Math.sin(ph * (waving ? 9 : 1.5))) * 0.06 : 0) + (joy < 4.4 || surp < 1 || startle < 1 ? bob : 0), v.z, v.yaw + spin, 0, wake ? Math.sin(ph * 1.3) * 0.05 : 0, sc);
+      if (!wake) RG.o = 0.07;
+      L1.push(m4, undefined, RG);
       const base = mB.copy(m4);
       for (const sd of [-1, 1]) {
         const ang = scr ? (sd > 0 && waving ? 2.6 + Math.sin(ph * 12) * 0.3 : 1.55 + wake * Math.sin(ph * 1.7 + sd) * 0.12) : sd > 0 ? (waving ? 2.4 + Math.sin(ph * 12) * 0.3 : 0.9 + wake * Math.sin(ph * 2) * 0.2) : 0.9;
@@ -2421,7 +2578,8 @@ export function buildLife(game, cfg) {
       // le gentil fantôme-chat : il flotte, se balance, et brille un peu
       const fy = v.y + 0.5 + Math.sin(ph * 1.7) * 0.25;
       compose(v.x, fy, v.z, v.yaw + Math.sin(ph * 0.9) * 0.3, 0, Math.sin(ph * 1.3) * 0.12, sc, sc * (1 + Math.sin(ph * 3) * 0.04), sc);
-      vill.ghost.push(m4);
+      vill.ghost.push(m4, undefined, RG);
+      if (vill.catFace) vill.catFace.push(headMat(m4, FACE.NECK.cat, RG), undefined, st.rgf);
       glow(v.x, fy + 1.3, v.z, 3.2, 0x9ac8ff, 0.35);
       return;
     }
@@ -2429,15 +2587,18 @@ export function buildLife(game, cfg) {
     furTint.setHex(def.fur || 0xe8c49a);
     // allongé sur sa serviette (sur le dos, le nez au soleil) ou debout
     if (act === 'lie') compose(v.x, v.y + 0.32 + Math.sin(ph * 1.3) * 0.01, v.z, v.yaw, -Math.PI / 2, 0, sc, sc, sc);
-    else compose(v.x, v.y + bob, v.z, v.yaw, lean, 0, sc, sc * sy, sc);
-    (cat ? vill.cat : vill.body).push(m4, furTint);
+    else compose(v.x, v.y + bob, v.z, v.yaw + spin, lean, roll, sc, sc * sy, sc);
+    (cat ? vill.cat : vill.body).push(m4, furTint, RG);
     const summer = def.outfit === 'summer' && vill.summer;
-    (cat ? vill.catCloth : summer ? vill.summer : vill.cloth).push(m4, C.setHex(def.cloth || 0xd84a3a));
+    (cat ? vill.catCloth : summer ? vill.summer : vill.cloth).push(m4, C.setHex(def.cloth || 0xd84a3a), RG);
+    // le visage (et tout ce qui est posé sur la tête) suit la tête
+    const hm = headMat(m4, cat ? FACE.NECK.cat : FACE.NECK.dog, RG);
+    (cat ? vill.catFace : vill.face).push(hm, undefined, st.rgf);
     // (sur téléphone : chapeaux et outils seulement de près)
     const close = !lite || Math.hypot(game.me.pos.x - v.x, game.me.pos.z - v.z) < (cfg.liteDetail || 30);
-    if (def.sunhat && vill.sunhat && close) vill.sunhat.push(m4);
+    if (def.sunhat && vill.sunhat && close) vill.sunhat.push(hm);
     const base = mB.copy(m4);
-    if (def.cap && caps[def.cap]) caps[def.cap].push(base);
+    if (def.cap && caps[def.cap]) caps[def.cap].push(hm);
     if (act === 'juggle' && jballL) for (let k = 0; k < 3; k++) {
       const a = ph * 5 + k * TAU / 3;
       m5.copy(base).multiply(m6.makeTranslation(Math.cos(a) * 0.42, 2.05 + Math.abs(Math.sin(a)) * 0.75, 0.42));
@@ -2460,6 +2621,16 @@ export function buildLife(game, cfg) {
     shadow(v.x, v.z, 0.5 * sc);
   }
 
+  /** Les yeux, les oreilles et la queue d'une bête : elle cligne, frémit, remue la queue quand on la caresse. */
+  function critterRig(c, dt) {
+    const fx = c.fx || (c.fx = {}), RG = st.rgc, petK = game.t - c.petT, happy = petK < 3.5 || c.followT > 0;
+    RG.o = c.s === 'curl' ? 0.07 : petK < 1.6 ? 0.35 : FACE.blink(fx, dt);
+    RG.ear = FACE.twitch(fx, dt, petK < 3 ? 3 : 1) + (petK < 3 ? 0.2 : 0);
+    RG.tail = happy ? Math.sin(c.ph * 17) * 0.65 : c.s === 'flee' ? Math.sin(c.ph * 22) * 0.12 : Math.sin(c.ph * 2.3 + c.i) * 0.16;
+    RG.up = happy ? 0.25 : c.s === 'flee' ? 0.3 : 0;
+    RG.hy = RG.hp = RG.ht = 0;
+    return RG;
+  }
   function refreshNear() {
     const me = game.me, x = me.pos.x, z = me.pos.z;
     st.near.c = cGrid.within(x, z, VIEW).map(q => q.c);
@@ -2475,6 +2646,16 @@ export function buildLife(game, cfg) {
     // événements de l'hôte (chez un ami)
     for (const l of layers.values()) l.begin();
     const barks = game.players.filter((P) => { const prev = P._lifeBark || 0, b = P.barkT || 0; P._lifeBark = b; return b > prev + 0.3; });
+    st.fdt = Math.min(0.1, dt || 0.016); st.barks = barks;
+    // qui parle ? (la bouche de l'habitant bouge pendant que le texte s'écrit)
+    st.speaker = null; st.typing = false; st.loud = false;
+    const dg = game.dialog;
+    if (dg) {
+      const ln = dg.lines ? dg.lines[dg.i] || {} : null, who = ln ? ln.who : game.dom.dname && game.dom.dname.textContent;
+      st.typing = !(game.dom.dialog && game.dom.dialog.classList.contains('done'));
+      st.loud = /!/.test(ln ? ln.text || '' : (game.dom.dtext && game.dom.dtext.textContent) || '');
+      if (who) { let best = 16; for (const v of villagers) { if ((v.who || (v.who = (lines[v.def.id] || {}).who || v.def.name)) !== who) continue; const d = Math.hypot(v.x - me.pos.x, v.z - me.pos.z); if (d < best) { best = d; st.speaker = v; } } }
+    }
     // bêtes
     const act2 = ACTIVE * ACTIVE;
     for (const c of st.near.c) {
@@ -2495,7 +2676,7 @@ export function buildLife(game, cfg) {
       if (c.puff > 0) sqy = 1 + Math.sin(c.puff / 0.6 * Math.PI * 3) * 0.12;
       if ((ai === 'burrow' || (ai === 'scuttle' && c.f.hole)) && c.under > 0.98) continue;
       drawCreature(fm, c.x, c.y + (c.hop || 0), c.z, c.yaw, pitch, roll, c.scale, sqy, ai === 'slide' ? (c.s === 'walk' ? Math.sin(c.ph * 8) * 0.6 : 0) : c.flapA, c.tint !== null && c.tint !== undefined ? C.setHex(c.tint) : undefined,
-        (lite && ai === 'flock' && !(c.fly > 0)) || (c.f.foldWings && !(c.fly > 0)) || (lite && c.f.flapNear && d2 > c.f.flapNear * c.f.flapNear));   // (f.flapNear : pinces, nageoires de près seulement)   // (un oiseau posé replie ses ailes — un dessin de moins)
+        (lite && ai === 'flock' && !(c.fly > 0)) || (c.f.foldWings && !(c.fly > 0)) || (lite && c.f.flapNear && d2 > c.f.flapNear * c.f.flapNear), fm.body.rig ? critterRig(c, dt) : undefined);   // (f.flapNear : pinces, nageoires de près seulement)   // (un oiseau posé replie ses ailes — un dessin de moins)
       if (ai === 'hover') { if (c.f.glow !== false) glow(c.x, c.y, c.z, c.f.glowSize || 1.2, c.f.glow || 0x9ad8ff, 0.8); }
       else if (c.f.glow) glow(c.x, c.y + (c.f.glowY || 0), c.z, (c.f.glowSize || 1.2) * c.scale, c.f.glow, 0.6);
       if (ai !== 'hover' && ai !== 'jump' && ai !== 'perch' && !c.f.water && !(c.fly > 0 && c.y - ground(c.x, c.z) > 4)) shadow(c.x, c.z, (c.fm.mdl.r || 0.3) * c.scale);
@@ -2773,7 +2954,7 @@ export function buildLife(game, cfg) {
   }
   function applySave() { /* l'état vient de game.save.life : rien à recopier */ }
 
-  return {
+  const api = {
     step, render, candidates, interact, snapshot, apply, applySave, questText, marks,
     get active() { return st.D; },
     /** Arrête le défi en cours sans récompense (changement de niveau, réapparition…). */
@@ -2782,4 +2963,6 @@ export function buildLife(game, cfg) {
     stats: () => ({ creatures: creatures.length, props: props.length, villagers: villagers.length, defis: defis.length, secrets: chests.length, sparkles: sparkles.length, layers: layers.size }),
     creatures, props, villagers, chests, plan, layers,
   };
+  game._life = api;   // (outils de vérification : la couche de vie du niveau en cours)
+  return api;
 }
