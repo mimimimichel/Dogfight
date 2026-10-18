@@ -589,6 +589,7 @@ export class Travel {
   /** Bouton « VOYAGER » sur le quai. */
   candidates() {
     const out = [];
+    if (this.leaving || this.picker) return out;
     for (const p of this.spots) if (p.kind === 'gare') {
       const G = this.L.GARE, c = Math.cos(G.yaw || 0), s = Math.sin(G.yaw || 0);
       for (const lx of [-3, 0, 3]) out.push({ kind: 'gare', label: 'VOYAGER', x: G.x + lx * c, z: G.z - lx * s, y: p.top });
