@@ -110,7 +110,19 @@ function tex(key, srgb, repeat) {
 }
 
 /** Uniformes partagés (temps pour le vent ; teinte des feuillus, pour les saisons). */
-export const FOLIAGE = { uTime: { value: 0 }, uTint: { value: new THREE.Color(1, 1, 1) } };
+export const FOLIAGE = { uTime: { value: 0 }, uTint: { value: new THREE.Color(1, 1, 1) },
+  // Fleur Merveille (wonder.js) : les arbres dansent en rythme (0 = immobiles, 1 = la fête ; uBeat : la phase du temps)
+  uDance: { value: 0 }, uBeat: { value: 0 } };
+/** Les arbres dansent (wonder.js) : k = 0..1, beat = phase en radians (un temps = π). */
+export function danceFoliage(k, beat) { FOLIAGE.uDance.value = k; FOLIAGE.uBeat.value = beat || 0; }
+// (en coordonnées de l'arbre : le haut penche d'un côté puis de l'autre, la couronne sautille)
+const DANCE_GLSL = `
+  if (uDance > 0.001) {
+    float dH = max(transformed.y, 0.0), dB = uBeat + ph * 0.15;
+    transformed.x += sin(dB) * uDance * dH * 0.15;
+    transformed.z += sin(dB * 0.5 + ph) * uDance * dH * 0.05;
+    transformed.y *= 1.0 + uDance * 0.08 * (abs(sin(dB)) - 0.4);
+  }`;
 export function tickFoliage(t) { FOLIAGE.uTime.value = t; }
 
 /**
@@ -125,9 +137,9 @@ export function firMaterials(opts = {}) {
   needlesMat.normalScale = new THREE.Vector2(0.8, 0.8);
   const needles_ = needlesMat;
   needles_.onBeforeCompile = (sh) => {
-    sh.uniforms.uTime = FOLIAGE.uTime; sh.uniforms.uSnow = { value: snow };
+    sh.uniforms.uTime = FOLIAGE.uTime; sh.uniforms.uSnow = { value: snow }; sh.uniforms.uDance = FOLIAGE.uDance; sh.uniforms.uBeat = FOLIAGE.uBeat;
     sh.vertexShader = sh.vertexShader
-      .replace('#include <common>', '#include <common>\nuniform float uTime;\nvarying float vSnowUp;\nvarying vec3 vWPos;')
+      .replace('#include <common>', '#include <common>\nuniform float uTime, uDance, uBeat;\nvarying float vSnowUp;\nvarying vec3 vWPos;')
       .replace('#include <begin_vertex>', `#include <begin_vertex>
         {
           // vent : les bouts de branches (loin de l'axe) et le haut bougent un peu
@@ -140,6 +152,7 @@ export function firMaterials(opts = {}) {
           transformed.x += sin(uTime * 1.3 + ph + transformed.y * 0.4) * reach * 0.6;
           transformed.z += cos(uTime * 1.1 + ph * 1.3) * reach * 0.4;
           transformed.y += sin(uTime * 2.1 + ph + transformed.x) * reach * 0.25;
+          ${DANCE_GLSL}
         }`)
       .replace('#include <worldpos_vertex>', `#include <worldpos_vertex>
         {
@@ -410,7 +423,7 @@ export function leafTint(hex, out = new THREE.Color(), vary = 0) {
 export const isBlossom = (hex) => { const c = new THREE.Color(hex); return c.r > c.g * 1.08 && c.b > c.g * 0.85; };
 
 // --- matériaux (partagés) ----------------------------------------------------------------------
-const VERT_HEAD = 'attribute vec3 fol;\nuniform float uTime;\nvarying float vLeaf;\n';
+const VERT_HEAD = 'attribute vec3 fol;\nuniform float uTime, uDance, uBeat;\nvarying float vLeaf;\n';
 // au-dessus de la fourche, la couronne garde ses proportions quand le tronc est étiré ; vent
 const VERT_BEGIN = `#include <begin_vertex>
   vLeaf = fol.y;
@@ -429,6 +442,7 @@ const VERT_BEGIN = `#include <begin_vertex>
     transformed.z += cos(uTime * 0.95 + ph * 1.3) * reach * 0.7;
     float fl = fol.y * 0.03 * sin(uTime * 5.3 + dot(transformed, vec3(2.1, 3.7, 1.3)) + ph);   // les feuilles frémissent
     transformed += vec3(fl, fl * 0.6, -fl);
+    ${DANCE_GLSL}
   }`;
 // normales : couronne = échelle uniforme ; tronc = vraie normale d'un objet étiré
 const NORMAL_FIX = `#include <beginnormal_vertex>
@@ -439,7 +453,7 @@ const NORMAL_FIX = `#include <beginnormal_vertex>
   }
   #endif`;
 function folVertex(sh, normals) {
-  sh.uniforms.uTime = FOLIAGE.uTime;
+  sh.uniforms.uTime = FOLIAGE.uTime; sh.uniforms.uDance = FOLIAGE.uDance; sh.uniforms.uBeat = FOLIAGE.uBeat;
   sh.vertexShader = VERT_HEAD + sh.vertexShader.replace('#include <begin_vertex>', VERT_BEGIN);
   if (normals) sh.vertexShader = sh.vertexShader.replace('#include <beginnormal_vertex>', NORMAL_FIX);
 }

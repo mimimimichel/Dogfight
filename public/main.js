@@ -290,6 +290,9 @@
     const pupIds = new Set((() => { try { const a = JSON.parse(localStorage.getItem('dogfight.aventure.chiots') || '[]'); return Array.isArray(a) ? a : []; } catch (e) { return []; } })());
     W.forEach((w, i) => { for (const id of (w.s && Array.isArray(w.s.pups) ? w.s.pups : [])) if (typeof id === 'string' && id.startsWith('l' + (w.id || i + 1) + '_')) pupIds.add(id); });
     const pupsIn = (n) => [...pupIds].filter(id => id.startsWith('l' + n + '_')).length;
+    // les Fleurs Merveille : la collection du joueur (+ les mondes dont la sauvegarde dit « trouvée »)
+    const wonIds = new Set((() => { try { const a = JSON.parse(localStorage.getItem('dogfight.aventure.merveilles') || '[]'); return Array.isArray(a) ? a.filter(n => n >= 1 && n <= 8) : []; } catch (e) { return []; } })());
+    W.forEach((w, i) => { if (w.s && w.s.wonder && w.s.wonder.found) wonIds.add(w.id || i + 1); });
     let got = 0, all = 0;
     $('album-worlds').innerHTML = W.map((w, i) => {
       const m = count(w.s, 'medals'), b = count(w.s, 'bones');
@@ -301,6 +304,7 @@
         <div class="row">${w.medName} ${Math.min(m, w.med)}/${w.med}</div><div class="dots">${dots}</div>
         <div class="row">${w.col} ${b}/100 <span class="bar" style="--p:${b}%"><i></i></span></div>
         <div class="row pups">Chiots ${Math.min(3, pupsIn(w.id || i + 1))}/3 ${'🐶'.repeat(Math.min(3, pupsIn(w.id || i + 1)))}</div>
+        <div class="row wonder">${wonIds.has(w.id || i + 1) ? '🌸 Fleur Merveille trouvée' : 'Fleur Merveille : ?'}</div>
         ${w.extra ? `<span class="tag">${w.extra}</span>` : (w.s && w.s.intro ? '' : '<span class="tag">Pas encore visité</span>')}
       </div>`;
     }).join('');
@@ -341,6 +345,16 @@
     ];
     badges.push(['🐾', 'Sauveteurs de chiots', pupIds.size >= 24]);
     $('album-pups-n').textContent = `${Math.min(24, pupIds.size)}/24`;
+    badges.push(['🌸', 'Jardiniers des merveilles', wonIds.size >= 8]);
+    if ($('album-wonders-n')) $('album-wonders-n').textContent = `${Math.min(8, wonIds.size)}/8`;
+    import('./adventure/wonderdata.js').then((D) => {
+      const el = $('album-wonders');
+      if (!el) return;
+      el.innerHTML = D.WONDERS.map((w) => {
+        const ok = wonIds.has(w.lv);
+        return `<div class="awonder${ok ? '' : ' off'}" title="${ok ? w.name + ' — ' + w.sub : 'Monde ' + w.lv + ' : ' + w.where}" style="--c:${w.hint}"><div class="face">${ok ? '🌸' : '?'}</div><b>${ok ? w.name : '???'}</b><small>${ok ? 'monde ' + w.lv : 'monde ' + w.lv + ' · ' + w.where}</small></div>`;
+      }).join('');
+    }).catch(() => {});
     import('./adventure/pupdata.js').then((D) => {
       const hex = (c) => '#' + (c >>> 0).toString(16).padStart(6, '0');
       $('album-pups').innerHTML = D.PUPS.map((p) => {

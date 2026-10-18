@@ -442,6 +442,16 @@ html.ios-text .hbtn.small, html.ios-text .hbtn.lvpick:not(.active), html.ios-tex
 .apup.off b, .apup.off small { opacity: .55; }
 .album-world .pups { letter-spacing: 1px; }
 @media (max-width: 700px) { .album-pups { grid-template-columns: repeat(4, 1fr); } }
+/* album : les Fleurs Merveille (une par monde) */
+.album-wonders { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; width: 100%; }
+.awonder { display: flex; flex-direction: column; align-items: center; gap: 1px; padding: 6px 4px 6px; border-radius: 14px; background: rgba(255,255,255,.88); border: 2px solid #2a1408; box-shadow: 0 3px 0 #2a1408; font-family: var(--hf); color: #3a2010; text-align: center; }
+.awonder .face { width: 36px; height: 36px; border-radius: 50%; display: grid; place-items: center; font-size: 21px; border: 2px solid #2a1408; background: radial-gradient(circle at 35% 30%, #fff8f0, var(--c, #ff7ab8) 72%); box-shadow: 0 0 10px var(--c, #ff7ab8); }
+.awonder b { font-size: 12px; line-height: 1.1; }
+.awonder small { font-size: 9.5px; font-weight: 600; opacity: .75; line-height: 1.1; }
+.awonder.off { background: rgba(255,255,255,.45); box-shadow: 0 3px 0 rgba(42,20,8,.4); border-color: rgba(42,20,8,.4); }
+.awonder.off .face { background: #c8c0b8; box-shadow: none; filter: grayscale(1); opacity: .6; }
+.awonder.off b, .awonder.off small { opacity: .6; }
+@media (max-width: 700px) { .album-wonders { grid-template-columns: repeat(2, 1fr); } }
 /* album : carnet des bêtises et souvenirs */
 .album-sub small { font-weight: 500; opacity: .75; font-size: .8em; }
 .album-carnet { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 6px; }

@@ -806,10 +806,26 @@
     adv8: { bpm: 94, keys: [62, 64, 57], mode: 'dorian', vol: 0.42, wet: 0.4, lead: 'piano', comp: 'pluck', bassInst: 'bass', swing: 0.16, drums: 'brush', sevenths: true, sparkle: true,
       leit: { prog: [0, 3, 6, 4, 0, 3, 4, 0], oct: 12, swing8: 0.4, legato: 0.6 },
       progs: [[0, 3, 0, 6], [0, 6, 3, 4], [3, 6, 0, 4], [0, 2, 3, 6]] },
+    // Fleur Merveille (30 s de surprise) : lydien pétillant, clochettes partout ; une couleur par monde (wonder1…wonder8)
+    wonder: { bpm: 120, keys: [67, 65, 69], mode: 'lydian', vol: 0.46, wet: 0.5, lead: 'bell', comp: 'mallet', bassInst: 'bass', swing: 0.1, drums: 'light', sevenths: true, sparkle: true,
+      leit: { prog: [0, 1, 4, 0, 5, 1, 4, 0], oct: 12, legato: 0.7 },
+      progs: [[0, 1, 4, 0], [0, 5, 1, 4], [3, 1, 0, 4], [0, 1, 5, 4]] },
     // combat 1 contre 1 : entièrement composé par la machine (graine fixe)
     fight: { bpm: 138, keys: [57, 64, 62], mode: 'minor', vol: 0.38, wet: 0.2, lead: 'mallet', comp: 'pluck', bassInst: 'bass', swing: 0, drums: 'drive', sevenths: false,
       progs: [[0, 5, 2, 6], [0, 3, 6, 4], [5, 6, 0, 0], [0, 6, 5, 6]] },
   };
+  // Fleur Merveille : la même fête, colorée pour chaque monde (wonder1 … wonder8)
+  const WONDER_TWEAKS = {
+    1: { bpm: 112, lead: 'mallet', comp: 'pluck' },                                   // le chœur des fleurs
+    2: { bpm: 96, mode: 'dorian', lead: 'flute', drums: 'brush', wet: 0.6 },          // la forêt au crépuscule
+    3: { bpm: 100, lead: 'piano', comp: 'piano', drums: 'groove', swing: 0.2 },       // la ville en bulles
+    4: { bpm: 126, lead: 'flute', comp: 'pluck' },                                    // les toboggans arc-en-ciel
+    5: { bpm: 128, lead: 'bell', comp: 'mallet', mode: 'major' },                     // le pays des bonbons
+    6: { bpm: 108, lead: 'pluck', comp: 'mallet', drums: 'groove', swing: 0.22 },     // les poissons volants
+    7: { bpm: 124, lead: 'flute', comp: 'pluck', mode: 'major', drums: 'drive' },     // la grande parade
+    8: { bpm: 104, lead: 'piano', comp: 'pluck', mode: 'dorian', drums: 'brush', swing: 0.16 },   // les tableaux vivants
+  };
+  for (const n in WONDER_TWEAKS) STYLES['wonder' + n] = Object.assign({}, STYLES.wonder, WONDER_TWEAKS[n]);
   function rng(seed) { let x = seed >>> 0 || 1; return () => ((x = (x * 1664525 + 1013904223) >>> 0) / 4294967296); }
   /** Graine fixe tirée du nom de l'ambiance (FNV-1a). */
   function seedOf(name) { let h = 2166136261; const s = String(name || 'menu'); for (let i = 0; i < s.length; i++) { h ^= s.charCodeAt(i); h = Math.imul(h, 16777619); } return h >>> 0; }
@@ -917,6 +933,8 @@
       this.tBar = t;
       const deg = sec.prog[this.bi % sec.prog.length];
       const ch = this.chordOf(deg);
+      // (le jeu peut chanter avec la musique : le chœur des fleurs de la Fleur Merveille)
+      if (sfx.onBar) { try { sfx.onBar(t, ch, barLen, this); } catch (e) { /* ignore */ } }
       const sw = (i) => t + i * s16 + (i % 2 ? st.swing * s16 : 0);
       const fade = sec.name === 'fin' ? 1 - this.bi / sec.bars : sec.name === 'intro' ? 0.6 + 0.4 * this.bi / sec.bars : 1;
       // nappe

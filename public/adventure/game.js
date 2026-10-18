@@ -42,6 +42,7 @@ import { storyShots } from './story.js';
 import { buildSeasons } from './seasons.js';
 import * as N from './npcs.js';
 import { Puppies } from './puppies.js';
+import { Wonder } from './wonder.js';
 import { Juice, buzz, canVibrate, hapticsOn, setHaptics, refreshHaptics } from './juice.js';
 /** Réglage « j'ai des écouteurs » (voir voice.js). */
 const headsetOn = () => { try { return localStorage.getItem('dogfight.headset') === '1'; } catch (e) { return false; } };
@@ -1081,6 +1082,8 @@ class Adventure {
     this.partPts = this.particles.points;
     // les chiots perdus (3 par monde) et, au parc, ceux qu'on a déjà retrouvés
     try { this.pups = new Puppies(this); } catch (e) { console.error(e); this.pups = null; }
+    // la Fleur Merveille du monde (30 s de surprise quand on la touche)
+    try { this.wonder = new Wonder(this); } catch (e) { console.error(e); this.wonder = null; }
   }
 
   makeShadow(r) {
@@ -1412,6 +1415,7 @@ class Adventure {
     if (this.party.size > 1) this.stepRevive(dt);
     this.stepNpcs(dt);
     if (this.pups) this.pups.step(dt);
+    if (this.wonder) this.wonder.step(dt);
     this.stepCollect(dt);
     this.stepPortals(dt);
     if (this.levelLogic) this.levelLogic.step(dt);
@@ -1709,6 +1713,7 @@ class Adventure {
     };
     if (this.levelLogic) base.x = this.levelLogic.snapshot();
     if (this.pups) base.pu = this.pups.snapshot();
+    if (this.wonder) base.wo = this.wonder.snapshot();
     const sv = JSON.stringify(Object.assign({}, this.save, { time: 0 }));
     for (const l of links) {
       // réseau encombré : on saute cet état plutôt que d'empiler du retard (l'état suivant le remplace)
@@ -1837,6 +1842,7 @@ class Adventure {
       pp.yaw = lerpAngle(pp.yaw, e[4], k); pp.phase += (e[5] - pp.phase) * k;
     }
     if (this.pups) this.pups.guestStep(dt);
+    if (this.wonder) this.wonder.guestStep(dt);
     this.stepParticles(dt);
   }
 
@@ -1899,6 +1905,7 @@ class Adventure {
     else prompt.classList.add('hidden');
     if (s.x && this.levelLogic) this.levelLogic.apply(s.x);
     if (s.pu && this.pups) this.pups.apply(s.pu);
+    if (s.wo && this.wonder) this.wonder.apply(s.wo);
     if (s.pt && this.portals) s.pt.forEach(([n, t, lk], i) => { const p = this.portals[i]; if (p) { p.n = n; p.t = t; if (!!lk !== p.locked) this.setPortalLock(p, !!lk); } });
     // effets
     for (const [n, ...a] of s.ev) {
@@ -1928,6 +1935,7 @@ class Adventure {
   /** Sol sous (x, z) pour des pieds à la hauteur y (terrain, plates-formes, caisses). */
   support(x, z, y) {
     const s = L.supportAt(x, z, y, this.t, STEP_UP);
+    if (this.wonder) this.wonder.support(x, z, y, s);   // champignons géants de la Fleur Merveille…
     for (const c of this.crates) {
       if (c.broken) continue;
       const top = c.def.y + 1.2;
@@ -1974,6 +1982,8 @@ class Adventure {
     const wlen = Math.hypot(wx, wz);
     // en kart (niveau 3) : c'est la ville qui gère la conduite
     if (this.levelLogic && this.levelLogic.playerStep && this.levelLogic.playerStep(P, wx, wz, input.jumpHeld, pr, dt, input)) return;
+    // toboggan arc-en-ciel de la Fleur Merveille : c'est la merveille qui le fait glisser
+    if (this.wonder && this.wonder.playerStep(P, dt)) return;
 
     P.invuln = Math.max(0, P.invuln - dt);
     P.dashCd = Math.max(0, P.dashCd - dt);
@@ -2046,7 +2056,7 @@ class Adventure {
     // Gravité, planeur
     P.gliding = false;
     if (!P.grounded) {
-      P.vel.y -= GRAVITY * dt;
+      P.vel.y -= GRAVITY * (P.gravK || 1) * dt;   // (gravK : la Fleur Merveille fait flotter les chiens dans des bulles)
       if (P.kind !== 'matcha' && (input.jumpHeld || (this.easy && P.jumps >= 1)) && P.vel.y < 0 && P.dashT <= 0 && (P.jumps >= 1 || P.coyote < -0.25)) {
         P.vel.y = Math.max(P.vel.y, -GLIDE_FALL);
         P.gliding = true;
@@ -3218,6 +3228,7 @@ class Adventure {
     pu.head.rotation.x = pp.state === 'lost' ? 0.3 : 0;
     this.placeShadow(pp.shadow, pp.pos, 0.45);
     if (this.pups) this.pups.render(dt);
+    if (this.wonder) this.wonder.render(dt);
     // Marques au-dessus des têtes
     const mk = this.marks;
     mk.mamie.visible = !this.save.intro || (this.puppy.state === 'follow');
@@ -3755,6 +3766,7 @@ class Adventure {
         <div class="adv-stats">${medalWord()} ${s.medals.length}/${L.medals.length} · ${collectWord()} ${s.bones.length}/100</div>
         ${this.hostSession ? `<div class="adv-stats">${this.hostSession.own === false ? 'Code du monde' : 'Code de ton monde'} : <b class="adv-code">${this.hostSession.code}</b> (jusqu'à 6 joueurs)</div>` : ''}
         ${this.pups ? `<div class="adv-stats adv-pups">${this.pups.pauseLine()}</div>` : ''}
+        ${this.wonder && this.wonder.def ? `<div class="adv-stats adv-wonder">${this.wonder.pauseLine()}</div>` : ''}
         ${this.visitorsLine()}
         <button class="btn primary" data-a="resume">Reprendre</button>
         <div class="adv-grid2">
@@ -3957,6 +3969,7 @@ class Adventure {
 
   dispose(keepSession) {
     this.disposed = true;
+    if (this.wonder) this.wonder.dispose();
     // le chat vocal ne s'arrête que si on quitte vraiment le monde (pas en changeant de niveau)
     if (this.vc && ((this.coop && this.coop.link) || (this.hostSession && !keepSession))) { this.vc.close(); if (this.sfx && this.sfx.echoSafe) this.sfx.echoSafe(false); }
     if (this.coop && this.coop.link) { this.coop.link.onclose = null; this.coop.link.close(); }
