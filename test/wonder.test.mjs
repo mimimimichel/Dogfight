@@ -12,6 +12,8 @@ const ROOT = path.join(path.dirname(new URL(import.meta.url).pathname), '..');
 const DIR = path.join(ROOT, 'public/adventure');
 const LV = {};
 for (let n = 1; n <= 8; n++) LV[n] = await import(path.join(DIR, `level${n}.js`));
+const LIFE_PLAN = {};
+for (const [n, f] of Object.entries({ 1: 'level1life.js', 3: 'level3life.js', 5: 'level5life.js', 6: 'level6life.js', 7: 'level7life.js', 8: 'level8life.js' })) LIFE_PLAN[n] = (await import(path.join(DIR, f))).PLAN;
 
 let passed = 0;
 const test = (name, fn) => { try { fn(); passed++; console.log('  ✓ ' + name); } catch (e) { console.error('  ✗ ' + name + '\n    ' + e.message); process.exitCode = 1; } };
@@ -70,6 +72,14 @@ test('pas sur une médaille ni sur un autre trésor (os, balles, caisses, chiots
     if (L.GARE) assert.ok(Math.hypot(L.GARE.x - w.x, L.GARE.z - w.z) > 10, `monde ${w.lv} : dans la Gare des Mondes`);
     // ni sur une boîte à costume (powerdata.js)
     for (const bx of (PW.BOXES && PW.BOXES[w.lv]) || []) assert.ok(Math.hypot(bx.x - w.x, bx.z - w.z) > 6, `monde ${w.lv} : sur la boîte ${bx.power}`);
+  }
+});
+
+test('pas collée à un décor vivant (bonshomme de neige, parasol, coffre de la couche de vie…)', () => {
+  for (const w of WONDERS) {
+    const plan = LIFE_PLAN[w.lv];
+    if (plan) for (const g of ['props', 'villagers', 'secrets', 'defis']) for (const e of plan[g]) assert.ok(Math.hypot(e.x - w.x, e.z - w.z) >= 2, `monde ${w.lv} : fleur collée à ${e.kind || e.id}`);
+    for (const p of LV[w.lv].PARASOLS || []) assert.ok(Math.hypot(p.x - w.x, p.z - w.z) >= 3, `monde ${w.lv} : fleur sous un parasol`);
   }
 });
 

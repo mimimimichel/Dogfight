@@ -343,8 +343,8 @@ function stopGeo() {
   }
   // le poteau d'arrêt, derrière le quai
   const PZ = -1.75;
-  k.box(0.2, 2.9, 0.2, WOOD_D, { y: 1.35, z: PZ });
-  k.box(0.38, 0.2, 0.38, STONE, { y: 0.05, z: PZ });
+  k.box(0.2, 3.5, 0.2, WOOD_D, { y: 1.05, z: PZ });                 // (il s'enfonce : pas de vide sous le poteau si le terrain penche)
+  k.box(0.38, 0.8, 0.38, STONE, { y: -0.25, z: PZ });
   // le bras et son petit toit (la cloche dessous)
   k.box(1.25, 0.12, 0.12, WOOD_D, { x: 0.45, y: 2.55, z: PZ });
   k.box(0.08, 0.5, 0.08, WOOD_D, { x: 0.25, y: 2.3, z: PZ, rz: 0.75 });

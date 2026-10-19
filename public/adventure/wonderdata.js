@@ -27,8 +27,8 @@ export const WONDERS = [
   { lv: 2, kind: 'mushrooms', x: -97, z: 124, y: 3.0, name: 'Les Champignons Lumineux', sub: 'Rebondis jusqu\'aux étoiles avec les lucioles !', where: 'près du cercle des fées', hint: '#5ae0ff' },
   { lv: 3, kind: 'bubbles', x: 38, z: -29, y: 2, name: 'La Ville en Bulles', sub: 'Les chiens flottent dans des bulles de savon !', where: 'sur la pelouse du parc, au bord du lac', hint: '#9ae8ff' },
   { lv: 4, kind: 'rainbows', x: -30, z: 3, y: 18.6, name: 'Les Toboggans Arc-en-ciel', sub: 'Glisse sur les arcs-en-ciel d\'une île à l\'autre !', where: 'au Jardin Suspendu', hint: '#ffb03a' },
-  { lv: 5, kind: 'candy', x: 41, z: 139, y: 3.2, name: 'Le Pays des Bonbons', sub: 'La neige devient sucre et les bonshommes, guimauves !', where: 'pas loin du jardin du bonhomme de neige', hint: '#ff9ad0' },
-  { lv: 6, kind: 'fish', x: 3, z: 20, y: 1.6, name: 'Les Poissons Volants', sub: 'Les poissons nagent dans le ciel !', where: 'sur le sable, au bord de la mer', hint: '#5ad0ff' },
+  { lv: 5, kind: 'candy', x: 38.5, z: 142.5, y: 3.3, name: 'Le Pays des Bonbons', sub: 'La neige devient sucre et les bonshommes, guimauves !', where: 'pas loin du jardin du bonhomme de neige', hint: '#ff9ad0' },
+  { lv: 6, kind: 'fish', x: 5.5, z: 18.5, y: 1.6, name: 'Les Poissons Volants', sub: 'Les poissons nagent dans le ciel !', where: 'sur le sable, au bord de la mer', hint: '#5ad0ff' },
   { lv: 7, kind: 'parade', x: 106, z: 22, y: 2.1, name: 'La Grande Parade', sub: 'Les animaux se mettent debout et défilent !', where: 'dans la prairie, au bord du verger', hint: '#ffd23a' },
   { lv: 8, kind: 'portraits', x: 5, z: -6, y: 4, name: 'Les Tableaux Vivants', sub: 'Les chats des tableaux se réveillent et font coucou !', where: 'dans la cour du château, près de la fontaine', hint: '#c88aff' },
 ];
