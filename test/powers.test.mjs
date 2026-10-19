@@ -10,6 +10,9 @@ const DIR = path.join(ROOT, 'public/adventure');
 const LV = {};
 for (let n = 1; n <= 8; n++) LV[n] = await import(path.join(DIR, `level${n}.js`));
 const src = (f) => fs.readFileSync(path.join(DIR, f), 'utf8');
+const LIFE = { 1: 'level1life.js', 3: 'level3life.js', 5: 'level5life.js', 6: 'level6life.js', 7: 'level7life.js', 8: 'level8life.js' };
+const LIFE_PLAN = {};
+for (const n in LIFE) LIFE_PLAN[n] = (await import(path.join(DIR, LIFE[n]))).PLAN;
 
 let passed = 0;
 const test = (name, fn) => { try { fn(); passed++; console.log('  ✓ ' + name); } catch (e) { console.error('  ✗ ' + name + '\n    ' + e.message); process.exitCode = 1; } };
@@ -104,6 +107,16 @@ test('les boîtes ne cachent rien : ni médaille, ni portail, ni personnage, ni 
     for (const b of boxesOf(n)) for (const p of L.PORTALS || []) assert.ok(Math.hypot(p.x - b.x, p.z - b.z) > 7, `monde ${n} ${b.power} collé à un arrêt de train`);
     // ni dans la Gare des Mondes (au Parc)
     if (L.GARE) for (const b of boxesOf(n)) assert.ok(Math.hypot(L.GARE.x - b.x, L.GARE.z - b.z) > 9, `monde ${n} ${b.power} dans la gare`);
+  }
+});
+
+test('les boîtes ne sont collées à aucun décor vivant (bonshommes, parasols, coffres de la couche de vie…)', () => {
+  for (const [n, f] of Object.entries(LIFE)) {
+    const plan = LIFE_PLAN[n];
+    for (const b of boxesOf(+n)) {
+      for (const g of ['props', 'villagers', 'secrets', 'defis']) for (const e of plan[g]) assert.ok(Math.hypot(e.x - b.x, e.z - b.z) >= 2, `monde ${n} ${b.power} collé à ${e.kind || e.id} (${f})`);
+      for (const p of LV[n].PARASOLS || []) assert.ok(Math.hypot(p.x - b.x, p.z - b.z) >= 3, `monde ${n} ${b.power} sous un parasol`);
+    }
   }
 });
 

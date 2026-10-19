@@ -431,6 +431,9 @@ for (const st of STATIONS) {
   box(G.x + 3.85, G.z - 0.4, 2.7, 0.3, G.top, G.top + 2.9, { kind: 'wall', solid: true });
   for (const sx of [-2.9, 2.9]) for (const sz of [-1.3, 1.3]) cyl(G.x + sx, G.z + sz, 0.14, G.top, G.top + 2.7, { kind: 'post' });
   box(G.x - 0.6, G.z - 3.05, 9.3, 1.75, g - 1, g + 2.8, { kind: 'rock' });   // le train (on peut grimper sur les wagons)
+  // le toit de la marquise (on peut s'y poser : faîtage au milieu, pans plus bas)
+  box(G.x, G.z, 6.9, 4.0, g + 3.0, g + 3.35, { kind: 'roof', gare: true });
+  box(G.x, G.z, 6.9, 2.0, g + 3.35, g + 3.8, { kind: 'roof', gare: true });
 }
 
 // --- Caisses (cassables) : un cœur dedans ---------------------------------------------------
@@ -536,7 +539,7 @@ export const balls = [
 
 // Points de passage (drapeaux) : on y repart après une grosse chute
 export const CHECKPOINTS = [
-  { id: 0, x: 5, z: 50, name: 'L\'Entrée du parc' },
+  { id: 0, x: 4.5, z: 55.5, name: 'L\'Entrée du parc' },   // (derrière le départ : ne cache pas la gare)
   { id: 1, x: -26, z: 72, name: 'L\'aire de jeux' },
   { id: 2, x: -48, z: 8, name: 'La mare aux canards' },
   { id: 3, x: 45, z: -4, name: 'Le terrain d\'agility' },

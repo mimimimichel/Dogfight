@@ -71,6 +71,11 @@ test('la Gare des Mondes (plus de portails) : près du départ, à côté de l\'
   // le quai est bien au-dessus du sol (on y monte), à pied par les marches
   const s = L.supportAt(G.x, G.z, G.top + 1, 0);
   assert.ok(Math.abs(s.y - G.top) < 0.01, 'quai praticable');
+  // le toit de la marquise : on s'y pose en tombant dessus (faîtage au milieu, pans plus bas)…
+  const roofMid = L.supportAt(G.x, G.z, G.y + 6, 0).y, roofEdge = L.supportAt(G.x + 2, G.z + 1.6, G.y + 6, 0).y;
+  assert.ok(Math.abs(roofMid - (G.y + 3.8)) < 0.01 && Math.abs(roofEdge - (G.y + 3.35)) < 0.01, 'toit de la gare : ' + [roofMid - G.y, roofEdge - G.y]);
+  // … mais sauter depuis le quai ne colle pas au toit (on reste sur le quai)
+  assert.ok(Math.abs(L.supportAt(G.x, G.z, G.top + 2.3, 0).y - G.top) < 0.01, 'le toit attrape le saut depuis le quai');
 });
 
 test('Grand Chêne : marches de moins de 2 m, le tronc s\'arrête sous le sommet', () => {

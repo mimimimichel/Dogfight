@@ -695,7 +695,8 @@ export class Powers {
     if (!document.getElementById('pw-css')) {
       const st = document.createElement('style'); st.id = 'pw-css';
       st.textContent = `
-      .pw-badge { display: flex; align-items: center; gap: 6px; margin-top: 6px; pointer-events: auto; cursor: pointer; width: max-content; }
+      .pw-badge { display: flex; align-items: center; gap: 6px; pointer-events: auto; cursor: pointer; width: max-content; }
+      #adv .adv-party { display: flex; align-items: center; gap: 8px; }   /* le badge à droite des cœurs (dessous, il passait sous le bouton pause) */
       .pw-badge.hidden { display: none; }
       .pw-ring { --g: 1; width: 44px; height: 44px; border-radius: 50%; padding: 4px; box-sizing: border-box; position: relative;
         background: conic-gradient(var(--c) calc(var(--g) * 360deg), rgba(255,255,255,0.25) 0); box-shadow: 0 0 0 2px rgba(60,36,10,0.8), 0 4px 10px rgba(0,0,0,0.35); }
@@ -709,6 +710,7 @@ export class Powers {
       @keyframes pwPop { 0% { transform: scale(0.3) rotate(-40deg); } 100% { transform: scale(1) rotate(0); } }
       @keyframes pwReady { 50% { transform: scale(1.18); } }
       .wr-sec { font: 700 15px var(--af, sans-serif); color: #6a4a2a; margin: 4px 0 2px; text-align: left; }
+      .wr-grid.wr-pw { flex-shrink: 0; max-height: none; overflow: visible; }   /* (sur téléphone, la rangée des pouvoirs était écrasée par la grille des chapeaux) */
       .wr-item .ic img { width: 34px; height: 34px; display: block; }
       .wr-item.pw.on { border-color: var(--c); box-shadow: 0 0 0 3px color-mix(in srgb, var(--c) 40%, transparent); }
       #adv.photo-on .pw-badge { visibility: hidden; }`;
@@ -769,6 +771,6 @@ export class Powers {
       const ok = powerUnlocked(p.id, o.found, n), on = cur === p.id;
       return `<button class="wr-item pw${on ? ' on' : ''}${ok ? '' : ' locked'}" style="--c:${p.color}" ${ok ? `data-a="power:${on ? 'none' : p.id}"` : 'disabled'}><span class="ic">${ok ? `<img src="${ICONS[p.id]}" alt="">` : '🔒'}</span><b>${p.name}</b><small>${ok ? (on ? 'Porté · enlever' : 'Mettre') : `Une boîte à costume, ou ${p.need} récompenses`}</small></button>`;
     };
-    return `<div class="wr-sec">✨ Costumes à pouvoir (un seul à la fois)</div><div class="wr-grid">${POWERS.map(cell).join('')}</div><div class="wr-sec">🎩 Chapeaux et colliers</div>`;
+    return `<div class="wr-sec">✨ Costumes à pouvoir (un seul à la fois)</div><div class="wr-grid wr-pw">${POWERS.map(cell).join('')}</div><div class="wr-sec">🎩 Chapeaux et colliers</div>`;
   }
 }

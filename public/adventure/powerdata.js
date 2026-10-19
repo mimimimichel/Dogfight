@@ -84,8 +84,8 @@ export const BOXES = {
     { power: 'cape', x: 10.8, z: -130.8, y: 7, where: 'en haut du belvédère : on plane jusqu\'en bas !' },
   ],
   2: [
-    { power: 'boots', x: 3, z: 130, y: 2.63, where: 'au début du sentier de la forêt' },
-    { power: 'magnet', x: 2.3, z: 46.6, y: 2.5, where: 'dans la clairière aux lanternes, pleine de croquettes' },
+    { power: 'boots', x: -3, z: 131, y: 2.5, where: 'au début du sentier de la forêt' },   // (à gauche du sentier : ne cache plus la pancarte)
+    { power: 'magnet', x: 4.2, z: 47.8, y: 2.5, where: 'dans la clairière aux lanternes, pleine de croquettes' },   // (plus posée sur le socle de l'autel)
   ],
   3: [
     { power: 'cape', x: -51.4, z: -7.5, y: 2, where: 'sur la grand-place, près de la fontaine' },
@@ -96,7 +96,7 @@ export const BOXES = {
     { power: 'boots', x: 2.8, z: 53.2, y: 12.25, where: 'sur l\'île des Ballons' },
   ],
   5: [
-    { power: 'magnet', x: 3.5, z: 160, y: 3, where: 'au village des chalets' },
+    { power: 'magnet', x: -2.5, z: 157.5, y: 3, where: 'au village des chalets' },   // (pas collée au bonhomme de neige)
     { power: 'cape', x: -11, z: -132, y: 61, where: 'tout en haut du sommet : la plus belle descente en planant !' },
   ],
   6: [
