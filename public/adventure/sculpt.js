@@ -1718,3 +1718,378 @@ export function addVillageHouse(Bs, h, opts = {}) {
     if (!lite) for (let f = 0; f < 5; f++) put(Wd, lumpySphere(0.09, 1, 0.2, 6, f + wx, 1), [[1, 0.45, 0.55], [1, 0.85, 0.3], [0.85, 0.5, 1], [1, 0.6, 0.35], [0.4, 0.75, 0.35]][f], wx - 0.4 + f * 0.2, 1.78, z + sd * 0.22, 0, 0);
   }
 }
+
+// =============================================================================
+// Atelier : une seule matière pour tous les objets « faits main » d'un monde.
+// Les matières (bois, bois peint, métal peint, pierre, toile, plumes, osier…) sont les couches
+// d'une texture-tableau (une couche = une tuile qui se raccorde, 256 × 256) : chaque sommet dit
+// sa couche, sa rugosité, son côté métal et son ombre (attribut « atl »), et sa teinte (couleur).
+// L'alpha de la couche dit ce que la teinte colore : la peinture oui, le bois mis à nu par
+// l'usure ou les rayures blanches d'une toile non. Tout un quartier fusionné = un seul dessin.
+// =============================================================================
+export const ATL = ['plain', 'wood', 'planks', 'pwood', 'metal', 'brass', 'stone', 'weave', 'stripe', 'gingham', 'feather', 'wicker', 'tiles', 'zinc', 'rock', 'moss', 'puff', 'rope', 'bark'];
+export const AL = Object.fromEntries(ATL.map((k, i) => [k, i]));
+const ATL_N = 256;
+/** Relief → normales (tuile qui se raccorde ; pas de retournement vertical : ligne 0 = v 0). */
+function atlNormals(hd, w, h, strength) {
+  const out = new Uint8Array(w * h * 4);
+  const H = (x, y) => hd[(((y + h) % h) * w + ((x + w) % w)) * 4] / 255;
+  for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
+    const dx = (H(x + 1, y) - H(x - 1, y)) * strength, dy = (H(x, y + 1) - H(x, y - 1)) * strength;
+    const l = Math.hypot(dx, dy, 1), i = (y * w + x) * 4;
+    out[i] = (-dx / l * 0.5 + 0.5) * 255; out[i + 1] = (-dy / l * 0.5 + 0.5) * 255; out[i + 2] = (1 / l * 0.5 + 0.5) * 255; out[i + 3] = 255;
+  }
+  return out;
+}
+const blob = (x, cx, cy, rx, ry, a, fill) => { x.fillStyle = fill; x.beginPath(); x.ellipse(cx, cy, Math.max(0.1, rx), Math.max(0.1, ry), a || 0, 0, TAU); x.fill(); };
+/** Fibres de bois le long de v (lignes ondulées), sur la couleur et le relief. */
+function grainLines(x, y, w, h, R, n, x0 = 0, pw = w, amp = 2.5) {
+  for (let i = 0; i < n; i++) {
+    const gx = x0 + R() * pw, dark = R() < 0.55, ph = R() * 6, fr = 0.02 + R() * 0.04;
+    x.strokeStyle = dark ? `rgba(90,55,28,${0.12 + R() * 0.22})` : `rgba(255,235,200,${0.08 + R() * 0.14})`;
+    x.lineWidth = 0.5 + R() * 1.6;
+    const v = dark ? 90 : 170; y.strokeStyle = `rgba(${v},${v},${v},0.35)`; y.lineWidth = x.lineWidth;
+    for (const c of [x, y]) { c.beginPath(); c.moveTo(gx, -4); for (let yy = 0; yy <= h + 8; yy += 8) c.lineTo(gx + Math.sin(yy * fr + ph) * amp + Math.sin(yy * 0.13 + i) * 0.6, yy); c.stroke(); }
+  }
+}
+function knot(x, y, kx, ky, s) {
+  const g = x.createRadialGradient(kx, ky, 0, kx, ky, 7 * s); g.addColorStop(0, 'rgba(70,40,20,0.85)'); g.addColorStop(0.5, 'rgba(110,70,40,0.45)'); g.addColorStop(1, 'rgba(110,70,40,0)');
+  x.fillStyle = g; x.beginPath(); x.ellipse(kx, ky, 5 * s, 10 * s, 0, 0, TAU); x.fill();
+  y.fillStyle = 'rgba(40,40,40,0.6)'; y.beginPath(); y.ellipse(kx, ky, 3 * s, 7 * s, 0, 0, TAU); y.fill();
+  for (let k = 1; k < 4; k++) { x.strokeStyle = 'rgba(90,55,28,0.25)'; x.lineWidth = 1; x.beginPath(); x.ellipse(kx, ky, 5 * s + k * 3, 10 * s + k * 5, 0, 0, TAU); x.stroke(); }
+}
+const ATL_PAINT = {
+  plain(x, y, m, w, h) { x.fillStyle = '#ffffff'; x.fillRect(0, 0, w, h); },
+  // bois naturel (poteaux, lattes) : fibres le long de v, deux nœuds ; clair (teinté par les sommets)
+  wood(x, y, m, w, h, R) {
+    x.fillStyle = '#e2c49a'; x.fillRect(0, 0, w, h);
+    for (let i = 0; i < 18; i++) blob(x, R() * w, R() * h, 6 + R() * 18, 30 + R() * 60, 0, `rgba(${R() < 0.5 ? '150,100,60' : '250,225,190'},0.12)`);
+    grainLines(x, y, w, h, R, 140);
+    knot(x, y, w * 0.3, h * 0.35, 1); knot(x, y, w * 0.78, h * 0.8, 0.7);
+  },
+  // planches (plancher, pontons) : 4 lames, joints creux, veinage, nœuds, têtes de clous
+  planks(x, y, m, w, h, R) {
+    const n = 4, pw = w / n;
+    for (let k = 0; k < n; k++) {
+      const x0 = k * pw, b = 200 + R() * 40;
+      x.fillStyle = `rgb(${b | 0},${b * 0.8 | 0},${b * 0.6 | 0})`; x.fillRect(x0, 0, pw, h);
+      grainLines(x, y, w, h, R, 34, x0 + 2, pw - 4);
+      if (R() < 0.7) knot(x, y, x0 + pw * (0.3 + R() * 0.4), R() * h, 0.6);
+      const jy = R() * h; x.fillStyle = 'rgba(60,35,18,0.7)'; x.fillRect(x0, jy, pw, 2); y.fillStyle = '#202020'; y.fillRect(x0, jy, pw, 2.5);
+      for (const ny of [jy - 8, jy + 8]) for (const nx of [x0 + pw * 0.25, x0 + pw * 0.75]) { blob(x, nx, ny, 2, 2, 0, 'rgba(60,50,45,0.9)'); blob(y, nx, ny, 2.5, 2.5, 0, '#505050'); }
+      x.fillStyle = 'rgba(55,32,16,0.85)'; x.fillRect(x0, 0, 2, h); x.fillStyle = 'rgba(255,240,210,0.25)'; x.fillRect(x0 + 2, 0, 1, h);
+      y.fillStyle = '#181818'; y.fillRect(x0, 0, 3, h);
+    }
+  },
+  // bois peint : peinture (teintée) un peu passée, veinage qui transparaît, éclats où l'on voit le bois
+  pwood(x, y, m, w, h, R) {
+    x.fillStyle = '#f4f1ea'; x.fillRect(0, 0, w, h);
+    y.fillStyle = '#9a9a9a'; y.fillRect(0, 0, w, h);
+    for (let i = 0; i < 50; i++) { const gx = R() * w; x.strokeStyle = `rgba(120,110,95,${0.04 + R() * 0.07})`; y.strokeStyle = 'rgba(120,120,120,0.35)'; for (const c of [x, y]) { c.lineWidth = 0.6 + R(); c.beginPath(); c.moveTo(gx, 0); for (let yy = 0; yy <= h; yy += 16) c.lineTo(gx + Math.sin(yy * 0.04 + i) * 2, yy); c.stroke(); } }
+    for (let i = 0; i < 40; i++) blob(x, R() * w, R() * h, 4 + R() * 16, 4 + R() * 30, R() * 3, `rgba(${R() < 0.5 ? '255,255,255' : '180,170,150'},0.08)`);
+    for (let i = 0; i < 9; i++) {
+      const cx = R() * w, cy = R() * h, rx = 1.5 + R() * 4, ry = 2 + R() * 8, a = (R() - 0.5) * 0.6;
+      blob(y, cx, cy, rx + 1.2, ry + 1.2, a, '#a4a4a4'); blob(y, cx, cy, rx, ry, a, '#808080');
+      blob(x, cx, cy, rx, ry, a, `rgb(${150 + R() * 30 | 0},${118 + R() * 20 | 0},${85 + R() * 15 | 0})`);
+      blob(m, cx, cy, rx, ry, a, '#000');
+    }
+  },
+  // métal peint : peinture épaisse (peau d'orange), éclats sombres et un peu de rouille, rayures
+  metal(x, y, m, w, h, R) {
+    x.fillStyle = '#f2f0ec'; x.fillRect(0, 0, w, h);
+    y.fillStyle = '#909090'; y.fillRect(0, 0, w, h);
+    for (let i = 0; i < 900; i++) { const v = 130 + R() * 26 | 0; blob(y, R() * w, R() * h, 1 + R() * 2.5, 1 + R() * 2.5, 0, `rgba(${v},${v},${v},0.4)`); }
+    for (let i = 0; i < 30; i++) blob(x, R() * w, R() * h, 8 + R() * 30, 8 + R() * 30, 0, `rgba(${R() < 0.5 ? '255,255,255' : '160,155,145'},0.06)`);
+    for (let i = 0; i < 8; i++) {
+      const cx = R() * w, cy = R() * h, s = 1 + R() * 2.5;
+      if (R() < 0.6) blob(x, cx, cy + s * 2, s * 2, s * 4, 0, 'rgba(120,70,40,0.18)');
+      blob(y, cx, cy, s + 1, s + 0.8, 0, '#9c9c9c'); blob(y, cx, cy, s, s * 0.8, 0, '#787878');
+      blob(x, cx, cy, s, s * 0.8, R(), `rgb(${70 + R() * 30 | 0},${55 + R() * 15 | 0},${45 + R() * 10 | 0})`); blob(m, cx, cy, s, s * 0.8, 0, '#000');
+    }
+    for (let i = 0; i < 14; i++) { const sx = R() * w, sy = R() * h, a = R() * TAU, l = 6 + R() * 22; x.strokeStyle = 'rgba(90,85,80,0.25)'; x.lineWidth = 0.7; x.beginPath(); x.moveTo(sx, sy); x.lineTo(sx + Math.cos(a) * l, sy + Math.sin(a) * l); x.stroke(); y.strokeStyle = 'rgba(110,110,110,0.4)'; y.lineWidth = 0.8; y.beginPath(); y.moveTo(sx, sy); y.lineTo(sx + Math.cos(a) * l, sy + Math.sin(a) * l); y.stroke(); }
+  },
+  // laiton / dorure : brossé, patine sombre par endroits (teinté or par les sommets)
+  brass(x, y, m, w, h, R) {
+    x.fillStyle = '#e8e2d4'; x.fillRect(0, 0, w, h); y.fillStyle = '#808080'; y.fillRect(0, 0, w, h);
+    for (let i = 0; i < 400; i++) { const yy = R() * h; x.strokeStyle = `rgba(${R() < 0.5 ? '255,255,250' : '140,120,90'},${0.06 + R() * 0.1})`; x.lineWidth = 0.6; x.beginPath(); x.moveTo(0, yy); x.lineTo(w, yy + (R() - 0.5) * 3); x.stroke(); }
+    for (let i = 0; i < 14; i++) blob(x, R() * w, R() * h, 10 + R() * 30, 6 + R() * 20, R() * 3, 'rgba(90,70,40,0.12)');
+  },
+  // pierre de taille (calcaire) : pores, petits éclats, veines douces
+  stone(x, y, m, w, h, R) {
+    x.fillStyle = '#e6e1d6'; x.fillRect(0, 0, w, h); y.fillStyle = '#8a8a8a'; y.fillRect(0, 0, w, h);
+    for (let i = 0; i < 60; i++) { const c = R() < 0.5 ? '200,192,178' : '250,248,240'; wrapDraw(w, h, R() * w, R() * h, 40, (X, Y) => blob(x, X, Y, 8 + R() * 30, 6 + R() * 22, R() * 3, `rgba(${c},0.18)`)); }
+    for (let i = 0; i < 2500; i++) { const v = R(); const X = R() * w, Y = R() * h, s = 0.5 + R() * 1.3; blob(x, X, Y, s, s, 0, v < 0.6 ? 'rgba(120,110,95,0.35)' : 'rgba(255,255,255,0.4)'); if (v < 0.4) blob(y, X, Y, s, s, 0, 'rgba(40,40,40,0.6)'); }
+    for (let i = 0; i < 5; i++) { let px = R() * w, py = R() * h; x.strokeStyle = 'rgba(150,140,125,0.35)'; x.lineWidth = 0.8; y.strokeStyle = 'rgba(70,70,70,0.5)'; y.lineWidth = 1; x.beginPath(); y.beginPath(); x.moveTo(px, py); y.moveTo(px, py); for (let k = 0; k < 10; k++) { px += (R() - 0.5) * 30; py += R() * 22; x.lineTo(px, py); y.lineTo(px, py); } x.stroke(); y.stroke(); }
+  },
+  // toile de coton (blanche, teintée) : trame serrée, petits défauts
+  weave(x, y, m, w, h, R) {
+    x.fillStyle = '#f2efe8'; x.fillRect(0, 0, w, h); y.fillStyle = '#808080'; y.fillRect(0, 0, w, h);
+    for (let i = 0; i < w; i += 2) { x.fillStyle = `rgba(0,0,0,${0.03 + R() * 0.04})`; x.fillRect(i, 0, 1, h); y.fillStyle = 'rgba(150,150,150,0.5)'; y.fillRect(i, 0, 1, h); }
+    for (let j = 0; j < h; j += 2) { x.fillStyle = `rgba(255,255,255,${0.03 + R() * 0.05})`; x.fillRect(0, j, w, 1); y.fillStyle = 'rgba(100,100,100,0.4)'; y.fillRect(0, j, w, 1); }
+    for (let i = 0; i < 20; i++) blob(x, R() * w, R() * h, 8 + R() * 20, 4 + R() * 10, R() * 3, 'rgba(120,100,70,0.04)');
+  },
+  // toile rayée : 4 bandes teintées / 4 bandes crème (non teintées), le long de v
+  stripe(x, y, m, w, h, R) {
+    ATL_PAINT.weave(x, y, m, w, h, R);
+    for (let i = 0; i < 8; i++) if (i % 2) { x.fillStyle = 'rgba(250,240,215,0.55)'; x.fillRect(i * w / 8, 0, w / 8, h); m.fillStyle = '#000'; m.fillRect(i * w / 8, 0, w / 8, h); y.fillStyle = 'rgba(160,160,160,0.25)'; y.fillRect(i * w / 8, 0, 1.5, h); }
+  },
+  // vichy : carreaux teintés, demi-teintés et blancs, tissés
+  gingham(x, y, m, w, h, R) {
+    ATL_PAINT.weave(x, y, m, w, h, R);
+    const n = 8, c = w / n;
+    for (let i = 0; i < n; i++) for (let j = 0; j < n; j++) { const a = (i % 2) + (j % 2); m.fillStyle = a === 2 ? '#fff' : a === 1 ? '#7a7a7a' : '#000'; m.fillRect(i * c, j * c, c, c); }
+    for (let i = 0; i < w; i += 3) { x.fillStyle = 'rgba(255,255,255,0.08)'; x.fillRect(i, 0, 1, h); }
+  },
+  // plumes de cygne : écailles arrondies qui se recouvrent (rangs décalés), rachis, barbes
+  feather(x, y, m, w, h, R) {
+    x.fillStyle = '#ebe9e6'; x.fillRect(0, 0, w, h); y.fillStyle = '#707070'; y.fillRect(0, 0, w, h);
+    const cols = 8, rows = 8, cw = w / cols, ch = h / rows;
+    // plume : goutte allongée, pointe vers le bas du canevas ; relief doux (pas de liseré sombre)
+    const shape = (c, X, Y, L, Wd, a) => { c.save(); c.translate(X, Y); c.rotate(a); c.beginPath(); c.moveTo(-Wd, -L * 0.35); c.bezierCurveTo(-Wd, L * 0.35, -Wd * 0.35, L * 0.75, 0, L * 0.82); c.bezierCurveTo(Wd * 0.35, L * 0.75, Wd, L * 0.35, Wd, -L * 0.35); c.lineTo(-Wd, -L * 0.35); c.fill(); c.restore(); };
+    for (let row = rows - 1; row >= 0; row--) for (let col = 0; col < cols; col++) {
+      const cx = (col + (row % 2 ? 0.5 : 0)) * cw + (R() - 0.5) * cw * 0.3, cy = row * ch + (R() - 0.5) * ch * 0.25;
+      const L = ch * (1.25 + R() * 0.25), Wd = cw * (0.56 + R() * 0.1), a = (R() - 0.5) * 0.25, b = 240 + R() * 15 | 0;
+      wrapDraw(w, h, cx, cy, 50, (X, Y) => {
+        const g = y.createLinearGradient(0, Y - L * 0.35, 0, Y + L * 0.82); g.addColorStop(0, '#606060'); g.addColorStop(0.55, '#c8c8c8'); g.addColorStop(1, '#e0e0e0');
+        y.fillStyle = g; shape(y, X, Y, L, Wd, a);
+        const gc = x.createLinearGradient(0, Y - L * 0.35, 0, Y + L * 0.82); gc.addColorStop(0, `rgb(${b - 22},${b - 22},${b - 18})`); gc.addColorStop(0.6, `rgb(${b},${b},${b - 2})`); gc.addColorStop(1, `rgb(${b - 6},${b - 6},${b - 4})`);
+        x.fillStyle = gc; shape(x, X, Y, L, Wd, a);
+        x.save(); x.translate(X, Y); x.rotate(a);
+        x.strokeStyle = 'rgba(255,255,255,0.45)'; x.lineWidth = 0.8; x.beginPath(); x.moveTo(0, -L * 0.2); x.lineTo(0, L * 0.75); x.stroke();
+        for (let k = 1; k <= 6; k++) for (const sd of [-1, 1]) { x.strokeStyle = 'rgba(160,160,170,0.16)'; x.lineWidth = 0.6; x.beginPath(); x.moveTo(0, L * (0.05 + k * 0.1)); x.lineTo(sd * Wd * 0.8, L * (0.15 + k * 0.1)); x.stroke(); }
+        x.restore();
+      });
+    }
+  },
+  // osier tressé : brins horizontaux bombés, rangs décalés
+  wicker(x, y, m, w, h, R) {
+    x.fillStyle = '#6a4a28'; x.fillRect(0, 0, w, h); y.fillStyle = '#202020'; y.fillRect(0, 0, w, h);
+    const rows = 16, cols = 8, rh = h / rows, cw = w / cols;
+    for (let r = 0; r < rows; r++) for (let c = 0; c < cols; c++) {
+      const X0 = c * cw + (r % 2 ? cw / 2 : 0), Y0 = r * rh + rh / 2, b = 200 + R() * 30 | 0;
+      wrapDraw(w, h, X0, Y0, cw, (XX, YY) => {
+        const g = x.createLinearGradient(0, YY - rh / 2, 0, YY + rh / 2);
+        g.addColorStop(0, `rgb(${b * 0.7 | 0},${b * 0.5 | 0},${b * 0.28 | 0})`); g.addColorStop(0.45, `rgb(${b},${b * 0.78 | 0},${b * 0.48 | 0})`); g.addColorStop(1, `rgb(${b * 0.55 | 0},${b * 0.38 | 0},${b * 0.2 | 0})`);
+        x.fillStyle = g; x.beginPath(); x.ellipse(XX, YY, cw * 0.52, rh * 0.46, 0, 0, TAU); x.fill();
+        const gy = y.createLinearGradient(0, YY - rh / 2, 0, YY + rh / 2); gy.addColorStop(0, '#404040'); gy.addColorStop(0.5, '#f0f0f0'); gy.addColorStop(1, '#404040');
+        y.fillStyle = gy; y.beginPath(); y.ellipse(XX, YY, cw * 0.52, rh * 0.46, 0, 0, TAU); y.fill();
+      });
+    }
+  },
+  // tuiles en écailles (toits de kiosque, de manège, de gare) : rangs décalés, bord arrondi ombré
+  tiles(x, y, m, w, h, R) {
+    x.fillStyle = '#d8d0c8'; x.fillRect(0, 0, w, h); y.fillStyle = '#404040'; y.fillRect(0, 0, w, h);
+    const cw = 32, ch = 32;
+    for (let row = h / ch + 1; row >= 0; row--) for (let col = -1; col <= w / cw + 1; col++) {
+      const cx = col * cw + (row % 2 ? cw / 2 : 0), cy = row * ch, b = 225 + R() * 30 | 0;
+      wrapDraw(w, h, cx, cy, cw, (X, Y) => {
+        const g = x.createLinearGradient(0, Y - ch, 0, Y + ch * 0.5); g.addColorStop(0, `rgb(${b - 40},${b - 42},${b - 45})`); g.addColorStop(0.7, `rgb(${b},${b - 4},${b - 8})`); g.addColorStop(1, `rgb(${b - 70},${b - 74},${b - 78})`);
+        x.fillStyle = g; x.beginPath(); x.moveTo(X - cw / 2, Y - ch); x.lineTo(X - cw / 2, Y); x.arc(X, Y, cw / 2, Math.PI, 0, true); x.lineTo(X + cw / 2, Y - ch); x.fill();
+        const gy = y.createLinearGradient(0, Y - ch, 0, Y + cw / 2); gy.addColorStop(0, '#606060'); gy.addColorStop(0.75, '#e8e8e8'); gy.addColorStop(1, '#808080');
+        y.fillStyle = gy; y.beginPath(); y.moveTo(X - cw / 2, Y - ch); y.lineTo(X - cw / 2, Y); y.arc(X, Y, cw / 2, Math.PI, 0, true); y.lineTo(X + cw / 2, Y - ch); y.fill();
+      });
+    }
+  },
+  // zinc à joints debout : bandes, reflets, coulures
+  zinc(x, y, m, w, h, R) {
+    x.fillStyle = '#d8dcdc'; x.fillRect(0, 0, w, h); y.fillStyle = '#808080'; y.fillRect(0, 0, w, h);
+    const n = 4, pw = w / n;
+    for (let k = 0; k < n; k++) {
+      const x0 = k * pw, g = x.createLinearGradient(x0, 0, x0 + pw, 0); g.addColorStop(0, 'rgba(255,255,255,0.18)'); g.addColorStop(0.5, 'rgba(0,0,0,0)'); g.addColorStop(1, 'rgba(0,0,0,0.12)');
+      x.fillStyle = g; x.fillRect(x0, 0, pw, h);
+      x.fillStyle = 'rgba(255,255,255,0.6)'; x.fillRect(x0, 0, 2, h); x.fillStyle = 'rgba(60,60,60,0.5)'; x.fillRect(x0 + 3, 0, 2, h);
+      y.fillStyle = '#f0f0f0'; y.fillRect(x0 - 1, 0, 4, h); y.fillStyle = '#505050'; y.fillRect(x0 + 3, 0, 2, h);
+    }
+    for (let i = 0; i < 30; i++) { const sx = R() * w, l = 20 + R() * 80, sy = R() * h; x.strokeStyle = 'rgba(120,125,120,0.12)'; x.lineWidth = 2 + R() * 4; x.beginPath(); x.moveTo(sx, sy); x.lineTo(sx + (R() - 0.5) * 3, sy + l); x.stroke(); }
+  },
+  // roche en strates (dessous des îles, pierres flottantes) : lits, fissures, grains
+  rock(x, y, m, w, h, R) {
+    x.fillStyle = '#c8bcae'; x.fillRect(0, 0, w, h); y.fillStyle = '#808080'; y.fillRect(0, 0, w, h);
+    const beds = []; let yy = 0;
+    while (yy < h - 20) { const bh = Math.min(18 + R() * 40, h - yy); beds.push([yy, bh]); yy += bh; }
+    beds[beds.length - 1][1] = h - beds[beds.length - 1][0];
+    for (const [y0, bh] of beds) {
+      const b = 188 + R() * 30 | 0, hv = 115 + R() * 50 | 0;
+      x.fillStyle = `rgb(${b},${b * 0.93 | 0},${b * 0.86 | 0})`; x.fillRect(0, y0, w, bh);
+      y.fillStyle = `rgb(${hv},${hv},${hv})`; y.fillRect(0, y0, w, bh);
+      const g = y.createLinearGradient(0, y0, 0, y0 + bh); g.addColorStop(0, 'rgba(255,255,255,0.35)'); g.addColorStop(1, 'rgba(0,0,0,0.35)'); y.fillStyle = g; y.fillRect(0, y0, w, bh);
+      // joint de lit irrégulier (pas une règle) : on le dessine en tirets ondulés
+      for (let xx = 0; xx < w; xx += 6 + R() * 10) { const l = 8 + R() * 30, yo = y0 + bh - 1.5 + Math.sin(xx * 0.05 + y0) * 2.5; x.fillStyle = 'rgba(60,45,35,0.3)'; x.fillRect(xx, yo, l, 1.4); y.fillStyle = 'rgba(30,30,30,0.7)'; y.fillRect(xx, yo, l, 2); }
+    }
+    for (let i = 0; i < 30; i++) { let px = R() * w, py = R() * h; x.strokeStyle = 'rgba(50,40,30,0.55)'; x.lineWidth = 1; y.strokeStyle = '#202020'; y.lineWidth = 1.5; x.beginPath(); y.beginPath(); x.moveTo(px, py); y.moveTo(px, py); for (let k = 0; k < 4; k++) { px += (R() - 0.5) * 10; py += 4 + R() * 8; x.lineTo(px, py); y.lineTo(px, py); } x.stroke(); y.stroke(); }
+    for (let i = 0; i < 3000; i++) { const X = R() * w, Y = R() * h; blob(x, X, Y, 0.6 + R(), 0.6 + R(), 0, R() < 0.5 ? 'rgba(80,65,55,0.3)' : 'rgba(255,250,240,0.3)'); }
+  },
+  // mousse / herbe rase vue de près (bords des îles, dessus des pierres)
+  moss(x, y, m, w, h, R) {
+    x.fillStyle = '#7aa04a'; x.fillRect(0, 0, w, h); y.fillStyle = '#707070'; y.fillRect(0, 0, w, h);
+    for (let i = 0; i < 2600; i++) { const X = R() * w, Y = R() * h, s = 1 + R() * 3, g = 120 + R() * 90 | 0; wrapDraw(w, h, X, Y, 4, (XX, YY) => { blob(x, XX, YY, s, s, 0, `rgba(${g * 0.55 | 0},${g},${g * 0.35 | 0},0.6)`); blob(y, XX, YY, s, s, 0, `rgba(${g + 40},${g + 40},${g + 40},0.5)`); }); }
+  },
+  // nuage : gros grumeaux doux (relief surtout : la couleur reste blanche)
+  puff(x, y, m, w, h, R) {
+    x.fillStyle = '#ffffff'; x.fillRect(0, 0, w, h); y.fillStyle = '#606060'; y.fillRect(0, 0, w, h);
+    for (let i = 0; i < 90; i++) { const X = R() * w, Y = R() * h, s = 10 + R() * 26; wrapDraw(w, h, X, Y, s, (XX, YY) => { const g = y.createRadialGradient(XX, YY, 0, XX, YY, s); g.addColorStop(0, 'rgba(255,255,255,0.5)'); g.addColorStop(1, 'rgba(255,255,255,0)'); y.fillStyle = g; y.beginPath(); y.arc(XX, YY, s, 0, TAU); y.fill(); const gc = x.createRadialGradient(XX, YY - s * 0.3, 0, XX, YY, s); gc.addColorStop(0, 'rgba(255,255,255,0)'); gc.addColorStop(1, 'rgba(200,205,230,0.12)'); x.fillStyle = gc; x.beginPath(); x.arc(XX, YY, s, 0, TAU); x.fill(); }); }
+  },
+  // écorce (rondins, troncs couchés) : sillons verticaux, plaques, lichen
+  bark(x, y, m, w, h, R) {
+    x.fillStyle = '#8a7058'; x.fillRect(0, 0, w, h); y.fillStyle = '#909090'; y.fillRect(0, 0, w, h);
+    for (let i = 0; i < 70; i++) {
+      const gx = R() * w, ww = 3 + R() * 7, ph = R() * 6;
+      for (const [c, col, lw] of [[y, '#262626', ww], [x, 'rgba(40,28,18,0.75)', ww * 0.8]]) { c.strokeStyle = col; c.lineWidth = lw; c.beginPath(); for (let yy = -10; yy <= h + 10; yy += 10) c.lineTo(gx + Math.sin(yy * 0.03 + ph) * 6 + Math.sin(yy * 0.11 + i) * 2, yy); c.stroke(); }
+    }
+    for (let i = 0; i < 160; i++) { const X = R() * w, Y = R() * h; blob(x, X, Y, 3 + R() * 6, 6 + R() * 16, 0, `rgba(${R() < 0.5 ? '170,150,125' : '110,90,70'},0.35)`); blob(y, X, Y, 3 + R() * 5, 6 + R() * 14, 0, 'rgba(220,220,220,0.35)'); }
+    for (let i = 0; i < 40; i++) blob(x, R() * w, R() * h, 4 + R() * 10, 3 + R() * 8, R() * 3, 'rgba(150,170,110,0.3)');
+  },
+  // corde torsadée : torons en diagonale
+  rope(x, y, m, w, h, R) {
+    x.fillStyle = '#d8c8a0'; x.fillRect(0, 0, w, h); y.fillStyle = '#808080'; y.fillRect(0, 0, w, h);
+    for (let i = -w; i < w * 2; i += 16) {
+      const col = `rgb(${220 + R() * 20 | 0},${200 + R() * 20 | 0},${160 + R() * 20 | 0})`;
+      for (const [c, s1, s2] of [[x, col, 'rgba(90,70,40,0.6)'], [y, '#e0e0e0', '#202020']]) { c.lineWidth = 11; c.strokeStyle = s1; c.beginPath(); c.moveTo(i, 0); c.lineTo(i + w, h); c.stroke(); c.lineWidth = 2; c.strokeStyle = s2; c.beginPath(); c.moveTo(i + 7, 0); c.lineTo(i + 7 + w, h); c.stroke(); }
+    }
+    for (let i = 0; i < 300; i++) { const X = R() * w, Y = R() * h, a = R() * TAU; x.strokeStyle = 'rgba(250,240,210,0.4)'; x.lineWidth = 0.5; x.beginPath(); x.moveTo(X, Y); x.lineTo(X + Math.cos(a) * 4, Y + Math.sin(a) * 4); x.stroke(); }
+  },
+};
+const ATL_STRENGTH = { wood: 2, planks: 3, pwood: 3, metal: 2, brass: 1, stone: 3, weave: 1.5, stripe: 1.5, gingham: 1.5, feather: 3.5, wicker: 5, tiles: 5, zinc: 3, rock: 4, moss: 3, puff: 4, rope: 4, bark: 4 };
+const atlasCache = {};
+/** Matière de l'atelier (téléphone : sans relief). Les couches sont dessinées une fois. */
+export function atlasMaterial(lite = touchLite()) {
+  const key = lite ? 'l' : 'h';
+  if (atlasCache[key]) return atlasCache[key];
+  const N = ATL_N, D = ATL.length;
+  const albedo = new Uint8Array(N * N * 4 * D), normal = lite ? null : new Uint8Array(N * N * 4 * D);
+  const mk = () => { const c = document.createElement('canvas'); c.width = c.height = N; return c; };
+  const cc = mk(), hc = mk(), mc = mk();
+  const x = cc.getContext('2d', { willReadFrequently: true }), y = hc.getContext('2d', { willReadFrequently: true }), m = mc.getContext('2d', { willReadFrequently: true });
+  ATL.forEach((name, li) => {
+    x.fillStyle = '#fff'; x.fillRect(0, 0, N, N);
+    y.fillStyle = '#808080'; y.fillRect(0, 0, N, N);
+    m.fillStyle = '#fff'; m.fillRect(0, 0, N, N);
+    ATL_PAINT[name](x, y, m, N, N, rng(1000 + li * 97));
+    const cd = x.getImageData(0, 0, N, N).data, md = m.getImageData(0, 0, N, N).data, o = li * N * N * 4;
+    for (let i = 0; i < N * N; i++) { albedo[o + i * 4] = cd[i * 4]; albedo[o + i * 4 + 1] = cd[i * 4 + 1]; albedo[o + i * 4 + 2] = cd[i * 4 + 2]; albedo[o + i * 4 + 3] = md[i * 4]; }
+    if (normal) normal.set(atlNormals(y.getImageData(0, 0, N, N).data, N, N, ATL_STRENGTH[name] || 2), o);
+  });
+  const arr = (data, srgb) => {
+    const t = new THREE.DataArrayTexture(data, N, N, D);
+    t.format = THREE.RGBAFormat; t.type = THREE.UnsignedByteType;
+    t.wrapS = t.wrapT = THREE.RepeatWrapping; t.magFilter = THREE.LinearFilter; t.minFilter = THREE.LinearMipmapLinearFilter;
+    t.generateMipmaps = true; t.anisotropy = 4; if (srgb) t.colorSpace = THREE.SRGBColorSpace;
+    t.needsUpdate = true;
+    return t;
+  };
+  const tA = arr(albedo, true), tN = normal ? arr(normal, false) : null;
+  const mat = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.8, metalness: 0 });
+  mat.onBeforeCompile = (sh) => {
+    sh.uniforms.atlA = { value: tA };
+    if (tN) sh.uniforms.atlN = { value: tN };
+    sh.vertexShader = 'attribute vec4 atl;\nvarying vec4 vAtl;\nvarying vec2 vAUv;\n' + sh.vertexShader.replace('#include <begin_vertex>', '#include <begin_vertex>\n  vAtl = atl; vAUv = uv;');
+    sh.fragmentShader = 'precision highp sampler2DArray;\nuniform sampler2DArray atlA;\n' + (tN ? 'uniform sampler2DArray atlN;\n' : '') + 'varying vec4 vAtl;\nvarying vec2 vAUv;\n'
+      + (tN ? `mat3 atlTBN(vec3 p, vec3 N, vec2 uv) { vec3 q0 = dFdx(p), q1 = dFdy(p); vec2 s0 = dFdx(uv), s1 = dFdy(uv);
+  vec3 q1p = cross(q1, N), q0p = cross(N, q0); vec3 T = q1p * s0.x + q0p * s1.x, B = q1p * s0.y + q0p * s1.y;
+  float d = max(dot(T, T), dot(B, B)); float s = d == 0.0 ? 0.0 : inversesqrt(d); return mat3(T * s, B * s, N); }\n` : '')
+      + sh.fragmentShader
+        .replace('#include <color_fragment>', `float atlL = floor(vAtl.x + 0.5);
+  vec4 atlT = texture(atlA, vec3(vAUv, atlL));
+  diffuseColor.rgb *= atlT.rgb * mix(vec3(1.0), vColor, atlT.a) * vAtl.w;`)
+        .replace('#include <roughnessmap_fragment>', 'float roughnessFactor = clamp(vAtl.y + (1.0 - atlT.a) * 0.15, 0.05, 1.0);')
+        .replace('#include <metalnessmap_fragment>', 'float metalnessFactor = vAtl.z * atlT.a;')
+        .replace('#include <normal_fragment_maps>', '#include <normal_fragment_maps>' + (tN ? `
+  { vec3 an = texture(atlN, vec3(vAUv, atlL)).xyz * 2.0 - 1.0; an.xy *= 0.9; normal = normalize(atlTBN(-vViewPosition, normal, vAUv) * an); }` : ''));
+  };
+  mat.customProgramCacheKey = () => 'sc-atl-' + key;
+  mat.userData.atlas = true;
+  return (atlasCache[key] = mat);
+}
+
+/**
+ * Assembleur de l'atelier : des morceaux posés (transformés), chacun avec sa couche, sa teinte,
+ * sa rugosité, son métal et une ombre de creux ; fusionnés en une géométrie non indexée
+ * (position, normale, uv, couleur, atl). add(geo, o) — o : { l (couche), c (teinte : hex,
+ * [r,g,b] ou f(x,y,z,nx,ny,nz)), r, m, ao (f(x,y,z,nx,ny,nz) → 0..1, repère de l'assembleur),
+ * uv ('box' | nombre ou [su, sv] : échelle des uv d'origine), us (échelle box), t (transformation) }.
+ */
+export class AKit {
+  constructor() { this.parts = []; this.ao = null; }
+  add(geo, o = {}) { this.parts.push({ geo, o }); return this; }
+  geo() {
+    const geos = [], c = new THREE.Color(), M4 = new THREE.Matrix4(), Q = new THREE.Quaternion(), E = new THREE.Euler();
+    for (const { geo, o } of this.parts) {
+      const t = o.t || {};
+      const g = geo.index ? geo.toNonIndexed() : geo.clone();
+      if (!g.attributes.normal) g.computeVertexNormals();
+      if (!g.attributes.uv) g.setAttribute('uv', new THREE.BufferAttribute(new Float32Array(g.attributes.position.count * 2), 2));
+      if (typeof o.uv === 'number' || Array.isArray(o.uv)) { const s = Array.isArray(o.uv) ? o.uv : [o.uv, o.uv], u = g.attributes.uv; for (let i = 0; i < u.count; i++) u.setXY(i, u.getX(i) * s[0], u.getY(i) * s[1]); }
+      M4.compose(v3(t.x || 0, t.y || 0, t.z || 0), Q.setFromEuler(E.set(t.rx || 0, t.ry || 0, t.rz || 0, t.order || 'XYZ')), v3(t.sx || t.s || 1, t.sy || t.sx || t.s || 1, t.sz || t.sx || t.s || 1));
+      g.applyMatrix4(M4);
+      if (o.keepAtl && g.attributes.atl) { geos.push({ geo: g }); continue; }
+      if (o.uv === 'box') boxUV(g, o.us || 1);
+      if (o.uvT || o.uo) { const u = g.attributes.uv, uo = o.uo || [0, 0]; for (let i = 0; i < u.count; i++) { const a = u.getX(i), b = u.getY(i); if (o.uvT) u.setXY(i, b + uo[0], a + uo[1]); else u.setXY(i, a + uo[0], b + uo[1]); } }
+      const p = g.attributes.position, n = g.attributes.normal, cnt = p.count;
+      const col = new Float32Array(cnt * 3), atl = new Float32Array(cnt * 4);
+      const li = AL[o.l || 'plain'], rough = o.r === undefined ? 0.8 : o.r, met = o.m || 0;
+      const cst = o.c === undefined ? [1, 1, 1] : typeof o.c === 'function' ? null : Array.isArray(o.c) ? o.c : (c.set(o.c), [c.r, c.g, c.b]);
+      for (let i = 0; i < cnt; i++) {
+        const x = p.getX(i), y = p.getY(i), z = p.getZ(i), nx = n.getX(i), ny = n.getY(i), nz = n.getZ(i);
+        const cc = cst || o.c(x, y, z, nx, ny, nz);
+        col[i * 3] = cc[0]; col[i * 3 + 1] = cc[1]; col[i * 3 + 2] = cc[2];
+        if (o.vc && g.attributes.color) { const gc = g.attributes.color; col[i * 3] *= gc.getX(i); col[i * 3 + 1] *= gc.getY(i); col[i * 3 + 2] *= gc.getZ(i); }
+        atl[i * 4] = li; atl[i * 4 + 1] = rough; atl[i * 4 + 2] = met;
+        atl[i * 4 + 3] = (o.ao ? o.ao(x, y, z, nx, ny, nz) : 1) * (this.ao ? this.ao(x, y, z, nx, ny, nz) : 1);
+      }
+      const out = new THREE.BufferGeometry();
+      out.setAttribute('position', p); out.setAttribute('normal', n); out.setAttribute('uv', g.attributes.uv);
+      out.setAttribute('color', new THREE.BufferAttribute(col, 3)); out.setAttribute('atl', new THREE.BufferAttribute(atl, 4));
+      geos.push({ geo: out });
+      if (o.dbl) {
+        // (double face : une copie retournée, normales inversées)
+        const b = out.clone();
+        for (const k of Object.keys(b.attributes)) { const a = b.attributes[k], w = a.itemSize, arr = a.array; for (let i = 0; i < a.count; i += 3) for (let q = 0; q < w; q++) { const tt = arr[i * w + q]; arr[i * w + q] = arr[(i + 2) * w + q]; arr[(i + 2) * w + q] = tt; } }
+        const bn = b.attributes.normal.array; for (let i = 0; i < bn.length; i++) bn[i] = -bn[i];
+        geos.push({ geo: b });
+      }
+    }
+    return mergeAtl(geos);
+  }
+}
+/** Fusionne des géométries de l'atelier (transformations comme M.mergeGeos) ; couleur et atl par défaut si absents. */
+export function mergeAtl(list) {
+  const geos = list.map(({ geo, x, y, z, rx, ry, rz, sx, sy, sz }) => {
+    let g = geo.index ? geo.toNonIndexed() : geo;
+    if (x || y || z || rx || ry || rz || (sx && sx !== 1) || (sy && sy !== 1) || (sz && sz !== 1)) {
+      if (g === geo) g = geo.clone();
+      g.applyMatrix4(new THREE.Matrix4().compose(v3(x || 0, y || 0, z || 0), new THREE.Quaternion().setFromEuler(new THREE.Euler(rx || 0, ry || 0, rz || 0)), v3(sx || 1, sy || sx || 1, sz || sx || 1)));
+    }
+    return g;
+  });
+  let n = 0; for (const g of geos) n += g.attributes.position.count;
+  const out = new THREE.BufferGeometry();
+  for (const [k, w, def] of [['position', 3, 0], ['normal', 3, 0], ['uv', 2, 0], ['color', 3, 1], ['atl', 4, 0]]) {
+    const arr = new Float32Array(n * w); let o = 0;
+    for (const g of geos) {
+      const a = g.attributes[k], cnt = g.attributes.position.count;
+      if (a) arr.set(a.array, o);
+      else if (k === 'atl') for (let i = 0; i < cnt; i++) { arr[o + i * 4 + 1] = 0.8; arr[o + i * 4 + 3] = 1; }
+      else if (def) arr.fill(def, o, o + cnt * w);
+      o += cnt * w;
+    }
+    out.setAttribute(k, new THREE.BufferAttribute(arr, w));
+  }
+  out.computeBoundingSphere(); out.computeBoundingBox();
+  return out;
+}
+/** Profil tourné : pts [[r, y], …] ; uv : u = tour × uScale, v = longueur du profil (m) × vScale. */
+export function latheProfile(pts, seg = 24, uScale = 1, vScale = 1, phi0 = 0, phiLen = TAU) {
+  const P = pts.map(([r, y]) => new THREE.Vector2(Math.max(0.0001, r), y));
+  const g = new THREE.LatheGeometry(P, seg, phi0, phiLen);
+  const uv = g.attributes.uv, rows = P.length;
+  const acc = [0]; for (let i = 1; i < rows; i++) acc.push(acc[i - 1] + P[i].distanceTo(P[i - 1]));
+  for (let i = 0; i < uv.count; i++) uv.setXY(i, uv.getX(i) * uScale, acc[i % rows] * vScale);
+  return g;
+}
+/** Tube le long d'une courbe, uv en mètres (u : tour × uScale, v : longueur × vScale). */
+export function tubeAlong(curve, seg, r, rs = 8, vScale = 1, uScale = 1, closed = false) {
+  const g = new THREE.TubeGeometry(curve, seg, r, rs, closed);
+  const L = curve.getLength(), uv = g.attributes.uv;
+  for (let i = 0; i < uv.count; i++) uv.setXY(i, uv.getY(i) * uScale, uv.getX(i) * L * vScale);
+  return g;
+}

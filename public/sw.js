@@ -46,7 +46,7 @@ const PRECACHE = [
   'adventure/npcs.js', 'adventure/post.js', 'adventure/realtex.js', 'adventure/sky.js',
   'adventure/sky_boss.js', 'adventure/snow.js', 'adventure/life.js', 'adventure/lifekit.js', 'adventure/lifeface.js', 'adventure/citylife.js', 'adventure/level6life.js', 'adventure/level8life.js', 'adventure/level7life.js', 'adventure/level3life.js', 'adventure/level1life.js', 'adventure/foliage.js', 'adventure/sculpt.js', 'adventure/snowart.js', 'adventure/lifeplan.js', 'adventure/level5life.js', 'adventure/story.js', 'adventure/seasons.js', 'adventure/lumiere.js', 'adventure/toon.js', 'adventure/voice.js',
   'adventure/voices.js', 'adventure/wardrobe.js', 'adventure/world.js',
-  'adventure/park.js', 'adventure/parkkit.js', 'adventure/gare.js',
+  'adventure/park.js', 'adventure/parkkit.js', 'adventure/parkprops.js', 'adventure/skyprops.js', 'adventure/gare.js',
   'adventure/forestkit.js', 'adventure/forestlife.js',
   'adventure/puppies.js', 'adventure/pupdata.js', 'adventure/powers.js', 'adventure/powerdata.js',
   'adventure/wonder.js', 'adventure/wonderfx.js', 'adventure/wonderdata.js',

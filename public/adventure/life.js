@@ -1230,7 +1230,7 @@ export function buildLife(game, cfg) {
   for (const k in propCount) { const pk = pal.props[k] || {}; if (pk.crown) addExtra(pk.crown, propCount[k]); }
   for (const k of propKinds) {
     const pk = pal.props[k] || {};
-    const mdl = PROPS[pk.model || k](pk.colors || {});
+    const mdl = (PROPS[pk.model || k] || SC.LIFE_PROPS[pk.model || k])(pk.colors || {});   // (modèles enregistrés après coup : parkprops.js…)
     const n = (propCount[k] || 0) + (extraProp[k] || 0);
     propModel[k] = { pk, mdl, l: layer('p_' + k, mdl.geo, mdl.mat || (mdl.unlit ? unlitMat : pk.skin ? matOf(pk, 'props') : cfg.real && mdl.skin ? matOf({ skin: mdl.skin }, 'props') : matFor(pk.tex || mdl.tex, propMat)), n + 2, k === 'hat' || !!pk.tint) };
     if (mdl.shadow) propModel[k].l.mesh.castShadow = true;
