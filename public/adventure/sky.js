@@ -664,17 +664,7 @@ export function buildSky(game) {
   const WH = S.WHEEL;
   const wheel = new THREE.Group();
   {
-    const rimMat = M.mat(0xff9ac8, { roughness: 0.5, emissive: 0x7a2a50, emissiveIntensity: 0.2 });
-    const parts = [];
-    for (const x of [-2.1, 2.1]) {
-      const rim = new THREE.TorusGeometry(WH.R, 0.14, 6, lite ? 40 : 64); rim.rotateY(Math.PI / 2);
-      parts.push({ geo: rim, x });
-      for (let k = 0; k < 8; k++) {
-        const sp = new THREE.CylinderGeometry(0.07, 0.07, WH.R, 5); sp.translate(0, WH.R / 2, 0);
-        parts.push({ geo: sp, x, rx: k * Math.PI / 4 });
-      }
-    }
-    const wm = new THREE.Mesh(M.mergeGeos(parts), rimMat);
+    const wm = new THREE.Mesh(SP.ferrisWheelGeo(WH.R, PO), AM);   // (skyprops.js : jantes de métal peint, rayons, entretoises)
     wm.castShadow = !lite; wheel.add(wm);
     // petites lumières sur la jante
     const bulbs = [];

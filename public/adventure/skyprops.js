@@ -312,12 +312,33 @@ export function flowerSpringGeo(rad, hue, opts = {}) {
   return K.geo();
 }
 
+/** Grande Roue (axe x, centre en 0) : deux jantes de métal peint rose, rayons blancs, entretoises en croisillon. */
+export function ferrisWheelGeo(R, opts = {}) {
+  const lite = !!opts.lite, K = new SC.AKit(), PINK = hex(0xf08ab8), WHT = hex(0xf4f0ea);
+  for (const x of [-2.1, 2.1]) {
+    const rim = new THREE.TorusGeometry(R, 0.14, lite ? 6 : 8, lite ? 40 : 72); rim.rotateY(Math.PI / 2);
+    const uv = rim.attributes.uv; for (let i = 0; i < uv.count; i++) uv.setXY(i, uv.getX(i) * R * TAU / 0.8, uv.getY(i) * 0.5);
+    K.add(rim, { l: 'metal', r: 0.4, m: 0.4, c: PINK, t: { x } });
+    const inner = new THREE.TorusGeometry(R * 0.55, 0.06, 5, lite ? 24 : 40); inner.rotateY(Math.PI / 2);
+    K.add(inner, { l: 'metal', r: 0.4, m: 0.4, c: PINK, t: { x } });
+    for (let k = 0; k < 8; k++) K.add(cyl(0.065, 0.065, R, 6, 1).translate(0, R / 2, 0), { l: 'metal', r: 0.4, m: 0.4, c: WHT, t: { x, rx: k * Math.PI / 4 } });
+  }
+  // entretoises entre les deux jantes (au bout de chaque rayon) et croisillons
+  for (let k = 0; k < 8; k++) {
+    const a = k * Math.PI / 4, y = Math.cos(a) * R, z = Math.sin(a) * R;
+    K.add(cyl(0.05, 0.05, 4.2, 6, 1).rotateZ(Math.PI / 2), { l: 'metal', r: 0.4, m: 0.4, c: WHT, t: { y, z } });
+    if (!lite) { const b = a + Math.PI / 8, y2 = Math.cos(b) * R, z2 = Math.sin(b) * R, d = v3(4.2, y2 - y, z2 - z), L = d.length(); const g = cyl(0.03, 0.03, L, 5, 1); g.applyQuaternion(new THREE.Quaternion().setFromUnitVectors(v3(0, 1, 0), d.normalize())); K.add(g, { l: 'metal', r: 0.4, m: 0.4, c: PINK, t: { y: (y + y2) / 2, z: (z + z2) / 2 } }); }
+  }
+  return K.geo();
+}
+
 // (atelier de prise de vue : adventure/_studio.html?m=skyprops&i=…)
 export const STUDIO = {
   pads: ({ lite }) => [padGeometry(2.3, 70, { lite }), SC.mergeAtl([{ geo: padGeometry(1.8, 71, { lite }), x: 5, y: 1 }]), SC.mergeAtl([{ geo: shelterRockGeo(0.8, 2.1, 3, { lite }), x: -4, y: 0 }])],
   mill: ({ lite }) => { const MI = { r: 1.5, h: 7 }; const out = [millTowerGeo(MI, { lite })]; for (let k = 0; k < 4; k++) out.push(SC.mergeAtl([{ geo: millSailGeo({ lite }), rz: k * Math.PI / 2 + 0.3 }]).translate(0, MI.h - 0.6, -MI.r * 0.95 - 0.3)); return out; },
   bridge: ({ lite }) => { const out = []; for (let i = 0; i < 6; i++) out.push(SC.mergeAtl([{ geo: bridgePlankGeo(3.2, 1.0, i), z: -i * 1.07, x: i % 2 ? 0.06 : -0.06 }])); out.push(SC.mergeAtl([{ geo: bridgePostGeo(), x: -1.8, y: 0.6, z: 0.6 }, { geo: bridgePostGeo(), x: 1.8, y: 0.6, z: 0.6 }, { geo: plateBaseGeo(), x: 0, z: 3 }])); return out; },
   gate: ({ lite }) => [stoneGateGeo({ lite }), SC.mergeAtl([{ geo: bellFrameGeo(0xff7ab0, { lite }), x: 6 }, { geo: goalArchGeo({ lite }), x: -8, ry: 0.3 }])],
+  wheel: ({ lite }) => ferrisWheelGeo(6.5, { lite }).translate(0, 7, 0),
   flower: ({ lite }) => [flowerSpringGeo(1.3, 0.92, { lite }), SC.mergeAtl([{ geo: flowerSpringGeo(1.3, 0.55, { lite }), x: 3 }])],
   cannon: ({ lite }) => [cannonCarriageGeo({ lite }), SC.mergeAtl([{ geo: cannonBarrelGeo({ lite }), y: 1.3, rx: -0.65 }]), SC.mergeAtl([{ geo: turnstilePlankGeo({ hl: 5.4, hw: 1.2 }, { lite }), x: 0, y: 0.6, z: -5 }])],
 };
