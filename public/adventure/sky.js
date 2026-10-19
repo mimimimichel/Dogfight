@@ -10,6 +10,10 @@ import * as W from './world.js';
 import * as RT from './realtex.js';
 import { buildSkyBoss } from './sky_boss.js';
 import { Cinema } from './cinema.js';
+import * as SC from './sculpt.js';
+import * as SP from './skyprops.js';
+
+let LITE = false;   // (rendu téléphone : réglé par buildSky)
 
 const clamp = (v, a, b) => (v < a ? a : v > b ? b : v);
 function rng(seed) { let s = seed >>> 0 || 1; return () => (s = (s * 16807) % 2147483647) / 2147483647; }
@@ -157,23 +161,8 @@ function padGeometry(rad, seed, look) {
   return M.mergeGeos(parts.map(g2 => ({ geo: g2 })));
 }
 
-/** Nuage (plate-forme moelleuse) : grappe de boules. */
-function cloudGeometry(rad, seed) {
-  const r = rng(seed);
-  const parts = [];
-  const n = 7;
-  for (let i = 0; i < n; i++) {
-    const a = (i / n) * Math.PI * 2 + r() * 0.4, d = rad * (0.45 + r() * 0.25), s = rad * (0.45 + r() * 0.2);
-    const g = new THREE.IcosahedronGeometry(s, 2);
-    g.scale(1, 0.62, 1);
-    g.translate(Math.cos(a) * d, -0.32, Math.sin(a) * d);
-    parts.push(g);
-  }
-  const mid = new THREE.IcosahedronGeometry(rad * 0.75, 2); mid.scale(1, 0.55, 1); mid.translate(0, -0.25, 0);
-  parts.push(mid);
-  return M.mergeGeos(parts.map(g => ({ geo: paint(g, (c, x, y) => c.set(0xffffff).lerp(new THREE.Color(0xd8d0f0), clamp(-y * 0.9, 0, 1))) })));
-}
-
+/** Nuage (plate-forme moelleuse) : grumeaux cabossés (skyprops.js). */
+function cloudGeometry(rad, seed) { return SP.cloudGeometry(rad, seed, { lite: LITE }); }
 /** Nuage-mouton : un nuage tout rond avec une tête noire, des oreilles et de petites pattes. */
 function sheepModel(rad, seed, standing) {
   const g = new THREE.Group();
@@ -254,6 +243,8 @@ function streakTexture() {
 // ---------------------------------------------------------------------------
 export function buildSky(game) {
   const sc = game.scene, S = L, lite = game.lite;
+  LITE = !!lite;
+  const AM = SC.atlasMaterial(lite), PO = { lite };   // objets faits main (skyprops.js) : une seule matière
   const moving = [], chars = [];
   const save = () => game.save;
   const sky = () => {
@@ -301,12 +292,13 @@ export function buildSky(game) {
     if (!quarters.has(key)) quarters.set(key, { under: [], top: [] });
     quarters.get(key).under.push(g.under); quarters.get(key).top.push(g.top);
     // racines qui pendent sous l'île
-    const r = rng(40 + i);
+    // (skyprops.js : racines courbes et effilées ; bourrelet d'herbe qui déborde du bord de l'île)
+    const r = rng(40 + i), sd = 11 + i * 7;
     for (let k = 0; k < Math.round(I.r * 0.8); k++) {
       const a = r() * Math.PI * 2, d = I.r * (0.55 + r() * 0.35), len = 1.5 + r() * I.r * 0.35;
-      const root = paint(new THREE.CylinderGeometry(0.05, 0.12, len, 5).translate(0, -len / 2, 0), 0x6a5040);
-      unders.push({ geo: root, x: I.x + Math.cos(a) * d, y: I.top - 0.8 - r() * 1.5, z: I.z + Math.sin(a) * d, rz: (r() - 0.5) * 0.3 });
+      unders.push({ geo: SP.rootGeo(len, 40 + i * 13 + k, PO), x: I.x + Math.cos(a) * d, y: I.top - 0.8 - r() * 1.5, z: I.z + Math.sin(a) * d });
     }
+    unders.push({ geo: SP.islandLipGeo(I.x, I.z, (a) => I.r * (1 + (fbm(Math.cos(a) * 2 + sd, 0, Math.sin(a) * 2) - 0.5) * 0.06), I.top, PO) });
   });
   for (const q of quarters.values()) {
     for (const [list, mat] of [[q.under, islandRock], [q.top, islandGrass]]) {
@@ -315,7 +307,7 @@ export function buildSky(game) {
       sc.add(m);
     }
   }
-  const underMesh = new THREE.Mesh(M.mergeGeos(unders), rockMat);
+  const underMesh = new THREE.Mesh(SC.mergeAtl(unders), AM);
   underMesh.castShadow = !lite; underMesh.receiveShadow = true;
   sc.add(underMesh);
   void tops;
@@ -339,7 +331,7 @@ export function buildSky(game) {
   const cloudPads = [];
   S.pads.forEach((p, i) => {
     if (p.look === 'cloud') { cloudPads.push({ geo: cloudGeometry(p.r, 600 + i), x: p.x, y: p.top, z: p.z }); return; }
-    padGeos.push({ geo: padGeometry(p.r, 70 + i), x: p.x, y: p.top, z: p.z });
+    padGeos.push({ geo: p.look === 'crystal' ? padGeometry(p.r, 70 + i, 'crystal') : SP.padGeometry(p.r, 70 + i, PO), x: p.x, y: p.top, z: p.z });
     // pierres « de cristal » : des éclats bleus plantés au bord (décor, on marche entre eux)
     if (p.look === 'crystal') for (let k = 0; k < 3; k++) {
       const a = k * 2.1 + i, h = 0.7 + (k % 2) * 0.4, g = new THREE.OctahedronGeometry(0.22, 0);
@@ -347,7 +339,7 @@ export function buildSky(game) {
       crystalGeos.push({ geo: g, x: p.x + Math.cos(a) * p.r * 0.82, y: p.top - 0.05, z: p.z + Math.sin(a) * p.r * 0.82, rz: (k - 1) * 0.25 });
     }
   });
-  const padMesh = new THREE.Mesh(M.mergeGeos(padGeos), rockMat);
+  const padMesh = new THREE.Mesh(SC.mergeAtl(padGeos), AM);
   padMesh.castShadow = true; padMesh.receiveShadow = true;
   sc.add(padMesh);
   if (crystalGeos.length) {
@@ -365,7 +357,7 @@ export function buildSky(game) {
     else if (m.look === 'sheep') mesh = sheepModel(m.r, 95 + i, false);
     else {
       mesh = new THREE.Group();
-      const body = new THREE.Mesh(padGeometry(m.r, 120 + i), rockMat);
+      const body = new THREE.Mesh(SP.padGeometry(m.r, 120 + i, PO), AM);
       body.castShadow = true;
       mesh.add(body);
       const ring = new THREE.Mesh(new THREE.TorusGeometry(m.r * 0.72, 0.07, 6, 32), runeMat);
@@ -394,7 +386,7 @@ export function buildSky(game) {
   const springs = S.springs.map((s, i) => {
     const g = new THREE.Group();
     if (s.look === 'flower') {
-      const fl = new THREE.Mesh(flowerGeometry(s.r * 1.2, [0.92, 0.12, 0.78, 0.55, 0.02, 0.85, 0.15][i % 7]), flowerMat);
+      const fl = new THREE.Mesh(SP.flowerSpringGeo(s.r * 1.2, [0.92, 0.12, 0.78, 0.55, 0.02, 0.85, 0.15][i % 7], PO), AM);   // (skyprops.js : pétales en cuillère, cœur de graines)
       fl.castShadow = !lite; g.add(fl);
       g.position.set(s.x, s.base, s.z);
       sc.add(g);
@@ -411,17 +403,15 @@ export function buildSky(game) {
       sc.add(g);
       return { def: s, g, cap: [puff, ring] };
     }
-    const stalk = new THREE.Mesh(new THREE.CylinderGeometry(0.32, 0.42, 0.7, 10), M.mat(0xfff4e0));
-    stalk.position.y = 0.35; g.add(stalk);
-    const capG = new THREE.SphereGeometry(s.r, 20, 10, 0, Math.PI * 2, 0, Math.PI / 2);
-    capG.scale(1, 0.55, 1);
-    const cap = new THREE.Mesh(capG, M.mat(0xff5a9a, { roughness: 0.45 }));
-    cap.position.y = 0.55; g.add(cap);
-    const dots = new THREE.Mesh(M.mergeGeos([0, 1, 2, 3, 4].map(k => { const a = k * 1.26 + i, d = s.r * 0.55; return { geo: new THREE.SphereGeometry(0.13, 8, 6), x: Math.cos(a) * d, y: 0.55 + Math.sqrt(Math.max(0, s.r * s.r - d * d)) * 0.55 - 0.02, z: Math.sin(a) * d, sy: 0.5 }; })), M.mat(0xffffff));
-    g.add(dots);
+    const MM = SC.mushHouseMaterials(lite);
+    const stalk = new THREE.Mesh(SC.mushroomStemGeometry(0.3, 0.62, PO), MM[0]);
+    stalk.castShadow = !lite; g.add(stalk);
+    const capG = SC.mushroomCapGeometry(s.r, 0xff5a9a, { lite, seed: i + 3 }); capG.scale(1, 0.9, 1);
+    const cap = new THREE.Mesh(capG, MM[1]);
+    cap.position.y = 0.5; cap.castShadow = !lite; g.add(cap);
     g.position.set(s.x, s.base, s.z);
     sc.add(g);
-    return { def: s, g, cap: [cap, dots] };
+    return { def: s, g, cap: [cap] };
   });
 
   // --- colonnes de vent ------------------------------------------------------------
@@ -446,10 +436,11 @@ export function buildSky(game) {
 
   // --- Pont des Copains : dalles et planches ---------------------------------------
   const plateTex = [pawTexture(false), pawTexture(true)];
+  const plateBase = SP.plateBaseGeo();
   const plates = S.PLATES.map(p => {
     const g = new THREE.Group();
-    const base = new THREE.Mesh(new THREE.CylinderGeometry(1.35, 1.5, 0.3, 24), M.mat(0x8a7a6a, { roughness: 0.9 }));
-    base.position.y = 0.1; g.add(base);
+    const base = new THREE.Mesh(plateBase, AM);
+    base.receiveShadow = true; g.add(base);
     const topMat = new THREE.MeshStandardMaterial({ map: plateTex[0], roughness: 0.6, emissive: 0xffc030, emissiveIntensity: 0 });
     const top = new THREE.Mesh(new THREE.CylinderGeometry(1.1, 1.1, 0.18, 24), [M.mat(0x6a5a4a), topMat, M.mat(0x6a5a4a)]);
     top.position.y = 0.32; g.add(top);
@@ -463,19 +454,22 @@ export function buildSky(game) {
   const plankMat = M.mat(0xc08a52, { roughness: 0.85 });
   const ropeMat = M.mat(0xe8d8b0, { roughness: 0.9 });
   const planks = [];
+  const plankGeos = [0, 1, 2, 3].map(k => SP.bridgePlankGeo(B.w, (B.z0 - B.z1) / PLANKS * 0.9, k + 1));
   for (let i = 0; i < PLANKS; i++) {
     const len = (B.z0 - B.z1) / PLANKS;
-    const m = new THREE.Mesh(new THREE.BoxGeometry(B.w, 0.22, len * 0.9), plankMat);
+    const m = new THREE.Mesh(plankGeos[i % plankGeos.length], AM);
     m.position.set(B.x + (i % 2 ? 0.06 : -0.06), B.top - 0.11, B.z0 - len * (i + 0.5));
     m.castShadow = true; m.receiveShadow = true;
     sc.add(m); planks.push(m);
   }
+  const postGeo = SP.bridgePostGeo();
   for (const z of [B.z0 + 0.3, B.z1 - 0.3]) for (const sx of [-1, 1]) {
-    const post = new THREE.Mesh(new THREE.CylinderGeometry(0.16, 0.2, 1.6, 8), plankMat);
+    const post = new THREE.Mesh(postGeo, AM); post.castShadow = !lite;
     post.position.set(B.x + sx * (B.w / 2 + 0.2), B.top + 0.6, z); sc.add(post);
   }
+  const ropeGeo = SP.ropeGeo();
   const ropes = [-1, 1].map(sx => {
-    const m = new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.05, 1, 6), ropeMat);
+    const m = new THREE.Mesh(ropeGeo, AM);
     m.rotation.x = Math.PI / 2; sc.add(m);
     return { m, sx };
   });
@@ -505,18 +499,16 @@ export function buildSky(game) {
   // --- décor : moulin, ballons, tour de cristal, arche d'arrivée ---------------------
   const MI = S.MILL;
   const mill = new THREE.Group();
-  const tower = new THREE.Mesh(new THREE.CylinderGeometry(MI.r * 0.75, MI.r, MI.h, 10), M.mat(0xf4e8d4, { roughness: 0.85 }));
-  tower.position.y = MI.h / 2; tower.castShadow = true; mill.add(tower);
-  const roof = new THREE.Mesh(new THREE.ConeGeometry(MI.r * 1.05, 2.2, 10), M.mat(0xd8503a, { roughness: 0.7 }));
-  roof.position.y = MI.h + 1.1; roof.castShadow = true; mill.add(roof);
-  const door = new THREE.Mesh(new THREE.BoxGeometry(0.8, 1.4, 0.1), M.mat(0x7a4a2a));
-  door.position.set(0, 0.7, -MI.r * 0.98); mill.add(door);
+  // (skyprops.js : tour de pierre chaulée, toit de tuiles, porte cintrée, ailes à lattes et toile)
+  const tower = new THREE.Mesh(SP.millTowerGeo(MI, PO), AM);
+  tower.castShadow = true; tower.receiveShadow = true; mill.add(tower);
   const blades = new THREE.Group();
+  const sailGeo = SP.millSailGeo(PO);
   for (let k = 0; k < 4; k++) {
-    const b = new THREE.Mesh(new THREE.BoxGeometry(0.5, 4.2, 0.06), M.mat(0xfff6ea, { roughness: 0.8 }));
-    b.position.y = 2.2; const arm = new THREE.Group(); arm.add(b); arm.rotation.z = k * Math.PI / 2; blades.add(arm);
+    const b = new THREE.Mesh(sailGeo, AM); b.castShadow = !lite;
+    const arm = new THREE.Group(); arm.add(b); arm.rotation.z = k * Math.PI / 2; blades.add(arm);
   }
-  blades.position.set(0, MI.h - 0.6, -MI.r * 0.95);
+  blades.position.set(0, MI.h - 0.6, -MI.r * 0.95 - 0.2);
   mill.add(blades);
   mill.position.set(MI.x, MI.y, MI.z); mill.rotation.y = 0.5;
   sc.add(mill);
@@ -524,11 +516,12 @@ export function buildSky(game) {
   const balloonCols = [0xff5a6a, 0xffc83a, 0x5ac8ff, 0x8ae05a, 0xc88aff, 0xff8ad8];
   const balloons = [];
   const BI = S.ISLANDS.find(q => q.id === 'balloon');
+  const balloonG = SP.balloonGeo(PO);
   for (let k = 0; k < 6; k++) {
     const a = k * 1.05 + 0.4, d = BI.r * 0.82;
     const x = BI.x + Math.cos(a) * d, z = BI.z + Math.sin(a) * d, y = S.heightAt(x, z);
-    const b = new THREE.Mesh(new THREE.SphereGeometry(0.55, 16, 12), M.mat(balloonCols[k], { roughness: 0.25, metalness: 0.05 }));
-    b.scale.set(1, 1.18, 1); b.castShadow = true;
+    const b = new THREE.Mesh(balloonG, M.mat(balloonCols[k], { roughness: 0.32, metalness: 0.0 }));
+    b.castShadow = true;
     const string = new THREE.Mesh(new THREE.CylinderGeometry(0.012, 0.012, 3, 4), ropeMat);
     sc.add(b, string);
     balloons.push({ b, string, x, y, z, ph: k * 1.7 });
@@ -549,7 +542,7 @@ export function buildSky(game) {
     shards.push({ geo: g, x: T.x + Math.cos(a) * (T.r + 0.5), y: 19.3 + h * 0.35, z: T.z + Math.sin(a) * (T.r + 0.5) });
   }
   const shardMesh = new THREE.Mesh(M.mergeGeos(shards), crystalMat); shardMesh.castShadow = true; sc.add(shardMesh);
-  const crystalBase = new THREE.Mesh(padGeometry(T.r * 1.6, 333), rockMat);
+  const crystalBase = new THREE.Mesh(SP.padGeometry(T.r * 1.6, 333, PO), AM);
   crystalBase.position.set(T.x, 19.3, T.z); sc.add(crystalBase);
   const cap = new THREE.Mesh(new THREE.CylinderGeometry(T.r * 1.08, T.r * 0.92, 0.45, 6), M.mat(0xffd23a, { metalness: 0.7, roughness: 0.3, emissive: 0x7a4a00, emissiveIntensity: 0.35 }));
   cap.position.set(T.x, T.top - 0.22, T.z); cap.castShadow = true; sc.add(cap);
@@ -557,9 +550,7 @@ export function buildSky(game) {
   const GI = S.ISLANDS.find(q => q.id === 'goal');
   const arch = new THREE.Group();
   const goldMat = M.mat(0xffd23a, { metalness: 0.75, roughness: 0.25, emissive: 0x7a4a00, emissiveIntensity: 0.35 });
-  for (const sx of [-1, 1]) { const col = new THREE.Mesh(new THREE.CylinderGeometry(0.35, 0.45, 5, 12), goldMat); col.position.set(sx * 3.2, 2.5, 0); col.castShadow = true; arch.add(col); }
-  const top = new THREE.Mesh(new THREE.TorusGeometry(3.2, 0.32, 10, 40, Math.PI), goldMat);
-  top.position.y = 5; arch.add(top);
+  { const ag = new THREE.Mesh(SP.goalArchGeo(PO), AM); ag.castShadow = true; arch.add(ag); }   // (skyprops.js : colonnes cannelées, arc torsadé)
   arch.position.set(GI.x, GI.top + 0.3, GI.z + 6.5);
   sc.add(arch);
   // (le module des données survit d'une partie à l'autre : on repart d'un état propre)
@@ -658,7 +649,7 @@ export function buildSky(game) {
     });
     const parts = [{ geo: plankG, y: -0.21 }];
     for (const sx of [-1, 1]) for (const sz of [-1, 1]) parts.push({ geo: paint(new THREE.CylinderGeometry(0.07, 0.07, 0.7, 6), 0xb8804a), x: sx * (TS.hl - 0.3), y: 0.35, z: sz * (TS.hw - 0.12) });
-    const plank = new THREE.Mesh(M.mergeGeos(parts), std({ roughness: 0.8 }));
+    const plank = new THREE.Mesh(SP.turnstilePlankGeo(TS, PO), AM); void parts;
     plank.castShadow = !lite; plank.receiveShadow = true;
     turn.add(plank);
   }
@@ -666,24 +657,14 @@ export function buildSky(game) {
   sc.add(turn); moving.push(turn);
   const pivot = new THREE.Mesh(new THREE.CylinderGeometry(1.4, 1.5, 0.45, 24), goldMat);
   pivot.position.set(TS.x, TS.top - 0.17, TS.z); pivot.castShadow = !lite; sc.add(pivot);
-  const pivotRock = new THREE.Mesh(padGeometry(1.3, 444), rockMat);
+  const pivotRock = new THREE.Mesh(SP.padGeometry(1.3, 444, PO), AM);
   pivotRock.position.set(TS.x, TS.top - 0.4, TS.z); sc.add(pivotRock);
 
   // --- la Grande Roue des Nuages --------------------------------------------------
   const WH = S.WHEEL;
   const wheel = new THREE.Group();
   {
-    const rimMat = M.mat(0xff9ac8, { roughness: 0.5, emissive: 0x7a2a50, emissiveIntensity: 0.2 });
-    const parts = [];
-    for (const x of [-2.1, 2.1]) {
-      const rim = new THREE.TorusGeometry(WH.R, 0.14, 6, lite ? 40 : 64); rim.rotateY(Math.PI / 2);
-      parts.push({ geo: rim, x });
-      for (let k = 0; k < 8; k++) {
-        const sp = new THREE.CylinderGeometry(0.07, 0.07, WH.R, 5); sp.translate(0, WH.R / 2, 0);
-        parts.push({ geo: sp, x, rx: k * Math.PI / 4 });
-      }
-    }
-    const wm = new THREE.Mesh(M.mergeGeos(parts), rimMat);
+    const wm = new THREE.Mesh(SP.ferrisWheelGeo(WH.R, PO), AM);   // (skyprops.js : jantes de métal peint, rayons, entretoises)
     wm.castShadow = !lite; wheel.add(wm);
     // petites lumières sur la jante
     const bulbs = [];
@@ -699,16 +680,17 @@ export function buildSky(game) {
   {
     const legs = [-1, 1].map(sx => ({ geo: new THREE.CylinderGeometry(0.22, 0.3, 9, 8), x: WH.cx + sx * 3.1, y: WH.cy - 4.3, z: WH.cz, rz: sx * 0.12 }));
     sc.add(new THREE.Mesh(M.mergeGeos(legs), M.mat(0x9ad8ff, { roughness: 0.3, emissive: 0x2a5ac0, emissiveIntensity: 0.3 })));
-    const feet = [-1, 1].map(sx => ({ geo: padGeometry(1.4, 450 + sx), x: WH.cx + sx * 3.6, y: WH.cy - 8.6, z: WH.cz }));
-    sc.add(new THREE.Mesh(M.mergeGeos(feet), rockMat));
+    const feet = [-1, 1].map(sx => ({ geo: SP.padGeometry(1.4, 450 + sx, PO), x: WH.cx + sx * 3.6, y: WH.cy - 8.6, z: WH.cz }));
+    sc.add(new THREE.Mesh(SC.mergeAtl(feet), AM));
   }
 
   // --- le Col des Rafales : rochers-abris, haie, manches à air, traînées de vent ----
   {
-    const rocks = S.SHELTERS.map((s, i) => { const g = new THREE.DodecahedronGeometry(s.r * 1.15, 0); g.rotateY(i * 1.3); g.rotateX(0.3); return { geo: paint(g, (c, x, y, z) => { c.set(ROCK_BANDS[(i + Math.floor((y + 1) * 1.5)) % 4]); c.multiplyScalar(0.9 + hash3(x * 3, y * 3, z * 3) * 0.2); }), x: s.x, y: s.base + s.h * 0.45, z: s.z, sx: 1, sy: s.h / (s.r * 2) * 1.1 }; });
-    const rm = new THREE.Mesh(mergeRaw(rocks.map(q => { const g = q.geo.index ? q.geo.toNonIndexed() : q.geo; g.scale(1, q.sy, 1); g.translate(q.x, q.y, q.z); g.computeVertexNormals(); return g; })), islandRock); rm.castShadow = !lite; rm.receiveShadow = true; sc.add(rm);
-    const hedge = S.HEDGE.map((h, i) => ({ geo: paint(new THREE.IcosahedronGeometry(0.85, 1), (c) => c.set(i % 2 ? 0x5aa83e : 0x4a9832)), x: h.x, y: h.y + 0.55, z: h.z, sy: 1.0 }));
-    const hm = new THREE.Mesh(M.mergeGeos(hedge), std({ roughness: 0.95 })); hm.castShadow = true; sc.add(hm);
+    // (skyprops.js : blocs cabossés en roche litée ; haie en feuillage plein de sculpt.js)
+    const rocks = S.SHELTERS.map((s, i) => ({ geo: SP.shelterRockGeo(s.r, s.h, 7 + i * 3, PO), x: s.x, y: s.base - 0.1, z: s.z, ry: i * 1.3 }));
+    const rm = new THREE.Mesh(SC.mergeAtl(rocks), AM); rm.castShadow = !lite; rm.receiveShadow = true; sc.add(rm);
+    const lumps = []; S.HEDGE.forEach((h, i) => { lumps.push([h.x, h.y + 0.55, h.z, 0.8 + (i % 3) * 0.08]); if (i && !lite) { const p = S.HEDGE[i - 1]; lumps.push([(h.x + p.x) / 2, h.y + 0.9, (h.z + p.z) / 2, 0.55]); } });
+    const hm = new THREE.Mesh(SC.foliageVolume(lumps, { lite, seed: 9, tint: [0.95, 1.0, 0.9] }), SC.leafMaterial(lite)); hm.castShadow = true; hm.receiveShadow = true; sc.add(hm);
   }
   const SOCK_AT = [[23.6, -106.2], [33.3, -97.4], [68.6, -104.3]];
   const sockTex = canvasTex(64, 16, (x) => { for (let i = 0; i < 5; i++) { x.fillStyle = i % 2 ? '#ffffff' : '#ff4a3a'; x.fillRect(i * 13, 0, 13, 16); } });
@@ -741,11 +723,7 @@ export function buildSky(game) {
   const bells = S.BELLS.map((b) => {
     const grp = new THREE.Group();
     const roofG = new THREE.ConeGeometry(2.1, 0.9, 4); roofG.rotateY(Math.PI / 4); roofG.scale(1, 1, 0.55);
-    const frame = new THREE.Mesh(M.mergeGeos([
-      ...[-1, 1].map(sx => ({ geo: paint(new THREE.CylinderGeometry(0.12, 0.16, 3.4, 8), 0xb8804a), x: sx * 1.35, y: 1.7 })),
-      { geo: paint(new THREE.BoxGeometry(3.1, 0.22, 0.26), 0xa8703a), y: 3.35 },
-      { geo: paint(roofG, b.color), y: 3.9 },
-    ]), std({ roughness: 0.65 }));
+    const frame = new THREE.Mesh(SP.bellFrameGeo(b.color, PO), AM); void roofG;
     frame.castShadow = !lite; grp.add(frame);
     const swing = new THREE.Group(); swing.position.y = 3.25; grp.add(swing);
     const mat = new THREE.MeshStandardMaterial({ color: b.color, metalness: 0.65, roughness: 0.28, emissive: b.color, emissiveIntensity: 0.05 });
@@ -766,7 +744,7 @@ export function buildSky(game) {
   const orbs = [];
   {
     const stoneG = M.mergeGeos([...[-1, 1].map(sx => ({ geo: new THREE.CylinderGeometry(0.4, 0.5, 4.6, 10), x: sx * 2.8, y: 2.3 })), { geo: new THREE.TorusGeometry(2.8, 0.3, 8, 36, Math.PI), y: 4.6 }]);
-    const stone = new THREE.Mesh(stoneG, M.mat(0xf4ecdc, { roughness: 0.7 })); stone.castShadow = !lite; gate.add(stone);
+    const stone = new THREE.Mesh(SP.stoneGateGeo(PO), AM); stone.castShadow = !lite; gate.add(stone); void stoneG;
     S.BELLS.forEach((b, i) => {
       const a = Math.PI * (0.25 + i * 0.25);
       const o = new THREE.Mesh(new THREE.SphereGeometry(0.42, 16, 12), new THREE.MeshStandardMaterial({ color: 0x8a8a9a, roughness: 0.3, emissive: b.color, emissiveIntensity: 0 }));
@@ -812,19 +790,16 @@ export function buildSky(game) {
 
   // --- les canons à nuages --------------------------------------------------------------
   const targetTex = canvasTex(128, 128, (x) => { for (let i = 0; i < 4; i++) { x.fillStyle = i % 2 ? '#ffffff' : '#e8483a'; x.beginPath(); x.arc(64, 64, 62 - i * 15, 0, 7); x.fill(); } });
+  const cannonBarrel = SP.cannonBarrelGeo(PO), cannonCarriage = SP.cannonCarriageGeo(PO);
   const cannons = S.CANNONS.map((c) => {
     const dx = c.to.x - c.x, dz = c.to.z - c.z, l = Math.hypot(dx, dz), ux = dx / l, uz = dz / l;
     const grp = new THREE.Group();
     const barrel = new THREE.Group();
-    const tube = new THREE.Mesh(M.mergeGeos([
-      { geo: paint(new THREE.CylinderGeometry(0.62, 0.82, 3.0, 20), 0x5a6a8a), z: 0.6, rx: Math.PI / 2 },
-      { geo: paint(new THREE.TorusGeometry(0.66, 0.12, 8, 24), 0xffd23a), z: 2.1 },
-      ...[0, 1, 2].map(k => ({ geo: paint(new THREE.TorusGeometry(0.7 + k * 0.05, 0.06, 6, 24), [0xff7ab0, 0xffe050, 0x6ab8ff][k]), z: -0.4 + k * 0.6 })),
-    ]), std({ metalness: 0.55, roughness: 0.35 }));
+    const tube = new THREE.Mesh(cannonBarrel, AM);
     tube.castShadow = !lite; barrel.add(tube);
     barrel.rotation.x = -0.65; barrel.position.y = 1.3;
     grp.add(barrel);
-    grp.add(new THREE.Mesh(M.mergeGeos([-1, 1].map(sx => ({ geo: new THREE.CylinderGeometry(0.75, 0.75, 0.22, 16), x: sx * 0.95, y: 0.75, z: -0.2, rz: Math.PI / 2 }))), woodMat));
+    { const cg = new THREE.Mesh(cannonCarriage, AM); cg.castShadow = !lite; grp.add(cg); }
     grp.position.set(c.x - ux * 2.4, S.heightAt(c.x - ux * 2.4, c.z - uz * 2.4), c.z - uz * 2.4);
     grp.rotation.y = Math.atan2(ux, uz);
     sc.add(grp);

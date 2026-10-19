@@ -2,7 +2,10 @@
 // Budgets de triangles (téléphone / ordinateur), sommets finis (pas de NaN : ils font des carrés noirs
 // à l'écran avec le flou lumineux), boîtes plausibles (les objets restent dans leurs anciens volumes).
 import assert from 'node:assert';
+import * as THREE from '../public/vendor/three.module.min.js';
 import * as SC from '../public/adventure/sculpt.js';
+import * as PP from '../public/adventure/parkprops.js';
+import * as SP from '../public/adventure/skyprops.js';
 
 let passed = 0;
 const test = (name, fn) => { try { fn(); passed++; console.log('  ✓ ' + name); } catch (e) { console.error('  ✗ ' + name + '\n    ' + e.message); process.exitCode = 1; } };
@@ -59,5 +62,35 @@ test('tentes et maisons-champignons : constructeurs partagés, sommets finis', (
   const Bs = [SC.builder(1), SC.builder(1), SC.builder(1), SC.builder(1)];
   SC.addMushHouse(Bs, { x: 0, z: 0, y: 0, h: 3.4, r: 1.8, capR: 2.8, yaw: 0.4, col: '#e0453a' }, {});
   for (const B of Bs) finite(B.geometry());
+});
+test('atelier : couches connues, assembleur (atl, uv, couleur), fusion des vieilles géométries peintes', () => {
+  assert.ok(SC.ATL.length >= 16 && SC.AL.wood > 0 && SC.AL.feather > 0, 'couches');
+  const K = new SC.AKit();
+  K.add(SC.roundBox(1, 1, 1, 0.1, 1), { l: 'wood', r: 0.6, c: 0xff0000, uv: 'box', t: { x: 2 } });
+  K.add(new THREE.PlaneGeometry(1, 1), { l: 'weave', dbl: true });
+  const g = K.geo(); finite(g); assert.ok(g.attributes.atl, 'atl');
+  const at = g.attributes.atl.array; let wood = 0; for (let i = 0; i < at.length; i += 4) if (at[i] === SC.AL.wood) wood++;
+  assert.ok(wood > 0 && Math.abs(at[1] - 0.6) < 1e-6, 'couche et rugosité');
+  const old = new THREE.BoxGeometry(1, 1, 1); old.setAttribute('color', new THREE.Float32BufferAttribute(new Float32Array(old.attributes.position.count * 3).fill(0.5), 3)); old.deleteAttribute('uv');
+  const m = SC.mergeAtl([{ geo: g }, { geo: old, x: 3 }]); finite(m);
+  assert.strictEqual(m.attributes.atl.count, m.attributes.position.count);
+});
+test('Parc des Toutous : objets faits main finis, budgets, mêmes encombrements', () => {
+  for (const lite of [false, true]) {
+    const sw = PP.swanGeo({ lite }); finite(sw); assert.ok(tris(sw) < (lite ? 4500 : 13000), 'cygne ' + tris(sw));
+    const b = box(sw); assert.ok(b.max.y < 2.6 && b.max.y > 2.2 && b.max.x < 1.3 && b.max.z < 2.0 && b.min.z > -1.7, 'cygne ' + JSON.stringify(b));
+    const be = PP.benchGeo({ lite }); finite(be); assert.ok(box(be).max.x < 1.0 && box(be).max.y < 1.05, 'banc');
+    const f = PP.fountainGeo(3, 0.65, 1.6, { lite }); finite(f); assert.ok(box(f).max.x < 3.4, 'fontaine');
+    for (const g of [PP.locoGeo({ lite }), PP.wagonGeo(0xf0c040, { lite }), PP.carouselTopGeo(5.2, 4, { lite }), PP.horseGeo(0xffffff, { lite }), PP.kioskGeo(4.6, 0.8, 5, { lite }), PP.slideGeo({ top: 3.6, w: 2.6, d: 2.6, len: 6.5 }, 0, { lite }), PP.stationGeo('x', { lite }), PP.treehouseGeo(3.4, { lite })]) { finite(g); assert.ok(tris(g) < (lite ? 12000 : 26000), 'budget ' + tris(g)); }
+    const loco = box(PP.locoGeo({ lite })); assert.ok(loco.max.x < 0.95 && loco.max.z < 2.2 && loco.max.y < 2.8, 'locomotive');
+  }
+});
+test('Îles du Ciel : pierres, nuages, moulin, rochers finis ; budgets', () => {
+  for (const lite of [false, true]) {
+    const p = SP.padGeometry(2.2, 70, { lite }); finite(p); const b = box(p);
+    assert.ok(b.max.y < 0.12 && b.max.y > 0.0 && b.max.x < 2.8, 'pierre ' + JSON.stringify(b));
+    const c = SP.cloudGeometry(2, 5, { lite }); for (const v of c.attributes.position.array) assert.ok(Number.isFinite(v)); assert.ok(tris(c) < (lite ? 2500 : 9000), 'nuage ' + tris(c));
+    for (const g of [SP.millTowerGeo({ r: 1.5, h: 7 }, { lite }), SP.millSailGeo({ lite }), SP.shelterRockGeo(0.8, 2.1, 3, { lite }), SP.stoneGateGeo({ lite }), SP.goalArchGeo({ lite }), SP.cannonBarrelGeo({ lite }), SP.islandLipGeo(0, 0, () => 8, 10, { lite }), SP.rootGeo(2, 3, { lite })]) { finite(g); assert.ok(tris(g) < 12000, 'budget ' + tris(g)); }
+  }
 });
 console.log(passed + ' test(s) réussi(s)');

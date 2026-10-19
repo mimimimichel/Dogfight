@@ -13,6 +13,8 @@ import * as W from './world.js';
 import * as RT from './realtex.js';
 import * as FOL from './foliage.js';
 import * as K from './parkkit.js';
+import * as PP from './parkprops.js';
+import * as SC from './sculpt.js';
 import { buildFlag } from './farmkit.js';
 import { Cinema } from './cinema.js';
 import { buildLife } from './life.js';
@@ -65,15 +67,18 @@ export function buildPark(game) {
   const place = (obj, x, z, r) => { sc.add(obj); cull.push({ obj, x, z, r: r || 6 }); return obj; };
   const TILE = 48, packs = new Map();
   const VM = K.vmat(0.8);
+  // objets faits main (parkprops.js) : une seule matière pour tout le décor (sculpt.js, atelier)
+  const AM = SC.atlasMaterial(lite), PO = { lite };
+  const matOf = (geo) => (geo.attributes.atl ? AM : VM);
   /** Pose une géométrie peinte (repère local) dans le décor. */
   const put = (geo, x, y, z, ry, s) => {
     if (lite) {
       const key = Math.floor(x / TILE) + ',' + Math.floor(z / TILE);
-      if (!packs.has(key)) packs.set(key, new K.Pack());
-      packs.get(key).put(geo, { x, y, z, ry: ry || 0, sx: s || 1 });
+      if (!packs.has(key)) packs.set(key, []);
+      packs.get(key).push({ geo, x, y, z, ry: ry || 0, sx: s || 1 });
       return null;
     }
-    const m = new THREE.Mesh(geo, VM);
+    const m = new THREE.Mesh(geo, matOf(geo));
     m.position.set(x, y, z); m.rotation.y = ry || 0; if (s) m.scale.setScalar(s);
     m.castShadow = m.receiveShadow = true;
     if (!geo.boundingSphere) geo.computeBoundingSphere();
@@ -82,7 +87,7 @@ export function buildPark(game) {
   const flushPacks = () => {
     for (const [key, p] of packs) {
       const [i, j] = key.split(',').map(Number);
-      const mesh = new THREE.Mesh(p.geo(), VM);
+      const mesh = new THREE.Mesh(SC.mergeAtl(p), AM);
       mesh.castShadow = mesh.receiveShadow = true;
       place(mesh, (i + 0.5) * TILE, (j + 0.5) * TILE, TILE * 0.75);
     }
@@ -204,11 +209,11 @@ export function buildPark(game) {
   // les 6 petites lanternes du sommet du chêne : elles s'allument une à une
   const oakLamps = [];
   {
-    const post = K.lanternPostGeo();
+    const post = PP.lanternPostGeo(PO);
     for (let i = 0; i < S.LANTERNS.length; i++) {
       const a = i / S.LANTERNS.length * Math.PI * 2 + 0.3, x = Math.cos(a) * 3.9, z = Math.sin(a) * 3.9;
       const g = new THREE.Group();
-      g.add(new THREE.Mesh(post, VM));
+      g.add(new THREE.Mesh(post, AM));
       const glass = new THREE.Mesh(K.lanternGlassGeo(), new THREE.MeshStandardMaterial({ color: 0x9a9080, emissive: 0x000000, roughness: 0.3, transparent: true, opacity: 0.85 }));
       g.add(glass);
       g.scale.setScalar(0.55);
@@ -234,8 +239,8 @@ export function buildPark(game) {
     door.position.set(0, 0.65, 1.11); kennel.add(door);
     const doorB = new THREE.Mesh(new THREE.PlaneGeometry(1.1, 0.65), door.material);
     doorB.position.set(0, 0.33, 1.11); kennel.add(doorB);
-    const bowl = new THREE.Mesh(new THREE.CylinderGeometry(0.35, 0.25, 0.2, 20), M.mat(0x3a8ae0, { roughness: 0.4 }));
-    bowl.position.set(1.0, 0.1, 1.7); kennel.add(bowl);
+    // (parkprops.js : gamelle émaillée pleine de croquettes, encadrement de porte en bois peint, plaque)
+    const deco = new THREE.Mesh(PP.kennelDecoGeo(PO), AM); deco.castShadow = deco.receiveShadow = true; kennel.add(deco);
     shadowy(kennel);
     kennel.position.set(S.KENNEL.x, H(S.KENNEL.x, S.KENNEL.z), S.KENNEL.z);
     kennel.rotation.y = 0.5;
@@ -245,13 +250,13 @@ export function buildPark(game) {
   // --- L'entrée : fontaine (le moteur fait jaillir l'eau), piédestal des balles ----------
   {
     const F = S.FOUNTAIN;
-    put(K.fountainGeo(F.r, 0.65, 1.6), F.x, F.y, F.z);
+    put(PP.fountainGeo(F.r, 0.65, 1.6, PO), F.x, F.y, F.z);
     const water = new THREE.Mesh(new THREE.CircleGeometry(F.r - 0.2, 32), new THREE.MeshStandardMaterial({ color: 0x5fd0f0, roughness: 0.1, metalness: 0.1, transparent: true, opacity: 0.85 }));
     water.rotation.x = -Math.PI / 2; water.position.set(F.x, F.y + 0.5, F.z); water.userData.noOutline = true;
     sc.add(water);
     game.fallPos = new THREE.Vector3(F.x - 1, F.y + 2.1, F.z);
     // bancs et parterres de fleurs autour
-    for (const [dx, dz, ry] of [[-6, 4, 0.6], [6, 4, -0.6], [-6.5, -3, 2.2], [6.5, -3, -2.2]]) put(K.benchGeo(), F.x + dx, H(F.x + dx, F.z + dz), F.z + dz, ry);
+    for (const [dx, dz, ry] of [[-6, 4, 0.6], [6, 4, -0.6], [-6.5, -3, 2.2], [6.5, -3, -2.2]]) put(PP.benchGeo(PO), F.x + dx, H(F.x + dx, F.z + dz), F.z + dz, ry);
   }
   game.pedestal = M.buildPedestal();
   game.pedestal.position.set(S.PEDESTAL.x, S.PEDESTAL.y, S.PEDESTAL.z);
@@ -276,10 +281,8 @@ export function buildPark(game) {
     for (let i = 0; i < 6; i++) { const a = i / 6 * Math.PI * 2; tk.add(new THREE.SphereGeometry(0.9, 10, 8), i % 2 ? 0x6ab840 : 0x5aa838, { x: Math.cos(a) * 0.9, y: 2.6 - (i % 2) * 0.3, z: Math.sin(a) * 0.9, sy: 1.3 }); }
     put(tk.geo(), I.x - 1.4, I.top, I.z + 1.2);
     // le ponton
-    const J = S.JETTY, pk = new K.Kit(), len = J.x0 - J.x1;
-    for (let i = 0; i < Math.round(len / 0.5); i++) pk.add(new THREE.BoxGeometry(0.44, 0.12, J.w), i % 2 ? 0xa87a4a : 0x9a6e40, { x: J.x1 + 0.25 + i * 0.5, y: J.top - 0.06 });
-    for (const sz of [-1, 1]) for (const x of [J.x1 + 0.3, (J.x0 + J.x1) / 2, J.x0 - 0.3]) pk.add(new THREE.CylinderGeometry(0.1, 0.1, 3, 8), 0x6a4a2a, { x, y: J.top - 1.4, z: sz * (J.w / 2 - 0.1) });
-    put(pk.geo(), 0, 0, J.z);
+    const J = S.JETTY;
+    put(PP.jettyGeo(J, PO), 0, 0, J.z);
     // roseaux et nénuphars (instanciés)
     const r = rng(41), reeds = [], lilies = [];
     for (let i = 0; i < 600 && reeds.length < (lite ? 14 : 30); i++) {
@@ -309,18 +312,18 @@ export function buildPark(game) {
   duckI.frustumCulled = false; duckI.castShadow = true; sc.add(duckI); moving.push(duckI);
 
   // --- Les pédalos-cygnes ----------------------------------------------------------------
-  const swanGeo = K.swanGeo();
+  const swanGeo = PP.swanGeo(PO);
   const boats = S.BOATS.map((b) => {
-    const m = new THREE.Mesh(swanGeo, VM); shadowy(m); sc.add(m); moving.push(m);
+    const m = new THREE.Mesh(swanGeo, AM); shadowy(m); sc.add(m); moving.push(m);
     return { id: b.id, x: b.x, z: b.z, yaw: b.yaw, speed: 0, driver: -1, m, home: { x: b.x, z: b.z, yaw: b.yaw } };
   });
 
   // --- Le kiosque à musique --------------------------------------------------------------
   {
     const Kk = S.KIOSK;
-    put(K.kioskGeo(Kk.r, Kk.floor - Kk.y, Kk.roof - Kk.y), Kk.x, Kk.y, Kk.z);
-    S.KIOSK_STEPS.forEach((s, i) => put(K.bandCrateGeo(s.w, s.top - s.y + 0.4, [0xe05a3a, 0x3a8ae0, 0xf0c040][i]), s.x, s.y - 0.4, s.z, i * 0.4));
-    put(K.drumGeo(), Kk.x - 1.5, Kk.floor, Kk.z - 1.2); put(K.drumGeo(), Kk.x + 1.2, Kk.floor, Kk.z - 1.8, 0, 0.7);
+    put(PP.kioskGeo(Kk.r, Kk.floor - Kk.y, Kk.roof - Kk.y, PO), Kk.x, Kk.y, Kk.z);
+    S.KIOSK_STEPS.forEach((s, i) => put(PP.bandCrateGeo(s.w, s.top - s.y + 0.4, [0xe05a3a, 0x3a8ae0, 0xf0c040][i], PO), s.x, s.y - 0.4, s.z, i * 0.4));
+    { const dg = PP.drumGeo(PO); put(dg, Kk.x - 1.5, Kk.floor, Kk.z - 1.2); put(dg, Kk.x + 1.2, Kk.floor, Kk.z - 1.8, 0, 0.7); }
   }
 
   // --- Le manège -------------------------------------------------------------------------
@@ -328,12 +331,12 @@ export function buildPark(game) {
   const horses = [];
   {
     const C = S.CAROUSEL, fh = C.floor - C.y;
-    put(K.carouselBaseGeo(C.r, fh), C.x, C.y, C.z);
-    const top = new THREE.Mesh(K.carouselTopGeo(C.r, 4.0), VM);
+    put(PP.carouselBaseGeo(C.r, fh, PO), C.x, C.y, C.z);
+    const top = new THREE.Mesh(PP.carouselTopGeo(C.r, 4.0, PO), AM);
     carousel.add(top);
     const cols = [0xffffff, 0xf6c8a0, 0xb0d8ff, 0xffe0f0, 0xd8b0ff, 0xfff0a0];
     for (let i = 0; i < 6; i++) {
-      const h = new THREE.Mesh(K.horseGeo(cols[i]), VM);
+      const h = new THREE.Mesh(PP.horseGeo(cols[i], PO), AM);
       const a = i / 6 * Math.PI * 2;
       h.position.set(Math.cos(a) * (C.r - 1.6), 1.3, Math.sin(a) * (C.r - 1.6));
       h.rotation.y = -a;                // tête dans le sens de la rotation
@@ -348,23 +351,23 @@ export function buildPark(game) {
   const swingSeats = [];
   {
     const PG = S.PLAYGROUND, g = PG.y;
-    put(K.slideGeo(S.SLIDE, g), S.SLIDE.x, g, S.SLIDE.z);
-    S.SLIDE_STEPS.forEach((s, i) => put(K.stepGeo(s.w, s.top - g + 0.3, s.d, [0xe03a3a, 0xf0c040, 0x3a8ae0][i]), s.x, g - 0.3, s.z));
-    put(K.swingFrameGeo(), S.SWINGS.x, g, S.SWINGS.z);
+    put(PP.slideGeo(S.SLIDE, g, PO), S.SLIDE.x, g, S.SLIDE.z);
+    S.SLIDE_STEPS.forEach((s, i) => put(PP.stepGeo(s.w, s.top - g + 0.3, s.d, [0xe03a3a, 0xf0c040, 0x3a8ae0][i], PO), s.x, g - 0.3, s.z));
+    put(PP.swingFrameGeo(PO), S.SWINGS.x, g, S.SWINGS.z);
     for (const [i, sx] of [[0, -1.2], [1, 1.2]]) {
-      const seat = new THREE.Mesh(K.swingSeatGeo(i ? 0xe03a6a : 0x3ab0e0), VM);
+      const seat = new THREE.Mesh(PP.swingSeatGeo(i ? 0xe03a6a : 0x3ab0e0, PO), AM);
       seat.position.set(S.SWINGS.x + sx, g + 2.95, S.SWINGS.z);
       shadowy(seat); place(seat, seat.position.x, seat.position.z, 4); moving.push(seat);
       swingSeats.push({ m: seat, a: 0, x: S.SWINGS.x + sx, y: g + 2.95, z: S.SWINGS.z, rider: -1 });
     }
-    put(K.seesawToyGeo(), PG.x - 2, g, PG.z + 12, 0.4);
+    put(PP.seesawToyGeo(PO), PG.x - 2, g, PG.z + 12, 0.4);
     // le bac à sable : sable, bordure de rondins, seau et pelle, petits tas
     const SP = S.SANDPIT;
     const sand = new THREE.Mesh(new THREE.CircleGeometry(SP.r, 36), new THREE.MeshStandardMaterial({ color: 0xf0d89c, roughness: 1, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2 }));
     sand.rotation.x = -Math.PI / 2; sand.position.set(SP.x, H(SP.x, SP.z) + 0.04, SP.z); sand.receiveShadow = true; sand.userData.noOutline = true;
     place(sand, SP.x, SP.z, SP.r);
-    put(K.sandBorderGeo(SP.r), SP.x, H(SP.x, SP.z), SP.z);
-    put(K.bucketGeo(), SP.x - 2.5, H(SP.x, SP.z) + 0.05, SP.z + 2, 1.2);
+    put(PP.sandBorderGeo(SP.r, PO), SP.x, H(SP.x, SP.z), SP.z);
+    put(PP.bucketGeo(PO), SP.x - 2.5, H(SP.x, SP.z) + 0.05, SP.z + 2, 1.2);
     for (const [dx, dz] of [[-3, -2], [2.6, 3]]) { const k = new K.Kit(); k.add(new THREE.SphereGeometry(0.6, 12, 8), 0xe8cc88, { sy: 0.4 }); put(k.geo(), SP.x + dx, H(SP.x, SP.z), SP.z + dz); }
   }
 
@@ -374,13 +377,13 @@ export function buildPark(game) {
     const cols = [[0xe03a3a, 0xffffff], [0x3a8ae0, 0xffffff], [0xf0c040, 0xffffff]];
     [[-4, -2, 0.3], [4, 3, -0.5], [-2, 6, 1.2]].forEach(([dx, dz, ry], i) => {
       const x = P.x + dx, z = P.z + dz, y = H(x, z) + 0.03;
-      put(K.blanketGeo(cols[i][0], cols[i][1]), x, y, z, ry);
-      put(K.basketGeo(), x + 0.6, y, z - 0.4, ry);
-      put(K.sandwichGeo(), x - 0.5, y, z + 0.3, ry);
+      put(PP.blanketGeo(cols[i][0], cols[i][1], PO), x, y - 0.02, z, ry);
+      put(PP.basketGeo(PO), x + 0.6, y, z - 0.4, ry);
+      put(PP.sandwichGeo(PO), x - 0.5, y, z + 0.3, ry);
     });
-    put(K.parasolGeo(0xe03a3a), P.x - 2.5, H(P.x - 2.5, P.z - 4), P.z - 4);
-    put(K.parasolGeo(0x3a8ae0), P.x + 6, H(P.x + 6, P.z + 1), P.z + 1);
-    for (const [dx, dz, ry] of [[8, -4, -1], [-8, 2, 1.5]]) put(K.benchGeo(), P.x + dx, H(P.x + dx, P.z + dz), P.z + dz, ry);
+    put(PP.parasolGeo(0xe03a3a, PO), P.x - 2.5, H(P.x - 2.5, P.z - 4), P.z - 4);
+    put(PP.parasolGeo(0x3a8ae0, PO), P.x + 6, H(P.x + 6, P.z + 1), P.z + 1);
+    for (const [dx, dz, ry] of [[8, -4, -1], [-8, 2, 1.5]]) put(PP.benchGeo(PO), P.x + dx, H(P.x + dx, P.z + dz), P.z + dz, ry);
   }
 
   // --- Le terrain d'agility --------------------------------------------------------------
@@ -393,18 +396,18 @@ export function buildPark(game) {
   {
     const A = S.AGILITY;
     for (const o of S.COURSE) {
-      if (o.type === 'hurdle') put(K.hurdleGeo(o.half), o.x, o.y, o.z);
-      else if (o.type === 'tunnel') put(K.tunnelGeo(o.len, 1.05), o.x, o.y + 0.9, o.z);
-      else if (o.type === 'weave') for (const p of o.poles) put(K.weavePoleGeo(), p.x, H(p.x, p.z), p.z);
+      if (o.type === 'hurdle') put(PP.hurdleGeo(o.half, PO), o.x, o.y, o.z);
+      else if (o.type === 'tunnel') put(PP.tunnelGeo(o.len, 1.05, PO), o.x, o.y + 0.9, o.z);
+      else if (o.type === 'weave') { const wg = PP.weavePoleGeo(PO); for (const p of o.poles) put(wg, p.x, H(p.x, p.z), p.z); }
       else if (o.type === 'seesaw') {
-        put(K.seesawBaseGeo(), o.cx, o.y, o.z);
-        seesawPlank = new THREE.Mesh(K.seesawPlankGeo(o.len), VM);
+        put(PP.seesawBaseGeo(PO), o.cx, o.y, o.z);
+        seesawPlank = new THREE.Mesh(PP.seesawPlankGeo(o.len, PO), AM);
         seesawPlank.position.set(o.cx, o.top - 0.06, o.z); shadowy(seesawPlank); place(seesawPlank, o.cx, o.z, 5); moving.push(seesawPlank);
-      } else if (o.type === 'tire') put(K.tireGeo(o.cy - o.y), o.x, o.y, o.z);
-      else if (o.type === 'table') put(K.tableGeo(o.w, o.top - o.y), o.x, o.y, o.z);
-      else if (o.type === 'finish') put(K.archGeo(o.half), o.x, o.y, o.z);
+      } else if (o.type === 'tire') put(PP.tireGeo(o.cy - o.y, PO), o.x, o.y, o.z);
+      else if (o.type === 'table') put(PP.tableGeo(o.w, o.top - o.y, PO), o.x, o.y, o.z);
+      else if (o.type === 'finish') put(PP.archGeo(o.half, '', PO), o.x, o.y, o.z);
     }
-    put(K.podiumGeo(S.PODIUM.w, S.PODIUM.top - H(S.PODIUM.x, S.PODIUM.z) + 0.3), S.PODIUM.x, H(S.PODIUM.x, S.PODIUM.z) - 0.3, S.PODIUM.z);
+    put(PP.podiumGeo(S.PODIUM.w, S.PODIUM.top - H(S.PODIUM.x, S.PODIUM.z) + 0.3, PO), S.PODIUM.x, H(S.PODIUM.x, S.PODIUM.z) - 0.3, S.PODIUM.z);
     // une clôture basse tout autour (ouverte à l'ouest, du côté de Gaston)
     const x0 = A.x - A.hw, x1 = A.x + A.hw, z0 = A.z - A.hd, z1 = A.z + A.hd;
     for (const [cx, cz, len, ry] of [[A.x, z0, A.hw * 2, 0], [A.x, z1, A.hw * 2, 0], [x1, A.z, A.hd * 2, Math.PI / 2], [x0, z0 + 5, 10, Math.PI / 2], [x0, z1 - 5, 10, Math.PI / 2]]) {
@@ -412,7 +415,7 @@ export function buildPark(game) {
       for (let i = 0; i < n; i++) {
         const f = -len / 2 + (i + 0.5) * len / n;
         const x = cx + (ry ? 0 : f), z = cz + (ry ? f : 0);
-        put(K.lowFenceGeo(len / n), x, H(x, z), z, ry);
+        put(PP.lowFenceGeo(len / n, PO), x, H(x, z), z, ry);
       }
     }
     // Gaston, l'entraîneur
@@ -424,14 +427,10 @@ export function buildPark(game) {
 
   // --- Le belvédère : estrade, longue-vue, bancs, rambarde -------------------------------
   {
-    const D = S.DECK, k = new K.Kit();
-    k.add(new THREE.BoxGeometry(D.w, 0.5, D.d), (x, y, z, c) => c.set(Math.floor((x + 9) * 2) % 2 ? 0xb07a48 : 0xa06a3a), { y: -0.25 });
-    for (const sx of [-1, 1]) k.add(new THREE.BoxGeometry(0.1, 0.1, D.d), 0x8a5a30, { x: sx * D.w / 2, y: 0.85 });
-    k.add(new THREE.BoxGeometry(D.w, 0.1, 0.1), 0x8a5a30, { y: 0.85, z: -D.d / 2 });
-    for (let i = 0; i <= 8; i++) k.add(new THREE.CylinderGeometry(0.05, 0.05, 0.9, 5), 0x8a5a30, { x: -D.w / 2 + i * D.w / 8, y: 0.45, z: -D.d / 2 });
-    put(k.geo(), D.x, D.top, D.z);
-    put(K.telescopeGeo(), S.TELESCOPE.x, D.top, S.TELESCOPE.z, Math.PI);
-    put(K.benchGeo(), D.x - 1.5, D.top, D.z + 1.5, 0);
+    const D = S.DECK;
+    put(PP.deckGeo(D, PO), D.x, D.top, D.z);
+    put(PP.telescopeGeo(PO), S.TELESCOPE.x, D.top, S.TELESCOPE.z, Math.PI);
+    put(PP.benchGeo(PO), D.x - 1.5, D.top, D.z + 1.5, 0);
   }
 
   // --- Le labyrinthe fleuri et le jardin secret : des haies ---------------------------------
@@ -471,31 +470,22 @@ export function buildPark(game) {
     bi.castShadow = bi.receiveShadow = true; bi.customDepthMaterial = CLg ? CLg.depth : W.leafDepthMaterial();
     place(bi, S.GARDEN.x, S.GARDEN.z, S.GARDEN.r + 4);
     // dans le jardin : une fontaine, une statue de chien, des fleurs
-    put(K.fountainGeo(1.4, 0.7, 0.6), S.GARDEN.x, S.GARDEN.y, S.GARDEN.z);
-    put(K.statueGeo(), S.GARDEN.x - 4, H(S.GARDEN.x - 4, S.GARDEN.z - 3), S.GARDEN.z - 3, 0.8);
-    put(K.benchGeo(), S.GARDEN.x + 4, H(S.GARDEN.x + 4, S.GARDEN.z + 2), S.GARDEN.z + 2, -2.2);
+    put(PP.fountainGeo(1.4, 0.7, 0.6, { lite, water: true }), S.GARDEN.x, S.GARDEN.y, S.GARDEN.z);
+    put(PP.statueGeo(PO), S.GARDEN.x - 4, H(S.GARDEN.x - 4, S.GARDEN.z - 3), S.GARDEN.z - 3, 0.8);
+    put(PP.benchGeo(PO), S.GARDEN.x + 4, H(S.GARDEN.x + 4, S.GARDEN.z + 2), S.GARDEN.z + 2, -2.2);
     // une arche fleurie à l'entrée du labyrinthe
-    const I = S.MAZE_INFO, ak = new K.Kit();
-    for (const sx of [-1, 1]) ak.add(new THREE.CylinderGeometry(0.15, 0.15, 3, 8), 0xffffff, { x: sx * 2, y: 1.5 });
-    ak.add(new THREE.TorusGeometry(2, 0.18, 8, 20, Math.PI), 0xffffff, { y: 3 });
-    for (let i = 0; i < 12; i++) { const a = i / 11 * Math.PI; ak.add(new THREE.SphereGeometry(0.22, 8, 6), [0xff8ab8, 0xfff070, 0xc89aff][i % 3], { x: Math.cos(a) * 2, y: 3 + Math.sin(a) * 2, z: 0.15 }); }
-    put(ak.geo(), I.x0 + I.N * I.C / 2, H(I.x0 + I.N * I.C / 2, I.z0 + I.N * I.C), I.z0 + I.N * I.C);
+    const I = S.MAZE_INFO;
+    put(PP.flowerArchGeo(PO), I.x0 + I.N * I.C / 2, H(I.x0 + I.N * I.C / 2, I.z0 + I.N * I.C), I.z0 + I.N * I.C);
   }
 
   // --- La cabane perchée ----------------------------------------------------------------------
   {
     const T = S.TREEHOUSE, g = T.y;
-    const bark = M.mat(0x7a5030, { roughness: 0.95 });
-    const trunk = new THREE.Mesh(new THREE.CylinderGeometry(1.0, 1.5, S.TH_DECK.top + 4 - g, 16), bark);
+    const trunk = new THREE.Mesh(PP.trunkGeo(1.0, 1.5, S.TH_DECK.top + 4 - g, PO), AM);
     trunk.position.set(T.x, (S.TH_DECK.top + 4 + g) / 2 - 0.5, T.z); shadowy(trunk);
     place(trunk, T.x, T.z, 10);
-    const k = new K.Kit();
-    for (const s of S.TH_STEPS) {
-      k.add(new THREE.CylinderGeometry(s.r, s.r * 0.9, 0.35, 14), (x, y, z, c) => c.set(y > 0.1 ? 0xc89a68 : 0x8a5a30), { x: s.x - T.x, y: s.top - 0.18 - g, z: s.z - T.z });
-      k.add(new THREE.CylinderGeometry(0.15, 0.22, 2.0, 8), 0x7a5030, { x: (s.x - T.x) * 0.62, y: s.top - 0.6 - g, z: (s.z - T.z) * 0.62, ry: -s.a, rz: Math.PI / 2 + 0.4 });
-    }
-    put(k.geo(), T.x, g, T.z);
-    put(K.treehouseGeo(S.TH_DECK.r), T.x, S.TH_DECK.top, T.z, 0.4);
+    put(PP.treeStepsGeo(S.TH_STEPS, T, g, PO), T.x, g, T.z);
+    put(PP.treehouseGeo(S.TH_DECK.r, PO), T.x, S.TH_DECK.top, T.z, 0.4);
     const blobs = [];
     for (let i = 0; i < 9; i++) { const a = i / 9 * Math.PI * 2; blobs.push([T.x + Math.cos(a) * 3.2, S.TH_DECK.top + 4.2 + (i % 3) * 0.5, T.z + Math.sin(a) * 3.2, 1.8]); }
     blobs.push([T.x, S.TH_DECK.top + 5.6, T.z, 2.6]);
@@ -544,15 +534,16 @@ export function buildPark(game) {
     };
     S.RABBIT_ROCKS.forEach((k, i) => rock(k.x, k.z, k.r, k.top, 90 + i));
     rock(S.COVE_ROCK.x, S.COVE_ROCK.z, S.COVE_ROCK.r, S.COVE_ROCK.top, 99, Math.min(0, S.COVE_ROCK.y) - 1);
-    put(K.rowboatGeo(), S.ROWBOAT.x, H(S.ROWBOAT.x, S.ROWBOAT.z), S.ROWBOAT.z, S.ROWBOAT.yaw);
+    put(PP.rowboatGeo(PO), S.ROWBOAT.x, H(S.ROWBOAT.x, S.ROWBOAT.z), S.ROWBOAT.z, S.ROWBOAT.yaw);
     // coquillages sur la plage
     const sk = new K.Kit(), r = rng(5);
     for (let i = 0; i < 14; i++) { const a = r() * 6.28, d = 3 + r() * 10; sk.add(new THREE.SphereGeometry(0.12, 6, 4), [0xffd8c8, 0xfff0e0, 0xffb8a8][i % 3], { x: Math.cos(a) * d, y: 0, z: Math.sin(a) * d, sy: 0.4 }); }
     put(sk.geo(), S.COVE.x, Math.max(0.05, H(S.COVE.x, S.COVE.z)), S.COVE.z);
     // le Bois des Écureuils : un tronc creux, des champignons
     const Wd = S.WOODS;
-    put(K.logGeo(), Wd.x + 3, H(Wd.x + 3, Wd.z + 3), Wd.z + 3, 0.7);
-    for (let i = 0; i < 9; i++) { const a = i * 0.7, d = 2 + (i % 3) * 2.5; const x = Wd.x + Math.cos(a) * d, z = Wd.z + Math.sin(a) * d; put(K.mushroomGeo(), x, H(x, z), z, a, 0.8 + (i % 3) * 0.3); }
+    put(PP.logGeo(PO), Wd.x + 3, H(Wd.x + 3, Wd.z + 3), Wd.z + 3, 0.7);
+    const mg = PP.mushroomGeo(PO);
+    for (let i = 0; i < 9; i++) { const a = i * 0.7, d = 2 + (i % 3) * 2.5; const x = Wd.x + Math.cos(a) * d, z = Wd.z + Math.sin(a) * d; put(mg, x, H(x, z), z, a, 0.8 + (i % 3) * 0.3); }
   }
   // lapins (instanciés)
   const rabbits = [];
@@ -568,8 +559,7 @@ export function buildPark(game) {
   {
     const P = S.TRACK.pts, T = S.TRACK.total;
     const nS = Math.floor(T / 1.1);
-    const sk = new K.Kit(); sk.add(new THREE.BoxGeometry(2.0, 0.14, 0.32), 0x7a5a3a, { y: 0.07 });
-    const sleepers = new THREE.InstancedMesh(sk.geo(), VM, nS);
+    const sleepers = new THREE.InstancedMesh(PP.sleeperGeo(), AM, nS);
     for (let i = 0; i < nS; i++) { const p = S.trackAt(i * 1.1); m4.compose(v3.set(p.x, p.y - 0.1, p.z), q.setFromEuler(e.set(0, p.yaw, 0)), sv.set(1, 1, 1)); sleepers.setMatrixAt(i, m4); }
     sleepers.receiveShadow = true; sleepers.userData.noOutline = true; sc.add(sleepers);
     const rk = new K.Kit(); for (const sx of [-0.72, 0.72]) rk.add(new THREE.BoxGeometry(0.1, 0.12, 1), 0x9aa0aa, { x: sx, y: 0.2 });
@@ -577,7 +567,7 @@ export function buildPark(game) {
     P.forEach((p, i) => { const q2 = P[(i + 1) % P.length], len = Math.hypot(q2.x - p.x, q2.z - p.z); m4.compose(v3.set((p.x + q2.x) / 2, (p.y + q2.y) / 2 - 0.1, (p.z + q2.z) / 2), q.setFromEuler(e.set(Math.atan2(p.y - q2.y, len), p.yaw, 0, 'YXZ')), sv.set(1, 1, len + 0.05)); rails.setMatrixAt(i, m4); });
     rails.userData.noOutline = true; sc.add(rails);
     for (const st0 of S.STATIONS) {
-      put(K.stationGeo(st0.name), st0.x, st0.y, st0.z, Math.atan2(st0.tx - st0.x, st0.tz - st0.z));
+      put(PP.stationGeo(st0.name, PO), st0.x, st0.y, st0.z, Math.atan2(st0.tx - st0.x, st0.tz - st0.z));
       // le panneau de la gare, tourné vers la voie
       const b = K.nameBoard(st0.name, 1.8);
       b.rotation.y = Math.atan2(st0.tx - st0.x, st0.tz - st0.z);
@@ -585,13 +575,14 @@ export function buildPark(game) {
       place(b, st0.x, st0.z, 4);
     }
   }
-  const trainCars = [K.locoGeo(), K.wagonGeo(0xf0c040), K.wagonGeo(0x3a8ae0)].map((g) => { const m = new THREE.Mesh(g, VM); shadowy(m); sc.add(m); moving.push(m); return m; });
+  const trainCars = [PP.locoGeo(PO), PP.wagonGeo(0xf0c040, PO), PP.wagonGeo(0x3a8ae0, PO)].map((g) => { const m = new THREE.Mesh(g, AM); shadowy(m); sc.add(m); moving.push(m); return m; });
   const CAR_GAP = [0, 3.3, 6.2];
 
   // --- Lanternes magiques ---------------------------------------------------------------------
+  const lanternPost = PP.lanternPostGeo(PO);
   const lanterns = S.LANTERNS.map((l) => {
     const g = new THREE.Group();
-    g.add(new THREE.Mesh(K.lanternPostGeo(), VM));
+    g.add(new THREE.Mesh(lanternPost, AM));
     const glass = new THREE.Mesh(K.lanternGlassGeo(), new THREE.MeshStandardMaterial({ color: 0x8a8478, emissive: 0x000000, roughness: 0.3, transparent: true, opacity: 0.9 }));
     g.add(glass);
     g.position.set(l.x, l.y, l.z);
@@ -632,7 +623,7 @@ export function buildPark(game) {
       for (let d = 14; d < len - 8; d += 30) {
         const side = r() < 0.5 ? -1 : 1, x = ax + dx * d - dz * 3.2 * side, z = az + dz * d + dx * 3.2 * side;
         if (S.near(x, z, 1.5).some(c => !c.off && S.inside(c, x, z, 1.2)) || S.inWater(x, z, 0.5)) continue;
-        put(K.benchGeo(), x, H(x, z), z, Math.atan2(dz * side, -dx * side));
+        put(PP.benchGeo(PO), x, H(x, z), z, Math.atan2(dz * side, -dx * side));
       }
     }
   }
