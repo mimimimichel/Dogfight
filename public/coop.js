@@ -57,16 +57,21 @@
    * Chaque côté donne des nouvelles au moins toutes les secondes : un lien muet depuis
    * 10 s est considéré comme coupé (sinon un ami parti en rechargeant la page restait là).
    */
-  const QUIET_MS = 10000;
+  // Un téléphone qui charge un monde ne répond plus pendant de longues secondes : on lui
+  // laisse du temps (surtout avant son arrivée), et un côté lui-même figé ne juge personne.
+  const QUIET_MS = 45000;
+  const JOIN_GRACE_MS = 90000;
   class Link {
     constructor(peer, conn, isHost, ownsPeer) {
       this.peer = peer; this.conn = conn; this.isHost = isHost; this.ownsPeer = ownsPeer;
       this.handler = null; this.queue = []; this.onclose = null; this.closed = false;
-      this.heardAt = this.sentAt = Date.now();
+      this.heardAt = this.sentAt = this.beatAt = Date.now();
+      this.steady = 0; this.talked = false;   // son jeu tourne (il envoie ses commandes ou l'état du monde)
       conn.on('data', (d) => {
         this.heardAt = Date.now();
         let m; try { m = JSON.parse(d); } catch (e) { return; }
         if (m.t === 'ka') return;
+        if ((m.t === 'in' || m.t === 's') && ++this.steady > 40) this.talked = true;   // son jeu tourne vraiment (premières images passées)
         if (this.handler) this.handler(m);
         else if (this.queue.length < 50) this.queue.push(m);   // gardés jusqu'à ce que le jeu soit prêt
       });
@@ -78,7 +83,11 @@
       this.beat = setInterval(() => {
         if (this.closed) { clearInterval(this.beat); return; }
         const now = Date.now();
-        if (now - this.heardAt > QUIET_MS) { this.dropped = true; try { conn.close(); } catch (e) { /* ignore */ } end(); return; }
+        // notre propre page était figée (chargement d'un monde) : les messages de l'autre
+        // attendent encore d'être lus, on ne conclut rien
+        if (now - this.beatAt > 3000) this.heardAt = now;
+        this.beatAt = now;
+        if (now - this.heardAt > (this.talked ? QUIET_MS : JOIN_GRACE_MS)) { this.dropped = true; try { conn.close(); } catch (e) { /* ignore */ } end(); return; }
         if (now - this.sentAt > 900) this.send({ t: 'ka' });
       }, 1000);
     }

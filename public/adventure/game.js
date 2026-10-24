@@ -1519,6 +1519,7 @@ class Adventure {
   linkJoined(link) {
     if (this.disposed) return;
     link.pid = undefined;
+    link.talked = false; link.steady = 0;   // il recharge le monde : on lui laisse le temps d'arriver
     link.onmessage = (m) => this.onLinkMessage(link, m);
     link.onclose = () => this.onLinkClose(link);
     link.send({ t: 'level', id: L.ID });   // si l'hôte vient de changer de niveau, l'ami suit
